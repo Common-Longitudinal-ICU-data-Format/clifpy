@@ -4,8 +4,9 @@ import pandas as pd
 import argparse
 
 def generate_table_jsons(mcide_dir, json_dir):
+    os.makedirs(json_dir, exist_ok=True)
     # Load the all_tables.json
-    with open(os.path.join(mcide_dir, "all_tables.json"), "r") as f:
+    with open(os.path.join(json_dir, "all_tables.json"), "r") as f:
         all_tables = json.load(f)
 
     # Ensure output directory exists

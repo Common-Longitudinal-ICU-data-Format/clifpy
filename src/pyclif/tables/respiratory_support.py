@@ -34,3 +34,6 @@ class RespiratorySupport:
         # Using the waterfall logic previously mentioned
         self.df = process_resp_support(self.df)
         self.get_duckdb_register()
+
+    def waterfall(self):
+        pass
