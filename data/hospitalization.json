@@ -1,0 +1,150 @@
+{
+    "table_name": "hospitalization",
+    "columns": [
+        {
+            "name": "patient_id",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "hospitalization_id",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "hospitalization_joined_id",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "admission_dttm",
+            "data_type": "DATETIME",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "discharge_dttm",
+            "data_type": "DATETIME",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "age_at_admission",
+            "data_type": "INTEGER",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "admission_type_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "admission_type_category",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": true,
+            "is_group_column": false,
+            "permissible_values": []
+        },
+        {
+            "name": "discharge_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "discharge_category",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": true,
+            "is_group_column": false,
+            "permissible_values": []
+        },
+        {
+            "name": "zipcode_nine_digit",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "zipcode_five_digit",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "census_block_code",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "census_block_group_code",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "census_tract",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "state_code",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "county_code",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        }
+    ],
+    "required_columns": [
+        "patient_id",
+        "hospitalization_id",
+        "hospitalization_joined_id",
+        "admission_dttm",
+        "discharge_dttm",
+        "age_at_admission",
+        "admission_type_name",
+        "admission_type_category",
+        "discharge_name",
+        "discharge_category",
+        "zipcode_nine_digit",
+        "zipcode_five_digit",
+        "census_block_code",
+        "census_block_group_code",
+        "census_tract",
+        "state_code",
+        "county_code"
+    ],
+    "category_columns": [
+        "admission_type_category",
+        "discharge_category"
+    ],
+    "group_columns": []
+}

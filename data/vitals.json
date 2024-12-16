@@ -1,0 +1,70 @@
+{
+    "table_name": "vitals",
+    "columns": [
+        {
+            "name": "hospitalization_id",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "recorded_dttm",
+            "data_type": "DATETIME",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "vital_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "vital_category",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": true,
+            "is_group_column": false,
+            "permissible_values": [
+                "sbp",
+                "dbp",
+                "map",
+                "respiratory_rate",
+                "temp_c",
+                "weight_kg",
+                "height_in",
+                "spo2",
+                "heart_rate"
+            ]
+        },
+        {
+            "name": "vital_value",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "meas_site_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        }
+    ],
+    "required_columns": [
+        "hospitalization_id",
+        "recorded_dttm",
+        "vital_name",
+        "vital_category",
+        "vital_value",
+        "meas_site_name"
+    ],
+    "category_columns": [
+        "vital_category"
+    ],
+    "group_columns": []
+}

@@ -26,3 +26,5 @@ c.hospitalization.validate()
 ```
 
 ## Documentation
+
+### For contributors

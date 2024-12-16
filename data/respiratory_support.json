@@ -1,0 +1,214 @@
+{
+    "table_name": "respiratory_support",
+    "columns": [
+        {
+            "name": "hospitalization_id",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "recorded_dttm",
+            "data_type": "DATETIME",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "device_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "device_category",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": true,
+            "is_group_column": false,
+            "permissible_values": []
+        },
+        {
+            "name": "vent_brand_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "mode_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "mode_category",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": true,
+            "is_group_column": false,
+            "permissible_values": []
+        },
+        {
+            "name": "tracheostomy",
+            "data_type": "BOOLEAN",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "fio2_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "lpm_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "tidal_volume_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "resp_rate_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "pressure_control_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "pressure_support_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "flow_rate_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "peak_inspiratory_pressure_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "inspiratory_time_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "peep_set",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "tidal_volume_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "resp_rate_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "plateau_pressure_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "peak_inspiratory_pressure_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "peep_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "minute_vent_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "mean_airway_pressure_obs",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        }
+    ],
+    "required_columns": [
+        "hospitalization_id",
+        "recorded_dttm",
+        "device_name",
+        "device_category",
+        "vent_brand_name",
+        "mode_name",
+        "mode_category",
+        "tracheostomy",
+        "fio2_set",
+        "lpm_set",
+        "tidal_volume_set",
+        "resp_rate_set",
+        "pressure_control_set",
+        "pressure_support_set",
+        "flow_rate_set",
+        "peak_inspiratory_pressure_set",
+        "inspiratory_time_set",
+        "peep_set",
+        "tidal_volume_obs",
+        "resp_rate_obs",
+        "plateau_pressure_obs",
+        "peak_inspiratory_pressure_obs",
+        "peep_obs",
+        "minute_vent_obs",
+        "mean_airway_pressure_obs"
+    ],
+    "category_columns": [
+        "device_category",
+        "mode_category"
+    ],
+    "group_columns": []
+}

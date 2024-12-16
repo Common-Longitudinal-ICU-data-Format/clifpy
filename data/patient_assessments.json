@@ -1,0 +1,79 @@
+{
+    "table_name": "patient_assessments",
+    "columns": [
+        {
+            "name": "hospitalization_id",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "recorded_dttm",
+            "data_type": "DATETIME",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "assessment_name",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "assessment_category",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": true,
+            "is_group_column": false,
+            "permissible_values": []
+        },
+        {
+            "name": "assessment_group",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": true,
+            "permissible_values": []
+        },
+        {
+            "name": "numerical_value",
+            "data_type": "DOUBLE",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "categorical_value",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        },
+        {
+            "name": "text_value",
+            "data_type": "VARCHAR",
+            "required": true,
+            "is_category_column": false,
+            "is_group_column": false
+        }
+    ],
+    "required_columns": [
+        "hospitalization_id",
+        "recorded_dttm",
+        "assessment_name",
+        "assessment_category",
+        "assessment_group",
+        "numerical_value",
+        "categorical_value",
+        "text_value"
+    ],
+    "category_columns": [
+        "assessment_category"
+    ],
+    "group_columns": [
+        "assessment_group"
+    ]
+}
