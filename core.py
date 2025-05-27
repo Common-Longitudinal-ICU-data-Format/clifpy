@@ -1,12 +1,11 @@
 # src/pyclif/clif.py
 import os
-from .config import Config
+import json
 from .utils.io import load_table
-from .utils.schema import Schema
-from .tables.patient import Patient
-from .tables.hospitalization import Hospitalization
-from .tables.respiratory_support import RespiratorySupport
-
+from .utils.patient import Patient
+from .utils.hospitalization import Hospitalization
+from .utils.respiratory_support import RespiratorySupport
+    
 class CLIF:
     def __init__(self, data_dir, filetype='csv', config_path=None):
         """
@@ -20,7 +19,10 @@ class CLIF:
         self.data_dir = data_dir
         self.filetype = filetype
         # self.config = Config(config_path=config_path)
-        self.schema = Schema(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'all_tables.json'))
+        # self.schema = Schema(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'all_tables.json'))
+        schema_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'all_tables.json')
+        with open(schema_path, 'r') as f:
+            self.schema = json.load(f)
         self.loaded_tables = {}
         print('CLIF Object Initialized.')
 

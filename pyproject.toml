@@ -1,19 +1,18 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=67.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyclif"  
+name = "pyclif"
 version = "2.0.0"
 description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = { text = "Apache Software License" }
 authors = [
-  {name = "Kaveri Chhikara", email = "kaveri.chhikara@gmail.com"}
+  { name = "Kaveri Chhikara", email = "kaveri.chhikara@gmail.com" }
 ]
 classifiers = [
   "Programming Language :: Python :: 3.9",
-  "License :: OSI Approved :: Apache 2.0",
   "Operating System :: OS Independent"
 ]
 requires-python = ">=3.9"
@@ -22,15 +21,11 @@ dependencies = [
   "duckdb>=0.5.0",
   "pyarrow",
   "matplotlib",
-  "seaborn",
-  "datetime", 
-  "re"
+  "seaborn"
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["pyclif"]
-include-package-data = true
+license-files = []
 
 [tool.setuptools.packages.find]
-where = ["src"]
+include = ["schemas", "utils", "tests"]
