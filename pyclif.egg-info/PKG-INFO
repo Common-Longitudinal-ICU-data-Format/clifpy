@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: pyclif
+Version: 2.0.0
+Summary: A Python package for working with CLIF EHR data
+Author-email: Kaveri Chhikara <kaveri.chhikara@gmail.com>
+License: Apache Software License
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=1.0
+Requires-Dist: duckdb>=0.5.0
+Requires-Dist: pyarrow
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+
+WIP
