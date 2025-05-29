@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
+from typing import Dict, Tuple
 
 
 class LabOrderCategory(str, Enum):
@@ -72,6 +73,60 @@ class LabCategory(str, Enum):
 class LabSpecimenCategory(str, Enum):
     pass
 
+LAB_VALUE_RANGES: Dict[str, Tuple[float, float]] = {
+    "albumin": (0, 15),
+    "alkaline_phosphatase": (0, 5000),
+    "alt": (0, 20000),
+    "ast": (0, 20000),
+    "basophils_percent": (0, 100),
+    "basophils_absolute": (0, 50),
+    "bicarbonate": (0, 50),
+    "bilirubin_total": (0, 80),
+    "bilirubin_conjugated": (0, 50),
+    "bilirubin_unconjugated": (0, 50),
+    "bun": (0, 250),
+    "calcium_total": (0, 20),
+    "calcium_ionized": (0, 20),
+    "chloride": (50, 140),
+    "creatinine": (0, 20),
+    "crp": (0, 1000),
+    "eosinophils_percent": (0, 100),
+    "eosinophils_absolute": (0, 50),
+    "esr": (0, 1000),
+    "ferritin": (0, 300000),
+    "glucose_fingerstick": (0, 2000),
+    "glucose_serum": (0, 2000),
+    "hemoglobin": (2, 25),
+    "phosphate": (0, 15),
+    "inr": (0, 15),
+    "lactate": (0, 30),
+    "ldh": (0, 10000),
+    "lymphocytes_percent": (0, 100),
+    "lymphocytes_absolute": (0, 50),
+    "magnesium": (0, 10),
+    "monocytes_percent": (0, 100),
+    "monocytes_absolute": (0, 50),
+    "neutrophils_percent": (0, 100),
+    "neutrophils_absolute": (0, 50),
+    "pco2_arterial": (0, 250),
+    "pco2_venous": (0, 250),
+    "po2_arterial": (0, 700),
+    "ph_arterial": (6, 10),
+    "ph_venous": (5, 10),
+    "platelet_count": (0, 2000),
+    "potassium": (0, 15),
+    "procalcitonin": (0, 1000),
+    "pt": (1, 200),
+    "ptt": (1, 200),
+    "so2_arterial": (0, 100),
+    "so2_mixed_venous": (0, 100),
+    "so2_central_venous": (0, 100),
+    "sodium": (90, 210),
+    "total_protein": (0, 20),
+    "troponin_i": (0, 10000),
+    "troponin_t": (0, 10000),
+    "wbc": (0, 500)
+}
 
 class Lab(BaseModel):
     hospitalization_id: str
@@ -88,3 +143,13 @@ class Lab(BaseModel):
     lab_specimen_name: str
     lab_specimen_category: str  
     lab_loinc_code: str
+
+    @validator('lab_value_numeric')
+    def validate_lab_value_range(cls, v, values):
+        if 'lab_category' in values:
+            lab_category = values['lab_category']
+            if lab_category in LAB_VALUE_RANGES:
+                min_val, max_val = LAB_VALUE_RANGES[lab_category]
+                if not min_val <= v <= max_val:
+                    raise ValueError(f'Lab value {v} for {lab_category} must be between {min_val} and {max_val}')
+        return v
