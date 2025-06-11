@@ -9,7 +9,9 @@ description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-  {name = "Kaveri Chhikara", email = "kaveri.chhikara@gmail.com"}
+  {name = "Kaveri Chhikara", email = "kaveri.chhikara@gmail.com"},
+  {name = "Dema Therese", email = "dema@uchicago.edu"},
+  {name = "Vaishvik Chaudhari", email = "Vaishvikc@gmail.com"}
 ]
 classifiers = [
   "Programming Language :: Python :: 3.9",
@@ -18,18 +20,16 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-  "pandas>=1.0",
-  "duckdb>=0.5.0",
+  "pandas",
+  "duckdb",
   "pyarrow",
   "matplotlib",
   "seaborn",
-  "datetime", 
-  "re"
+  "pydantic"
 ]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["pyclif"]
 include-package-data = true
 
 [tool.setuptools.packages.find]

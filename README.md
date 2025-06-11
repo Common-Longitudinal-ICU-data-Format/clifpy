@@ -10,7 +10,7 @@ pip install pyclif
 
 ## Basic usage example
 ```
-from pyclif.clif import CLIF
+from pyclif import CLIF
 
 # Initialize
 c = CLIF(data_dir="path/to/data", filetype="csv")
