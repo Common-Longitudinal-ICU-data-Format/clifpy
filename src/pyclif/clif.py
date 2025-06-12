@@ -6,12 +6,12 @@ import pyarrow.parquet as pq
 import re
 
 from .utils.io import load_data 
-from .models.patient import patient
-from .models.hospitalization import hospitalization
-from .models.lab import LabTable
-from .models.adt import AdtTable
-from .models.respiratory_support import RespiratorySupportTable
-from .models.vitals import VitalsTable
+from .tables.patient import patient
+from .tables.hospitalization import hospitalization
+from .tables.lab import LabTable
+from .tables.adt import AdtTable
+from .tables.respiratory_support import RespiratorySupportTable
+from .tables.vitals import VitalsTable
 
 class CLIF:
     def __init__(self, data_dir, filetype='csv', timezone ="UTC"):
@@ -31,6 +31,7 @@ class CLIF:
         if tables is None:
             tables = ['patient']
         for table in tables:
+            # need to add support for filters mcide and column required 
             data = load_data(table, self.data_dir,self.filetype)
             if table == 'patient':
                 self.patient = patient(data)
