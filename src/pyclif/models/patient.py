@@ -123,9 +123,12 @@ class patient:
                 record = PatientModel(**row._asdict())
                 self.records.append(record)
             except ValidationError as e:
-                self.errors.append({'row': idx, 'error': str(e), 'data': row._asdict()})
+                self.errors.append({'row': idx, 'error': str(e)})
         
         if not self.errors:
             print('Validation completed successfully.')
         else:
             print(f'Validation completed with {len(self.errors)} errors. Access `errors` attribute for details.')
+
+
+        
