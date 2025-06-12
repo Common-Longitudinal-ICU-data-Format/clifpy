@@ -35,7 +35,7 @@ class CLIF:
             if table == 'patient':
                 self.patient = patient(data)
             elif table == 'hospitalization':
-                self.hospitalization = HospitalizationTable(data)
+                self.hospitalization = hospitalization(data)
             elif table == 'lab':
                 self.lab = LabTable(data)
             elif table == 'adt':
