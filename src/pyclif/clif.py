@@ -6,12 +6,15 @@ import pyarrow.parquet as pq
 import re
 
 from .utils.io import load_data 
-from .tables.patient import patient
+from .tables.adt import adt
 from .tables.hospitalization import hospitalization
-from .tables.lab import LabTable
-from .tables.adt import AdtTable
-from .tables.respiratory_support import RespiratorySupportTable
-from .tables.vitals import VitalsTable
+from .tables.labs import labs
+from .tables.medication_admin_continuous import medication_admin_continuous
+from .tables.patient import patient
+from .tables.patient_assessments import patient_assessments
+from .tables.position import position
+from .tables.respiratory_support import respiratory_support
+from .tables.vitals import vitals
 
 class CLIF:
     def __init__(self, data_dir, filetype='csv', timezone ="UTC"):
@@ -25,6 +28,8 @@ class CLIF:
         self.adt = None
         self.respiratory_support = None
         self.vitals = None
+        ## create a cohort object, check if cohort is not None, 
+        # then only load those for each table
         print('CLIF Object Initialized.')
 
     def initialize(self, tables=None):
@@ -38,11 +43,16 @@ class CLIF:
             elif table == 'hospitalization':
                 self.hospitalization = hospitalization(data)
             elif table == 'lab':
-                self.lab = LabTable(data)
+                self.lab = labs(data)
             elif table == 'adt':
-                self.adt = AdtTable(data)
+                self.adt = adt(data)
             elif table == 'respiratory_support':
-                self.respiratory_support = RespiratorySupportTable(data)
+                self.respiratory_support = respiratory_support(data)
             elif table == 'vitals':
-                self.vitals = VitalsTable(data)
+                self.vitals = vitals(data)
+            elif table == 'medication_admin_continuous':
+                self.vitals = medication_admin_continuous(data)
 
+   
+
+    # def stitch - input is adt, hospitalization

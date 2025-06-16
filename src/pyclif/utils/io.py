@@ -4,7 +4,7 @@ import os
 import duckdb
 import pytz
 
-conn = duckdb.connect(database=':memory:')
+# conn = duckdb.connect(database=':memory:')
 
 def _cast_id_cols_to_string(df):
     id_cols = [c for c in df.columns if c.endswith("_id")]

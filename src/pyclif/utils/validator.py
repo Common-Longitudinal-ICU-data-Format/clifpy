@@ -1,4 +1,3 @@
-
 """Generic table/dataframe validator based on mCIDE JSON specs.
 
 This module replaces heavy Pydantic-based validation with a lightweight, pandas-
@@ -19,20 +18,49 @@ from __future__ import annotations
 import json
 import os
 from typing import List, Dict, Any
-
 import pandas as pd
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _is_varchar_dtype(series: pd.Series) -> bool:
+    """Check if series is VARCHAR-compatible (string or object dtype with strings)."""
+    # Check for pandas string dtype
+    if pd.api.types.is_string_dtype(series):
+        return True
+    
+    # Check for object dtype that contains strings
+    if pd.api.types.is_object_dtype(series):
+        # Sample a few non-null values to check if they're strings
+        non_null = series.dropna()
+        if len(non_null) == 0:
+            return True  # Empty series is considered valid
+        
+        # Check first few values to see if they're strings
+        sample_size = min(100, len(non_null))
+        sample = non_null.iloc[:sample_size]
+        return all(isinstance(x, str) for x in sample)
+    
+    return False
+
+def _is_integer_dtype(series: pd.Series) -> bool:
+    """Check if series is integer-compatible."""
+    return pd.api.types.is_integer_dtype(series)
+
+def _is_float_dtype(series: pd.Series) -> bool:
+    """Check if series is float-compatible (includes integers)."""
+    return pd.api.types.is_numeric_dtype(series)
+
 # Map mCIDE "data_type" values to simple pandas dtype checkers.
 # Extend as more types are introduced.
 _DATATYPE_CHECKERS: dict[str, callable[[pd.Series], bool]] = {
-    "VARCHAR": pd.api.types.is_string_dtype,
+    "VARCHAR": _is_varchar_dtype,
     "DATETIME": pd.api.types.is_datetime64_any_dtype,
-    "INTEGER": pd.api.types.is_integer_dtype,
-    "FLOAT": pd.api.types.is_float_dtype,
+    "INTEGER": _is_integer_dtype,
+    "INT": _is_integer_dtype,  # Alternative naming
+    "FLOAT": _is_float_dtype,
+    "DOUBLE": _is_float_dtype,  # Alternative naming for float
 }
 
 
@@ -127,3 +155,6 @@ def validate_table(
 
     spec = _load_spec(table_name, spec_dir)
     return validate_dataframe(df, spec)
+
+
+## add code for time conversion in the validator class? 

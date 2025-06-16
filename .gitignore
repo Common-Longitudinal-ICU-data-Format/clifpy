@@ -1,5 +1,16 @@
 __pycache__/
 .DS_Store
-/mCIDE
+/dev
+dev/readme.md
+dev/requirements.txt
+/archive
 *.csv
 *.parquet
+ 
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+
