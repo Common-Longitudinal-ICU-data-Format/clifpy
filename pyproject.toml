@@ -25,7 +25,8 @@ dependencies = [
   "pyarrow",
   "matplotlib",
   "seaborn",
-  "pydantic"
+  "pydantic",
+  "pytest"
 ]
 
 [tool.setuptools]
