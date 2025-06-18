@@ -1,6 +1,6 @@
 # tests/test_respiratory_support.py
 import pytest
-from ..src.pyclif.clif import CLIF
+from src.pyclif.clif import CLIF
 import pandas as pd
 import os
 
