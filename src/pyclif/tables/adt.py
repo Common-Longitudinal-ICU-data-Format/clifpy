@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict
+from typing import List, Dict, Optional
 from tqdm import tqdm
 import pandas as pd
 from ..utils.io import load_data
@@ -10,8 +10,8 @@ from ..utils.validator import validate_table
 class adt:
     """ADT (Admission, Discharge, Transfer) table wrapper using lightweight JSON-spec validation."""
 
-    def __init__(self, data: pd.DataFrame | None = None):
-        self.df: pd.DataFrame | None = data
+    def __init__(self, data: Optional[pd.DataFrame] = None):
+        self.df: Optional[pd.DataFrame] = data
         self.errors: List[dict] = []
 
         if self.df is not None:

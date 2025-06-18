@@ -10,8 +10,8 @@ from ..utils.validator import validate_table
 class hospitalization:
     """Hospitalization table wrapper using lightweight JSON-spec validation."""
 
-    def __init__(self, data: pd.DataFrame | None = None):
-        self.df: pd.DataFrame | None = data
+    def __init__(self, data: Optional[pd.DataFrame] = None):
+        self.df: Optional[pd.DataFrame] = data
         self.errors: List[dict] = []
 
         if self.df is not None:
