@@ -4,148 +4,187 @@ Tests for the patient table module.
 import os
 import pytest
 import pandas as pd
+import json
 from datetime import datetime
+from typing import Optional
 from pyclif.tables.patient import patient
-from pyclif.utils.validator import ValidationError
 
-# Fixtures for patient testing
+
+# --- Mock Schema ---
+@pytest.fixture
+def mock_patient_schema_content():
+    """Provides the content for a mock PatientModel.json."""
+    return {
+        "required_columns": ["patient_id", "race_category", "ethnicity_category", "sex_category"],
+        "columns": [
+            {"name": "patient_id", "data_type": "VARCHAR", "required": True},
+            {"name": "birth_date", "data_type": "DATETIME", "required": False},
+            {"name": "death_dttm", "data_type": "DATETIME", "required": False},
+            {"name": "race_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "permissible_values": ["White", "Black or African American", "Asian", "Other", "Unknown"]},
+            {"name": "ethnicity_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "permissible_values": ["Hispanic", "Non-Hispanic", "Unknown"]},
+            {"name": "sex_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "permissible_values": ["Male", "Female", "Other", "Unknown"]},
+            {"name": "language_category", "data_type": "VARCHAR", "required": False, "is_category_column": True, "permissible_values": ["English", "Spanish", "Other"]}
+        ]
+    }
+
+@pytest.fixture
+def patch_load_spec(monkeypatch, mock_patient_schema_content):
+    """
+    Patches pyclif.utils.validator._load_spec to return a mock schema
+    instead of reading from a file.
+    """
+    def mock_load_spec(table_name: str, spec_dir: Optional[str] = None):
+        if table_name.lower() == "patient":
+            return mock_patient_schema_content
+        raise FileNotFoundError(f"Mock schema for table '{table_name}' not found.")
+
+    monkeypatch.setattr("pyclif.utils.validator._load_spec", mock_load_spec)
+
+
+# --- Data Fixtures ---
 @pytest.fixture
 def sample_valid_patient_data():
     """Create a valid patient DataFrame for testing."""
     return pd.DataFrame({
         'patient_id': ['P001', 'P002', 'P003'],
         'birth_date': pd.to_datetime(['1980-01-01', '1990-02-02', '2000-03-03']),
-        'death_dttm': pd.to_datetime(['2050-01-01', '2060-02-02', '2070-03-03']),
-        'race_name': ['White', 'Black', 'Asian'],
+        'death_dttm': pd.to_datetime([pd.NaT, pd.NaT, '2070-03-03']),
         'race_category': ['White', 'Black or African American', 'Asian'],
-        'ethnicity_name': ['Not Hispanic', 'Hispanic', 'Not Hispanic'],
         'ethnicity_category': ['Non-Hispanic', 'Hispanic', 'Non-Hispanic'],
-        'sex_name': ['Male', 'Female', 'Male'],
         'sex_category': ['Male', 'Female', 'Male'],
-        'language_name': ['English', 'Spanish', 'English'],
         'language_category': ['English', 'Spanish', 'English']
     })
 
 @pytest.fixture
-def sample_invalid_patient_data():
-    """Create an invalid patient DataFrame for testing."""
+def sample_patient_data_invalid_category():
+    """Create a patient DataFrame with invalid categorical values."""
     return pd.DataFrame({
-        'patient_id': ['P001', 'P002', 'P003'],
-        'birth_date': pd.to_datetime(['1980-01-01', '1990-02-02', '2000-03-03']),
-        'death_dttm': pd.to_datetime(['2050-01-01', '2060-02-02', '2070-03-03']),
-        'race_name': ['White', 'Black', 'Asian'],
-        'race_category': ['White', 'Black or African American', 'INVALID_VALUE'],  # Invalid value
-        'ethnicity_name': ['Not Hispanic', 'Hispanic', 'Not Hispanic'],
-        'ethnicity_category': ['Non-Hispanic', 'Hispanic', 'Non-Hispanic'],
-        'sex_name': ['Male', 'Female', 'Male'],
-        'sex_category': ['Male', 'Female', 'Unknown'],
-        'language_name': ['English', 'Spanish', 'English']
-        # Missing language_category column
+        'patient_id': ['P001'],
+        'birth_date': pd.to_datetime(['1980-01-01']),
+        'race_category': ['INVALID_RACE'],  # Invalid value
+        'ethnicity_category': ['Non-Hispanic'],
+        'sex_category': ['Male'],
+        'language_category': ['English']
+    })
+
+@pytest.fixture
+def sample_patient_data_missing_cols():
+    """Create a patient DataFrame with missing required columns."""
+    return pd.DataFrame({
+        'patient_id': ['P001'],
+        'birth_date': pd.to_datetime(['1980-01-01'])
+        # Missing race_category, ethnicity_category, sex_category
     })
 
 @pytest.fixture
 def mock_patient_file(tmp_path, sample_valid_patient_data):
-    """Create a mock patient file for testing."""
-    # Create a temporary directory and file
+    """Create a mock patient parquet file for testing."""
     test_dir = tmp_path / "test_data"
     test_dir.mkdir()
     file_path = test_dir / "clif_patient.parquet"
-    
-    # Save the DataFrame to the file
     sample_valid_patient_data.to_parquet(file_path)
-    
-    return str(test_dir)
+    return str(test_dir) # from_file expects directory path
 
-# Tests for patient class initialization
+# --- Tests for patient class ---
+
+# Initialization and Schema Loading
+@pytest.mark.usefixtures("patch_load_spec")
 def test_patient_init_with_valid_data(sample_valid_patient_data):
-    """Test patient initialization with valid data."""
+    """Test patient initialization with valid data and mocked schema."""
     patient_obj = patient(sample_valid_patient_data)
     assert patient_obj.df is not None
     assert patient_obj.isvalid() is True
-    assert len(patient_obj.errors) == 0
+    assert not patient_obj.errors
 
-def test_patient_init_with_invalid_data(sample_invalid_patient_data):
-    """Test patient initialization with invalid data."""
-    patient_obj = patient(sample_invalid_patient_data)
-    assert patient_obj.df is not None
+@pytest.mark.usefixtures("patch_load_spec")
+def test_patient_init_with_invalid_category(sample_patient_data_invalid_category):
+    """Test patient initialization with invalid categorical data."""
+    patient_obj = patient(sample_patient_data_invalid_category)
     assert patient_obj.isvalid() is False
     assert len(patient_obj.errors) > 0
-    
-    # Check for specific errors
-    error_types = [error["type"] for error in patient_obj.errors]
-    assert "missing_columns" in error_types
+    error_types = {e['type'] for e in patient_obj.errors}
     assert "invalid_category" in error_types
+    assert "missing_columns" not in error_types
+
+@pytest.mark.usefixtures("patch_load_spec")
+def test_patient_init_with_missing_columns(sample_patient_data_missing_cols):
+    """Test patient initialization with missing required columns."""
+    patient_obj = patient(sample_patient_data_missing_cols)
+    assert patient_obj.isvalid() is False
+    assert len(patient_obj.errors) > 0
+    error_types = {e['type'] for e in patient_obj.errors}
+    assert "missing_columns" in error_types
+    missing_cols = next(e['columns'] for e in patient_obj.errors if e['type'] == 'missing_columns')
+    assert set(missing_cols) == {'race_category', 'ethnicity_category', 'sex_category'}
+
 
 def test_patient_init_without_data():
     """Test patient initialization without data."""
     patient_obj = patient()
     assert patient_obj.df is None
-    assert patient_obj.isvalid() is True
-    assert len(patient_obj.errors) == 0
+    assert patient_obj.isvalid() is True # isvalid is True because no errors were generated
+    assert not patient_obj.errors
 
-# Tests for from_file constructor
-def test_patient_from_file(mock_patient_file, monkeypatch):
-    """Test loading patient data from file."""
-    # Test with parquet format
-    patient_obj = patient.from_file(mock_patient_file, "parquet")
+def test_schema_loading_file_not_found(monkeypatch):
+    """Test schema loading when the schema file is not found."""
+    def mock_load_spec_raises(table_name: str, spec_dir: Optional[str] = None):
+        raise FileNotFoundError("Mocked File Not Found")
+    monkeypatch.setattr("pyclif.utils.validator._load_spec", mock_load_spec_raises)
+    
+    df = pd.DataFrame({'patient_id': ['P001']})
+    with pytest.raises(FileNotFoundError, match="Mocked File Not Found"):
+        patient(df) # __init__ calls validate(), which calls _load_spec and will fail
+
+def test_schema_loading_json_error(monkeypatch):
+    """Test schema loading when the schema file is malformed."""
+    def mock_load_spec_raises(table_name: str, spec_dir: Optional[str] = None):
+        raise json.JSONDecodeError("Mocked JSON error", "doc", 0)
+    monkeypatch.setattr("pyclif.utils.validator._load_spec", mock_load_spec_raises)
+    
+    df = pd.DataFrame({'patient_id': ['P001']})
+    with pytest.raises(json.JSONDecodeError):
+        patient(df)
+
+# from_file constructor
+@pytest.mark.usefixtures("patch_load_spec")
+def test_patient_from_file(mock_patient_file):
+    """Test loading patient data from a parquet file."""
+    patient_obj = patient.from_file(mock_patient_file, table_format_type="parquet")
     assert patient_obj.df is not None
     assert patient_obj.isvalid() is True
-    assert len(patient_obj.errors) == 0
 
 def test_patient_from_file_nonexistent(tmp_path):
     """Test loading patient data from a nonexistent file."""
-    non_existent_path = str(tmp_path / "nonexistent")
+    non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        patient.from_file(non_existent_path, "parquet")
+        patient.from_file(non_existent_path, table_format_type="parquet")
 
-# Tests for isvalid method
-def test_patient_isvalid(sample_valid_patient_data, sample_invalid_patient_data):
+# isvalid method
+@pytest.mark.usefixtures("patch_load_spec")
+def test_patient_isvalid(sample_valid_patient_data, sample_patient_data_invalid_category):
     """Test isvalid method."""
     valid_patient = patient(sample_valid_patient_data)
     assert valid_patient.isvalid() is True
     
-    invalid_patient = patient(sample_invalid_patient_data)
+    invalid_patient = patient(sample_patient_data_invalid_category)
     assert invalid_patient.isvalid() is False
 
-# Tests for validate method
-def test_patient_validate(sample_valid_patient_data, sample_invalid_patient_data):
-    """Test validate method."""
-    # Test with valid data
-    valid_patient = patient()
-    valid_patient.df = sample_valid_patient_data
-    valid_patient.validate()
-    assert valid_patient.isvalid() is True
-    
-    # Test with invalid data
-    invalid_patient = patient()
-    invalid_patient.df = sample_invalid_patient_data
-    invalid_patient.validate()
-    assert invalid_patient.isvalid() is False
-    
-    # Test with no data
-    no_data_patient = patient()
-    no_data_patient.validate()
-    assert no_data_patient.df is None
-
-def test_patient_validate_output(sample_valid_patient_data, sample_invalid_patient_data, capsys):
+# validate method
+@pytest.mark.usefixtures("patch_load_spec")
+def test_patient_validate_output(sample_valid_patient_data, sample_patient_data_invalid_category, capsys):
     """Test validate method output messages."""
-    # Test with valid data
-    valid_patient = patient()
-    valid_patient.df = sample_valid_patient_data
-    valid_patient.validate()
+    # Valid data
+    patient(sample_valid_patient_data)
     captured = capsys.readouterr()
     assert "Validation completed successfully" in captured.out
     
-    # Test with invalid data
-    invalid_patient = patient()
-    invalid_patient.df = sample_invalid_patient_data
-    invalid_patient.validate()
+    # Invalid data
+    patient(sample_patient_data_invalid_category)
     captured = capsys.readouterr()
-    assert "Validation completed with" in captured.out
-    assert "error(s)" in captured.out
+    assert "Validation completed with 1 error(s)" in captured.out
     
-    # Test with no data
-    no_data_patient = patient()
-    no_data_patient.validate()
+    # No data
+    p_no_data = patient()
+    p_no_data.validate() # Explicitly call validate
     captured = capsys.readouterr()
     assert "No dataframe to validate" in captured.out

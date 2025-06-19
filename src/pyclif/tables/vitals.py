@@ -15,6 +15,7 @@ class vitals:
     def __init__(self, data: Optional[pd.DataFrame] = None):
         self.df: Optional[pd.DataFrame] = data
         self.errors: List[dict] = []
+        self.range_validation_errors: List[dict] = [] # Initialize here
         
         # Load vital ranges and units from JSON schema
         self._vital_units = None
@@ -104,21 +105,31 @@ class vitals:
             return
         
         required_columns = ['vital_category', 'vital_value']
-        missing_columns = [col for col in required_columns if col not in self.df.columns]
-        
-        if missing_columns:
+        required_columns_for_df = ['vital_category', 'vital_value']
+        if not all(col in self.df.columns for col in required_columns_for_df):
             self.range_validation_errors.append({
-                'error_type': 'missing_columns',
-                'message': f"Missing required columns for range validation: {missing_columns}"
+                "error_type": "missing_columns_for_range_validation",
+                "columns": [col for col in required_columns_for_df if col not in self.df.columns],
+                "message": "vital_category or vital_value column missing, cannot perform range validation."
             })
             return
 
-        # Group by vital_category to get statistics for each vital type
-        vital_stats = (self.df[required_columns]
-                      .dropna()
-                      .groupby('vital_category')['vital_value']
-                      .agg(['count', 'min', 'max', 'mean'])
-                      .reset_index())
+        # Work on a copy to safely convert vital_value to numeric for aggregation
+        df_for_stats = self.df[required_columns_for_df].copy()
+        df_for_stats['vital_value'] = pd.to_numeric(df_for_stats['vital_value'], errors='coerce')
+
+        # Filter out rows where vital_value could not be converted, as they can't be aggregated numerically
+        # These should have been caught by schema validation as type errors already.
+        df_for_stats.dropna(subset=['vital_value'], inplace=True)
+
+        if df_for_stats.empty:
+            # No numeric vital_value data to perform range validation on
+            return
+
+        vital_stats = (df_for_stats
+                       .groupby('vital_category')['vital_value']
+                       .agg(['min', 'max', 'mean', 'count'])
+                       .reset_index())
         
         if vital_stats.empty:
             return
@@ -177,7 +188,7 @@ class vitals:
 
     def filter_by_hospitalization(self, hospitalization_id: str) -> pd.DataFrame:
         """Return all vital records for a specific hospitalization."""
-        if self.df is None:
+        if self.df is None or 'hospitalization_id' not in self.df.columns:
             return pd.DataFrame()
         
         return self.df[self.df['hospitalization_id'] == hospitalization_id].copy()
