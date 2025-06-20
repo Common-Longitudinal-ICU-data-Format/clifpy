@@ -385,3 +385,145 @@ def _filter_base_table_columns(df: pd.DataFrame, table_name: str, base_table_col
     else:
         print(f"Warning: No valid columns found for {table_name} table, returning original")
         return df
+
+
+def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, List[str]]) -> pd.DataFrame:
+    """
+    Convert a wide dataset to hourly aggregation with user-defined aggregation methods.
+    
+    Parameters:
+        wide_df: Wide dataset DataFrame from create_wide_dataset()
+        aggregation_config: Dict mapping aggregation methods to list of columns
+            Example: {
+                'max': ['map', 'temp_c', 'sbp'],
+                'mean': ['heart_rate', 'respiratory_rate'],
+                'min': ['spo2'],
+                'median': ['glucose'],
+                'first': ['gcs_total', 'rass'],
+                'last': ['assessment_value'],
+                'boolean': ['norepinephrine', 'propofol'],
+                'one_hot_encode': ['medication_name', 'assessment_category']
+            }
+    
+    Returns:
+        pd.DataFrame: Hourly aggregated wide dataset with nth_hour column
+    """
+    
+    print("Starting hourly aggregation of wide dataset...")
+    
+    # Validate input
+    if 'event_time' not in wide_df.columns:
+        raise ValueError("wide_df must contain 'event_time' column")
+    
+    if 'hospitalization_id' not in wide_df.columns:
+        raise ValueError("wide_df must contain 'hospitalization_id' column")
+    
+    if 'day_number' not in wide_df.columns:
+        raise ValueError("wide_df must contain 'day_number' column")
+    
+    # Create a copy to avoid modifying original
+    df = wide_df.copy()
+    
+    # Extract hour from event_time
+    df['hour_bucket'] = df['event_time'].dt.hour
+    
+    # Calculate nth_hour (incremental hour from admission)
+    df['nth_hour'] = ((df['day_number'] - 1) * 24 + df['hour_bucket'] + 1).astype(int)
+    
+    print(f"Processing {len(df)} records into hourly buckets...")
+    
+    # Identify columns to preserve (non-aggregated columns)
+    id_cols = ['patient_id', 'hospitalization_id']
+    time_cols = ['day_number', 'hour_bucket', 'nth_hour']
+    
+    # Get demographic columns (columns that don't vary within a hospitalization)
+    demographic_cols = []
+    potential_demo_cols = ['age', 'sex', 'race', 'sex_category', 'race_category', 
+                          'admission_dttm', 'discharge_dttm', 'admit_dttm']
+    for col in potential_demo_cols:
+        if col in df.columns:
+            demographic_cols.append(col)
+    
+    # Columns to group by
+    group_cols = ['hospitalization_id', 'day_number', 'hour_bucket', 'nth_hour']
+    
+    # Initialize result dictionary
+    aggregated_data = []
+    
+    # Process each hospitalization-day-hour group
+    for group_key, group_df in df.groupby(group_cols):
+        hosp_id, day_num, hour_bucket, nth_hour = group_key
+        
+        # Start with base info
+        row_data = {
+            'hospitalization_id': hosp_id,
+            'day_number': day_num,
+            'hour_bucket': hour_bucket,
+            'nth_hour': nth_hour
+        }
+        
+        # Add patient_id (should be same for all rows in group)
+        if 'patient_id' in group_df.columns:
+            row_data['patient_id'] = group_df['patient_id'].iloc[0]
+        
+        # Add demographic columns (should be same for all rows in group)
+        for col in demographic_cols:
+            row_data[col] = group_df[col].iloc[0]
+        
+        # Apply aggregations based on config
+        for agg_method, columns in aggregation_config.items():
+            for col in columns:
+                if col not in group_df.columns:
+                    print(f"Warning: Column '{col}' not found in wide_df, skipping...")
+                    continue
+                
+                # Get non-null values for this column
+                col_values = group_df[col].dropna()
+                
+                if agg_method == 'max':
+                    row_data[col] = col_values.max() if len(col_values) > 0 else np.nan
+                elif agg_method == 'min':
+                    row_data[col] = col_values.min() if len(col_values) > 0 else np.nan
+                elif agg_method == 'mean':
+                    row_data[col] = col_values.mean() if len(col_values) > 0 else np.nan
+                elif agg_method == 'median':
+                    row_data[col] = col_values.median() if len(col_values) > 0 else np.nan
+                elif agg_method == 'first':
+                    row_data[col] = col_values.iloc[0] if len(col_values) > 0 else np.nan
+                elif agg_method == 'last':
+                    row_data[col] = col_values.iloc[-1] if len(col_values) > 0 else np.nan
+                elif agg_method == 'boolean':
+                    # 1 if any non-null value present, 0 otherwise
+                    row_data[col] = 1 if len(col_values) > 0 else 0
+                elif agg_method == 'one_hot_encode':
+                    # Create binary columns for each unique value
+                    unique_values = col_values.unique()
+                    for val in unique_values:
+                        new_col_name = f"{col}_{val}"
+                        # Clean column name (remove special characters)
+                        new_col_name = re.sub(r'[^a-zA-Z0-9_]', '_', str(new_col_name))
+                        row_data[new_col_name] = 1
+                else:
+                    print(f"Warning: Unknown aggregation method '{agg_method}', skipping...")
+        
+        aggregated_data.append(row_data)
+    
+    # Create result DataFrame
+    hourly_df = pd.DataFrame(aggregated_data)
+    
+    # Sort by hospitalization_id and nth_hour for chronological order
+    hourly_df = hourly_df.sort_values(['hospitalization_id', 'nth_hour']).reset_index(drop=True)
+    
+    # Fill in missing one-hot encoded columns with 0
+    for agg_method, columns in aggregation_config.items():
+        if agg_method == 'one_hot_encode':
+            for col in columns:
+                # Find all one-hot encoded columns for this base column
+                one_hot_cols = [c for c in hourly_df.columns if c.startswith(f"{col}_")]
+                for ohc in one_hot_cols:
+                    hourly_df[ohc] = hourly_df[ohc].fillna(0).astype(int)
+    
+    print(f"Hourly aggregation complete: {len(hourly_df)} hourly records from {len(df)} original records")
+    print(f"Columns in hourly dataset: {len(hourly_df.columns)}")
+    
+    return hourly_df
