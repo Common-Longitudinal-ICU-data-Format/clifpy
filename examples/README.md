@@ -114,6 +114,25 @@ Start with `01_basic_usage.ipynb` and proceed through the examples in order.
 - Memory-efficient chunking
 - Performance benchmarking
 
+### 📋 [wide_dataset_example.py](wide_dataset_example.py)
+**Wide Dataset Creation**
+- Create comprehensive wide datasets by joining multiple CLIF tables
+- Automatic table loading with category-based pivoting
+- Flexible sampling and filtering options
+- Save results in multiple formats
+
+**Key Topics:**
+- Multi-table joining with temporal alignment
+- Category-based pivoting (vitals, labs, medications, assessments)
+- Sampling modes (random hospitalizations, specific IDs)
+- Output management (CSV, Parquet, in-memory)
+
+### 🧪 [test_wide_dataset.py](test_wide_dataset.py)
+**Wide Dataset Testing**
+- Quick functionality test for wide dataset creation
+- Minimal example to verify installation
+- Basic error handling and validation
+
 ## Configuration for Your Environment
 
 ### Data Directory
@@ -188,6 +207,40 @@ vitals_table = vitals.from_file(
 # Use table-specific methods
 hr_data = vitals_table.filter_by_vital_category('heart_rate')
 summary = vitals_table.get_summary_stats()
+```
+
+### Wide Dataset Creation
+```python
+from pyclif import CLIF
+
+# Initialize CLIF with auto-loading capabilities
+clif = CLIF(
+    data_dir="/Users/vaishvik/downloads/CLIF_MIMIC",
+    filetype='parquet',
+    timezone='US/Eastern'
+)
+
+# Create wide dataset with automatic table loading
+wide_df = clif.create_wide_dataset(
+    optional_tables=['vitals', 'labs', 'medication_admin_continuous'],
+    category_filters={
+        'vitals': ['map', 'heart_rate', 'spo2'],
+        'labs': ['hemoglobin', 'wbc', 'sodium'],
+        'medication_admin_continuous': ['norepinephrine', 'propofol']
+    },
+    sample=True,  # Use 20 random hospitalizations
+    save_to_data_location=True,
+    output_format='parquet'
+)
+
+# Or create for specific hospitalizations
+target_ids = ['12345', '67890']
+wide_df_targeted = clif.create_wide_dataset(
+    hospitalization_ids=target_ids,
+    optional_tables=['patient_assessments'],
+    category_filters={'patient_assessments': ['gcs_total', 'rass']},
+    output_filename='targeted_wide_dataset'
+)
 ```
 
 ## Troubleshooting

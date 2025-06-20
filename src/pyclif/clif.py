@@ -6,6 +6,7 @@ import pyarrow.parquet as pq
 import re
 
 from .utils.io import load_data 
+from .utils.wide_dataset import create_wide_dataset
 from .tables.adt import adt
 from .tables.hospitalization import hospitalization
 from .tables.labs import labs
@@ -29,6 +30,7 @@ class CLIF:
         self.respiratory_support = None
         self.vitals = None
         self.medication_admin_continuous = None
+        self.patient_assessments = None
         ## create a cohort object, check if cohort is not None, 
         # then only load those for each table
         print('CLIF Object Initialized.')
@@ -144,6 +146,22 @@ class CLIF:
         data = load_data('medication_admin_continuous', self.data_dir, self.filetype, sample_size, columns, filters)
         self.medication_admin_continuous = medication_admin_continuous(data)
         return self.medication_admin_continuous
+    
+    def load_patient_assessments_data(self, sample_size=None, columns=None, filters=None):
+        """
+        Load patient assessments data with optional filtering and column selection.
+        
+        Parameters:
+            sample_size (int, optional): Number of rows to load.
+            columns (list of str, optional): List of column names to load.
+            filters (dict, optional): Dictionary of filters to apply.
+            
+        Returns:
+            The initialized patient_assessments table object.
+        """
+        data = load_data('patient_assessments', self.data_dir, self.filetype, sample_size, columns, filters)
+        self.patient_assessments = patient_assessments(data)
+        return self.patient_assessments
 
     def initialize(self, tables=None, sample_size=None, columns=None, filters=None):
         """
@@ -177,7 +195,79 @@ class CLIF:
                 self.load_vitals_data(sample_size, table_columns, table_filters)
             elif table == 'medication_admin_continuous':
                 self.load_medication_admin_continuous_data(sample_size, table_columns, table_filters)
+            elif table == 'patient_assessments':
+                self.load_patient_assessments_data(sample_size, table_columns, table_filters)
 
-   
+    def create_wide_dataset(self, 
+                          optional_tables=None, 
+                          category_filters=None, 
+                          sample=False, 
+                          hospitalization_ids=None, 
+                          output_format='dataframe', 
+                          save_to_data_location=False, 
+                          output_filename=None, 
+                          auto_load=True,
+                          return_dataframe=True):
+        """
+        Create a wide dataset by joining multiple CLIF tables with pivoting support.
+        
+        Parameters:
+            optional_tables: List of optional tables to include ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments', 'respiratory_support']
+            category_filters: Dict specifying which categories to pivot for each table
+            sample: Boolean - if True, randomly select 20 hospitalizations
+            hospitalization_ids: List of specific hospitalization IDs to filter
+            output_format: 'dataframe', 'csv', or 'parquet'
+            save_to_data_location: Boolean - save output to data directory
+            output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
+            auto_load: Boolean - automatically load missing tables (default=True)
+            return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
+        
+        Returns:
+            pd.DataFrame or None (if return_dataframe=False)
+        """
+        
+        if auto_load:
+            # Check and load base tables
+            required_base = ['patient', 'hospitalization', 'adt']
+            for table in required_base:
+                table_attr = table if table != 'hospitalization' else 'hospitalization'
+                if getattr(self, table_attr) is None:
+                    print(f"Auto-loading required base table: {table}")
+                    if table == 'patient':
+                        self.load_patient_data()
+                    elif table == 'hospitalization':
+                        self.load_hospitalization_data()
+                    elif table == 'adt':
+                        self.load_adt_data()
+            
+            # Check and load optional tables
+            if optional_tables:
+                for table in optional_tables:
+                    table_attr = table if table != 'labs' else 'lab'
+                    if getattr(self, table_attr) is None:
+                        print(f"Auto-loading optional table: {table}")
+                        if table == 'vitals':
+                            self.load_vitals_data()
+                        elif table == 'labs':
+                            self.load_lab_data()
+                        elif table == 'medication_admin_continuous':
+                            self.load_medication_admin_continuous_data()
+                        elif table == 'patient_assessments':
+                            self.load_patient_assessments_data()
+                        elif table == 'respiratory_support':
+                            self.load_respiratory_support_data()
+        
+        # Call utility function
+        return create_wide_dataset(
+            self, 
+            optional_tables=optional_tables,
+            category_filters=category_filters,
+            sample=sample,
+            hospitalization_ids=hospitalization_ids,
+            output_format=output_format,
+            save_to_data_location=save_to_data_location,
+            output_filename=output_filename,
+            return_dataframe=return_dataframe
+        )
 
     # def stitch - input is adt, hospitalization
