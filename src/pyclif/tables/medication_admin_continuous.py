@@ -12,8 +12,8 @@ from ..utils.validator import validate_table
 class medication_admin_continuous:
     """Medication Admin Continuous table wrapper using lightweight JSON-spec validation."""
 
-    def __init__(self, data: pd.DataFrame | None = None):
-        self.df: pd.DataFrame | None = data
+    def __init__(self, data: Optional[pd.DataFrame] = None):
+        self.df: Optional[pd.DataFrame] = data
         self.errors: List[dict] = []
         
         # Load medication mappings from JSON schema

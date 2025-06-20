@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Optional, Set
 from tqdm import tqdm
 import pandas as pd
 import json
@@ -12,8 +12,8 @@ from ..utils.validator import validate_table
 class labs:
     """Labs table wrapper using lightweight JSON-spec validation."""
 
-    def __init__(self, data: pd.DataFrame | None = None):
-        self.df: pd.DataFrame | None = data
+    def __init__(self, data: Optional[pd.DataFrame] = None):
+        self.df: Optional[pd.DataFrame] = data
         self.errors: List[dict] = []
         self.unit_validation_errors: List[dict] = []
         

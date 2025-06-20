@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import Enum
-from typing import List
+import numpy as np
+from typing import List, Dict, Optional
 from tqdm import tqdm
 import pandas as pd
 from ..utils.io import load_data
@@ -10,8 +11,8 @@ from ..utils.validator import validate_table
 class respiratory_support:
     """Respiratory support table wrapper using lightweight JSON-spec validation."""
 
-    def __init__(self, data: pd.DataFrame | None = None):
-        self.df: pd.DataFrame | None = data
+    def __init__(self, data: Optional[pd.DataFrame] = None):
+        self.df: Optional[pd.DataFrame] = data
         self.errors: List[dict] = []
 
         if self.df is not None:
@@ -336,7 +337,7 @@ class respiratory_support:
         rs["device_name"] = (
             rs.sort_values("recorded_dttm")
             .groupby([id_col, "device_cat_id"])["device_name"]
-            .transform(lambda s: s.ffill().bfill()).infer_objects(copy=False)
+            .transform(lambda s: s.ffill().bfill()).infer_objects()
         )
         rs["device_id"] = change_id(rs["device_name"], rs[id_col])
 
@@ -344,7 +345,7 @@ class respiratory_support:
         rs = rs.sort_values([id_col, "recorded_dttm"])
         rs["mode_category"] = (
             rs.groupby([id_col, "device_id"])["mode_category"]
-            .transform(lambda s: s.ffill().bfill()).infer_objects(copy=False)
+            .transform(lambda s: s.ffill().bfill()).infer_objects()
         )
         dev_curr = rs["device_id"]
         dev_prev = rs.groupby(id_col)["device_id"].shift()
@@ -356,7 +357,7 @@ class respiratory_support:
         # 2-D  mode_name_id
         rs["mode_name"] = (
             rs.groupby([id_col, "mode_cat_id"])["mode_name"]
-            .transform(lambda s: s.ffill().bfill()).infer_objects(copy=False)
+            .transform(lambda s: s.ffill().bfill()).infer_objects()
         )
         cat_curr = rs["mode_cat_id"]
         cat_prev = rs.groupby(id_col)["mode_cat_id"].shift()

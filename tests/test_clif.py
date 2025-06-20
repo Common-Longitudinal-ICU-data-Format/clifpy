@@ -11,6 +11,10 @@ def test_clif_initialization():
 def test_clif_load():
     data_dir = os.path.join(os.path.dirname(__file__), '../data')
     c = CLIF(data_dir=data_dir)
-    c.load(table_list=['patient', 'hospitalization'], sample_size=10)
-    loaded = c.get_loaded_tables()
+    c.initialize(tables=['patient', 'hospitalization'])
+    loaded = []
+    if c.patient is not None:
+        loaded.append('patient')
+    if c.hospitalization is not None:
+        loaded.append('hospitalization')
     assert 'patient' in loaded or 'hospitalization' in loaded
