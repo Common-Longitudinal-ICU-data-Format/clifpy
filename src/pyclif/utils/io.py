@@ -39,7 +39,7 @@ def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None
     df = _cast_id_cols_to_string(df)         # cast id columns to string
     return df
 
-def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None):
+def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None):
     """
     Load data from a file in the specified directory with the option to select specific columns and apply filters.
 
@@ -48,6 +48,7 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
         sample_size (int, optional): Number of rows to load.
         columns (list of str, optional): List of column names to load.
         filters (dict, optional): Dictionary of filters to apply.
+        site_tz (str, optional): Timezone string for datetime conversion, e.g., "America/New_York".
 
     Returns:
         pd.DataFrame: DataFrame containing the requested data.
@@ -91,6 +92,11 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
             raise ValueError("Unsupported filetype. Only 'csv' and 'parquet' are supported.")
         print(f"Data loaded successfully from {file_path}")
         df = _cast_id_cols_to_string(df) # Cast id columns to string
+        
+        # Convert datetime columns to site timezone if specified
+        if site_tz:
+            df = convert_datetime_columns_to_site_tz(df, site_tz)
+        
         return df
     else:
         raise FileNotFoundError(f"The file {file_path} does not exist in the specified directory.")
