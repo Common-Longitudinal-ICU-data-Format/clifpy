@@ -15,7 +15,8 @@ def create_wide_dataset(
     output_format: str = 'dataframe',
     save_to_data_location: bool = False,
     output_filename: Optional[str] = None,
-    return_dataframe: bool = True
+    return_dataframe: bool = True,
+    base_table_columns: Optional[Dict[str, List[str]]] = None
 ) -> Optional[pd.DataFrame]:
     """
     Create a wide dataset by joining multiple CLIF tables with pivoting support.
@@ -30,6 +31,7 @@ def create_wide_dataset(
         save_to_data_location: Boolean - save output to data directory
         output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
         return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
+        base_table_columns: Dict specifying which columns to select from base tables {'patient': ['col1', 'col2'], 'hospitalization': ['col1'], 'adt': ['col1']}
     
     Returns:
         pd.DataFrame or None (if return_dataframe=False)
@@ -37,10 +39,10 @@ def create_wide_dataset(
     
     print("Starting wide dataset creation...")
     
-    # Get base tables
-    patient_df = clif_instance.patient.df.copy()
-    hospitalization_df = clif_instance.hospitalization.df.copy()
-    adt_df = clif_instance.adt.df.copy()
+    # Get base tables with optional column filtering
+    patient_df = _filter_base_table_columns(clif_instance.patient.df.copy(), 'patient', base_table_columns)
+    hospitalization_df = _filter_base_table_columns(clif_instance.hospitalization.df.copy(), 'hospitalization', base_table_columns)
+    adt_df = _filter_base_table_columns(clif_instance.adt.df.copy(), 'adt', base_table_columns)
     
     print(f"Base tables loaded - Patient: {len(patient_df)}, Hospitalization: {len(hospitalization_df)}, ADT: {len(adt_df)}")
     
@@ -344,3 +346,42 @@ def _add_missing_columns(df: pd.DataFrame, category_filters: Optional[Dict[str, 
                 if category not in df.columns:
                     df[category] = np.nan
                     print(f"Added missing {table_name} category column: {category}")
+
+
+def _filter_base_table_columns(df: pd.DataFrame, table_name: str, base_table_columns: Optional[Dict[str, List[str]]] = None) -> pd.DataFrame:
+    """Filter base table columns based on user specification while preserving required ID columns."""
+    
+    if base_table_columns is None or table_name not in base_table_columns:
+        # Return all columns if no filtering specified
+        return df
+    
+    # Define required ID columns for each base table
+    required_columns = {
+        'patient': ['patient_id'],
+        'hospitalization': ['hospitalization_id', 'patient_id'],
+        'adt': ['hospitalization_id']
+    }
+    
+    # Get user-specified columns
+    specified_columns = base_table_columns[table_name]
+    
+    # Combine required and specified columns, remove duplicates
+    required_cols = required_columns.get(table_name, [])
+    all_columns = list(set(required_cols + specified_columns))
+    
+    # Filter to only include columns that exist in the DataFrame
+    available_columns = [col for col in all_columns if col in df.columns]
+    missing_columns = [col for col in all_columns if col not in df.columns]
+    
+    if missing_columns:
+        print(f"Warning: Requested columns not found in {table_name} table: {missing_columns}")
+    
+    if available_columns:
+        filtered_df = df[available_columns].copy()
+        original_cols = len(df.columns)
+        filtered_cols = len(filtered_df.columns)
+        print(f"Filtered {table_name} table: {original_cols} -> {filtered_cols} columns")
+        return filtered_df
+    else:
+        print(f"Warning: No valid columns found for {table_name} table, returning original")
+        return df

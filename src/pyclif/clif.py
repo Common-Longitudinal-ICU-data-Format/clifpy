@@ -207,7 +207,8 @@ class CLIF:
                           save_to_data_location=False, 
                           output_filename=None, 
                           auto_load=True,
-                          return_dataframe=True):
+                          return_dataframe=True,
+                          base_table_columns=None):
         """
         Create a wide dataset by joining multiple CLIF tables with pivoting support.
         
@@ -221,6 +222,7 @@ class CLIF:
             output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
             auto_load: Boolean - automatically load missing tables (default=True)
             return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
+            base_table_columns: Dict specifying which columns to select from base tables {'patient': ['col1'], 'hospitalization': ['col1'], 'adt': ['col1']}
         
         Returns:
             pd.DataFrame or None (if return_dataframe=False)
@@ -267,7 +269,8 @@ class CLIF:
             output_format=output_format,
             save_to_data_location=save_to_data_location,
             output_filename=output_filename,
-            return_dataframe=return_dataframe
+            return_dataframe=return_dataframe,
+            base_table_columns=base_table_columns
         )
 
     # def stitch - input is adt, hospitalization
