@@ -3,6 +3,7 @@ from enum import Enum
 from typing import List, Dict, Optional
 from tqdm import tqdm
 import pandas as pd
+import numpy as np
 import json
 import os
 from ..utils.io import load_data
@@ -131,3 +132,223 @@ class medication_admin_continuous:
             stats['dose_stats_by_group'] = dose_stats
         
         return stats
+
+    def convert_vasopressor_units(self, target_unit: str, vitals_table, weight_col: str = "weight") -> pd.DataFrame:
+        """
+        Convert vasopressor doses to standardized units using first charted weight per hospitalization.
+        
+        Parameters:
+            target_unit: Target unit for conversion (e.g., "mcg/kg/min", "mcg/min", "units/hr")
+            vitals_table: Vitals table object containing weight measurements
+            weight_col: Column name for weight in vitals table (default: "weight")
+            
+        Returns:
+            pd.DataFrame: Copy of medication data with converted vasopressor doses
+            
+        Note:
+            - Uses first charted weight per hospitalization for all vasopressor doses in that encounter
+            - Sets med_dose to NaN if weight required but not available
+            - Only converts vasopressors; other medications remain unchanged
+        """
+        if self.df is None:
+            print("No medication data available for conversion.")
+            return pd.DataFrame()
+        
+        # Create a copy to avoid modifying original data
+        converted_df = self.df.copy()
+        
+        # Define vasopressors that require weight-based conversion
+        weight_based_vasopressors = [
+            'norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'phenylephrine'
+        ]
+        
+        # Non-weight-based vasopressors
+        non_weight_based_vasopressors = ['vasopressin']
+        
+        all_vasopressors = weight_based_vasopressors + non_weight_based_vasopressors
+        
+        # Filter to only vasopressors
+        if 'med_category' not in converted_df.columns:
+            print("Warning: 'med_category' column not found. Cannot identify vasopressors.")
+            return converted_df
+        
+        vasopressor_mask = converted_df['med_category'].isin(all_vasopressors)
+        
+        if not vasopressor_mask.any():
+            print("No vasopressors found in the dataset.")
+            return converted_df
+        
+        print(f"Found {vasopressor_mask.sum()} vasopressor records to potentially convert.")
+        
+        # Extract first weight per hospitalization from vitals table
+        weight_mapping = self._extract_first_weights(vitals_table, weight_col)
+        
+        if not weight_mapping:
+            print("Warning: No weights found in vitals table.")
+            # Set all weight-dependent vasopressor doses to NaN
+            weight_dependent_mask = (vasopressor_mask & 
+                                   converted_df['med_category'].isin(weight_based_vasopressors) &
+                                   target_unit.endswith('/kg/min'))
+            converted_df.loc[weight_dependent_mask, 'med_dose'] = np.nan
+            return converted_df
+        
+        # Apply conversions to vasopressors
+        for idx, row in converted_df[vasopressor_mask].iterrows():
+            med_category = row['med_category']
+            current_dose = row['med_dose']
+            current_unit = row.get('med_unit', '')
+            hospitalization_id = row['hospitalization_id']
+            
+            # Skip if current dose is already NaN
+            if pd.isna(current_dose):
+                continue
+            
+            # Get weight for this hospitalization
+            weight_kg = weight_mapping.get(hospitalization_id)
+            
+            # Convert dose based on medication type and target unit
+            converted_dose = self._convert_dose(
+                current_dose, current_unit, target_unit, med_category, weight_kg
+            )
+            
+            converted_df.loc[idx, 'med_dose'] = converted_dose
+            converted_df.loc[idx, 'med_unit'] = target_unit
+        
+        # Add conversion tracking
+        converted_df['unit_conversion_applied'] = vasopressor_mask
+        
+        conversions_applied = (vasopressor_mask & converted_df['med_dose'].notna()).sum()
+        conversions_failed = (vasopressor_mask & converted_df['med_dose'].isna()).sum()
+        
+        print(f"Unit conversion completed:")
+        print(f"  - Successful conversions: {conversions_applied}")
+        print(f"  - Failed conversions (set to NaN): {conversions_failed}")
+        
+        return converted_df
+
+    def _extract_first_weights(self, vitals_table, weight_col: str) -> Dict[str, float]:
+        """Extract first charted weight per hospitalization from vitals table."""
+        if vitals_table is None or vitals_table.df is None:
+            print("Warning: Vitals table is None or empty.")
+            return {}
+        
+        vitals_df = vitals_table.df
+        
+        # Check if required columns exist
+        if weight_col not in vitals_df.columns:
+            print(f"Warning: Weight column '{weight_col}' not found in vitals table.")
+            return {}
+        
+        if 'hospitalization_id' not in vitals_df.columns:
+            print("Warning: 'hospitalization_id' column not found in vitals table.")
+            return {}
+        
+        # Get timestamp column for ordering (try common names)
+        timestamp_cols = ['recorded_dttm', 'vitals_dttm', 'timestamp', 'admin_dttm']
+        timestamp_col = None
+        for col in timestamp_cols:
+            if col in vitals_df.columns:
+                timestamp_col = col
+                break
+        
+        if timestamp_col is None:
+            print("Warning: No timestamp column found in vitals table. Using first occurrence.")
+            # Just get first non-null weight per hospitalization without time ordering
+            first_weights = vitals_df.dropna(subset=[weight_col]).groupby('hospitalization_id')[weight_col].first()
+        else:
+            # Sort by timestamp and get first weight per hospitalization
+            vitals_with_weight = vitals_df.dropna(subset=[weight_col]).copy()
+            vitals_with_weight = vitals_with_weight.sort_values(['hospitalization_id', timestamp_col])
+            first_weights = vitals_with_weight.groupby('hospitalization_id')[weight_col].first()
+        
+        weight_mapping = first_weights.to_dict()
+        
+        print(f"Extracted weights for {len(weight_mapping)} hospitalizations.")
+        
+        return weight_mapping
+
+    def _convert_dose(self, current_dose: float, current_unit: str, target_unit: str, 
+                     med_category: str, weight_kg: Optional[float]) -> float:
+        """Convert medication dose from current unit to target unit."""
+        
+        # Handle vasopressin separately (non-weight-based)
+        if med_category == 'vasopressin':
+            if target_unit == 'units/hr':
+                return self._convert_vasopressin_to_units_per_hour(current_dose, current_unit)
+            else:
+                print(f"Warning: Vasopressin conversion to {target_unit} not supported. Keeping original dose.")
+                return current_dose
+        
+        # Handle weight-based vasopressors
+        if target_unit.endswith('/kg/min'):
+            if weight_kg is None or pd.isna(weight_kg):
+                print(f"Warning: No weight available for {med_category} conversion. Setting dose to NaN.")
+                return np.nan
+            
+            return self._convert_to_mcg_kg_min(current_dose, current_unit, weight_kg)
+        
+        elif target_unit == 'mcg/min':
+            return self._convert_to_mcg_min(current_dose, current_unit)
+        
+        else:
+            print(f"Warning: Conversion to {target_unit} not implemented. Keeping original dose.")
+            return current_dose
+
+    def _convert_to_mcg_kg_min(self, dose: float, current_unit: str, weight_kg: float) -> float:
+        """Convert dose to mcg/kg/min."""
+        if current_unit == 'mcg/kg/min':
+            return dose
+        
+        # Common conversions
+        if current_unit == 'mg/hr':
+            # mg/hr to mcg/kg/min: (dose_mg * 1000) / (weight_kg * 60)
+            return (dose * 1000) / (weight_kg * 60)
+        
+        elif current_unit == 'mcg/hr':
+            # mcg/hr to mcg/kg/min: dose_mcg / (weight_kg * 60)
+            return dose / (weight_kg * 60)
+        
+        elif current_unit == 'mcg/min':
+            # mcg/min to mcg/kg/min: dose_mcg / weight_kg
+            return dose / weight_kg
+        
+        elif current_unit == 'mg/min':
+            # mg/min to mcg/kg/min: (dose_mg * 1000) / weight_kg
+            return (dose * 1000) / weight_kg
+        
+        else:
+            print(f"Warning: Conversion from {current_unit} to mcg/kg/min not implemented.")
+            return np.nan
+
+    def _convert_to_mcg_min(self, dose: float, current_unit: str) -> float:
+        """Convert dose to mcg/min."""
+        if current_unit == 'mcg/min':
+            return dose
+        
+        if current_unit == 'mcg/hr':
+            return dose / 60
+        
+        elif current_unit == 'mg/hr':
+            return (dose * 1000) / 60
+        
+        elif current_unit == 'mg/min':
+            return dose * 1000
+        
+        else:
+            print(f"Warning: Conversion from {current_unit} to mcg/min not implemented.")
+            return np.nan
+
+    def _convert_vasopressin_to_units_per_hour(self, dose: float, current_unit: str) -> float:
+        """Convert vasopressin dose to units/hr."""
+        if current_unit == 'units/hr':
+            return dose
+        
+        elif current_unit == 'units/min':
+            return dose * 60
+        
+        elif current_unit == 'milliunits/min':
+            return (dose / 1000) * 60
+        
+        else:
+            print(f"Warning: Vasopressin conversion from {current_unit} to units/hr not implemented.")
+            return np.nan
