@@ -6,7 +6,7 @@ import pyarrow.parquet as pq
 import re
 
 from .utils.io import load_data 
-from .utils.wide_dataset import create_wide_dataset
+from .utils.wide_dataset import create_wide_dataset, convert_wide_to_hourly
 from .tables.adt import adt
 from .tables.hospitalization import hospitalization
 from .tables.labs import labs
@@ -31,6 +31,8 @@ class CLIF:
         self.vitals = None
         self.medication_admin_continuous = None
         self.patient_assessments = None
+        self.wide_df = None
+        self.hourly_wide_df = None
         ## create a cohort object, check if cohort is not None, 
         # then only load those for each table
         print('CLIF Object Initialized.')
@@ -260,7 +262,7 @@ class CLIF:
                             self.load_respiratory_support_data()
         
         # Call utility function
-        return create_wide_dataset(
+        wide_df = create_wide_dataset(
             self, 
             optional_tables=optional_tables,
             category_filters=category_filters,
@@ -272,5 +274,43 @@ class CLIF:
             return_dataframe=return_dataframe,
             base_table_columns=base_table_columns
         )
+        
+        # Store the wide dataset
+        if wide_df is not None:
+            self.wide_df = wide_df
+            
+        return wide_df
+    
+    def create_hourly_wide_dataset(self, aggregation_config):
+        """
+        Convert the wide dataset to hourly aggregation with user-defined aggregation methods.
+        
+        Parameters:
+            aggregation_config: Dict mapping aggregation methods to list of columns
+                Example: {
+                    'max': ['map', 'temp_c', 'sbp'],
+                    'mean': ['heart_rate', 'respiratory_rate'],
+                    'min': ['spo2'],
+                    'median': ['glucose'],
+                    'first': ['gcs_total', 'rass'],
+                    'last': ['assessment_value'],
+                    'boolean': ['norepinephrine', 'propofol'],
+                    'one_hot_encode': ['medication_name', 'assessment_category']
+                }
+        
+        Returns:
+            pd.DataFrame: Hourly aggregated wide dataset with nth_hour column
+        """
+        
+        if self.wide_df is None:
+            raise ValueError("No wide dataset available. Please run create_wide_dataset() first.")
+        
+        # Convert to hourly
+        hourly_df = convert_wide_to_hourly(self.wide_df, aggregation_config)
+        
+        # Store the hourly dataset
+        self.hourly_wide_df = hourly_df
+        
+        return hourly_df
 
     # def stitch - input is adt, hospitalization
