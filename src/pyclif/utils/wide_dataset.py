@@ -3,6 +3,7 @@ import duckdb
 import numpy as np
 from datetime import datetime
 import os
+import re
 from typing import List, Dict, Optional
 
 
@@ -339,13 +340,17 @@ def _add_missing_columns(df: pd.DataFrame, category_filters: Optional[Dict[str, 
                 df[col] = np.nan
                 print(f"Added missing medication column: {col}")
     
-    # Add category-specific columns if filters were specified
+    # Add category-specific columns if filters were specified - only add if table was requested
     if category_filters:
         for table_name, categories in category_filters.items():
-            for category in categories:
-                if category not in df.columns:
-                    df[category] = np.nan
-                    print(f"Added missing {table_name} category column: {category}")
+            # Only add missing columns if the corresponding table was requested
+            if table_name in optional_tables:
+                for category in categories:
+                    if category not in df.columns:
+                        df[category] = np.nan
+                        print(f"Added missing {table_name} category column: {category}")
+            else:
+                print(f"Skipping {table_name} categories - table not in optional_tables")
 
 
 def _filter_base_table_columns(df: pd.DataFrame, table_name: str, base_table_columns: Optional[Dict[str, List[str]]] = None) -> pd.DataFrame:
@@ -424,17 +429,26 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
     # Create a copy to avoid modifying original
     df = wide_df.copy()
     
-    # Extract hour from event_time
-    df['hour_bucket'] = df['event_time'].dt.hour
+    # Create hour-truncated datetime (removes minutes/seconds)
+    df['event_time_hour'] = df['event_time'].dt.floor('H')
     
-    # Calculate nth_hour (incremental hour from admission)
-    df['nth_hour'] = ((df['day_number'] - 1) * 24 + df['hour_bucket'] + 1).astype(int)
+    # Calculate nth_hour starting from 0 based on first event time per hospitalization
+    print("Calculating nth_hour starting from 0 based on first event...")
+    
+    # Find first event time for each hospitalization
+    first_event_times = df.groupby('hospitalization_id')['event_time_hour'].min().reset_index()
+    first_event_times.rename(columns={'event_time_hour': 'first_event_hour'}, inplace=True)
+    
+    # Merge first event times back to main dataframe
+    df = df.merge(first_event_times, on='hospitalization_id', how='left')
+    
+    # Calculate nth_hour as hours elapsed since first event (starting from 0)
+    df['nth_hour'] = ((df['event_time_hour'] - df['first_event_hour']).dt.total_seconds() // 3600).astype(int)
+    
+    # Extract hour bucket for compatibility
+    df['hour_bucket'] = df['event_time_hour'].dt.hour
     
     print(f"Processing {len(df)} records into hourly buckets...")
-    
-    # Identify columns to preserve (non-aggregated columns)
-    id_cols = ['patient_id', 'hospitalization_id']
-    time_cols = ['day_number', 'hour_bucket', 'nth_hour']
     
     # Get demographic columns (columns that don't vary within a hospitalization)
     demographic_cols = []
@@ -444,27 +458,31 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
         if col in df.columns:
             demographic_cols.append(col)
     
-    # Columns to group by
-    group_cols = ['hospitalization_id', 'day_number', 'hour_bucket', 'nth_hour']
+    # Columns to group by - use event_time_hour instead of day_number and hour_bucket
+    group_cols = ['hospitalization_id', 'event_time_hour', 'nth_hour']
     
     # Initialize result dictionary
     aggregated_data = []
     
-    # Process each hospitalization-day-hour group
+    # Process each hospitalization-hour group
     for group_key, group_df in df.groupby(group_cols):
-        hosp_id, day_num, hour_bucket, nth_hour = group_key
+        hosp_id, event_time_hour, nth_hour = group_key
         
         # Start with base info
         row_data = {
             'hospitalization_id': hosp_id,
-            'day_number': day_num,
-            'hour_bucket': hour_bucket,
-            'nth_hour': nth_hour
+            'event_time_hour': event_time_hour,
+            'nth_hour': nth_hour,
+            'hour_bucket': event_time_hour.hour  # Extract hour for backward compatibility
         }
         
         # Add patient_id (should be same for all rows in group)
         if 'patient_id' in group_df.columns:
             row_data['patient_id'] = group_df['patient_id'].iloc[0]
+        
+        # Add day_number for backward compatibility (should be same for all rows in group)
+        if 'day_number' in group_df.columns:
+            row_data['day_number'] = group_df['day_number'].iloc[0]
         
         # Add demographic columns (should be same for all rows in group)
         for col in demographic_cols:
@@ -481,20 +499,20 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
                 col_values = group_df[col].dropna()
                 
                 if agg_method == 'max':
-                    row_data[col] = col_values.max() if len(col_values) > 0 else np.nan
+                    row_data[f"{col}_max"] = col_values.max() if len(col_values) > 0 else np.nan
                 elif agg_method == 'min':
-                    row_data[col] = col_values.min() if len(col_values) > 0 else np.nan
+                    row_data[f"{col}_min"] = col_values.min() if len(col_values) > 0 else np.nan
                 elif agg_method == 'mean':
-                    row_data[col] = col_values.mean() if len(col_values) > 0 else np.nan
+                    row_data[f"{col}_mean"] = col_values.mean() if len(col_values) > 0 else np.nan
                 elif agg_method == 'median':
-                    row_data[col] = col_values.median() if len(col_values) > 0 else np.nan
+                    row_data[f"{col}_median"] = col_values.median() if len(col_values) > 0 else np.nan
                 elif agg_method == 'first':
-                    row_data[col] = col_values.iloc[0] if len(col_values) > 0 else np.nan
+                    row_data[f"{col}_first"] = col_values.iloc[0] if len(col_values) > 0 else np.nan
                 elif agg_method == 'last':
-                    row_data[col] = col_values.iloc[-1] if len(col_values) > 0 else np.nan
+                    row_data[f"{col}_last"] = col_values.iloc[-1] if len(col_values) > 0 else np.nan
                 elif agg_method == 'boolean':
                     # 1 if any non-null value present, 0 otherwise
-                    row_data[col] = 1 if len(col_values) > 0 else 0
+                    row_data[f"{col}_boolean"] = 1 if len(col_values) > 0 else 0
                 elif agg_method == 'one_hot_encode':
                     # Create binary columns for each unique value
                     unique_values = col_values.unique()
