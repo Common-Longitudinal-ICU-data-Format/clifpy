@@ -34,7 +34,7 @@ class adt:
         return not self.errors
 
     def validate(self):
-        """Validate ``self.df`` against the mCIDE *ADTModel.json* spec."""
+        """Validate ``self.df`` against the mCIDE *AdtModel.json* spec."""
         if self.df is None:
             print("No dataframe to validate.")
             return
