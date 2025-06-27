@@ -13,7 +13,9 @@ def _cast_id_cols_to_string(df):
     return df
 
 def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None):
-    print(file_path)
+    # Extract just the filename for cleaner output
+    filename = os.path.basename(file_path)
+    print(f"Loading {filename}")
     con = duckdb.connect()
     # DuckDB >=0.9 understands the original zone if we ask for TIMESTAMPTZ
     con.execute("SET timezone = 'UTC';")          # read & return in UTC
@@ -90,7 +92,9 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
             df = load_parquet_with_tz(file_path, columns, filters, sample_size)
         else:
             raise ValueError("Unsupported filetype. Only 'csv' and 'parquet' are supported.")
-        print(f"Data loaded successfully from {file_path}")
+        # Extract just the filename for cleaner output
+        filename = os.path.basename(file_path)
+        print(f"Data loaded successfully from {filename}")
         df = _cast_id_cols_to_string(df) # Cast id columns to string
         
         # Convert datetime columns to site timezone if specified

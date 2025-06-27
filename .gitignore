@@ -16,6 +16,7 @@ __pycache__/
 
 # Virtual environment
 .venv/
+.pyclif_dev/
 
 #dev
 00_cohort_id.ipynb
