@@ -7,12 +7,13 @@ pyCLIF is a Python package for working with CLIF (Common Longitudinal ICU Data F
 ## 🚧 Project Status
 
 ### ✅ Completed Features
-- Core CLIF class implementation
-- All 9 CLIF table implementations (patient, vitals, labs, etc.)
+- Core [CLIF-2.0.0](https://clif-consortium.github.io/website/data-dictionary/data-dictionary-2.0.0.html) class implementation
+- All 9 [CLIF-2.0.0](https://clif-consortium.github.io/website/data-dictionary/data-dictionary-2.0.0.html) beta table implementations (patient, vitals, labs, etc.)
 - Data validation against mCIDE schemas
 - Timezone handling and conversion
 - Advanced filtering and querying capabilities
 - Comprehensive test suite
+- CLIF Demo Dataset created using [MIMIC-IV Clinical Database Demo](https://physionet.org/content/mimic-iv-demo/2.2/)
 - Example notebooks demonstrating usage
 
 ### 🔄 In Progress
