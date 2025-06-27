@@ -61,9 +61,9 @@ class vitals:
     # Constructors
     # ------------------------------------------------------------------
     @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet"):
+    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
         """Load the vitals table from *table_path* and build a :class:`vitals`."""
-        data = load_data("vitals", table_path, table_format_type)
+        data = load_data("vitals", table_path, table_format_type, site_tz=timezone)
         return cls(data)
 
     # ------------------------------------------------------------------

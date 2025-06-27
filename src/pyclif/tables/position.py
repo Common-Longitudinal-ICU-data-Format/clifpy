@@ -20,9 +20,9 @@ class position:
     # Constructors
     # ------------------------------------------------------------------
     @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet"):
+    def from_file(cls, table_path: str, table_format_type: str = "parquet",timezone: str = "UTC"):
         """Load the position table from *table_path* and build a :class:`position`."""
-        data = load_data("position", table_path, table_format_type)
+        data = load_data("position", table_path, table_format_type, site_tz=timezone)
         return cls(data)
 
     # ------------------------------------------------------------------

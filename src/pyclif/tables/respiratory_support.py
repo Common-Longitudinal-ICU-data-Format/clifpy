@@ -22,9 +22,9 @@ class respiratory_support:
     # Constructors
     # ------------------------------------------------------------------
     @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet"):
+    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
         """Load the respiratory support table from *table_path* and build a :class:`respiratory_support`."""
-        data = load_data("respiratory_support", table_path, table_format_type)
+        data = load_data("respiratory_support", table_path, table_format_type, site_tz=timezone)
         return cls(data)
 
     # ------------------------------------------------------------------

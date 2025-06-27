@@ -8,7 +8,7 @@ from ..utils.validator import validate_table
 
 
 class patient:
-    """Patient table wrapper using lightweight JSON-spec validation."""
+    """Patient table wrapper using JSON-spec validation."""
 
     def __init__(self, data: Optional[pd.DataFrame] = None):
         self.df: Optional[pd.DataFrame] = data
@@ -21,9 +21,9 @@ class patient:
     # Constructors
     # ------------------------------------------------------------------
     @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet"):
+    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
         """Load the patient table from *table_path* and build a :class:`patient`."""
-        data = load_data("patient", table_path, table_format_type)
+        data = load_data("patient", table_path, table_format_type, site_tz=timezone)
         return cls(data)
 
     # ------------------------------------------------------------------

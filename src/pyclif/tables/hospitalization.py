@@ -21,9 +21,9 @@ class hospitalization:
     # Constructors
     # ------------------------------------------------------------------
     @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet"):
+    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
         """Load the hospitalization table from *table_path* and build a :class:`hospitalization`."""
-        data = load_data("hospitalization", table_path, table_format_type)
+        data = load_data("hospitalization", table_path, table_format_type, site_tz=timezone)
         return cls(data)
 
     # ------------------------------------------------------------------
