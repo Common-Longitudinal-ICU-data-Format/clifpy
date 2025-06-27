@@ -238,7 +238,7 @@ def load_demo_adt(return_raw: bool = False):
     Returns:
         Union[pd.DataFrame, adt]: ADT data
     """
-    return _load_demo_table('adt', return_raw)
+    return _load_demo_table('ADT', return_raw)
 
 
 def load_demo_hospitalization(return_raw: bool = False):
