@@ -1,0 +1,15 @@
+{
+  "cohort_size": 54509,
+  "mortality_rate": 0.11033040415344256,
+  "date_range": {
+    "start": "2105-10-04T22:27:12+00:00",
+    "end": "2214-05-03T22:09:18+00:00"
+  },
+  "criteria": {
+    "min_age": 18,
+    "years": "2020-2021",
+    "icu_window": "48_hours_from_admission",
+    "min_icu_duration": "24_hours",
+    "icu_or_icu_handling": "continuous_icu"
+  }
+}
