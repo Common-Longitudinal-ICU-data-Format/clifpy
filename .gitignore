@@ -21,4 +21,5 @@ __pycache__/
 #dev
 00_cohort_id.ipynb
 clif_2.1.0.txt
-
+context7.json
+cohort_metadata.json

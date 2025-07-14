@@ -307,39 +307,11 @@ def _pivot_table(df: pd.DataFrame, table_name: str, category_filters: Optional[D
 
 
 def _add_missing_columns(df: pd.DataFrame, category_filters: Optional[Dict[str, List[str]]] = None, optional_tables: Optional[List[str]] = None):
-    """Add missing columns with NaN values for assessments and medications only if those tables were requested."""
-    
-    # Only add standard columns if the corresponding tables were requested
+    """Add missing pivoted columns with NaN values if they were specified in filters but not present in the data."""
+
     if optional_tables is None:
         optional_tables = []
-    
-    # Standard assessment columns - only add if patient_assessments was requested
-    if 'patient_assessments' in optional_tables:
-        assessment_columns = [
-            'sbt_delivery_pass_fail', 'sbt_screen_pass_fail', 
-            'sat_delivery_pass_fail', 'sat_screen_pass_fail',
-            'rass', 'gcs_total'
-        ]
-        
-        for col in assessment_columns:
-            if col not in df.columns:
-                df[col] = np.nan
-                print(f"Added missing assessment column: {col}")
-    
-    # Standard medication columns - only add if medication_admin_continuous was requested
-    if 'medication_admin_continuous' in optional_tables:
-        medication_columns = [
-            'norepinephrine', 'epinephrine', 'phenylephrine', 'angiotensin',
-            'vasopressin', 'dopamine', 'dobutamine', 'milrinone', 'isoproterenol',
-            'cisatracurium', 'vecuronium', 'rocuronium', 'fentanyl', 'propofol',
-            'lorazepam', 'midazolam', 'hydromorphone', 'morphine'
-        ]
-        
-        for col in medication_columns:
-            if col not in df.columns:
-                df[col] = np.nan
-                print(f"Added missing medication column: {col}")
-    
+
     # Add category-specific columns if filters were specified - only add if table was requested
     if category_filters:
         for table_name, categories in category_filters.items():
