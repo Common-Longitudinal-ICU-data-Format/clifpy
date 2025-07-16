@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import re
 from typing import List, Dict, Optional
+from tqdm import tqdm
 
 
 def create_wide_dataset(
@@ -422,22 +423,44 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
     
     print(f"Processing {len(df)} records into hourly buckets...")
     
-    # Get demographic columns (columns that don't vary within a hospitalization)
-    demographic_cols = []
-    potential_demo_cols = ['age', 'sex', 'race', 'sex_category', 'race_category', 
-                          'admission_dttm', 'discharge_dttm', 'admit_dttm']
-    for col in potential_demo_cols:
-        if col in df.columns:
-            demographic_cols.append(col)
-    
     # Columns to group by - use event_time_hour instead of day_number and hour_bucket
     group_cols = ['hospitalization_id', 'event_time_hour', 'nth_hour']
+    
+    # Find columns not in aggregation_config and set them to 'first' with '_c' postfix
+    all_agg_columns = []
+    for columns_list in aggregation_config.values():
+        all_agg_columns.extend(columns_list)
+    
+    # Get list of columns that are not in aggregation_config
+    non_agg_columns = [col for col in df.columns 
+                      if col not in all_agg_columns 
+                      and col not in group_cols
+                      and col != 'patient_id'
+                      and col != 'day_number'
+                      and col != 'first_event_hour'
+                      and col != 'hour_bucket'
+                      and col != 'event_time']
+    
+    # Print these columns and add them to 'first' aggregation with '_c' postfix
+    if non_agg_columns:
+        print("The following columns are not mentioned in aggregation_config, defaulting to 'first' with '_c' postfix:")
+        for col in non_agg_columns:
+            print(f"  - {col}")
+        
+        # Add these columns to the config with '_c' postfix instead of 'first_'
+        if 'first' not in aggregation_config:
+            aggregation_config['first'] = []
+            
+        aggregation_config['first'].extend(non_agg_columns)
     
     # Initialize result dictionary
     aggregated_data = []
     
-    # Process each hospitalization-hour group
-    for group_key, group_df in df.groupby(group_cols):
+    # Track columns we've already warned about to avoid duplicate warnings
+    warned_columns = set()
+    
+    # Process each hospitalization-hour group with tqdm progress bar
+    for group_key, group_df in tqdm(df.groupby(group_cols), desc="Aggregating data by hour", unit="group"):
         hosp_id, event_time_hour, nth_hour = group_key
         
         # Start with base info
@@ -456,15 +479,14 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
         if 'day_number' in group_df.columns:
             row_data['day_number'] = group_df['day_number'].iloc[0]
         
-        # Add demographic columns (should be same for all rows in group)
-        for col in demographic_cols:
-            row_data[col] = group_df[col].iloc[0]
-        
         # Apply aggregations based on config
         for agg_method, columns in aggregation_config.items():
             for col in columns:
                 if col not in group_df.columns:
-                    print(f"Warning: Column '{col}' not found in wide_df, skipping...")
+                    # Only print warning once per column
+                    if col not in warned_columns:
+                        print(f"Warning: Column '{col}' not found in wide_df, skipping...")
+                        warned_columns.add(col)
                     continue
                 
                 # Get non-null values for this column
@@ -479,7 +501,13 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
                 elif agg_method == 'median':
                     row_data[f"{col}_median"] = col_values.median() if len(col_values) > 0 else np.nan
                 elif agg_method == 'first':
-                    row_data[f"{col}_first"] = col_values.iloc[0] if len(col_values) > 0 else np.nan
+                    # Check if this is a non-agg column (not originally in agg_config)
+                    if col in non_agg_columns:
+                        # Use '_c' postfix instead of 'first_'
+                        row_data[f"{col}_c"] = col_values.iloc[0] if len(col_values) > 0 else np.nan
+                    else:
+                        # Use original 'first_' postfix for columns specified in agg_config
+                        row_data[f"{col}_first"] = col_values.iloc[0] if len(col_values) > 0 else np.nan
                 elif agg_method == 'last':
                     row_data[f"{col}_last"] = col_values.iloc[-1] if len(col_values) > 0 else np.nan
                 elif agg_method == 'boolean':
