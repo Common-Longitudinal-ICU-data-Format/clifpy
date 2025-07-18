@@ -210,7 +210,11 @@ class CLIF:
                           output_filename=None, 
                           auto_load=True,
                           return_dataframe=True,
-                          base_table_columns=None):
+                          base_table_columns=None,
+                          batch_size=1000,
+                          memory_limit=None,
+                          threads=None,
+                          show_progress=True):
         """
         Create a wide dataset by joining multiple CLIF tables with pivoting support.
         
@@ -225,6 +229,10 @@ class CLIF:
             auto_load: Boolean - automatically load missing tables (default=True)
             return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
             base_table_columns: Dict specifying which columns to select from base tables {'patient': ['col1'], 'hospitalization': ['col1'], 'adt': ['col1']}
+            batch_size: Number of hospitalizations to process in each batch (default=1000)
+            memory_limit: DuckDB memory limit (e.g., '8GB')
+            threads: Number of threads for DuckDB to use
+            show_progress: Show progress bars for long operations (default=True)
         
         Returns:
             pd.DataFrame or None (if return_dataframe=False)
@@ -272,7 +280,11 @@ class CLIF:
             save_to_data_location=save_to_data_location,
             output_filename=output_filename,
             return_dataframe=return_dataframe,
-            base_table_columns=base_table_columns
+            base_table_columns=base_table_columns,
+            batch_size=batch_size,
+            memory_limit=memory_limit,
+            threads=threads,
+            show_progress=show_progress
         )
         
         # Store the wide dataset

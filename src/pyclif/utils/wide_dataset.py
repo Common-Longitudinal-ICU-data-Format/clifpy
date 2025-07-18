@@ -4,8 +4,12 @@ import numpy as np
 from datetime import datetime
 import os
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 from tqdm import tqdm
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 def create_wide_dataset(
@@ -18,22 +22,32 @@ def create_wide_dataset(
     save_to_data_location: bool = False,
     output_filename: Optional[str] = None,
     return_dataframe: bool = True,
-    base_table_columns: Optional[Dict[str, List[str]]] = None
+    base_table_columns: Optional[Dict[str, List[str]]] = None,
+    batch_size: int = 1000,
+    memory_limit: Optional[str] = None,
+    threads: Optional[int] = None,
+    show_progress: bool = True
 ) -> Optional[pd.DataFrame]:
     """
     Create a wide dataset by joining multiple CLIF tables with pivoting support.
     
     Parameters:
         clif_instance: CLIF object with loaded data
-        optional_tables: List of optional tables to include ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments', 'respiratory_support']
-        category_filters: Dict specifying which categories to pivot for each table
+        optional_tables: DEPRECATED - use category_filters to specify tables
+        category_filters: Dict specifying which categories to include for each table
+                         Keys are table names, values are lists of categories to filter
+                         Table presence in this dict determines if it will be loaded
         sample: Boolean - if True, randomly select 20 hospitalizations
         hospitalization_ids: List of specific hospitalization IDs to filter
         output_format: 'dataframe', 'csv', or 'parquet'
         save_to_data_location: Boolean - save output to data directory
         output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
         return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
-        base_table_columns: Dict specifying which columns to select from base tables {'patient': ['col1', 'col2'], 'hospitalization': ['col1'], 'adt': ['col1']}
+        base_table_columns: DEPRECATED - columns are selected automatically
+        batch_size: Number of hospitalizations to process in each batch (default=1000)
+        memory_limit: DuckDB memory limit (e.g., '8GB')
+        threads: Number of threads for DuckDB to use
+        show_progress: Show progress bars for long operations
     
     Returns:
         pd.DataFrame or None (if return_dataframe=False)
@@ -41,189 +55,130 @@ def create_wide_dataset(
     
     print("Starting wide dataset creation...")
     
-    # Get base tables with optional column filtering
-    patient_df = _filter_base_table_columns(clif_instance.patient.df.copy(), 'patient', base_table_columns)
-    hospitalization_df = _filter_base_table_columns(clif_instance.hospitalization.df.copy(), 'hospitalization', base_table_columns)
-    adt_df = _filter_base_table_columns(clif_instance.adt.df.copy(), 'adt', base_table_columns)
+    # Define tables that need pivoting vs those already wide
+    PIVOT_TABLES = ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments']
+    WIDE_TABLES = ['respiratory_support']
     
-    print(f"Base tables loaded - Patient: {len(patient_df)}, Hospitalization: {len(hospitalization_df)}, ADT: {len(adt_df)}")
+    # Determine which tables to load from category_filters
+    if category_filters is None:
+        category_filters = {}
     
-    # Apply hospitalization filtering
-    if hospitalization_ids is not None:
-        print(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
-        hospitalization_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(hospitalization_ids)]
-        required_ids = hospitalization_df['hospitalization_id'].unique()
-    elif sample:
-        print("Sampling 20 random hospitalizations...")
-        sampled_ids = hospitalization_df['hospitalization_id'].sample(n=min(20, len(hospitalization_df))).tolist()
-        hospitalization_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(sampled_ids)]
-        required_ids = hospitalization_df['hospitalization_id'].unique()
-        print(f"Selected {len(required_ids)} hospitalizations for sampling")
-    else:
-        required_ids = hospitalization_df['hospitalization_id'].unique()
-        print(f"Processing all {len(required_ids)} hospitalizations")
+    # For backward compatibility with optional_tables
+    if optional_tables and not category_filters:
+        print("Warning: optional_tables parameter is deprecated. Converting to category_filters format.")
+        category_filters = {table: [] for table in optional_tables}
     
-    # Filter other tables based on required IDs
-    adt_df = adt_df[adt_df['hospitalization_id'].isin(required_ids)]
+    tables_to_load = list(category_filters.keys())
     
-    # Create base cohort by merging patient and hospitalization
-    base_cohort = pd.merge(hospitalization_df, patient_df, on='patient_id', how='inner')
-    print(f"Base cohort created with {len(base_cohort)} records")
+    # Create DuckDB connection with optimized settings
+    conn_config = {
+        'preserve_insertion_order': 'false'
+    }
     
-    # Collect all unique event timestamps
-    event_times = []
+    if memory_limit:
+        conn_config['memory_limit'] = memory_limit
+    if threads:
+        conn_config['threads'] = str(threads)
     
-    # Add ADT timestamps
-    if 'in_dttm' in adt_df.columns:
-        adt_times = adt_df[['hospitalization_id', 'in_dttm']].dropna()
-        adt_times.rename(columns={'in_dttm': 'event_time'}, inplace=True)
-        event_times.append(adt_times)
-    
-    # Process optional tables
-    optional_data = {}
-    if optional_tables:
-        for table_name in optional_tables:
-            table_attr = table_name if table_name != 'labs' else 'lab'
-            table_obj = getattr(clif_instance, table_attr, None)
-            
-            if table_obj is None:
-                print(f"Warning: {table_name} table not loaded, skipping...")
-                continue
-                
-            table_df = table_obj.df.copy()
-            table_df = table_df[table_df['hospitalization_id'].isin(required_ids)]
-            
-            print(f"Processing {table_name}: {len(table_df)} records")
-            
-            # Get timestamp column name
-            timestamp_col = _get_timestamp_column(table_name)
-            # Handle case where the expected column doesn't exist, try alternatives
-            if timestamp_col and timestamp_col not in table_df.columns:
-                if table_name == 'labs':
-                    # Try alternative timestamp columns for labs
-                    alt_cols = ['lab_collect_dttm', 'recorded_dttm', 'lab_order_dttm']
-                    for alt_col in alt_cols:
-                        if alt_col in table_df.columns:
-                            timestamp_col = alt_col
-                            break
-                elif table_name == 'vitals':
-                    # Try alternative for vitals
-                    if 'recorded_dttm_min' in table_df.columns:
-                        timestamp_col = 'recorded_dttm_min'
-            
-            if timestamp_col and timestamp_col in table_df.columns:
-                # Add timestamps to event_times
-                table_times = table_df[['hospitalization_id', timestamp_col]].dropna()
-                table_times.rename(columns={timestamp_col: 'event_time'}, inplace=True)
-                event_times.append(table_times)
-                
-                # Process pivoting if needed
-                if table_name in ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments']:
-                    pivoted_df = _pivot_table(table_df, table_name, category_filters)
-                    if pivoted_df is not None:
-                        optional_data[table_name] = {
-                            'data': table_df,
-                            'pivoted': pivoted_df,
-                            'timestamp_col': timestamp_col
-                        }
-                else:
-                    optional_data[table_name] = {
-                        'data': table_df,
-                        'timestamp_col': timestamp_col
-                    }
-    
-    # Create unified event times
-    if event_times:
-        all_event_times = pd.concat(event_times, ignore_index=True).drop_duplicates()
-        print(f"Found {len(all_event_times)} unique event timestamps")
-    else:
-        print("No event timestamps found")
-        return base_cohort
-    
-    # Create expanded cohort with all event times
-    expanded_cohort = pd.merge(base_cohort, all_event_times, on='hospitalization_id', how='left')
-    print(f"Expanded cohort created with {len(expanded_cohort)} records")
-    
-    # Join with ADT data
-    adt_join_df = adt_df.copy()
-    if 'in_dttm' in adt_join_df.columns:
-        adt_join_df['combo_id'] = (adt_join_df['hospitalization_id'].astype(str) + '_' + 
-                                  adt_join_df['in_dttm'].dt.strftime('%Y%m%d%H%M'))
-    
-    expanded_cohort['combo_id'] = (expanded_cohort['hospitalization_id'].astype(str) + '_' + 
-                                  expanded_cohort['event_time'].dt.strftime('%Y%m%d%H%M'))
-    
-    # Start with expanded cohort
-    final_df = expanded_cohort.copy()
-    
-    # Join ADT data
-    if not adt_join_df.empty and 'combo_id' in adt_join_df.columns:
-        adt_cols = [col for col in adt_join_df.columns if col not in final_df.columns or col == 'combo_id']
-        final_df = pd.merge(final_df, adt_join_df[adt_cols], on='combo_id', how='left')
-        print("Joined ADT data")
-    
-    # Join optional table data
-    for table_name, table_info in optional_data.items():
-        if 'pivoted' in table_info:
-            # Join pivoted data
-            pivoted_df = table_info['pivoted']
-            if not pivoted_df.empty:
-                final_df = pd.merge(final_df, pivoted_df, on='combo_id', how='left')
-                print(f"Joined pivoted {table_name} data")
+    # Use context manager for connection
+    with duckdb.connect(':memory:', config=conn_config) as conn:
+        # Set additional optimization settings
+        conn.execute("SET preserve_insertion_order = false")
+        
+        # Get hospitalization IDs to process
+        hospitalization_df = clif_instance.hospitalization.df.copy()
+        
+        if hospitalization_ids is not None:
+            print(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
+            required_ids = hospitalization_ids
+        elif sample:
+            print("Sampling 20 random hospitalizations...")
+            all_ids = hospitalization_df['hospitalization_id'].unique()
+            required_ids = np.random.choice(all_ids, size=min(20, len(all_ids)), replace=False).tolist()
+            print(f"Selected {len(required_ids)} hospitalizations for sampling")
         else:
-            # Join non-pivoted data
-            table_df = table_info['data']
-            timestamp_col = table_info['timestamp_col']
-            if timestamp_col and timestamp_col in table_df.columns:
-                table_df['combo_id'] = (table_df['hospitalization_id'].astype(str) + '_' + 
-                                       table_df[timestamp_col].dt.strftime('%Y%m%d%H%M'))
-                table_cols = [col for col in table_df.columns if col not in final_df.columns or col == 'combo_id']
-                final_df = pd.merge(final_df, table_df[table_cols], on='combo_id', how='left')
-                print(f"Joined {table_name} data")
-    
-    # Create day-based aggregation
-    final_df['date'] = final_df['event_time'].dt.date
-    final_df = final_df.sort_values(['hospitalization_id', 'event_time']).reset_index(drop=True)
-    final_df['day_number'] = final_df.groupby('hospitalization_id')['date'].rank(method='dense').astype(int)
-    final_df['hosp_id_day_key'] = (final_df['hospitalization_id'].astype(str) + '_day_' + 
-                                   final_df['day_number'].astype(str))
-    
-    print(f"Final wide dataset created with {len(final_df)} records and {len(final_df.columns)} columns")
-    
-    # Handle missing columns for assessments and medications
-    _add_missing_columns(final_df, category_filters, optional_tables)
-    
-    # Clean up intermediate columns
-    columns_to_drop = ['combo_id', 'date']
-    final_df = final_df.drop(columns=[col for col in columns_to_drop if col in final_df.columns])
-    
-    # Save if requested
-    if save_to_data_location:
-        if output_filename is None:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_filename = f'wide_dataset_{timestamp}'
+            required_ids = hospitalization_df['hospitalization_id'].unique().tolist()
+            print(f"Processing all {len(required_ids)} hospitalizations")
         
-        output_path = os.path.join(clif_instance.data_dir, f'{output_filename}.{output_format}')
+        # Filter all base tables by required IDs immediately
+        print("\nLoading and filtering base tables...")
+        # Only keep required columns from hospitalization table
+        hosp_required_cols = ['hospitalization_id', 'patient_id', 'age_at_admission']
+        hosp_available_cols = [col for col in hosp_required_cols if col in hospitalization_df.columns]
+        hospitalization_df = hospitalization_df[hosp_available_cols]
+        hospitalization_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(required_ids)]
+        patient_df = clif_instance.patient.df[['patient_id']].copy()
         
-        if output_format == 'csv':
-            final_df.to_csv(output_path, index=False)
-        elif output_format == 'parquet':
-            final_df.to_parquet(output_path, index=False)
+        # Get ADT with selected columns
+        adt_df = clif_instance.adt.df.copy()
+        adt_df = adt_df[adt_df['hospitalization_id'].isin(required_ids)]
+        # Remove duplicate columns and _name columns
+        adt_cols = [col for col in adt_df.columns if not col.endswith('_name') and col != 'patient_id']
+        adt_df = adt_df[adt_cols]
         
-        print(f"Wide dataset saved to: {output_path}")
+        print(f"Base tables filtered - Hospitalization: {len(hospitalization_df)}, Patient: {len(patient_df)}, ADT: {len(adt_df)}")
+        
+        # Process in batches to avoid memory issues
+        if batch_size > 0 and len(required_ids) > batch_size:
+            print(f"Processing {len(required_ids)} hospitalizations in batches of {batch_size}")
+            return _process_in_batches(
+                conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
+                tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
+                batch_size, show_progress, save_to_data_location, output_filename,
+                output_format, return_dataframe
+            )
+        else:
+            # Process all at once for small datasets
+            return _process_hospitalizations(
+                conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
+                tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
+                show_progress
+            )
+
+
+def _find_alternative_timestamp(table_name: str, columns: List[str]) -> Optional[str]:
+    """Find alternative timestamp column if the default is not found."""
     
-    # Return DataFrame unless explicitly requested not to
-    if return_dataframe:
-        return final_df
-    else:
-        return None
+    alternatives = {
+        'labs': ['lab_collect_dttm', 'recorded_dttm', 'lab_order_dttm'],
+        'vitals': ['recorded_dttm_min', 'recorded_dttm'],
+    }
+    
+    if table_name in alternatives:
+        for alt_col in alternatives[table_name]:
+            if alt_col in columns:
+                return alt_col
+    
+    return None
+
+
+def _save_dataset(
+    df: pd.DataFrame,
+    data_dir: str,
+    output_filename: Optional[str],
+    output_format: str
+):
+    """Save the dataset to file."""
+    
+    if output_filename is None:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_filename = f'wide_dataset_{timestamp}'
+    
+    output_path = os.path.join(data_dir, f'{output_filename}.{output_format}')
+    
+    if output_format == 'csv':
+        df.to_csv(output_path, index=False)
+    elif output_format == 'parquet':
+        df.to_parquet(output_path, index=False)
+    
+    print(f"Wide dataset saved to: {output_path}")
 
 
 def _get_timestamp_column(table_name: str) -> Optional[str]:
     """Get the timestamp column name for each table type."""
     timestamp_mapping = {
         'vitals': 'recorded_dttm',
-        'labs': 'lab_result_dttm',  # fallback to 'recorded_dttm' if not found
+        'labs': 'lab_result_dttm',
         'medication_admin_continuous': 'admin_dttm',
         'patient_assessments': 'recorded_dttm',
         'respiratory_support': 'recorded_dttm'
@@ -231,138 +186,6 @@ def _get_timestamp_column(table_name: str) -> Optional[str]:
     return timestamp_mapping.get(table_name)
 
 
-def _pivot_table(df: pd.DataFrame, table_name: str, category_filters: Optional[Dict[str, List[str]]] = None) -> Optional[pd.DataFrame]:
-    """Pivot tables with category columns."""
-    
-    category_col_mapping = {
-        'vitals': 'vital_category',
-        'labs': 'lab_category', 
-        'medication_admin_continuous': 'med_category',
-        'patient_assessments': 'assessment_category'
-    }
-    
-    value_col_mapping = {
-        'vitals': 'vital_value',
-        'labs': 'lab_value_numeric',
-        'medication_admin_continuous': 'med_dose',
-        'patient_assessments': 'assessment_value'
-    }
-    
-    category_col = category_col_mapping.get(table_name)
-    value_col = value_col_mapping.get(table_name)
-    timestamp_col = _get_timestamp_column(table_name)
-    
-    # Handle alternative timestamp columns
-    if timestamp_col and timestamp_col not in df.columns:
-        if table_name == 'labs':
-            alt_cols = ['lab_collect_dttm', 'recorded_dttm', 'lab_order_dttm']
-            for alt_col in alt_cols:
-                if alt_col in df.columns:
-                    timestamp_col = alt_col
-                    break
-        elif table_name == 'vitals':
-            if 'recorded_dttm_min' in df.columns:
-                timestamp_col = 'recorded_dttm_min'
-    
-    if not all([category_col, value_col, timestamp_col]) or not all([col in df.columns for col in [category_col, value_col, timestamp_col]]):
-        print(f"Warning: Required columns not found for pivoting {table_name}")
-        return None
-    
-    # Filter categories if specified
-    if category_filters and table_name in category_filters:
-        df = df[df[category_col].isin(category_filters[table_name])]
-        print(f"Filtered {table_name} to categories: {category_filters[table_name]}")
-    
-    if df.empty:
-        print(f"No data remaining after filtering {table_name}")
-        return None
-    
-    try:
-        # Create combo_id for pivoting
-        df['combo_id'] = (df['hospitalization_id'].astype(str) + '_' + 
-                         df[timestamp_col].dt.strftime('%Y%m%d%H%M'))
-        
-        # Use DuckDB for pivoting
-        duckdb.register(f'{table_name}_data', df)
-        
-        pivot_query = f"""
-        WITH pivot_data AS (
-            SELECT DISTINCT {value_col}, {category_col}, combo_id
-            FROM {table_name}_data 
-            WHERE {timestamp_col} IS NOT NULL 
-        ) 
-        PIVOT pivot_data
-        ON {category_col}
-        USING first({value_col})
-        GROUP BY combo_id
-        """
-        
-        pivoted_df = duckdb.sql(pivot_query).df()
-        print(f"Pivoted {table_name}: {len(pivoted_df)} records with {len(pivoted_df.columns)-1} category columns")
-        
-        return pivoted_df
-        
-    except Exception as e:
-        print(f"Error pivoting {table_name}: {str(e)}")
-        return None
-
-
-def _add_missing_columns(df: pd.DataFrame, category_filters: Optional[Dict[str, List[str]]] = None, optional_tables: Optional[List[str]] = None):
-    """Add missing pivoted columns with NaN values if they were specified in filters but not present in the data."""
-
-    if optional_tables is None:
-        optional_tables = []
-
-    # Add category-specific columns if filters were specified - only add if table was requested
-    if category_filters:
-        for table_name, categories in category_filters.items():
-            # Only add missing columns if the corresponding table was requested
-            if table_name in optional_tables:
-                for category in categories:
-                    if category not in df.columns:
-                        df[category] = np.nan
-                        print(f"Added missing {table_name} category column: {category}")
-            else:
-                print(f"Skipping {table_name} categories - table not in optional_tables")
-
-
-def _filter_base_table_columns(df: pd.DataFrame, table_name: str, base_table_columns: Optional[Dict[str, List[str]]] = None) -> pd.DataFrame:
-    """Filter base table columns based on user specification while preserving required ID columns."""
-    
-    if base_table_columns is None or table_name not in base_table_columns:
-        # Return all columns if no filtering specified
-        return df
-    
-    # Define required ID columns for each base table
-    required_columns = {
-        'patient': ['patient_id'],
-        'hospitalization': ['hospitalization_id', 'patient_id'],
-        'adt': ['hospitalization_id']
-    }
-    
-    # Get user-specified columns
-    specified_columns = base_table_columns[table_name]
-    
-    # Combine required and specified columns, remove duplicates
-    required_cols = required_columns.get(table_name, [])
-    all_columns = list(set(required_cols + specified_columns))
-    
-    # Filter to only include columns that exist in the DataFrame
-    available_columns = [col for col in all_columns if col in df.columns]
-    missing_columns = [col for col in all_columns if col not in df.columns]
-    
-    if missing_columns:
-        print(f"Warning: Requested columns not found in {table_name} table: {missing_columns}")
-    
-    if available_columns:
-        filtered_df = df[available_columns].copy()
-        original_cols = len(df.columns)
-        filtered_cols = len(filtered_df.columns)
-        print(f"Filtered {table_name} table: {original_cols} -> {filtered_cols} columns")
-        return filtered_df
-    else:
-        print(f"Warning: No valid columns found for {table_name} table, returning original")
-        return df
 
 
 def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, List[str]]) -> pd.DataFrame:
@@ -545,3 +368,449 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
     print(f"Columns in hourly dataset: {len(hourly_df.columns)}")
     
     return hourly_df
+
+
+def _process_hospitalizations(
+    conn: duckdb.DuckDBPyConnection,
+    clif_instance,
+    required_ids: List[str],
+    patient_df: pd.DataFrame,
+    hospitalization_df: pd.DataFrame,
+    adt_df: pd.DataFrame,
+    tables_to_load: List[str],
+    category_filters: Dict[str, List[str]],
+    pivot_tables: List[str],
+    wide_tables: List[str],
+    show_progress: bool
+) -> Optional[pd.DataFrame]:
+    """Process hospitalizations with pivot-first approach."""
+    
+    print("\n=== Processing Tables ===")
+    
+    # Create base cohort
+    base_cohort = pd.merge(hospitalization_df, patient_df, on='patient_id', how='inner')
+    print(f"Base cohort created with {len(base_cohort)} records")
+    
+    # Register base tables as proper tables, not views
+    conn.register('temp_base', base_cohort)
+    conn.execute("CREATE OR REPLACE TABLE base_cohort AS SELECT * FROM temp_base")
+    conn.unregister('temp_base')
+    
+    conn.register('temp_adt', adt_df)
+    conn.execute("CREATE OR REPLACE TABLE adt AS SELECT * FROM temp_adt")
+    conn.unregister('temp_adt')
+    
+    # Dictionaries to store table info
+    event_time_queries = []
+    pivoted_table_names = {}
+    raw_table_names = {}
+    
+    # Add ADT event times
+    if 'in_dttm' in adt_df.columns:
+        event_time_queries.append("""
+            SELECT DISTINCT hospitalization_id, in_dttm AS event_time 
+            FROM adt 
+            WHERE in_dttm IS NOT NULL
+        """)
+    
+    # Process tables to load
+    for table_name in tables_to_load:
+        print(f"\nProcessing {table_name}...")
+        
+        # Get table data
+        table_attr = 'lab' if table_name == 'labs' else table_name
+        table_obj = getattr(clif_instance, table_attr, None)
+        
+        if table_obj is None:
+            print(f"Warning: {table_name} not loaded in CLIF instance, skipping...")
+            continue
+            
+        # Filter by hospitalization IDs immediately
+        table_df = table_obj.df[table_obj.df['hospitalization_id'].isin(required_ids)].copy()
+        
+        if len(table_df) == 0:
+            print(f"No data found in {table_name} for selected hospitalizations")
+            continue
+        
+        # For wide tables (non-pivot), filter columns based on category_filters
+        if table_name in wide_tables and table_name in category_filters:
+            # For respiratory_support, category_filters contains column names to keep
+            required_cols = ['hospitalization_id']  # Always keep hospitalization_id
+            timestamp_col = _get_timestamp_column(table_name)
+            if timestamp_col:
+                required_cols.append(timestamp_col)
+            
+            # Add the columns specified in category_filters
+            specified_cols = category_filters[table_name]
+            required_cols.extend(specified_cols)
+            
+            # Filter to only available columns
+            available_cols = [col for col in required_cols if col in table_df.columns]
+            missing_cols = [col for col in required_cols if col not in table_df.columns]
+            
+            if missing_cols:
+                print(f"Warning: Columns not found in {table_name}: {missing_cols}")
+            
+            if available_cols:
+                table_df = table_df[available_cols].copy()
+                print(f"Filtered {table_name} to {len(available_cols)} columns: {available_cols}")
+            
+        print(f"Loaded {len(table_df)} records from {table_name}")
+        
+        # Get timestamp column
+        timestamp_col = _get_timestamp_column(table_name)
+        if timestamp_col and timestamp_col not in table_df.columns:
+            timestamp_col = _find_alternative_timestamp(table_name, table_df.columns)
+        
+        if not timestamp_col or timestamp_col not in table_df.columns:
+            print(f"Warning: No timestamp column found for {table_name}, skipping...")
+            continue
+        
+        # Register raw table as a proper table, not a view
+        raw_table_name = f"{table_name}_raw"
+        # First register the DataFrame temporarily
+        conn.register('temp_df', table_df)
+        # Create a proper table from it
+        conn.execute(f"CREATE OR REPLACE TABLE {raw_table_name} AS SELECT * FROM temp_df")
+        # Clean up the temporary registration
+        conn.unregister('temp_df')
+        raw_table_names[table_name] = raw_table_name
+        
+        # Process based on table type
+        if table_name in pivot_tables:
+            # Pivot the table first
+            pivoted_name = _pivot_table_duckdb(conn, table_name, table_df, timestamp_col, category_filters)
+            if pivoted_name:
+                pivoted_table_names[table_name] = pivoted_name
+                # Add event times from the RAW table (not pivoted)
+                event_time_queries.append(f"""
+                    SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time 
+                    FROM {raw_table_name} 
+                    WHERE {timestamp_col} IS NOT NULL
+                """)
+        else:
+            # Wide table - just add event times
+            event_time_queries.append(f"""
+                SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time 
+                FROM {raw_table_name} 
+                WHERE {timestamp_col} IS NOT NULL
+            """)
+    
+    # Now create the union and join
+    if event_time_queries:
+        print("\n=== Creating wide dataset ===")
+        final_df = _create_wide_dataset(
+            conn, base_cohort, event_time_queries, 
+            pivoted_table_names, raw_table_names, 
+            tables_to_load, pivot_tables, 
+            category_filters
+        )
+        return final_df
+    else:
+        print("No event times found, returning base cohort only")
+        return base_cohort
+
+
+def _pivot_table_duckdb(
+    conn: duckdb.DuckDBPyConnection,
+    table_name: str,
+    table_df: pd.DataFrame,
+    timestamp_col: str,
+    category_filters: Dict[str, List[str]]
+) -> Optional[str]:
+    """Pivot a table and return the pivoted table name."""
+    
+    # Get column mappings
+    category_col_mapping = {
+        'vitals': 'vital_category',
+        'labs': 'lab_category', 
+        'medication_admin_continuous': 'med_category',
+        'patient_assessments': 'assessment_category'
+    }
+    
+    value_col_mapping = {
+        'vitals': 'vital_value',
+        'labs': 'lab_value_numeric',
+        'medication_admin_continuous': 'med_dose',
+        'patient_assessments': 'assessment_value'
+    }
+    
+    category_col = category_col_mapping.get(table_name)
+    value_col = value_col_mapping.get(table_name)
+    
+    if not category_col or not value_col:
+        print(f"Warning: No pivot configuration for {table_name}")
+        return None
+    
+    if category_col not in table_df.columns or value_col not in table_df.columns:
+        print(f"Warning: Required columns {category_col} or {value_col} not found in {table_name}")
+        return None
+    
+    # Build filter clause if categories specified
+    filter_clause = ""
+    if table_name in category_filters and category_filters[table_name]:
+        categories_list = "','".join(category_filters[table_name])
+        filter_clause = f"AND {category_col} IN ('{categories_list}')"
+        print(f"Filtering {table_name} categories to: {category_filters[table_name]}")
+    
+    # Create pivot query
+    pivoted_table_name = f"{table_name}_pivoted"
+    pivot_query = f"""
+    CREATE OR REPLACE TABLE {pivoted_table_name} AS
+    WITH pivot_data AS (
+        SELECT DISTINCT 
+            {value_col}, 
+            {category_col},
+            hospitalization_id || '_' || strftime({timestamp_col}, '%Y%m%d%H%M') AS combo_id
+        FROM {table_name}_raw 
+        WHERE {timestamp_col} IS NOT NULL {filter_clause}
+    ) 
+    PIVOT pivot_data
+    ON {category_col}
+    USING first({value_col})
+    GROUP BY combo_id
+    """
+    
+    try:
+        conn.execute(pivot_query)
+        
+        # Get stats
+        count = conn.execute(f"SELECT COUNT(*) FROM {pivoted_table_name}").fetchone()[0]
+        cols = len(conn.execute(f"SELECT * FROM {pivoted_table_name} LIMIT 0").df().columns) - 1
+        
+        print(f"Pivoted {table_name}: {count} combo_ids with {cols} category columns")
+        return pivoted_table_name
+        
+    except Exception as e:
+        print(f"Error pivoting {table_name}: {str(e)}")
+        return None
+
+
+def _create_wide_dataset(
+    conn: duckdb.DuckDBPyConnection,
+    base_cohort: pd.DataFrame,
+    event_time_queries: List[str],
+    pivoted_table_names: Dict[str, str],
+    raw_table_names: Dict[str, str],
+    tables_to_load: List[str],
+    pivot_tables: List[str],
+    category_filters: Dict[str, List[str]]
+) -> pd.DataFrame:
+    """Create the final wide dataset by joining all tables."""
+    
+    # Create union of all event times
+    union_query = " UNION ALL ".join(event_time_queries)
+    
+    # Build the main query
+    query = f"""
+    WITH all_events AS (
+        SELECT DISTINCT hospitalization_id, event_time
+        FROM ({union_query}) uni_time
+    ),
+    expanded_cohort AS (
+        SELECT 
+            a.*,
+            b.event_time,
+            a.hospitalization_id || '_' || strftime(b.event_time, '%Y%m%d%H%M') AS combo_id
+        FROM base_cohort a
+        INNER JOIN all_events b ON a.hospitalization_id = b.hospitalization_id
+    )
+    SELECT ec.*
+    """
+    
+    # Add ADT columns
+    if 'adt' in conn.execute("SHOW TABLES").df()['name'].values:
+        adt_cols = [col for col in conn.execute("SELECT * FROM adt LIMIT 0").df().columns 
+                   if col not in ['hospitalization_id']]
+        if adt_cols:
+            adt_col_list = ', '.join([f"adt_combo.{col}" for col in adt_cols])
+            query = query.replace("SELECT ec.*", f"SELECT ec.*, {adt_col_list}")
+    
+    # Add pivoted table columns
+    for table_name, pivoted_table_name in pivoted_table_names.items():
+        pivot_cols = conn.execute(f"SELECT * FROM {pivoted_table_name} LIMIT 0").df().columns
+        pivot_cols = [col for col in pivot_cols if col != 'combo_id']
+        
+        if pivot_cols:
+            pivot_col_list = ', '.join([f"{pivoted_table_name}.{col}" for col in pivot_cols])
+            query = query.replace("SELECT ec.*", f"SELECT ec.*, {pivot_col_list}")
+    
+    # Add non-pivoted table columns (respiratory_support)
+    for table_name in tables_to_load:
+        if table_name not in pivot_tables and table_name in raw_table_names:
+            timestamp_col = _get_timestamp_column(table_name)
+            if not timestamp_col:
+                continue
+                
+            raw_cols = conn.execute(f"SELECT * FROM {raw_table_names[table_name]} LIMIT 0").df().columns
+            table_cols = [col for col in raw_cols if col not in ['hospitalization_id', timestamp_col]]
+            
+            if table_cols:
+                col_list = ', '.join([f"{table_name}_combo.{col}" for col in table_cols])
+                query = query.replace("SELECT ec.*", f"SELECT ec.*, {col_list}")
+    
+    # Add FROM clause
+    query += " FROM expanded_cohort ec"
+    
+    # Add ADT join
+    if 'adt' in conn.execute("SHOW TABLES").df()['name'].values:
+        query += """
+        LEFT JOIN (
+            SELECT 
+                hospitalization_id || '_' || strftime(in_dttm, '%Y%m%d%H%M') AS combo_id,
+                *
+            FROM adt
+            WHERE in_dttm IS NOT NULL
+        ) adt_combo USING (combo_id)
+        """
+    
+    # Add joins for pivoted tables
+    for table_name, pivoted_table_name in pivoted_table_names.items():
+        query += f" LEFT JOIN {pivoted_table_name} USING (combo_id)"
+    
+    # Add joins for non-pivoted tables
+    for table_name in tables_to_load:
+        if table_name not in pivot_tables and table_name in raw_table_names:
+            timestamp_col = _get_timestamp_column(table_name)
+            if timestamp_col:
+                raw_cols = conn.execute(f"SELECT * FROM {raw_table_names[table_name]} LIMIT 0").df().columns
+                if timestamp_col in raw_cols:
+                    table_cols = [col for col in raw_cols if col not in ['hospitalization_id', timestamp_col]]
+                    if table_cols:
+                        col_list = ', '.join(table_cols)
+                        query += f"""
+                        LEFT JOIN (
+                            SELECT 
+                                hospitalization_id || '_' || strftime({timestamp_col}, '%Y%m%d%H%M') AS combo_id,
+                                {col_list}
+                            FROM {raw_table_names[table_name]}
+                            WHERE {timestamp_col} IS NOT NULL
+                        ) {table_name}_combo USING (combo_id)
+                        """
+    
+    # Execute query
+    print("Executing join query...")
+    result_df = conn.execute(query).df()
+    
+    # Remove duplicate columns
+    result_df = result_df.loc[:, ~result_df.columns.duplicated()]
+    
+    # Add day-based columns
+    result_df['date'] = pd.to_datetime(result_df['event_time']).dt.date
+    result_df = result_df.sort_values(['hospitalization_id', 'event_time']).reset_index(drop=True)
+    result_df['day_number'] = result_df.groupby('hospitalization_id')['date'].rank(method='dense').astype(int)
+    result_df['hosp_id_day_key'] = (result_df['hospitalization_id'].astype(str) + '_day_' + 
+                                    result_df['day_number'].astype(str))
+    
+    # Add missing columns for requested categories
+    _add_missing_columns(result_df, category_filters, tables_to_load)
+    
+    # Clean up
+    columns_to_drop = ['combo_id', 'date']
+    result_df = result_df.drop(columns=[col for col in columns_to_drop if col in result_df.columns])
+    
+    print(f"Wide dataset created: {len(result_df)} records with {len(result_df.columns)} columns")
+    
+    return result_df
+
+
+def _add_missing_columns(
+    df: pd.DataFrame, 
+    category_filters: Dict[str, List[str]], 
+    tables_loaded: List[str]
+):
+    """Add missing columns for categories that were requested but not found in data."""
+    
+    if not category_filters:
+        return
+    
+    for table_name, categories in category_filters.items():
+        if table_name in tables_loaded and categories:
+            for category in categories:
+                if category not in df.columns:
+                    df[category] = np.nan
+                    print(f"Added missing column: {category}")
+
+
+def _process_in_batches(
+    conn: duckdb.DuckDBPyConnection,
+    clif_instance,
+    all_hosp_ids: List[str],
+    patient_df: pd.DataFrame,
+    hospitalization_df: pd.DataFrame,
+    adt_df: pd.DataFrame,
+    tables_to_load: List[str],
+    category_filters: Dict[str, List[str]],
+    pivot_tables: List[str],
+    wide_tables: List[str],
+    batch_size: int,
+    show_progress: bool,
+    save_to_data_location: bool,
+    output_filename: Optional[str],
+    output_format: str,
+    return_dataframe: bool
+) -> Optional[pd.DataFrame]:
+    """Process hospitalizations in batches using the new approach."""
+    
+    # Split into batches
+    batches = [all_hosp_ids[i:i + batch_size] for i in range(0, len(all_hosp_ids), batch_size)]
+    batch_results = []
+    
+    iterator = tqdm(batches, desc="Processing batches") if show_progress else batches
+    
+    for batch_idx, batch_hosp_ids in enumerate(iterator):
+        try:
+            print(f"\nProcessing batch {batch_idx + 1}/{len(batches)} ({len(batch_hosp_ids)} hospitalizations)")
+            
+            # Filter base tables for this batch
+            batch_hosp_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(batch_hosp_ids)]
+            batch_adt_df = adt_df[adt_df['hospitalization_id'].isin(batch_hosp_ids)]
+            
+            # Clean up tables from previous batch
+            tables_df = conn.execute("SHOW TABLES").df()
+            for idx, row in tables_df.iterrows():
+                table_name = row['name']
+                if table_name not in ['base_cohort', 'adt']:
+                    try:
+                        # Try to drop as table first
+                        conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+                    except:
+                        # If that fails, try to drop as view
+                        try:
+                            conn.execute(f"DROP VIEW IF EXISTS {table_name}")
+                        except:
+                            pass
+            
+            # Process this batch
+            batch_result = _process_hospitalizations(
+                conn, clif_instance, batch_hosp_ids, patient_df, batch_hosp_df, batch_adt_df,
+                tables_to_load, category_filters, pivot_tables, wide_tables,
+                show_progress=False
+            )
+            
+            if batch_result is not None and len(batch_result) > 0:
+                batch_results.append(batch_result)
+                print(f"Batch {batch_idx + 1} completed: {len(batch_result)} records")
+            
+            # Clean up after batch
+            import gc
+            gc.collect()
+            
+        except Exception as e:
+            logger.error(f"Error processing batch {batch_idx + 1}: {str(e)}")
+            print(f"Warning: Failed to process batch {batch_idx + 1}: {str(e)}")
+            continue
+    
+    # Combine results
+    if batch_results:
+        print(f"\nCombining {len(batch_results)} batch results...")
+        final_df = pd.concat(batch_results, ignore_index=True)
+        print(f"Final dataset: {len(final_df)} records with {len(final_df.columns)} columns")
+        
+        if save_to_data_location:
+            _save_dataset(final_df, clif_instance.data_dir, output_filename, output_format)
+        
+        return final_df if return_dataframe else None
+    else:
+        print("No data processed successfully")
+        return None
