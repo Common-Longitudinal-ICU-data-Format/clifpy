@@ -18,6 +18,7 @@ def create_wide_dataset(
     category_filters: Optional[Dict[str, List[str]]] = None,
     sample: bool = False,
     hospitalization_ids: Optional[List[str]] = None,
+    cohort_df: Optional[pd.DataFrame] = None,
     output_format: str = 'dataframe',
     save_to_data_location: bool = False,
     output_filename: Optional[str] = None,
@@ -39,6 +40,9 @@ def create_wide_dataset(
                          Table presence in this dict determines if it will be loaded
         sample: Boolean - if True, randomly select 20 hospitalizations
         hospitalization_ids: List of specific hospitalization IDs to filter
+        cohort_df: Optional DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
+                   If provided, data will be filtered to only include events within the specified
+                   time windows for each hospitalization
         output_format: 'dataframe', 'csv', or 'parquet'
         save_to_data_location: Boolean - save output to data directory
         output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
@@ -54,6 +58,23 @@ def create_wide_dataset(
     """
     
     print("Starting wide dataset creation...")
+    
+    # Validate cohort_df if provided
+    if cohort_df is not None:
+        required_cols = ['hospitalization_id', 'start_time', 'end_time']
+        missing_cols = [col for col in required_cols if col not in cohort_df.columns]
+        if missing_cols:
+            raise ValueError(f"cohort_df must contain columns: {required_cols}. Missing: {missing_cols}")
+        
+        # Ensure hospitalization_id is string type to match with other tables
+        cohort_df['hospitalization_id'] = cohort_df['hospitalization_id'].astype(str)
+        
+        # Ensure time columns are datetime
+        for time_col in ['start_time', 'end_time']:
+            if not pd.api.types.is_datetime64_any_dtype(cohort_df[time_col]):
+                cohort_df[time_col] = pd.to_datetime(cohort_df[time_col])
+        
+        print(f"Using cohort_df with time windows for {len(cohort_df)} hospitalizations")
     
     # Define tables that need pivoting vs those already wide
     PIVOT_TABLES = ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments']
@@ -91,6 +112,10 @@ def create_wide_dataset(
         if hospitalization_ids is not None:
             print(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
             required_ids = hospitalization_ids
+        elif cohort_df is not None:
+            # Use hospitalization IDs from cohort_df
+            required_ids = cohort_df['hospitalization_id'].unique().tolist()
+            print(f"Using {len(required_ids)} hospitalization IDs from cohort_df")
         elif sample:
             print("Sampling 20 random hospitalizations...")
             all_ids = hospitalization_df['hospitalization_id'].unique()
@@ -125,14 +150,14 @@ def create_wide_dataset(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
                 batch_size, show_progress, save_to_data_location, output_filename,
-                output_format, return_dataframe
+                output_format, return_dataframe, cohort_df
             )
         else:
             # Process all at once for small datasets
             return _process_hospitalizations(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
-                show_progress
+                show_progress, cohort_df
             )
 
 
@@ -188,9 +213,392 @@ def _get_timestamp_column(table_name: str) -> Optional[str]:
 
 
 
-def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, List[str]]) -> pd.DataFrame:
+def convert_wide_to_hourly_optimized(
+    wide_df: pd.DataFrame, 
+    aggregation_config: Dict[str, List[str]],
+    memory_limit: str = '4GB',
+    temp_directory: Optional[str] = None,
+    batch_size: Optional[int] = None
+) -> pd.DataFrame:
+    """
+    Optimized version using DuckDB for fast hourly aggregation.
+    
+    Parameters:
+        wide_df: Wide dataset DataFrame from create_wide_dataset()
+        aggregation_config: Dict mapping aggregation methods to list of columns
+        memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
+        temp_directory: Directory for temporary files (default: system temp)
+        batch_size: Process in batches if dataset is large (auto-determined if None)
+        
+    Returns:
+        pd.DataFrame: Hourly aggregated wide dataset with nth_hour column
+    """
+    
+    print("Starting optimized hourly aggregation using DuckDB...")
+    print(f"Input dataset shape: {wide_df.shape}")
+    print(f"Memory limit: {memory_limit}")
+    
+    # Validate input
+    required_columns = ['event_time', 'hospitalization_id', 'day_number']
+    for col in required_columns:
+        if col not in wide_df.columns:
+            raise ValueError(f"wide_df must contain '{col}' column")
+    
+    # Auto-determine batch size for very large datasets
+    if batch_size is None:
+        n_rows = len(wide_df)
+        n_hospitalizations = wide_df['hospitalization_id'].nunique()
+        
+        # Use batching if dataset is very large
+        if n_rows > 1_000_000 or n_hospitalizations > 10_000:
+            batch_size = min(5000, n_hospitalizations // 4)
+            print(f"Large dataset detected ({n_rows:,} rows, {n_hospitalizations:,} hospitalizations)")
+            print(f"Will process in batches of {batch_size} hospitalizations")
+        else:
+            batch_size = 0  # Process all at once
+    
+    # Configure DuckDB connection
+    config = {
+        'memory_limit': memory_limit,
+        'temp_directory': temp_directory or '/tmp/duckdb_temp',
+        'preserve_insertion_order': 'false',
+        'threads': '4'
+    }
+    
+    # Remove None values from config
+    config = {k: v for k, v in config.items() if v is not None}
+    
+    try:
+        # Create DuckDB connection with error handling
+        with duckdb.connect(':memory:', config=config) as conn:
+            # Set additional optimization settings
+            conn.execute("SET preserve_insertion_order = false")
+            # Note: enable_progress_bar is not supported in all DuckDB versions
+            
+            if batch_size > 0:
+                return _process_hourly_in_batches(conn, wide_df, aggregation_config, batch_size)
+            else:
+                return _process_hourly_single_batch(conn, wide_df, aggregation_config)
+                
+    except Exception as e:
+        print(f"DuckDB processing failed: {str(e)}")
+        raise
+
+
+def _process_hourly_single_batch(
+    conn: duckdb.DuckDBPyConnection,
+    wide_df: pd.DataFrame,
+    aggregation_config: Dict[str, List[str]]
+) -> pd.DataFrame:
+    """Process entire dataset in a single batch with progress tracking by aggregation type."""
+    
+    try:
+        # Register the DataFrame
+        conn.register('wide_data', wide_df)
+        
+        # Create base table with hourly buckets
+        print("Creating hourly buckets...")
+        conn.execute("""
+            CREATE OR REPLACE TABLE hourly_base AS
+            SELECT 
+                *,
+                date_trunc('hour', event_time) AS event_time_hour,
+                EXTRACT(hour FROM event_time) AS hour_bucket
+            FROM wide_data
+        """)
+        
+        # Calculate nth_hour
+        print("Calculating nth_hour...")
+        conn.execute("""
+            CREATE OR REPLACE TABLE hourly_data AS
+            WITH first_events AS (
+                SELECT 
+                    hospitalization_id,
+                    MIN(event_time_hour) AS first_event_hour
+                FROM hourly_base
+                GROUP BY hospitalization_id
+            )
+            SELECT 
+                hb.*,
+                CAST((EPOCH(hb.event_time_hour) - EPOCH(fe.first_event_hour)) / 3600 AS INTEGER) AS nth_hour
+            FROM hourly_base hb
+            JOIN first_events fe ON hb.hospitalization_id = fe.hospitalization_id
+        """)
+        
+        # Build separate queries for each aggregation type
+        agg_queries = _build_aggregation_query_duckdb(conn, aggregation_config, wide_df.columns)
+        
+        # Execute base query first
+        print("\nProcessing aggregations by type:")
+        print("- Extracting base columns...")
+        base_df = conn.execute(agg_queries['base']).df()
+        
+        # Process each aggregation type separately
+        aggregation_results = [base_df]
+        
+        # Define the order of operations for better user feedback
+        agg_order = ['max', 'min', 'mean', 'median', 'first', 'last', 'boolean', 'one_hot_encode']
+        
+        for agg_type in agg_order:
+            if agg_type in agg_queries and agg_type != 'base':
+                print(f"- Processing {agg_type} aggregation...")
+                try:
+                    agg_result = conn.execute(agg_queries[agg_type]).df()
+                    # Drop the group by columns from aggregation results to avoid duplicates
+                    cols_to_drop = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+                    agg_result = agg_result.drop(columns=cols_to_drop)
+                    aggregation_results.append(agg_result)
+                    print(f"  ✓ {agg_type} complete ({agg_result.shape[1]} columns)")
+                except Exception as e:
+                    print(f"  ✗ {agg_type} failed: {str(e)}")
+        
+        # Merge all results
+        print("\nMerging aggregation results...")
+        result_df = pd.concat(aggregation_results, axis=1)
+        
+        # Sort by hospitalization_id and nth_hour
+        result_df = result_df.sort_values(['hospitalization_id', 'nth_hour']).reset_index(drop=True)
+        
+        print(f"\nHourly aggregation complete: {len(result_df)} hourly records")
+        print(f"Columns in hourly dataset: {len(result_df.columns)}")
+        
+        return result_df
+        
+    except Exception as e:
+        print(f"Single batch processing failed: {str(e)}")
+        raise
+
+
+def _process_hourly_in_batches(
+    conn: duckdb.DuckDBPyConnection,
+    wide_df: pd.DataFrame,
+    aggregation_config: Dict[str, List[str]],
+    batch_size: int
+) -> pd.DataFrame:
+    """Process dataset in batches to manage memory usage with progress tracking."""
+    
+    print(f"Processing in batches of {batch_size} hospitalizations...")
+    
+    # Get unique hospitalization IDs
+    unique_hosp_ids = wide_df['hospitalization_id'].unique()
+    n_batches = (len(unique_hosp_ids) + batch_size - 1) // batch_size
+    
+    batch_results = []
+    
+    # Use tqdm for batch-level progress
+    batch_iterator = tqdm(range(0, len(unique_hosp_ids), batch_size), 
+                         desc="Processing batches", 
+                         total=n_batches,
+                         unit="batch")
+    
+    for i in batch_iterator:
+        batch_ids = unique_hosp_ids[i:i + batch_size]
+        batch_num = (i // batch_size) + 1
+        
+        batch_iterator.set_description(f"Processing batch {batch_num}/{n_batches}")
+        
+        try:
+            # Filter to current batch
+            batch_df = wide_df[wide_df['hospitalization_id'].isin(batch_ids)].copy()
+            
+            print(f"\n--- Batch {batch_num}/{n_batches} ({len(batch_ids)} hospitalizations) ---")
+            
+            # Process this batch
+            batch_result = _process_hourly_single_batch(conn, batch_df, aggregation_config.copy())
+            
+            if len(batch_result) > 0:
+                batch_results.append(batch_result)
+                print(f"Batch {batch_num} completed: {len(batch_result)} records")
+            
+            # Clean up batch-specific tables
+            try:
+                conn.execute("DROP TABLE IF EXISTS hourly_base")
+                conn.execute("DROP TABLE IF EXISTS hourly_data")
+                conn.unregister('wide_data')
+            except:
+                pass
+            
+            # Explicit garbage collection between batches
+            import gc
+            gc.collect()
+                
+        except Exception as e:
+            print(f"Error processing batch {batch_num}: {str(e)}")
+            continue
+    
+    if batch_results:
+        print(f"\nCombining {len(batch_results)} batch results...")
+        final_df = pd.concat(batch_results, ignore_index=True)
+        final_df = final_df.sort_values(['hospitalization_id', 'nth_hour']).reset_index(drop=True)
+        
+        print(f"Final hourly dataset: {len(final_df)} records from {len(batch_results)} batches")
+        return final_df
+    else:
+        raise ValueError("No batches processed successfully")
+
+
+def _build_aggregation_query_duckdb(
+    conn: duckdb.DuckDBPyConnection,
+    aggregation_config: Dict[str, List[str]],
+    all_columns: List[str]
+) -> Dict[str, str]:
+    """Build separate DuckDB aggregation queries by type for better performance and progress tracking."""
+    
+    # Group by columns
+    group_cols = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+    
+    # Get columns not in aggregation config
+    all_agg_columns = []
+    for columns_list in aggregation_config.values():
+        all_agg_columns.extend(columns_list)
+    
+    non_agg_columns = [col for col in all_columns 
+                      if col not in all_agg_columns 
+                      and col not in group_cols
+                      and col not in ['patient_id', 'day_number', 'first_event_hour', 'event_time']]
+    
+    if non_agg_columns:
+        print("Columns not in aggregation_config, defaulting to 'first' with '_c' postfix:")
+        for col in non_agg_columns:
+            print(f"  - {col}")
+        if 'first' not in aggregation_config:
+            aggregation_config['first'] = []
+        aggregation_config['first'].extend(non_agg_columns)
+    
+    # Build separate queries for each aggregation type
+    queries = {}
+    
+    # Base columns query
+    base_query = f"""
+    SELECT 
+        hospitalization_id,
+        event_time_hour, 
+        nth_hour,
+        hour_bucket,
+        FIRST(patient_id) AS patient_id,
+        FIRST(day_number) AS day_number
+    FROM hourly_data
+    GROUP BY hospitalization_id, event_time_hour, nth_hour, hour_bucket
+    """
+    queries['base'] = base_query
+    
+    # Process each aggregation type separately
+    for agg_method, columns in aggregation_config.items():
+        if agg_method == 'one_hot_encode':
+            continue  # Handle separately
+            
+        valid_columns = [col for col in columns if col in all_columns]
+        if not valid_columns:
+            continue
+            
+        select_parts = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+        
+        for col in valid_columns:
+            if agg_method == 'max':
+                select_parts.append(f"MAX({col}) AS {col}_max")
+            elif agg_method == 'min':
+                select_parts.append(f"MIN({col}) AS {col}_min")
+            elif agg_method == 'mean':
+                select_parts.append(f"AVG({col}) AS {col}_mean")
+            elif agg_method == 'median':
+                select_parts.append(f"MEDIAN({col}) AS {col}_median")
+            elif agg_method == 'first':
+                if col in non_agg_columns:
+                    select_parts.append(f"FIRST({col}) AS {col}_c")
+                else:
+                    select_parts.append(f"FIRST({col}) AS {col}_first")
+            elif agg_method == 'last':
+                select_parts.append(f"LAST({col}) AS {col}_last")
+            elif agg_method == 'boolean':
+                select_parts.append(f"CASE WHEN COUNT({col}) > 0 THEN 1 ELSE 0 END AS {col}_boolean")
+        
+        query = f"""
+        SELECT 
+            {', '.join(select_parts)}
+        FROM hourly_data
+        GROUP BY hospitalization_id, event_time_hour, nth_hour, hour_bucket
+        """
+        queries[agg_method] = query
+    
+    # Handle one-hot encoding separately
+    if 'one_hot_encode' in aggregation_config:
+        one_hot_query = _build_one_hot_encoding_query_duckdb(
+            conn, aggregation_config['one_hot_encode'], all_columns
+        )
+        if one_hot_query:
+            queries['one_hot_encode'] = one_hot_query
+    
+    return queries
+
+
+def _build_one_hot_encoding_query_duckdb(
+    conn: duckdb.DuckDBPyConnection,
+    one_hot_columns: List[str],
+    all_columns: List[str]
+) -> Optional[str]:
+    """Build a separate query for one-hot encoding."""
+    
+    valid_columns = [col for col in one_hot_columns if col in all_columns]
+    if not valid_columns:
+        return None
+    
+    select_parts = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+    
+    for col in valid_columns:
+        # Get unique values for this column
+        unique_vals_query = f"""
+        SELECT DISTINCT {col} 
+        FROM hourly_data 
+        WHERE {col} IS NOT NULL
+        ORDER BY {col}
+        LIMIT 100  -- Limit to prevent too many columns
+        """
+        
+        try:
+            unique_vals_result = conn.execute(unique_vals_query).fetchall()
+            
+            if len(unique_vals_result) > 50:
+                print(f"Warning: {col} has {len(unique_vals_result)} unique values. One-hot encoding may create many columns.")
+            
+            # Create conditional aggregation for each unique value
+            for (val,) in unique_vals_result:
+                # Clean column name
+                clean_val = re.sub(r'[^a-zA-Z0-9_]', '_', str(val))
+                col_name = f"{col}_{clean_val}"
+                
+                # Handle string values with proper escaping
+                if isinstance(val, str):
+                    val_escaped = val.replace("'", "''")
+                    select_parts.append(f"MAX(CASE WHEN {col} = '{val_escaped}' THEN 1 ELSE 0 END) AS {col_name}")
+                else:
+                    select_parts.append(f"MAX(CASE WHEN {col} = {val} THEN 1 ELSE 0 END) AS {col_name}")
+                    
+        except Exception as e:
+            print(f"Warning: Could not create one-hot encoding for {col}: {str(e)}")
+    
+    if len(select_parts) > 4:  # More than just the group by columns
+        query = f"""
+        SELECT 
+            {', '.join(select_parts)}
+        FROM hourly_data
+        GROUP BY hospitalization_id, event_time_hour, nth_hour, hour_bucket
+        """
+        return query
+    
+    return None
+
+
+def convert_wide_to_hourly(
+    wide_df: pd.DataFrame, 
+    aggregation_config: Dict[str, List[str]], 
+    memory_limit: str = '4GB',
+    temp_directory: Optional[str] = None,
+    batch_size: Optional[int] = None
+) -> pd.DataFrame:
     """
     Convert a wide dataset to hourly aggregation with user-defined aggregation methods.
+    
+    This function uses DuckDB for high-performance aggregation.
     
     Parameters:
         wide_df: Wide dataset DataFrame from create_wide_dataset()
@@ -205,169 +613,19 @@ def convert_wide_to_hourly(wide_df: pd.DataFrame, aggregation_config: Dict[str, 
                 'boolean': ['norepinephrine', 'propofol'],
                 'one_hot_encode': ['medication_name', 'assessment_category']
             }
+        memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
+        temp_directory: Directory for temporary files (default: system temp)
+        batch_size: Process in batches if dataset is large (auto-determined if None)
     
     Returns:
         pd.DataFrame: Hourly aggregated wide dataset with nth_hour column
     """
     
-    print("Starting hourly aggregation of wide dataset...")
-    
-    # Validate input
-    if 'event_time' not in wide_df.columns:
-        raise ValueError("wide_df must contain 'event_time' column")
-    
-    if 'hospitalization_id' not in wide_df.columns:
-        raise ValueError("wide_df must contain 'hospitalization_id' column")
-    
-    if 'day_number' not in wide_df.columns:
-        raise ValueError("wide_df must contain 'day_number' column")
-    
-    # Create a copy to avoid modifying original
-    df = wide_df.copy()
-    
-    # Create hour-truncated datetime (removes minutes/seconds)
-    df['event_time_hour'] = df['event_time'].dt.floor('H')
-    
-    # Calculate nth_hour starting from 0 based on first event time per hospitalization
-    print("Calculating nth_hour starting from 0 based on first event...")
-    
-    # Find first event time for each hospitalization
-    first_event_times = df.groupby('hospitalization_id')['event_time_hour'].min().reset_index()
-    first_event_times.rename(columns={'event_time_hour': 'first_event_hour'}, inplace=True)
-    
-    # Merge first event times back to main dataframe
-    df = df.merge(first_event_times, on='hospitalization_id', how='left')
-    
-    # Calculate nth_hour as hours elapsed since first event (starting from 0)
-    df['nth_hour'] = ((df['event_time_hour'] - df['first_event_hour']).dt.total_seconds() // 3600).astype(int)
-    
-    # Extract hour bucket for compatibility
-    df['hour_bucket'] = df['event_time_hour'].dt.hour
-    
-    print(f"Processing {len(df)} records into hourly buckets...")
-    
-    # Columns to group by - use event_time_hour instead of day_number and hour_bucket
-    group_cols = ['hospitalization_id', 'event_time_hour', 'nth_hour']
-    
-    # Find columns not in aggregation_config and set them to 'first' with '_c' postfix
-    all_agg_columns = []
-    for columns_list in aggregation_config.values():
-        all_agg_columns.extend(columns_list)
-    
-    # Get list of columns that are not in aggregation_config
-    non_agg_columns = [col for col in df.columns 
-                      if col not in all_agg_columns 
-                      and col not in group_cols
-                      and col != 'patient_id'
-                      and col != 'day_number'
-                      and col != 'first_event_hour'
-                      and col != 'hour_bucket'
-                      and col != 'event_time']
-    
-    # Print these columns and add them to 'first' aggregation with '_c' postfix
-    if non_agg_columns:
-        print("The following columns are not mentioned in aggregation_config, defaulting to 'first' with '_c' postfix:")
-        for col in non_agg_columns:
-            print(f"  - {col}")
-        
-        # Add these columns to the config with '_c' postfix instead of 'first_'
-        if 'first' not in aggregation_config:
-            aggregation_config['first'] = []
-            
-        aggregation_config['first'].extend(non_agg_columns)
-    
-    # Initialize result dictionary
-    aggregated_data = []
-    
-    # Track columns we've already warned about to avoid duplicate warnings
-    warned_columns = set()
-    
-    # Process each hospitalization-hour group with tqdm progress bar
-    for group_key, group_df in tqdm(df.groupby(group_cols), desc="Aggregating data by hour", unit="group"):
-        hosp_id, event_time_hour, nth_hour = group_key
-        
-        # Start with base info
-        row_data = {
-            'hospitalization_id': hosp_id,
-            'event_time_hour': event_time_hour,
-            'nth_hour': nth_hour,
-            'hour_bucket': event_time_hour.hour  # Extract hour for backward compatibility
-        }
-        
-        # Add patient_id (should be same for all rows in group)
-        if 'patient_id' in group_df.columns:
-            row_data['patient_id'] = group_df['patient_id'].iloc[0]
-        
-        # Add day_number for backward compatibility (should be same for all rows in group)
-        if 'day_number' in group_df.columns:
-            row_data['day_number'] = group_df['day_number'].iloc[0]
-        
-        # Apply aggregations based on config
-        for agg_method, columns in aggregation_config.items():
-            for col in columns:
-                if col not in group_df.columns:
-                    # Only print warning once per column
-                    if col not in warned_columns:
-                        print(f"Warning: Column '{col}' not found in wide_df, skipping...")
-                        warned_columns.add(col)
-                    continue
-                
-                # Get non-null values for this column
-                col_values = group_df[col].dropna()
-                
-                if agg_method == 'max':
-                    row_data[f"{col}_max"] = col_values.max() if len(col_values) > 0 else np.nan
-                elif agg_method == 'min':
-                    row_data[f"{col}_min"] = col_values.min() if len(col_values) > 0 else np.nan
-                elif agg_method == 'mean':
-                    row_data[f"{col}_mean"] = col_values.mean() if len(col_values) > 0 else np.nan
-                elif agg_method == 'median':
-                    row_data[f"{col}_median"] = col_values.median() if len(col_values) > 0 else np.nan
-                elif agg_method == 'first':
-                    # Check if this is a non-agg column (not originally in agg_config)
-                    if col in non_agg_columns:
-                        # Use '_c' postfix instead of 'first_'
-                        row_data[f"{col}_c"] = col_values.iloc[0] if len(col_values) > 0 else np.nan
-                    else:
-                        # Use original 'first_' postfix for columns specified in agg_config
-                        row_data[f"{col}_first"] = col_values.iloc[0] if len(col_values) > 0 else np.nan
-                elif agg_method == 'last':
-                    row_data[f"{col}_last"] = col_values.iloc[-1] if len(col_values) > 0 else np.nan
-                elif agg_method == 'boolean':
-                    # 1 if any non-null value present, 0 otherwise
-                    row_data[f"{col}_boolean"] = 1 if len(col_values) > 0 else 0
-                elif agg_method == 'one_hot_encode':
-                    # Create binary columns for each unique value
-                    unique_values = col_values.unique()
-                    for val in unique_values:
-                        new_col_name = f"{col}_{val}"
-                        # Clean column name (remove special characters)
-                        new_col_name = re.sub(r'[^a-zA-Z0-9_]', '_', str(new_col_name))
-                        row_data[new_col_name] = 1
-                else:
-                    print(f"Warning: Unknown aggregation method '{agg_method}', skipping...")
-        
-        aggregated_data.append(row_data)
-    
-    # Create result DataFrame
-    hourly_df = pd.DataFrame(aggregated_data)
-    
-    # Sort by hospitalization_id and nth_hour for chronological order
-    hourly_df = hourly_df.sort_values(['hospitalization_id', 'nth_hour']).reset_index(drop=True)
-    
-    # Fill in missing one-hot encoded columns with 0
-    for agg_method, columns in aggregation_config.items():
-        if agg_method == 'one_hot_encode':
-            for col in columns:
-                # Find all one-hot encoded columns for this base column
-                one_hot_cols = [c for c in hourly_df.columns if c.startswith(f"{col}_")]
-                for ohc in one_hot_cols:
-                    hourly_df[ohc] = hourly_df[ohc].fillna(0).astype(int)
-    
-    print(f"Hourly aggregation complete: {len(hourly_df)} hourly records from {len(df)} original records")
-    print(f"Columns in hourly dataset: {len(hourly_df.columns)}")
-    
-    return hourly_df
+    return convert_wide_to_hourly_optimized(
+        wide_df, aggregation_config, memory_limit, temp_directory, batch_size
+    )
+
+
 
 
 def _process_hospitalizations(
@@ -381,7 +639,8 @@ def _process_hospitalizations(
     category_filters: Dict[str, List[str]],
     pivot_tables: List[str],
     wide_tables: List[str],
-    show_progress: bool
+    show_progress: bool,
+    cohort_df: Optional[pd.DataFrame] = None
 ) -> Optional[pd.DataFrame]:
     """Process hospitalizations with pivot-first approach."""
     
@@ -465,6 +724,32 @@ def _process_hospitalizations(
         if not timestamp_col or timestamp_col not in table_df.columns:
             print(f"Warning: No timestamp column found for {table_name}, skipping...")
             continue
+        
+        # Apply time filtering if cohort_df is provided
+        if cohort_df is not None:
+            pre_filter_count = len(table_df)
+            # Merge with cohort_df to get time windows
+            table_df = pd.merge(
+                table_df,
+                cohort_df[['hospitalization_id', 'start_time', 'end_time']],
+                on='hospitalization_id',
+                how='inner'
+            )
+            
+            # Ensure timestamp column is datetime
+            if not pd.api.types.is_datetime64_any_dtype(table_df[timestamp_col]):
+                table_df[timestamp_col] = pd.to_datetime(table_df[timestamp_col])
+            
+            # Filter to time window
+            table_df = table_df[
+                (table_df[timestamp_col] >= table_df['start_time']) &
+                (table_df[timestamp_col] <= table_df['end_time'])
+            ].copy()
+            
+            # Drop the time window columns
+            table_df = table_df.drop(columns=['start_time', 'end_time'])
+            
+            print(f"  Time filtering: {pre_filter_count} → {len(table_df)} records")
         
         # Register raw table as a proper table, not a view
         raw_table_name = f"{table_name}_raw"
@@ -748,7 +1033,8 @@ def _process_in_batches(
     save_to_data_location: bool,
     output_filename: Optional[str],
     output_format: str,
-    return_dataframe: bool
+    return_dataframe: bool,
+    cohort_df: Optional[pd.DataFrame] = None
 ) -> Optional[pd.DataFrame]:
     """Process hospitalizations in batches using the new approach."""
     
@@ -765,6 +1051,11 @@ def _process_in_batches(
             # Filter base tables for this batch
             batch_hosp_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(batch_hosp_ids)]
             batch_adt_df = adt_df[adt_df['hospitalization_id'].isin(batch_hosp_ids)]
+            
+            # Filter cohort_df for this batch if provided
+            batch_cohort_df = None
+            if cohort_df is not None:
+                batch_cohort_df = cohort_df[cohort_df['hospitalization_id'].isin(batch_hosp_ids)].copy()
             
             # Clean up tables from previous batch
             tables_df = conn.execute("SHOW TABLES").df()
@@ -785,7 +1076,7 @@ def _process_in_batches(
             batch_result = _process_hospitalizations(
                 conn, clif_instance, batch_hosp_ids, patient_df, batch_hosp_df, batch_adt_df,
                 tables_to_load, category_filters, pivot_tables, wide_tables,
-                show_progress=False
+                show_progress=False, cohort_df=batch_cohort_df
             )
             
             if batch_result is not None and len(batch_result) > 0:
