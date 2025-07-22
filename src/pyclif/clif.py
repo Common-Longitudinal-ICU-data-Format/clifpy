@@ -205,26 +205,40 @@ class CLIF:
                           category_filters=None, 
                           sample=False, 
                           hospitalization_ids=None, 
+                          cohort_df=None,
                           output_format='dataframe', 
                           save_to_data_location=False, 
                           output_filename=None, 
                           auto_load=True,
                           return_dataframe=True,
-                          base_table_columns=None):
+                          base_table_columns=None,
+                          batch_size=1000,
+                          memory_limit=None,
+                          threads=None,
+                          show_progress=True):
         """
         Create a wide dataset by joining multiple CLIF tables with pivoting support.
         
         Parameters:
-            optional_tables: List of optional tables to include ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments', 'respiratory_support']
-            category_filters: Dict specifying which categories to pivot for each table
+            optional_tables: DEPRECATED - List of optional tables to include. Use category_filters instead.
+            category_filters: Dict specifying which categories to include for each table.
+                             Keys are table names ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments', 'respiratory_support']
+                             Values are lists of categories/columns to filter. Tables will be auto-loaded if auto_load=True.
             sample: Boolean - if True, randomly select 20 hospitalizations
             hospitalization_ids: List of specific hospitalization IDs to filter
+            cohort_df: Optional DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
+                       If provided, data will be filtered to only include events within the specified
+                       time windows for each hospitalization
             output_format: 'dataframe', 'csv', or 'parquet'
             save_to_data_location: Boolean - save output to data directory
             output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
-            auto_load: Boolean - automatically load missing tables (default=True)
+            auto_load: Boolean - automatically load missing tables from category_filters or optional_tables (default=True)
             return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
             base_table_columns: Dict specifying which columns to select from base tables {'patient': ['col1'], 'hospitalization': ['col1'], 'adt': ['col1']}
+            batch_size: Number of hospitalizations to process in each batch (default=1000)
+            memory_limit: DuckDB memory limit (e.g., '8GB')
+            threads: Number of threads for DuckDB to use
+            show_progress: Show progress bars for long operations (default=True)
         
         Returns:
             pd.DataFrame or None (if return_dataframe=False)
@@ -245,21 +259,33 @@ class CLIF:
                         self.load_adt_data()
             
             # Check and load optional tables
+            tables_to_load = set()
+            
+            # Add tables from optional_tables parameter (backward compatibility)
             if optional_tables:
-                for table in optional_tables:
-                    table_attr = table if table != 'labs' else 'lab'
-                    if getattr(self, table_attr) is None:
-                        print(f"Auto-loading optional table: {table}")
-                        if table == 'vitals':
-                            self.load_vitals_data()
-                        elif table == 'labs':
-                            self.load_lab_data()
-                        elif table == 'medication_admin_continuous':
-                            self.load_medication_admin_continuous_data()
-                        elif table == 'patient_assessments':
-                            self.load_patient_assessments_data()
-                        elif table == 'respiratory_support':
-                            self.load_respiratory_support_data()
+                tables_to_load.update(optional_tables)
+            
+            # Add tables from category_filters parameter (new approach)
+            if category_filters:
+                tables_to_load.update(category_filters.keys())
+            
+            # Load the required tables
+            for table in tables_to_load:
+                table_attr = table if table != 'labs' else 'lab'
+                if getattr(self, table_attr) is None:
+                    print(f"Auto-loading table: {table}")
+                    if table == 'vitals':
+                        self.load_vitals_data()
+                    elif table == 'labs':
+                        self.load_lab_data()
+                    elif table == 'medication_admin_continuous':
+                        self.load_medication_admin_continuous_data()
+                    elif table == 'patient_assessments':
+                        self.load_patient_assessments_data()
+                    elif table == 'respiratory_support':
+                        self.load_respiratory_support_data()
+                    else:
+                        print(f"Warning: Unknown table '{table}' in configuration, skipping auto-load")
         
         # Call utility function
         wide_df = create_wide_dataset(
@@ -268,11 +294,16 @@ class CLIF:
             category_filters=category_filters,
             sample=sample,
             hospitalization_ids=hospitalization_ids,
+            cohort_df=cohort_df,
             output_format=output_format,
             save_to_data_location=save_to_data_location,
             output_filename=output_filename,
             return_dataframe=return_dataframe,
-            base_table_columns=base_table_columns
+            base_table_columns=base_table_columns,
+            batch_size=batch_size,
+            memory_limit=memory_limit,
+            threads=threads,
+            show_progress=show_progress
         )
         
         # Store the wide dataset
