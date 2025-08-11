@@ -1,55 +1,52 @@
 from datetime import datetime
-from enum import Enum
-from typing import List, Dict, Optional
-from tqdm import tqdm
+from typing import Optional, List, Dict
 import pandas as pd
-from ..utils.io import load_data
-from ..utils.validator import validate_table
+from .base_table import BaseTable
 
 
-class adt:
-    """ADT (Admission, Discharge, Transfer) table wrapper using lightweight JSON-spec validation."""
-
-    def __init__(self, data: Optional[pd.DataFrame] = None):
-        self.df: Optional[pd.DataFrame] = data
-        self.errors: List[dict] = []
-
-        if self.df is not None:
-            self.validate()
+class adt(BaseTable):
+    """
+    ADT (Admission/Discharge/Transfer) table wrapper inheriting from BaseTable.
+    
+    This class handles ADT-specific data and validations while
+    leveraging the common functionality provided by BaseTable.
+    """
+    
+    def __init__(
+        self,
+        data_directory: str = None,
+        filetype: str = None,
+        timezone: str = "UTC",
+        output_directory: Optional[str] = None,
+        data: Optional[pd.DataFrame] = None
+    ):
+        """
+        Initialize the ADT table.
+        
+        Parameters:
+            data_directory (str): Path to the directory containing data files
+            filetype (str): Type of data file (csv, parquet, etc.)
+            timezone (str): Timezone for datetime columns
+            output_directory (str, optional): Directory for saving output files and logs
+            data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
+        """
+        # For backward compatibility, handle the old signature
+        if data_directory is None and filetype is None and data is not None:
+            # Old signature: adt(data)
+            # Use dummy values for required parameters
+            data_directory = "."
+            filetype = "parquet"
+        
+        super().__init__(
+            data_directory=data_directory,
+            filetype=filetype,
+            timezone=timezone,
+            output_directory=output_directory,
+            data=data
+        )
 
     # ------------------------------------------------------------------
-    # Constructors
-    # ------------------------------------------------------------------
-    @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
-        """Load the ADT table from *table_path* and build a :class:`adt`."""
-        data = load_data("adt", table_path, table_format_type, site_tz=timezone)
-        return cls(data)
-
-    # ------------------------------------------------------------------
-    # Public helpers
-    # ------------------------------------------------------------------
-    def isvalid(self) -> bool:
-        """Return ``True`` if the last :pyfunc:`validate` finished without errors."""
-        return not self.errors
-
-    def validate(self):
-        """Validate ``self.df`` against the mCIDE *AdtModel.json* spec."""
-        if self.df is None:
-            print("No dataframe to validate.")
-            return
-
-        # Run shared validation utility
-        self.errors = validate_table(self.df, "adt")
-
-        # User-friendly status output
-        if not self.errors:
-            print("Validation completed successfully.")
-        else:
-            print(f"Validation completed with {len(self.errors)} error(s). See `errors` attribute.")
-
-    # ------------------------------------------------------------------
-    # ADT Specific Methods (placeholder for future implementation)
+    # ADT Specific Methods
     # ------------------------------------------------------------------
     def get_location_categories(self) -> List[str]:
         """Return unique location categories in the dataset."""

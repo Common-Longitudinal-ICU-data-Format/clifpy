@@ -1,0 +1,72 @@
+table_name: adt
+composite_keys:
+  - hospitalization_id
+  - in_dttm
+  - location_category
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospital_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospital_type
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - academic
+      - community
+  - name: in_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: out_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: location_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: location_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ed
+      - ward
+      - stepdown
+      - icu
+      - procedural
+      - l&d
+      - hospice
+      - psych
+      - rehab
+      - radiology
+      - dialysis
+      - other
+
+required_columns:
+  - hospitalization_id
+  - hospital_id
+  - hospital_type
+  - in_dttm
+  - out_dttm
+  - location_category
+
+category_columns:
+  - hospital_type
+  - location_category
+
+group_columns: []

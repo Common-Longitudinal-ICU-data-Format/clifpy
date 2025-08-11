@@ -1,49 +1,48 @@
-from datetime import datetime
-from enum import Enum
-from typing import List, Optional
-from tqdm import tqdm
+from typing import Optional
 import pandas as pd
-from ..utils.io import load_data
-from ..utils.validator import validate_table
+from .base_table import BaseTable
 
 
-class patient:
-    """Patient table wrapper using JSON-spec validation."""
-
-    def __init__(self, data: Optional[pd.DataFrame] = None):
-        self.df: Optional[pd.DataFrame] = data
-        self.errors: List[dict] = []
-
-        if self.df is not None:
-            self.validate()
-
-    # ------------------------------------------------------------------
-    # Constructors
-    # ------------------------------------------------------------------
-    @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
-        """Load the patient table from *table_path* and build a :class:`patient`."""
-        data = load_data("patient", table_path, table_format_type, site_tz=timezone)
-        return cls(data)
-
-    # ------------------------------------------------------------------
-    # Public helpers
-    # ------------------------------------------------------------------
-    def isvalid(self) -> bool:
-        """Return ``True`` if the last :pyfunc:`validate` finished without errors."""
-        return not self.errors
-
-    def validate(self):
-        """Validate ``self.df`` against the mCIDE *PatientModel.json* spec."""
-        if self.df is None:
-            print("No dataframe to validate.")
-            return
-
-        # Run shared validation utility
-        self.errors = validate_table(self.df, "patient")
-
-        # User-friendly status output
-        if not self.errors:
-            print("Validation completed successfully.")
-        else:
-            print(f"Validation completed with {len(self.errors)} error(s). See `errors` attribute.")
+class patient(BaseTable):
+    """
+    Patient table wrapper inheriting from BaseTable.
+    
+    This class handles patient-specific data and validations while
+    leveraging the common functionality provided by BaseTable.
+    """
+    
+    def __init__(
+        self,
+        data_directory: str = None,
+        filetype: str = None,
+        timezone: str = "UTC",
+        output_directory: Optional[str] = None,
+        data: Optional[pd.DataFrame] = None
+    ):
+        """
+        Initialize the patient table.
+        
+        Parameters:
+            data_directory (str): Path to the directory containing data files
+            filetype (str): Type of data file (csv, parquet, etc.)
+            timezone (str): Timezone for datetime columns
+            output_directory (str, optional): Directory for saving output files and logs
+            data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
+        """
+        # For backward compatibility, handle the old signature
+        if data_directory is None and filetype is None and data is not None:
+            # Old signature: patient(data)
+            # Use dummy values for required parameters
+            data_directory = "."
+            filetype = "parquet"
+        
+        super().__init__(
+            data_directory=data_directory,
+            filetype=filetype,
+            timezone=timezone,
+            output_directory=output_directory,
+            data=data
+        )
+    
+    # Patient-specific methods can be added here if needed
+    # The base functionality (validate, isvalid, from_file) is inherited from BaseTable

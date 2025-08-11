@@ -18,10 +18,20 @@ from .tables.respiratory_support import respiratory_support
 from .tables.vitals import vitals
 
 class CLIF:
-    def __init__(self, data_dir, filetype='csv', timezone ="UTC"):
+    def __init__(self, data_dir, filetype='csv', timezone ="UTC", output_dir=None):
+        """
+        Initialize the CLIF object.
+        
+        Parameters:
+            data_dir (str): Directory containing data files
+            filetype (str): Type of data file (csv, parquet, etc.)
+            timezone (str): Timezone for datetime columns
+            output_dir (str, optional): Directory for saving validation outputs
+        """
         self.data_dir = data_dir
         self.filetype = filetype
         self.timezone = timezone
+        self.output_dir = output_dir
         
         self.patient = None
         self.hospitalization = None
@@ -31,6 +41,7 @@ class CLIF:
         self.vitals = None
         self.medication_admin_continuous = None
         self.patient_assessments = None
+        self.position = None  # Added missing position table
         self.wide_df = None
         self.hourly_wide_df = None
         ## create a cohort object, check if cohort is not None, 
@@ -49,8 +60,14 @@ class CLIF:
         Returns:
             The initialized patient table object.
         """
-        data = load_data('patient', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.patient = patient(data)
+        data = load_data('patient', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.patient = patient(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.patient
     
     def load_hospitalization_data(self, sample_size=None, columns=None, filters=None):
@@ -65,8 +82,14 @@ class CLIF:
         Returns:
             The initialized hospitalization table object.
         """
-        data = load_data('hospitalization', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.hospitalization = hospitalization(data)
+        data = load_data('hospitalization', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.hospitalization = hospitalization(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.hospitalization
     
     def load_lab_data(self, sample_size=None, columns=None, filters=None):
@@ -81,8 +104,14 @@ class CLIF:
         Returns:
             The initialized labs table object.
         """
-        data = load_data('labs', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.lab = labs(data)
+        data = load_data('labs', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.lab = labs(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.lab
     
     def load_adt_data(self, sample_size=None, columns=None, filters=None):
@@ -97,8 +126,14 @@ class CLIF:
         Returns:
             The initialized adt table object.
         """
-        data = load_data('adt', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.adt = adt(data)
+        data = load_data('adt', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.adt = adt(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.adt
     
     def load_respiratory_support_data(self, sample_size=None, columns=None, filters=None):
@@ -113,8 +148,14 @@ class CLIF:
         Returns:
             The initialized respiratory_support table object.
         """
-        data = load_data('respiratory_support', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.respiratory_support = respiratory_support(data)
+        data = load_data('respiratory_support', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.respiratory_support = respiratory_support(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.respiratory_support
     
     def load_vitals_data(self, sample_size=None, columns=None, filters=None):
@@ -129,8 +170,14 @@ class CLIF:
         Returns:
             The initialized vitals table object.
         """
-        data = load_data('vitals', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.vitals = vitals(data)
+        data = load_data('vitals', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.vitals = vitals(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.vitals
     
     def load_medication_admin_continuous_data(self, sample_size=None, columns=None, filters=None):
@@ -145,8 +192,14 @@ class CLIF:
         Returns:
             The initialized medication_admin_continuous table object.
         """
-        data = load_data('medication_admin_continuous', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.medication_admin_continuous = medication_admin_continuous(data)
+        data = load_data('medication_admin_continuous', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.medication_admin_continuous = medication_admin_continuous(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.medication_admin_continuous
     
     def load_patient_assessments_data(self, sample_size=None, columns=None, filters=None):
@@ -161,9 +214,91 @@ class CLIF:
         Returns:
             The initialized patient_assessments table object.
         """
-        data = load_data('patient_assessments', self.data_dir, self.filetype, sample_size, columns, filters)
-        self.patient_assessments = patient_assessments(data)
+        data = load_data('patient_assessments', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.patient_assessments = patient_assessments(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
         return self.patient_assessments
+    
+    def load_position_data(self, sample_size=None, columns=None, filters=None):
+        """
+        Load position data with optional filtering and column selection.
+        
+        Parameters:
+            sample_size (int, optional): Number of rows to load.
+            columns (list of str, optional): List of column names to load.
+            filters (dict, optional): Dictionary of filters to apply.
+            
+        Returns:
+            The initialized position table object.
+        """
+        data = load_data('position', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
+        self.position = position(
+            data_directory=self.data_dir,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_dir,
+            data=data
+        )
+        return self.position
+    
+    def validate_all(self):
+        """
+        Run validation on all loaded tables and return a summary.
+        
+        Returns:
+            dict: Summary of validation results for each table
+        """
+        validation_summary = {}
+        
+        # List of all table attributes and their names
+        tables = [
+            ('patient', self.patient),
+            ('hospitalization', self.hospitalization),
+            ('adt', self.adt),
+            ('vitals', self.vitals),
+            ('labs', self.lab),
+            ('medication_admin_continuous', self.medication_admin_continuous),
+            ('patient_assessments', self.patient_assessments),
+            ('position', self.position),
+            ('respiratory_support', self.respiratory_support)
+        ]
+        
+        for table_name, table_obj in tables:
+            if table_obj is not None:
+                print(f"Validating {table_name}...")
+                table_obj.validate()
+                validation_summary[table_name] = {
+                    'is_valid': table_obj.isvalid(),
+                    'error_count': len(table_obj.errors),
+                    'errors': table_obj.errors if not table_obj.isvalid() else []
+                }
+            else:
+                validation_summary[table_name] = {
+                    'is_valid': None,
+                    'error_count': 0,
+                    'errors': [],
+                    'status': 'not_loaded'
+                }
+        
+        # Print summary
+        print("\n" + "="*50)
+        print("VALIDATION SUMMARY")
+        print("="*50)
+        for table_name, result in validation_summary.items():
+            if result.get('status') == 'not_loaded':
+                print(f"{table_name:30} : Not loaded")
+            elif result['is_valid']:
+                print(f"{table_name:30} : ✓ Valid")
+            else:
+                print(f"{table_name:30} : ✗ {result['error_count']} errors")
+        print("="*50 + "\n")
+        
+        return validation_summary
 
     def initialize(self, tables=None, sample_size=None, columns=None, filters=None):
         """
@@ -199,6 +334,8 @@ class CLIF:
                 self.load_medication_admin_continuous_data(sample_size, table_columns, table_filters)
             elif table == 'patient_assessments':
                 self.load_patient_assessments_data(sample_size, table_columns, table_filters)
+            elif table == 'position':
+                self.load_position_data(sample_size, table_columns, table_filters)
 
     def create_wide_dataset(self, 
                           optional_tables=None, 

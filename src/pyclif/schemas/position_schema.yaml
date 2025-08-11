@@ -1,0 +1,40 @@
+table_name: position
+composite_keys:
+  - hospitalization_id
+  - recorded_dttm
+  - position_category
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: position_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: position_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - prone
+      - not_prone
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - position_category
+
+category_columns:
+  - position_category
+
+group_columns: []

@@ -1,0 +1,98 @@
+table_name: vitals
+composite_keys:
+  - hospitalization_id
+  - recorded_dttm
+  - vital_category
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: vital_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: vital_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - temp_c
+      - heart_rate
+      - sbp
+      - dbp
+      - spo2
+      - respiratory_rate
+      - map
+      - height_cm
+      - weight_kg
+  - name: vital_value
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: meas_site_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - vital_category
+  - vital_value
+
+category_columns:
+  - vital_category
+
+group_columns: []
+
+vital_units:
+  temp_c: Celsius
+  heart_rate: (no units)
+  sbp: mmHg
+  dbp: mmHg
+  spo2: '%'
+  respiratory_rate: (no units)
+  map: mmHg
+  height_cm: Centimeters
+  weight_kg: Kg
+
+vital_ranges:
+  temp_c:
+    min: 25.0
+    max: 44.0
+  heart_rate:
+    min: 0
+    max: 300
+  sbp:
+    min: 0
+    max: 300
+  dbp:
+    min: 0
+    max: 200
+  spo2:
+    min: 50
+    max: 100
+  respiratory_rate:
+    min: 0
+    max: 60
+  map:
+    min: 0
+    max: 250
+  height_cm:
+    min: 70
+    max: 255
+  weight_kg:
+    min: 30
+    max: 1100

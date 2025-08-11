@@ -1,51 +1,66 @@
-from datetime import datetime
-from enum import Enum
-from typing import List, Dict, Optional
-from tqdm import tqdm
+from typing import Optional, List, Dict
 import pandas as pd
 import json
 import os
-from ..utils.io import load_data
-from ..utils.validator import validate_table
+from .base_table import BaseTable
 
 
-class vitals:
-    """Vitals table wrapper using lightweight JSON-spec validation."""
-
-    def __init__(self, data: Optional[pd.DataFrame] = None):
-        self.df: Optional[pd.DataFrame] = data
-        self.errors: List[dict] = []
-        self.range_validation_errors: List[dict] = [] # Initialize here
+class vitals(BaseTable):
+    """
+    Vitals table wrapper inheriting from BaseTable.
+    
+    This class handles vitals-specific data and validations including
+    range validation for vital signs.
+    """
+    
+    def __init__(
+        self,
+        data_directory: str = None,
+        filetype: str = None,
+        timezone: str = "UTC",
+        output_directory: Optional[str] = None,
+        data: Optional[pd.DataFrame] = None
+    ):
+        """
+        Initialize the vitals table.
         
-        # Load vital ranges and units from JSON schema
+        Parameters:
+            data_directory (str): Path to the directory containing data files
+            filetype (str): Type of data file (csv, parquet, etc.)
+            timezone (str): Timezone for datetime columns
+            output_directory (str, optional): Directory for saving output files and logs
+            data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
+        """
+        # For backward compatibility, handle the old signature
+        if data_directory is None and filetype is None and data is not None:
+            # Old signature: vitals(data)
+            # Use dummy values for required parameters
+            data_directory = "."
+            filetype = "parquet"
+        
+        # Initialize range validation errors list
+        self.range_validation_errors: List[dict] = []
+        
+        # Load vital ranges and units from schema
         self._vital_units = None
         self._vital_ranges = None
-        self._load_vitals_schema()
+        
+        super().__init__(
+            data_directory=data_directory,
+            filetype=filetype,
+            timezone=timezone,
+            output_directory=output_directory,
+            data=data
+        )
+        
+        # Load vital-specific schema data
+        self._load_vitals_schema_data()
 
-        if self.df is not None:
-            self.validate()
-
-    def _load_vitals_schema(self):
-        """Load vital units and ranges from VitalsModel.json."""
-        try:
-            # Get the path to the VitalsModel.json file
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            schema_path = os.path.join(current_dir, '..', 'mCIDE', 'VitalsModel.json')
-            
-            with open(schema_path, 'r') as f:
-                schema = json.load(f)
-            
-            self._vital_units = schema.get('vital_units', {})
-            self._vital_ranges = schema.get('vital_ranges', {})
-            
-        except FileNotFoundError:
-            print("Warning: VitalsModel.json not found. Range validation will be skipped.")
-            self._vital_units = {}
-            self._vital_ranges = {}
-        except json.JSONDecodeError:
-            print("Warning: Invalid JSON in VitalsModel.json. Range validation will be skipped.")
-            self._vital_units = {}
-            self._vital_ranges = {}
+    def _load_vitals_schema_data(self):
+        """Load vital units and ranges from the YAML schema."""
+        if self.schema:
+            self._vital_units = self.schema.get('vital_units', {})
+            self._vital_ranges = self.schema.get('vital_ranges', {})
 
     @property
     def vital_units(self) -> Dict[str, str]:
@@ -57,45 +72,18 @@ class vitals:
         """Get the vital ranges from the schema."""
         return self._vital_ranges.copy() if self._vital_ranges else {}
 
-    # ------------------------------------------------------------------
-    # Constructors
-    # ------------------------------------------------------------------
-    @classmethod
-    def from_file(cls, table_path: str, table_format_type: str = "parquet", timezone: str = "UTC"):
-        """Load the vitals table from *table_path* and build a :class:`vitals`."""
-        data = load_data("vitals", table_path, table_format_type, site_tz=timezone)
-        return cls(data)
-
-    # ------------------------------------------------------------------
-    # Public helpers
-    # ------------------------------------------------------------------
     def isvalid(self) -> bool:
-        """Return ``True`` if the last :pyfunc:`validate` finished without errors."""
+        """Return ``True`` if the last validation finished without errors."""
         return not self.errors and not self.range_validation_errors
 
-    def validate(self):
-        """Validate ``self.df`` against the mCIDE *VitalsModel.json* spec and vital ranges."""
-        if self.df is None:
-            print("No dataframe to validate.")
-            return
-
-        # Run shared validation utility
-        self.errors = validate_table(self.df, "vitals")
-
+    def _run_table_specific_validations(self):
+        """
+        Run vitals-specific validations including range validation.
+        
+        This overrides the base class method to add vitals-specific validation.
+        """
         # Run vital range validation
         self.validate_vital_ranges()
-
-        # User-friendly status output
-        total_errors = len(self.errors) + len(self.range_validation_errors)
-        if total_errors == 0:
-            print("Validation completed successfully.")
-        else:
-            print(f"Validation completed with {total_errors} error(s).")
-            if self.errors:
-                print(f"  - {len(self.errors)} schema validation error(s)")
-            if self.range_validation_errors:
-                print(f"  - {len(self.range_validation_errors)} range validation error(s)")
-            print("See `errors` and `range_validation_errors` attributes for details.")
 
     def validate_vital_ranges(self):
         """Validate vital values against expected ranges using grouped data for efficiency."""
@@ -118,8 +106,7 @@ class vitals:
         df_for_stats = self.df[required_columns_for_df].copy()
         df_for_stats['vital_value'] = pd.to_numeric(df_for_stats['vital_value'], errors='coerce')
 
-        # Filter out rows where vital_value could not be converted, as they can't be aggregated numerically
-        # These should have been caught by schema validation as type errors already.
+        # Filter out rows where vital_value could not be converted
         df_for_stats.dropna(subset=['vital_value'], inplace=True)
 
         if df_for_stats.empty:
@@ -148,51 +135,43 @@ class vitals:
                     'error_type': 'unknown_vital_category',
                     'vital_category': vital_category,
                     'affected_rows': count,
-                    'message': f"Unknown vital category '{vital_category}' affects {count} rows"
+                    'observed_min': min_val,
+                    'observed_max': max_val,
+                    'message': f"Unknown vital category '{vital_category}' found in data."
                 })
                 continue
             
-            # Check if values are within expected ranges
             expected_range = self._vital_ranges[vital_category]
             expected_min = expected_range.get('min')
             expected_max = expected_range.get('max')
             
-            range_issues = []
+            # Check if any values are outside the expected range
             if expected_min is not None and min_val < expected_min:
-                range_issues.append(f"minimum value {min_val} below expected {expected_min}")
+                self.range_validation_errors.append({
+                    'error_type': 'below_range',
+                    'vital_category': vital_category,
+                    'observed_min': min_val,
+                    'expected_min': expected_min,
+                    'message': f"Values below expected minimum for {vital_category}"
+                })
             
             if expected_max is not None and max_val > expected_max:
-                range_issues.append(f"maximum value {max_val} above expected {expected_max}")
-            
-            if range_issues:
                 self.range_validation_errors.append({
-                    'error_type': 'values_out_of_range',
+                    'error_type': 'above_range',
                     'vital_category': vital_category,
-                    'affected_rows': count,
-                    'min_value': min_val,
-                    'max_value': max_val,
-                    'mean_value': round(mean_val, 2),
-                    'expected_range': expected_range,
-                    'issues': range_issues,
-                    'message': f"Vital '{vital_category}' has values out of expected range: {'; '.join(range_issues)}"
+                    'observed_max': max_val,
+                    'expected_max': expected_max,
+                    'message': f"Values above expected maximum for {vital_category}"
                 })
+        
+        # Add range validation errors to main errors list
+        if self.range_validation_errors:
+            self.errors.extend(self.range_validation_errors)
+            self.logger.warning(f"Found {len(self.range_validation_errors)} range validation errors")
 
     # ------------------------------------------------------------------
     # Vitals Specific Methods
     # ------------------------------------------------------------------
-    def get_vital_categories(self) -> List[str]:
-        """Return unique vital categories in the dataset."""
-        if self.df is None or 'vital_category' not in self.df.columns:
-            return []
-        return self.df['vital_category'].dropna().unique().tolist()
-
-    def filter_by_hospitalization(self, hospitalization_id: str) -> pd.DataFrame:
-        """Return all vital records for a specific hospitalization."""
-        if self.df is None or 'hospitalization_id' not in self.df.columns:
-            return pd.DataFrame()
-        
-        return self.df[self.df['hospitalization_id'] == hospitalization_id].copy()
-
     def filter_by_vital_category(self, vital_category: str) -> pd.DataFrame:
         """Return all records for a specific vital category (e.g., 'heart_rate', 'temp_c')."""
         if self.df is None or 'vital_category' not in self.df.columns:
@@ -200,52 +179,21 @@ class vitals:
         
         return self.df[self.df['vital_category'] == vital_category].copy()
 
-    def filter_by_date_range(self, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Return records within a specific date range."""
-        if self.df is None or 'recorded_dttm' not in self.df.columns:
+    def get_vital_summary_stats(self) -> pd.DataFrame:
+        """Return summary statistics for each vital category."""
+        if self.df is None or 'vital_value' not in self.df.columns:
             return pd.DataFrame()
         
-        # Convert datetime column to datetime if it's not already
+        # Convert vital_value to numeric
         df_copy = self.df.copy()
-        df_copy['recorded_dttm'] = pd.to_datetime(df_copy['recorded_dttm'])
+        df_copy['vital_value'] = pd.to_numeric(df_copy['vital_value'], errors='coerce')
         
-        mask = (df_copy['recorded_dttm'] >= start_date) & (df_copy['recorded_dttm'] <= end_date)
-        return df_copy[mask]
-
-    def get_summary_stats(self) -> Dict:
-        """Return summary statistics for the vitals data."""
-        if self.df is None:
-            return {}
-        
-        stats = {
-            'total_records': len(self.df),
-            'unique_hospitalizations': self.df['hospitalization_id'].nunique() if 'hospitalization_id' in self.df.columns else 0,
-            'vital_category_counts': self.df['vital_category'].value_counts().to_dict() if 'vital_category' in self.df.columns else {},
-            'date_range': {
-                'earliest': self.df['recorded_dttm'].min() if 'recorded_dttm' in self.df.columns else None,
-                'latest': self.df['recorded_dttm'].max() if 'recorded_dttm' in self.df.columns else None
-            }
-        }
-        
-        # Add vital value statistics by category
-        if 'vital_category' in self.df.columns and 'vital_value' in self.df.columns:
-            vital_value_stats = {}
-            for vital_cat in self.get_vital_categories():
-                vital_data = self.filter_by_vital_category(vital_cat)['vital_value']
-                vital_value_stats[vital_cat] = {
-                    'count': len(vital_data),
-                    'mean': round(vital_data.mean(), 2) if not vital_data.empty else None,
-                    'min': vital_data.min() if not vital_data.empty else None,
-                    'max': vital_data.max() if not vital_data.empty else None,
-                    'std': round(vital_data.std(), 2) if not vital_data.empty else None
-                }
-            stats['vital_value_stats'] = vital_value_stats
+        # Group by vital category and calculate stats
+        stats = df_copy.groupby('vital_category')['vital_value'].agg([
+            'count', 'mean', 'std', 'min', 'max',
+            ('q1', lambda x: x.quantile(0.25)),
+            ('median', lambda x: x.quantile(0.5)),
+            ('q3', lambda x: x.quantile(0.75))
+        ]).round(2)
         
         return stats
-
-    def get_range_validation_report(self) -> pd.DataFrame:
-        """Return a detailed report of vital range validation errors."""
-        if not self.range_validation_errors:
-            return pd.DataFrame(columns=['error_type', 'vital_category', 'affected_rows', 'message'])
-        
-        return pd.DataFrame(self.range_validation_errors)
