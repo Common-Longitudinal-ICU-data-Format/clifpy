@@ -54,6 +54,9 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
 
     Returns:
         pd.DataFrame: DataFrame containing the requested data.
+
+    Usage:
+        
     """
     # Determine the file path based on the directory and filetype
   
@@ -96,6 +99,12 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
         filename = os.path.basename(file_path)
         print(f"Data loaded successfully from {filename}")
         df = _cast_id_cols_to_string(df) # Cast id columns to string
+        
+        # Convert category columns to lowercase
+        category_cols = [col for col in df.columns if col.endswith('_category')]
+        for col in category_cols:
+            if col in df.columns:
+                df[col] = df[col].str.lower()
         
         # Convert datetime columns to site timezone if specified
         if site_tz:
