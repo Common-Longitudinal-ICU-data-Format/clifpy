@@ -1,0 +1,3724 @@
+{
+  "files": [
+    {
+      "path": "tests/conftest.py",
+      "name": "conftest.py",
+      "folder": "tests",
+      "imports": [
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": null
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": null
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "name": "data_dir",
+          "params": [],
+          "lineno": 14
+        }
+      ],
+      "module": "tests.conftest"
+    },
+    {
+      "path": "tests/run_all_tests.py",
+      "name": "run_all_tests.py",
+      "folder": "tests",
+      "imports": [
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": null
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": null
+        },
+        {
+          "module": "argparse",
+          "name": "argparse",
+          "alias": null
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "name": "run_tests",
+          "params": [
+            "category"
+          ],
+          "lineno": 13
+        }
+      ],
+      "module": "tests.run_all_tests"
+    },
+    {
+      "path": "clifpy/tables/base_table.py",
+      "name": "base_table.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "logging",
+          "name": "logging",
+          "alias": null
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "yaml",
+          "name": "yaml",
+          "alias": null
+        },
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Any",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "datetime",
+          "name": "datetime",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "utils.io",
+          "name": "load_data",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "utils",
+          "name": "validator",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": null
+        }
+      ],
+      "classes": [
+        {
+          "name": "BaseTable",
+          "base_classes": [],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 39
+            },
+            {
+              "name": "_setup_logging",
+              "params": [
+                "self"
+              ],
+              "lineno": 85
+            },
+            {
+              "name": "_load_schema",
+              "params": [
+                "self"
+              ],
+              "lineno": 118
+            },
+            {
+              "name": "from_file",
+              "params": [
+                "cls",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "sample_size",
+                "columns",
+                "filters"
+              ],
+              "lineno": 147
+            },
+            {
+              "name": "validate",
+              "params": [
+                "self"
+              ],
+              "lineno": 195
+            },
+            {
+              "name": "_run_tz_validation",
+              "params": [
+                "self"
+              ],
+              "lineno": 250
+            },
+            {
+              "name": "_run_enhanced_validations",
+              "params": [
+                "self"
+              ],
+              "lineno": 263
+            },
+            {
+              "name": "_run_table_specific_validations",
+              "params": [
+                "self"
+              ],
+              "lineno": 371
+            },
+            {
+              "name": "_save_validation_errors",
+              "params": [
+                "self"
+              ],
+              "lineno": 380
+            },
+            {
+              "name": "isvalid",
+              "params": [
+                "self"
+              ],
+              "lineno": 401
+            },
+            {
+              "name": "get_summary",
+              "params": [
+                "self"
+              ],
+              "lineno": 410
+            },
+            {
+              "name": "save_summary",
+              "params": [
+                "self"
+              ],
+              "lineno": 443
+            }
+          ],
+          "lineno": 20
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.base_table",
+      "is_base": true
+    },
+    {
+      "path": "clifpy/tables/patient.py",
+      "name": "patient.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "Patient",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 14
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.patient",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/labs.py",
+      "name": "labs.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "Labs",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 15
+            },
+            {
+              "name": "_load_labs_schema_data",
+              "params": [
+                "self"
+              ],
+              "lineno": 54
+            },
+            {
+              "name": "lab_reference_units",
+              "params": [
+                "self"
+              ],
+              "lineno": 60
+            },
+            {
+              "name": "filter_by_lab_category",
+              "params": [
+                "self",
+                "lab_category"
+              ],
+              "lineno": 67
+            },
+            {
+              "name": "get_lab_summary_stats",
+              "params": [
+                "self"
+              ],
+              "lineno": 74
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.labs",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/patient_assessments.py",
+      "name": "patient_assessments.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "PatientAssessments",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 14
+            },
+            {
+              "name": "_load_assessment_schema_data",
+              "params": [
+                "self"
+              ],
+              "lineno": 53
+            },
+            {
+              "name": "assessment_category_to_group_mapping",
+              "params": [
+                "self"
+              ],
+              "lineno": 59
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.patient_assessments",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/position.py",
+      "name": "position.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "Position",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 14
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.position",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/respiratory_support.py",
+      "name": "respiratory_support.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "RespiratorySupport",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 14
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.respiratory_support",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/hospitalization.py",
+      "name": "hospitalization.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "Hospitalization",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 14
+            },
+            {
+              "name": "calculate_length_of_stay",
+              "params": [
+                "self"
+              ],
+              "lineno": 51
+            },
+            {
+              "name": "get_mortality_rate",
+              "params": [
+                "self"
+              ],
+              "lineno": 70
+            },
+            {
+              "name": "get_summary_stats",
+              "params": [
+                "self"
+              ],
+              "lineno": 83
+            },
+            {
+              "name": "get_patient_hospitalization_counts",
+              "params": [
+                "self"
+              ],
+              "lineno": 132
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.hospitalization",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/adt.py",
+      "name": "adt.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "datetime",
+          "name": "datetime",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "Adt",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 15
+            },
+            {
+              "name": "get_location_categories",
+              "params": [
+                "self"
+              ],
+              "lineno": 51
+            },
+            {
+              "name": "get_hospital_types",
+              "params": [
+                "self"
+              ],
+              "lineno": 57
+            },
+            {
+              "name": "filter_by_hospitalization",
+              "params": [
+                "self",
+                "hospitalization_id"
+              ],
+              "lineno": 63
+            },
+            {
+              "name": "filter_by_location_category",
+              "params": [
+                "self",
+                "location_category"
+              ],
+              "lineno": 70
+            },
+            {
+              "name": "filter_by_date_range",
+              "params": [
+                "self",
+                "start_date",
+                "end_date",
+                "date_column"
+              ],
+              "lineno": 77
+            },
+            {
+              "name": "get_summary_stats",
+              "params": [
+                "self"
+              ],
+              "lineno": 90
+            }
+          ],
+          "lineno": 7
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.adt",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/medication_admin_continuous.py",
+      "name": "medication_admin_continuous.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "MedicationAdminContinuous",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 14
+            },
+            {
+              "name": "_load_medication_schema_data",
+              "params": [
+                "self"
+              ],
+              "lineno": 53
+            },
+            {
+              "name": "med_category_to_group_mapping",
+              "params": [
+                "self"
+              ],
+              "lineno": 59
+            }
+          ],
+          "lineno": 6
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.medication_admin_continuous",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/tables/vitals.py",
+      "name": "vitals.py",
+      "folder": "clifpy/tables",
+      "imports": [
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": null
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "base_table",
+          "name": "BaseTable",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [
+        {
+          "name": "Vitals",
+          "base_classes": [
+            "BaseTable"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "data_directory",
+                "filetype",
+                "timezone",
+                "output_directory",
+                "data"
+              ],
+              "lineno": 16
+            },
+            {
+              "name": "_load_vitals_schema_data",
+              "params": [
+                "self"
+              ],
+              "lineno": 59
+            },
+            {
+              "name": "vital_units",
+              "params": [
+                "self"
+              ],
+              "lineno": 66
+            },
+            {
+              "name": "vital_ranges",
+              "params": [
+                "self"
+              ],
+              "lineno": 71
+            },
+            {
+              "name": "isvalid",
+              "params": [
+                "self"
+              ],
+              "lineno": 75
+            },
+            {
+              "name": "_run_table_specific_validations",
+              "params": [
+                "self"
+              ],
+              "lineno": 79
+            },
+            {
+              "name": "validate_vital_ranges",
+              "params": [
+                "self"
+              ],
+              "lineno": 88
+            },
+            {
+              "name": "filter_by_vital_category",
+              "params": [
+                "self",
+                "vital_category"
+              ],
+              "lineno": 175
+            },
+            {
+              "name": "get_vital_summary_stats",
+              "params": [
+                "self"
+              ],
+              "lineno": 182
+            }
+          ],
+          "lineno": 8
+        }
+      ],
+      "functions": [],
+      "module": "clifpy.tables.vitals",
+      "is_derived": true
+    },
+    {
+      "path": "clifpy/utils/validator.py",
+      "name": "validator.py",
+      "folder": "clifpy/utils",
+      "imports": [
+        {
+          "module": "__future__",
+          "name": "annotations",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": null
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Any",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        }
+      ],
+      "classes": [
+        {
+          "name": "ValidationError",
+          "base_classes": [
+            "Exception"
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "params": [
+                "self",
+                "errors"
+              ],
+              "lineno": 73
+            }
+          ],
+          "lineno": 67
+        }
+      ],
+      "functions": [
+        {
+          "name": "_is_varchar_dtype",
+          "params": [
+            "series"
+          ],
+          "lineno": 27
+        },
+        {
+          "name": "_is_integer_dtype",
+          "params": [
+            "series"
+          ],
+          "lineno": 47
+        },
+        {
+          "name": "_is_float_dtype",
+          "params": [
+            "series"
+          ],
+          "lineno": 51
+        },
+        {
+          "name": "_load_spec",
+          "params": [
+            "table_name",
+            "spec_dir"
+          ],
+          "lineno": 85
+        },
+        {
+          "name": "validate_dataframe",
+          "params": [
+            "df",
+            "spec"
+          ],
+          "lineno": 102
+        },
+        {
+          "name": "validate_table",
+          "params": [
+            "df",
+            "table_name",
+            "spec_dir"
+          ],
+          "lineno": 147
+        },
+        {
+          "name": "check_required_columns",
+          "params": [
+            "df",
+            "column_names",
+            "table_name"
+          ],
+          "lineno": 164
+        },
+        {
+          "name": "verify_column_dtypes",
+          "params": [
+            "df",
+            "schema"
+          ],
+          "lineno": 206
+        },
+        {
+          "name": "validate_datetime_timezone",
+          "params": [
+            "df",
+            "datetime_columns"
+          ],
+          "lineno": 251
+        },
+        {
+          "name": "calculate_missing_stats",
+          "params": [
+            "df",
+            "format"
+          ],
+          "lineno": 304
+        },
+        {
+          "name": "report_missing_data_summary",
+          "params": [
+            "df"
+          ],
+          "lineno": 344
+        },
+        {
+          "name": "validate_categorical_values",
+          "params": [
+            "df",
+            "schema"
+          ],
+          "lineno": 392
+        },
+        {
+          "name": "check_for_duplicates",
+          "params": [
+            "df",
+            "composite_keys"
+          ],
+          "lineno": 451
+        },
+        {
+          "name": "generate_summary_statistics",
+          "params": [
+            "df",
+            "numeric_columns",
+            "output_path",
+            "table_name"
+          ],
+          "lineno": 513
+        },
+        {
+          "name": "analyze_skewed_distributions",
+          "params": [
+            "df",
+            "output_path",
+            "table_name"
+          ],
+          "lineno": 556
+        },
+        {
+          "name": "validate_units",
+          "params": [
+            "df",
+            "unit_mappings",
+            "table_name"
+          ],
+          "lineno": 610
+        },
+        {
+          "name": "calculate_cohort_sizes",
+          "params": [
+            "df",
+            "id_columns"
+          ],
+          "lineno": 675
+        },
+        {
+          "name": "get_distinct_counts",
+          "params": [
+            "df",
+            "columns"
+          ],
+          "lineno": 706
+        },
+        {
+          "name": "validate_numeric_ranges",
+          "params": [
+            "df",
+            "ranges",
+            "table_name"
+          ],
+          "lineno": 742
+        }
+      ],
+      "module": "clifpy.utils.validator"
+    },
+    {
+      "path": "clifpy/utils/io.py",
+      "name": "io.py",
+      "folder": "clifpy/utils",
+      "imports": [
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "duckdb",
+          "name": "duckdb",
+          "alias": null
+        },
+        {
+          "module": "pytz",
+          "name": "pytz",
+          "alias": null
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "name": "_cast_id_cols_to_string",
+          "params": [
+            "df"
+          ],
+          "lineno": 9
+        },
+        {
+          "name": "load_parquet_with_tz",
+          "params": [
+            "file_path",
+            "columns",
+            "filters",
+            "sample_size"
+          ],
+          "lineno": 15
+        },
+        {
+          "name": "load_data",
+          "params": [
+            "table_name",
+            "table_path",
+            "table_format_type",
+            "sample_size",
+            "columns",
+            "filters",
+            "site_tz"
+          ],
+          "lineno": 44
+        },
+        {
+          "name": "convert_datetime_columns_to_site_tz",
+          "params": [
+            "df",
+            "site_tz_str",
+            "verbose"
+          ],
+          "lineno": 108
+        }
+      ],
+      "module": "clifpy.utils.io"
+    },
+    {
+      "path": "clifpy/data/loader.py",
+      "name": "loader.py",
+      "folder": "clifpy/data",
+      "imports": [
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "typing",
+          "name": "Union",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "tables.patient",
+          "name": "Patient",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "tables.adt",
+          "name": "Adt",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "tables.hospitalization",
+          "name": "Hospitalization",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "name": "_get_demo_data_path",
+          "params": [],
+          "lineno": 14
+        },
+        {
+          "name": "_load_demo_table",
+          "params": [
+            "table_name",
+            "return_raw"
+          ],
+          "lineno": 22
+        },
+        {
+          "name": "load_demo_clif",
+          "params": [
+            "tables",
+            "timezone",
+            "verbose"
+          ],
+          "lineno": 86
+        },
+        {
+          "name": "load_demo_patient",
+          "params": [
+            "return_raw"
+          ],
+          "lineno": 114
+        },
+        {
+          "name": "load_demo_adt",
+          "params": [
+            "return_raw"
+          ],
+          "lineno": 192
+        },
+        {
+          "name": "load_demo_hospitalization",
+          "params": [
+            "return_raw"
+          ],
+          "lineno": 205
+        },
+        {
+          "name": "list_demo_datasets",
+          "params": [],
+          "lineno": 246
+        },
+        {
+          "name": "get_demo_summary",
+          "params": [],
+          "lineno": 300
+        }
+      ],
+      "module": "clifpy.data.loader"
+    },
+    {
+      "path": "examples/00_basic_usage.py",
+      "name": "00_basic_usage.py",
+      "folder": "examples",
+      "imports": [
+        {
+          "module": "marimo",
+          "name": "marimo",
+          "alias": null
+        },
+        {
+          "module": "marimo",
+          "name": "marimo",
+          "alias": "mo"
+        },
+        {
+          "module": "pandas",
+          "name": "pandas",
+          "alias": "pd"
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": null
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy.data",
+          "name": "get_demo_summary",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy.data",
+          "name": "list_demo_datasets",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy.data",
+          "name": "load_demo_patient",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy.data",
+          "name": "load_demo_hospitalization",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy.data",
+          "name": "load_demo_adt",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": null
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "name": "_",
+          "params": [],
+          "lineno": 8
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 36
+        },
+        {
+          "name": "_",
+          "params": [],
+          "lineno": 48
+        },
+        {
+          "name": "_",
+          "params": [
+            "list_demo_datasets",
+            "mo"
+          ],
+          "lineno": 57
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 75
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo",
+            "patient_table"
+          ],
+          "lineno": 100
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo",
+            "patient_table"
+          ],
+          "lineno": 108
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo",
+            "patient_table"
+          ],
+          "lineno": 120
+        },
+        {
+          "name": "_",
+          "params": [
+            "load_demo_hospitalization",
+            "mo"
+          ],
+          "lineno": 141
+        },
+        {
+          "name": "_",
+          "params": [
+            "hosp_table"
+          ],
+          "lineno": 157
+        },
+        {
+          "name": "_",
+          "params": [
+            "hosp_table",
+            "mo"
+          ],
+          "lineno": 164
+        },
+        {
+          "name": "_",
+          "params": [
+            "hosp_table",
+            "mo",
+            "pd"
+          ],
+          "lineno": 189
+        },
+        {
+          "name": "_",
+          "params": [
+            "load_demo_adt",
+            "mo"
+          ],
+          "lineno": 203
+        },
+        {
+          "name": "_",
+          "params": [
+            "adt_table"
+          ],
+          "lineno": 219
+        },
+        {
+          "name": "_",
+          "params": [
+            "adt_table",
+            "mo"
+          ],
+          "lineno": 226
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 247
+        },
+        {
+          "name": "_",
+          "params": [
+            "load_demo_patient",
+            "mo",
+            "pd"
+          ],
+          "lineno": 259
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 282
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo",
+            "patient_table"
+          ],
+          "lineno": 303
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 326
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo",
+            "patient_table"
+          ],
+          "lineno": 338
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 369
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo"
+          ],
+          "lineno": 412
+        }
+      ],
+      "module": "examples.00_basic_usage"
+    },
+    {
+      "path": "examples/01_demo_from_files.py",
+      "name": "01_demo_from_files.py",
+      "folder": "examples",
+      "imports": [
+        {
+          "module": "marimo",
+          "name": "marimo",
+          "alias": null
+        },
+        {
+          "module": "marimo",
+          "name": "marimo",
+          "alias": "mo"
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": null
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy",
+          "name": "Patient",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy",
+          "name": "Hospitalization",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy",
+          "name": "Adt",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy",
+          "name": "Labs",
+          "alias": null,
+          "from_import": true
+        },
+        {
+          "module": "clifpy",
+          "name": "Vitals",
+          "alias": null,
+          "from_import": true
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "name": "_",
+          "params": [],
+          "lineno": 8
+        },
+        {
+          "name": "_",
+          "params": [
+            "mo",
+            "project_root"
+          ],
+          "lineno": 29
+        },
+        {
+          "name": "_",
+          "params": [
+            "DATA_DIR",
+            "FILETYPE",
+            "OUTPUT_DIR",
+            "TIMEZONE",
+            "mo"
+          ],
+          "lineno": 51
+        },
+        {
+          "name": "_",
+          "params": [
+            "patient_table"
+          ],
+          "lineno": 108
+        },
+        {
+          "name": "_",
+          "params": [
+            "hospitalization_table"
+          ],
+          "lineno": 114
+        },
+        {
+          "name": "_",
+          "params": [
+            "adt_table"
+          ],
+          "lineno": 121
+        },
+        {
+          "name": "_",
+          "params": [
+            "labs_table"
+          ],
+          "lineno": 128
+        },
+        {
+          "name": "_",
+          "params": [
+            "labs_table"
+          ],
+          "lineno": 134
+        },
+        {
+          "name": "_",
+          "params": [
+            "vitals_table"
+          ],
+          "lineno": 141
+        }
+      ],
+      "module": "examples.01_demo_from_files"
+    }
+  ],
+  "folders": {},
+  "connections": [
+    {
+      "source": "clifpy/tables/base_table.py",
+      "target": "clifpy/utils/io.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "utils.io.load_data"
+    },
+    {
+      "source": "clifpy/tables/patient.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/patient.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "Patient",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/labs.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/labs.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "Labs",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/patient_assessments.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/patient_assessments.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "PatientAssessments",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/position.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/position.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "Position",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/respiratory_support.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/respiratory_support.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "RespiratorySupport",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/hospitalization.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/hospitalization.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "Hospitalization",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/adt.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/adt.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "Adt",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/medication_admin_continuous.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/medication_admin_continuous.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "MedicationAdminContinuous",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/tables/vitals.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "base_table.BaseTable"
+    },
+    {
+      "source": "clifpy/tables/vitals.py",
+      "target": "clifpy/tables/base_table.py",
+      "type": "inheritance",
+      "relationship": "inheritance",
+      "class_name": "Vitals",
+      "base_class": "BaseTable"
+    },
+    {
+      "source": "clifpy/data/loader.py",
+      "target": "clifpy/tables/patient.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "tables.patient.Patient"
+    },
+    {
+      "source": "clifpy/data/loader.py",
+      "target": "clifpy/tables/adt.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "tables.adt.Adt"
+    },
+    {
+      "source": "clifpy/data/loader.py",
+      "target": "clifpy/tables/hospitalization.py",
+      "type": "import",
+      "relationship": "import",
+      "import_detail": "tables.hospitalization.Hospitalization"
+    }
+  ],
+  "hierarchy": {
+    "tests": {
+      "type": "folder",
+      "name": "tests",
+      "path": "tests",
+      "children": {},
+      "files": [
+        {
+          "path": "tests/conftest.py",
+          "name": "conftest.py",
+          "folder": "tests",
+          "imports": [
+            {
+              "module": "pytest",
+              "name": "pytest",
+              "alias": null
+            },
+            {
+              "module": "os",
+              "name": "os",
+              "alias": null
+            },
+            {
+              "module": "sys",
+              "name": "sys",
+              "alias": null
+            }
+          ],
+          "classes": [],
+          "functions": [
+            {
+              "name": "data_dir",
+              "params": [],
+              "lineno": 14
+            }
+          ],
+          "module": "tests.conftest"
+        },
+        {
+          "path": "tests/run_all_tests.py",
+          "name": "run_all_tests.py",
+          "folder": "tests",
+          "imports": [
+            {
+              "module": "pytest",
+              "name": "pytest",
+              "alias": null
+            },
+            {
+              "module": "os",
+              "name": "os",
+              "alias": null
+            },
+            {
+              "module": "sys",
+              "name": "sys",
+              "alias": null
+            },
+            {
+              "module": "argparse",
+              "name": "argparse",
+              "alias": null
+            }
+          ],
+          "classes": [],
+          "functions": [
+            {
+              "name": "run_tests",
+              "params": [
+                "category"
+              ],
+              "lineno": 13
+            }
+          ],
+          "module": "tests.run_all_tests"
+        }
+      ]
+    },
+    "clifpy": {
+      "type": "folder",
+      "name": "clifpy",
+      "path": "clifpy",
+      "children": {
+        "tables": {
+          "type": "folder",
+          "name": "tables",
+          "path": "clifpy/tables",
+          "children": {},
+          "files": [
+            {
+              "path": "clifpy/tables/base_table.py",
+              "name": "base_table.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "os",
+                  "name": "os",
+                  "alias": null
+                },
+                {
+                  "module": "logging",
+                  "name": "logging",
+                  "alias": null
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "yaml",
+                  "name": "yaml",
+                  "alias": null
+                },
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "List",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Any",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pathlib",
+                  "name": "Path",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "datetime",
+                  "name": "datetime",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "utils.io",
+                  "name": "load_data",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "utils",
+                  "name": "validator",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "json",
+                  "name": "json",
+                  "alias": null
+                }
+              ],
+              "classes": [
+                {
+                  "name": "BaseTable",
+                  "base_classes": [],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 39
+                    },
+                    {
+                      "name": "_setup_logging",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 85
+                    },
+                    {
+                      "name": "_load_schema",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 118
+                    },
+                    {
+                      "name": "from_file",
+                      "params": [
+                        "cls",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "sample_size",
+                        "columns",
+                        "filters"
+                      ],
+                      "lineno": 147
+                    },
+                    {
+                      "name": "validate",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 195
+                    },
+                    {
+                      "name": "_run_tz_validation",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 250
+                    },
+                    {
+                      "name": "_run_enhanced_validations",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 263
+                    },
+                    {
+                      "name": "_run_table_specific_validations",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 371
+                    },
+                    {
+                      "name": "_save_validation_errors",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 380
+                    },
+                    {
+                      "name": "isvalid",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 401
+                    },
+                    {
+                      "name": "get_summary",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 410
+                    },
+                    {
+                      "name": "save_summary",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 443
+                    }
+                  ],
+                  "lineno": 20
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.base_table",
+              "is_base": true
+            },
+            {
+              "path": "clifpy/tables/patient.py",
+              "name": "patient.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "Patient",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 14
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.patient",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/labs.py",
+              "name": "labs.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "List",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "Labs",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 15
+                    },
+                    {
+                      "name": "_load_labs_schema_data",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 54
+                    },
+                    {
+                      "name": "lab_reference_units",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 60
+                    },
+                    {
+                      "name": "filter_by_lab_category",
+                      "params": [
+                        "self",
+                        "lab_category"
+                      ],
+                      "lineno": 67
+                    },
+                    {
+                      "name": "get_lab_summary_stats",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 74
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.labs",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/patient_assessments.py",
+              "name": "patient_assessments.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "PatientAssessments",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 14
+                    },
+                    {
+                      "name": "_load_assessment_schema_data",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 53
+                    },
+                    {
+                      "name": "assessment_category_to_group_mapping",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 59
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.patient_assessments",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/position.py",
+              "name": "position.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "Position",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 14
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.position",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/respiratory_support.py",
+              "name": "respiratory_support.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "RespiratorySupport",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 14
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.respiratory_support",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/hospitalization.py",
+              "name": "hospitalization.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "Hospitalization",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 14
+                    },
+                    {
+                      "name": "calculate_length_of_stay",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 51
+                    },
+                    {
+                      "name": "get_mortality_rate",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 70
+                    },
+                    {
+                      "name": "get_summary_stats",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 83
+                    },
+                    {
+                      "name": "get_patient_hospitalization_counts",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 132
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.hospitalization",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/adt.py",
+              "name": "adt.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "datetime",
+                  "name": "datetime",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "List",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "Adt",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 15
+                    },
+                    {
+                      "name": "get_location_categories",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 51
+                    },
+                    {
+                      "name": "get_hospital_types",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 57
+                    },
+                    {
+                      "name": "filter_by_hospitalization",
+                      "params": [
+                        "self",
+                        "hospitalization_id"
+                      ],
+                      "lineno": 63
+                    },
+                    {
+                      "name": "filter_by_location_category",
+                      "params": [
+                        "self",
+                        "location_category"
+                      ],
+                      "lineno": 70
+                    },
+                    {
+                      "name": "filter_by_date_range",
+                      "params": [
+                        "self",
+                        "start_date",
+                        "end_date",
+                        "date_column"
+                      ],
+                      "lineno": 77
+                    },
+                    {
+                      "name": "get_summary_stats",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 90
+                    }
+                  ],
+                  "lineno": 7
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.adt",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/medication_admin_continuous.py",
+              "name": "medication_admin_continuous.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "MedicationAdminContinuous",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 14
+                    },
+                    {
+                      "name": "_load_medication_schema_data",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 53
+                    },
+                    {
+                      "name": "med_category_to_group_mapping",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 59
+                    }
+                  ],
+                  "lineno": 6
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.medication_admin_continuous",
+              "is_derived": true
+            },
+            {
+              "path": "clifpy/tables/vitals.py",
+              "name": "vitals.py",
+              "folder": "clifpy/tables",
+              "imports": [
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "List",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "json",
+                  "name": "json",
+                  "alias": null
+                },
+                {
+                  "module": "os",
+                  "name": "os",
+                  "alias": null
+                },
+                {
+                  "module": "base_table",
+                  "name": "BaseTable",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [
+                {
+                  "name": "Vitals",
+                  "base_classes": [
+                    "BaseTable"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "data_directory",
+                        "filetype",
+                        "timezone",
+                        "output_directory",
+                        "data"
+                      ],
+                      "lineno": 16
+                    },
+                    {
+                      "name": "_load_vitals_schema_data",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 59
+                    },
+                    {
+                      "name": "vital_units",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 66
+                    },
+                    {
+                      "name": "vital_ranges",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 71
+                    },
+                    {
+                      "name": "isvalid",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 75
+                    },
+                    {
+                      "name": "_run_table_specific_validations",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 79
+                    },
+                    {
+                      "name": "validate_vital_ranges",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 88
+                    },
+                    {
+                      "name": "filter_by_vital_category",
+                      "params": [
+                        "self",
+                        "vital_category"
+                      ],
+                      "lineno": 175
+                    },
+                    {
+                      "name": "get_vital_summary_stats",
+                      "params": [
+                        "self"
+                      ],
+                      "lineno": 182
+                    }
+                  ],
+                  "lineno": 8
+                }
+              ],
+              "functions": [],
+              "module": "clifpy.tables.vitals",
+              "is_derived": true
+            }
+          ]
+        },
+        "utils": {
+          "type": "folder",
+          "name": "utils",
+          "path": "clifpy/utils",
+          "children": {},
+          "files": [
+            {
+              "path": "clifpy/utils/validator.py",
+              "name": "validator.py",
+              "folder": "clifpy/utils",
+              "imports": [
+                {
+                  "module": "__future__",
+                  "name": "annotations",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "json",
+                  "name": "json",
+                  "alias": null
+                },
+                {
+                  "module": "os",
+                  "name": "os",
+                  "alias": null
+                },
+                {
+                  "module": "typing",
+                  "name": "List",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Any",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                }
+              ],
+              "classes": [
+                {
+                  "name": "ValidationError",
+                  "base_classes": [
+                    "Exception"
+                  ],
+                  "methods": [
+                    {
+                      "name": "__init__",
+                      "params": [
+                        "self",
+                        "errors"
+                      ],
+                      "lineno": 73
+                    }
+                  ],
+                  "lineno": 67
+                }
+              ],
+              "functions": [
+                {
+                  "name": "_is_varchar_dtype",
+                  "params": [
+                    "series"
+                  ],
+                  "lineno": 27
+                },
+                {
+                  "name": "_is_integer_dtype",
+                  "params": [
+                    "series"
+                  ],
+                  "lineno": 47
+                },
+                {
+                  "name": "_is_float_dtype",
+                  "params": [
+                    "series"
+                  ],
+                  "lineno": 51
+                },
+                {
+                  "name": "_load_spec",
+                  "params": [
+                    "table_name",
+                    "spec_dir"
+                  ],
+                  "lineno": 85
+                },
+                {
+                  "name": "validate_dataframe",
+                  "params": [
+                    "df",
+                    "spec"
+                  ],
+                  "lineno": 102
+                },
+                {
+                  "name": "validate_table",
+                  "params": [
+                    "df",
+                    "table_name",
+                    "spec_dir"
+                  ],
+                  "lineno": 147
+                },
+                {
+                  "name": "check_required_columns",
+                  "params": [
+                    "df",
+                    "column_names",
+                    "table_name"
+                  ],
+                  "lineno": 164
+                },
+                {
+                  "name": "verify_column_dtypes",
+                  "params": [
+                    "df",
+                    "schema"
+                  ],
+                  "lineno": 206
+                },
+                {
+                  "name": "validate_datetime_timezone",
+                  "params": [
+                    "df",
+                    "datetime_columns"
+                  ],
+                  "lineno": 251
+                },
+                {
+                  "name": "calculate_missing_stats",
+                  "params": [
+                    "df",
+                    "format"
+                  ],
+                  "lineno": 304
+                },
+                {
+                  "name": "report_missing_data_summary",
+                  "params": [
+                    "df"
+                  ],
+                  "lineno": 344
+                },
+                {
+                  "name": "validate_categorical_values",
+                  "params": [
+                    "df",
+                    "schema"
+                  ],
+                  "lineno": 392
+                },
+                {
+                  "name": "check_for_duplicates",
+                  "params": [
+                    "df",
+                    "composite_keys"
+                  ],
+                  "lineno": 451
+                },
+                {
+                  "name": "generate_summary_statistics",
+                  "params": [
+                    "df",
+                    "numeric_columns",
+                    "output_path",
+                    "table_name"
+                  ],
+                  "lineno": 513
+                },
+                {
+                  "name": "analyze_skewed_distributions",
+                  "params": [
+                    "df",
+                    "output_path",
+                    "table_name"
+                  ],
+                  "lineno": 556
+                },
+                {
+                  "name": "validate_units",
+                  "params": [
+                    "df",
+                    "unit_mappings",
+                    "table_name"
+                  ],
+                  "lineno": 610
+                },
+                {
+                  "name": "calculate_cohort_sizes",
+                  "params": [
+                    "df",
+                    "id_columns"
+                  ],
+                  "lineno": 675
+                },
+                {
+                  "name": "get_distinct_counts",
+                  "params": [
+                    "df",
+                    "columns"
+                  ],
+                  "lineno": 706
+                },
+                {
+                  "name": "validate_numeric_ranges",
+                  "params": [
+                    "df",
+                    "ranges",
+                    "table_name"
+                  ],
+                  "lineno": 742
+                }
+              ],
+              "module": "clifpy.utils.validator"
+            },
+            {
+              "path": "clifpy/utils/io.py",
+              "name": "io.py",
+              "folder": "clifpy/utils",
+              "imports": [
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "os",
+                  "name": "os",
+                  "alias": null
+                },
+                {
+                  "module": "duckdb",
+                  "name": "duckdb",
+                  "alias": null
+                },
+                {
+                  "module": "pytz",
+                  "name": "pytz",
+                  "alias": null
+                }
+              ],
+              "classes": [],
+              "functions": [
+                {
+                  "name": "_cast_id_cols_to_string",
+                  "params": [
+                    "df"
+                  ],
+                  "lineno": 9
+                },
+                {
+                  "name": "load_parquet_with_tz",
+                  "params": [
+                    "file_path",
+                    "columns",
+                    "filters",
+                    "sample_size"
+                  ],
+                  "lineno": 15
+                },
+                {
+                  "name": "load_data",
+                  "params": [
+                    "table_name",
+                    "table_path",
+                    "table_format_type",
+                    "sample_size",
+                    "columns",
+                    "filters",
+                    "site_tz"
+                  ],
+                  "lineno": 44
+                },
+                {
+                  "name": "convert_datetime_columns_to_site_tz",
+                  "params": [
+                    "df",
+                    "site_tz_str",
+                    "verbose"
+                  ],
+                  "lineno": 108
+                }
+              ],
+              "module": "clifpy.utils.io"
+            }
+          ]
+        },
+        "data": {
+          "type": "folder",
+          "name": "data",
+          "path": "clifpy/data",
+          "children": {},
+          "files": [
+            {
+              "path": "clifpy/data/loader.py",
+              "name": "loader.py",
+              "folder": "clifpy/data",
+              "imports": [
+                {
+                  "module": "os",
+                  "name": "os",
+                  "alias": null
+                },
+                {
+                  "module": "pandas",
+                  "name": "pandas",
+                  "alias": "pd"
+                },
+                {
+                  "module": "typing",
+                  "name": "Dict",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Optional",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "List",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "typing",
+                  "name": "Union",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "pathlib",
+                  "name": "Path",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "tables.patient",
+                  "name": "Patient",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "tables.adt",
+                  "name": "Adt",
+                  "alias": null,
+                  "from_import": true
+                },
+                {
+                  "module": "tables.hospitalization",
+                  "name": "Hospitalization",
+                  "alias": null,
+                  "from_import": true
+                }
+              ],
+              "classes": [],
+              "functions": [
+                {
+                  "name": "_get_demo_data_path",
+                  "params": [],
+                  "lineno": 14
+                },
+                {
+                  "name": "_load_demo_table",
+                  "params": [
+                    "table_name",
+                    "return_raw"
+                  ],
+                  "lineno": 22
+                },
+                {
+                  "name": "load_demo_clif",
+                  "params": [
+                    "tables",
+                    "timezone",
+                    "verbose"
+                  ],
+                  "lineno": 86
+                },
+                {
+                  "name": "load_demo_patient",
+                  "params": [
+                    "return_raw"
+                  ],
+                  "lineno": 114
+                },
+                {
+                  "name": "load_demo_adt",
+                  "params": [
+                    "return_raw"
+                  ],
+                  "lineno": 192
+                },
+                {
+                  "name": "load_demo_hospitalization",
+                  "params": [
+                    "return_raw"
+                  ],
+                  "lineno": 205
+                },
+                {
+                  "name": "list_demo_datasets",
+                  "params": [],
+                  "lineno": 246
+                },
+                {
+                  "name": "get_demo_summary",
+                  "params": [],
+                  "lineno": 300
+                }
+              ],
+              "module": "clifpy.data.loader"
+            }
+          ]
+        }
+      },
+      "files": []
+    },
+    "examples": {
+      "type": "folder",
+      "name": "examples",
+      "path": "examples",
+      "children": {},
+      "files": [
+        {
+          "path": "examples/00_basic_usage.py",
+          "name": "00_basic_usage.py",
+          "folder": "examples",
+          "imports": [
+            {
+              "module": "marimo",
+              "name": "marimo",
+              "alias": null
+            },
+            {
+              "module": "marimo",
+              "name": "marimo",
+              "alias": "mo"
+            },
+            {
+              "module": "pandas",
+              "name": "pandas",
+              "alias": "pd"
+            },
+            {
+              "module": "sys",
+              "name": "sys",
+              "alias": null
+            },
+            {
+              "module": "pathlib",
+              "name": "Path",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy.data",
+              "name": "get_demo_summary",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy.data",
+              "name": "list_demo_datasets",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy.data",
+              "name": "load_demo_patient",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy.data",
+              "name": "load_demo_hospitalization",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy.data",
+              "name": "load_demo_adt",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "os",
+              "name": "os",
+              "alias": null
+            }
+          ],
+          "classes": [],
+          "functions": [
+            {
+              "name": "_",
+              "params": [],
+              "lineno": 8
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 36
+            },
+            {
+              "name": "_",
+              "params": [],
+              "lineno": 48
+            },
+            {
+              "name": "_",
+              "params": [
+                "list_demo_datasets",
+                "mo"
+              ],
+              "lineno": 57
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 75
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo",
+                "patient_table"
+              ],
+              "lineno": 100
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo",
+                "patient_table"
+              ],
+              "lineno": 108
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo",
+                "patient_table"
+              ],
+              "lineno": 120
+            },
+            {
+              "name": "_",
+              "params": [
+                "load_demo_hospitalization",
+                "mo"
+              ],
+              "lineno": 141
+            },
+            {
+              "name": "_",
+              "params": [
+                "hosp_table"
+              ],
+              "lineno": 157
+            },
+            {
+              "name": "_",
+              "params": [
+                "hosp_table",
+                "mo"
+              ],
+              "lineno": 164
+            },
+            {
+              "name": "_",
+              "params": [
+                "hosp_table",
+                "mo",
+                "pd"
+              ],
+              "lineno": 189
+            },
+            {
+              "name": "_",
+              "params": [
+                "load_demo_adt",
+                "mo"
+              ],
+              "lineno": 203
+            },
+            {
+              "name": "_",
+              "params": [
+                "adt_table"
+              ],
+              "lineno": 219
+            },
+            {
+              "name": "_",
+              "params": [
+                "adt_table",
+                "mo"
+              ],
+              "lineno": 226
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 247
+            },
+            {
+              "name": "_",
+              "params": [
+                "load_demo_patient",
+                "mo",
+                "pd"
+              ],
+              "lineno": 259
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 282
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo",
+                "patient_table"
+              ],
+              "lineno": 303
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 326
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo",
+                "patient_table"
+              ],
+              "lineno": 338
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 369
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo"
+              ],
+              "lineno": 412
+            }
+          ],
+          "module": "examples.00_basic_usage"
+        },
+        {
+          "path": "examples/01_demo_from_files.py",
+          "name": "01_demo_from_files.py",
+          "folder": "examples",
+          "imports": [
+            {
+              "module": "marimo",
+              "name": "marimo",
+              "alias": null
+            },
+            {
+              "module": "marimo",
+              "name": "marimo",
+              "alias": "mo"
+            },
+            {
+              "module": "sys",
+              "name": "sys",
+              "alias": null
+            },
+            {
+              "module": "pathlib",
+              "name": "Path",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy",
+              "name": "Patient",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy",
+              "name": "Hospitalization",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy",
+              "name": "Adt",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy",
+              "name": "Labs",
+              "alias": null,
+              "from_import": true
+            },
+            {
+              "module": "clifpy",
+              "name": "Vitals",
+              "alias": null,
+              "from_import": true
+            }
+          ],
+          "classes": [],
+          "functions": [
+            {
+              "name": "_",
+              "params": [],
+              "lineno": 8
+            },
+            {
+              "name": "_",
+              "params": [
+                "mo",
+                "project_root"
+              ],
+              "lineno": 29
+            },
+            {
+              "name": "_",
+              "params": [
+                "DATA_DIR",
+                "FILETYPE",
+                "OUTPUT_DIR",
+                "TIMEZONE",
+                "mo"
+              ],
+              "lineno": 51
+            },
+            {
+              "name": "_",
+              "params": [
+                "patient_table"
+              ],
+              "lineno": 108
+            },
+            {
+              "name": "_",
+              "params": [
+                "hospitalization_table"
+              ],
+              "lineno": 114
+            },
+            {
+              "name": "_",
+              "params": [
+                "adt_table"
+              ],
+              "lineno": 121
+            },
+            {
+              "name": "_",
+              "params": [
+                "labs_table"
+              ],
+              "lineno": 128
+            },
+            {
+              "name": "_",
+              "params": [
+                "labs_table"
+              ],
+              "lineno": 134
+            },
+            {
+              "name": "_",
+              "params": [
+                "vitals_table"
+              ],
+              "lineno": 141
+            }
+          ],
+          "module": "examples.01_demo_from_files"
+        }
+      ]
+    }
+  }
+}

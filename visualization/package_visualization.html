@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLIFpy Package Architecture</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background: #f8f8f8;
+        }
+        
+        #main-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #graph-container {
+            flex: 1;
+            position: relative;
+            background: white;
+            overflow: auto;
+        }
+        
+        #details-panel {
+            width: 350px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        }
+        
+        #details-panel h2 {
+            margin-top: 0;
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        #details-panel h3 {
+            color: #ecf0f1;
+            margin-top: 20px;
+        }
+        
+        .method-item, .function-item, .class-item {
+            background: #34495e;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+        }
+        
+        .method-name, .function-name, .class-name {
+            color: #3498db;
+            font-weight: bold;
+        }
+        
+        .params {
+            color: #95a5a6;
+            font-size: 16px;
+        }
+        
+        #title {
+            text-align: center;
+            padding: 15px;
+            background: #2c3e50;
+            color: white;
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        #refresh-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 1000;
+        }
+        
+        #refresh-btn:hover {
+            background: #2980b9;
+        }
+        
+        svg {
+            width: 100%;
+            height: calc(100% - 60px);
+        }
+        
+        .node {
+            cursor: pointer;
+        }
+        
+        .node rect {
+            stroke-width: 0.5px;
+        }
+        
+        .node text {
+            font-size: 20px;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: 500;
+        }
+        
+        /* Root node */
+        .root-node rect {
+            fill: url(#root-gradient);
+            stroke: #1a252f;
+            rx: 8;
+            ry: 8;
+            filter: url(#drop-shadow);
+        }
+        
+        .root-node text {
+            fill: white;
+            font-weight: bold;
+            font-size: 24px;
+        }
+        
+        /* Folder nodes */
+        .folder-node rect {
+            fill: #ecf0f1;
+            stroke: #95a5a6;
+            stroke-width: 2px;
+            rx: 6;
+            ry: 6;
+            filter: url(#drop-shadow);
+        }
+        
+        /* File nodes by category */
+        .utils-node rect {
+            fill: url(#utils-gradient);
+            stroke: #4caf50;
+            filter: url(#drop-shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .tables-node rect {
+            fill: url(#tables-gradient);
+            stroke: #d32f2f;
+            filter: url(#drop-shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .data-node rect {
+            fill: #e0e0e0;
+            stroke: #757575;
+            filter: url(#drop-shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .core-node rect {
+            fill: #bbdefb;
+            stroke: #1976d2;
+            filter: url(#drop-shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .base-class-node rect {
+            fill: url(#base-gradient);
+            stroke: #ff6f00;
+            stroke-width: 1px;
+            filter: url(#drop-shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover rect {
+            filter: brightness(0.95);
+            stroke-width: 3px;
+        }
+        
+        .node.selected rect {
+            stroke-width: 4px;
+            stroke: #ff5722;
+            filter: brightness(0.9);
+        }
+        
+        /* Hierarchy links */
+        .link {
+            fill: none;
+            stroke: #bdc3c7;
+            stroke-width: 2px;
+            stroke-opacity: 0.6;
+        }
+        
+        /* Import dependency arrows */
+        .import-link {
+            fill: none;
+            stroke: #e74c3c;
+            stroke-width: 2px;
+            stroke-opacity: 0.6;
+            marker-end: url(#import-arrow);
+        }
+        
+        /* Inheritance arrows */
+        .inheritance-link {
+            fill: none;
+            stroke: #3498db;
+            stroke-width: 2.5px;
+            stroke-dasharray: 5,5;
+            stroke-opacity: 0.8;
+            marker-end: url(#inheritance-arrow);
+        }
+        
+        .import-link.highlighted {
+            stroke: #c0392b;
+            stroke-width: 3px;
+            stroke-opacity: 1;
+        }
+        
+        .inheritance-link.highlighted {
+            stroke: #2980b9;
+            stroke-width: 3.5px;
+            stroke-opacity: 1;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .legend-box {
+            width: 25px;
+            height: 20px;
+            margin-right: 10px;
+            border: 2px solid #333;
+            border-radius: 3px;
+        }
+        
+        .legend-arrow {
+            width: 40px;
+            height: 2px;
+            margin-right: 10px;
+            position: relative;
+        }
+        
+        .legend-arrow.import {
+            background: #e74c3c;
+        }
+        
+        .legend-arrow.inheritance {
+            background: #3498db;
+            background-image: repeating-linear-gradient(90deg, #3498db, #3498db 5px, transparent 5px, transparent 10px);
+        }
+        
+        .legend-arrow::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -3px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid;
+            border-top: 3px solid transparent;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .legend-arrow.import::after {
+            border-left-color: #e74c3c;
+        }
+        
+        .legend-arrow.inheritance::after {
+            border-left-color: #3498db;
+        }
+        
+        /* Connection highlight styles */
+        .node.connection-highlight rect {
+            stroke-width: 4px !important;
+            stroke: #ff9800 !important;
+            filter: drop-shadow(0 0 8px rgba(255, 152, 0, 0.6));
+        }
+        
+        /* Arrow label styles */
+        .arrow-label {
+            font-size: 11px;
+            font-weight: bold;
+            fill: #555;
+            text-anchor: middle;
+            background: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="graph-container">
+            <h1 id="title">CLIFPy Package Architecture</h1>
+            <button id="refresh-btn" onclick="refreshVisualization()">🔄 Refresh</button>
+            <svg id="graph"></svg>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-arrow import"></div>
+                    <span>Import dependency</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-arrow inheritance"></div>
+                    <span>Inheritance (extends)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #fff3e0;"></div>
+                    <span>Base Classes</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #a8e6a3;"></div>
+                    <span>Utils</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #ffcdd2;"></div>
+                    <span>Tables</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #e0e0e0;"></div>
+                    <span>Data</span>
+                </div>
+            </div>
+        </div>
+        <div id="details-panel">
+            <h2>File Details</h2>
+            <p>Click on a file to see its details</p>
+        </div>
+    </div>
+
+    <script>
+        let projectData = null;
+        let selectedNode = null;
+        
+        function loadProjectData() {
+            fetch('project_structure.json')
+                .then(response => response.json())
+                .then(data => {
+                    projectData = data;
+                    renderHierarchicalDiagram();
+                })
+                .catch(error => {
+                    console.error('Error loading project data:', error);
+                });
+        }
+        
+        function createHierarchicalStructure() {
+            // Create the hierarchical structure with base classes at higher levels
+            const structure = {
+                name: "clifpy",
+                type: "root",
+                children: []
+            };
+            
+            // Group files by their directories
+            const dirMap = {};
+            
+            // First, identify base classes
+            const baseClasses = new Set();
+            const derivedClasses = new Set();
+            
+            projectData.connections.forEach(conn => {
+                if (conn.relationship === 'inheritance') {
+                    baseClasses.add(conn.target);
+                    derivedClasses.add(conn.source);
+                }
+            });
+            
+            // Process files and organize by directory
+            projectData.files.forEach(file => {
+                const pathParts = file.path.split('/');
+                
+                // Skip src/ prefix if present
+                if (pathParts[0] === 'src') {
+                    pathParts.shift();
+                }
+                if (pathParts[0] === 'clifpy') {
+                    pathParts.shift();
+                }
+                
+                // Get the main directory
+                const mainDir = pathParts.length > 1 ? pathParts[0] : 'root';
+                
+                if (!dirMap[mainDir]) {
+                    dirMap[mainDir] = {
+                        name: mainDir,
+                        type: "folder",
+                        children: [],
+                        baseClasses: [],
+                        derivedClasses: []
+                    };
+                }
+                
+                // Categorize files
+                const fileNode = {
+                    name: file.name,
+                    type: "file",
+                    data: file,
+                    category: mainDir,
+                    isBase: baseClasses.has(file.path),
+                    isDerived: derivedClasses.has(file.path)
+                };
+                
+                if (fileNode.isBase) {
+                    dirMap[mainDir].baseClasses.push(fileNode);
+                } else if (fileNode.isDerived) {
+                    dirMap[mainDir].derivedClasses.push(fileNode);
+                } else {
+                    dirMap[mainDir].children.push(fileNode);
+                }
+            });
+            
+            // Build the hierarchy with base classes at the top of each directory
+            Object.values(dirMap).forEach(dir => {
+                const dirNode = {
+                    name: dir.name,
+                    type: "folder",
+                    children: []
+                };
+                
+                // Add base classes first (they should appear higher)
+                if (dir.baseClasses.length > 0) {
+                    const baseGroup = {
+                        name: `${dir.name} (base)`,
+                        type: "group",
+                        isBaseGroup: true,
+                        children: dir.baseClasses
+                    };
+                    dirNode.children.push(baseGroup);
+                }
+                
+                // Then add derived classes
+                if (dir.derivedClasses.length > 0) {
+                    const derivedGroup = {
+                        name: `${dir.name} (derived)`,
+                        type: "group",
+                        isDerivedGroup: true,
+                        children: dir.derivedClasses
+                    };
+                    dirNode.children.push(derivedGroup);
+                }
+                
+                // Finally add other files
+                dirNode.children.push(...dir.children);
+                
+                structure.children.push(dirNode);
+            });
+            
+            return structure;
+        }
+        
+        function renderHierarchicalDiagram() {
+            const container = d3.select('#graph-container');
+            const width = container.node().offsetWidth;
+            const height = container.node().offsetHeight - 60;
+            
+            // Clear existing SVG
+            d3.select('#graph').selectAll('*').remove();
+            
+            const svg = d3.select('#graph')
+                .attr('width', width)
+                .attr('height', height);
+            
+            // Add arrow markers and gradients
+            const defs = svg.append('defs');
+            
+            // Import arrow (red)
+            defs.append('marker')
+                .attr('id', 'import-arrow')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 9)
+                .attr('refY', 0)
+                .attr('orient', 'auto')
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', '#e74c3c');
+            
+            // Inheritance arrow (blue)
+            defs.append('marker')
+                .attr('id', 'inheritance-arrow')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 9)
+                .attr('refY', 0)
+                .attr('orient', 'auto')
+                .attr('markerWidth', 8)
+                .attr('markerHeight', 8)
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', 'none')
+                .attr('stroke', '#3498db')
+                .attr('stroke-width', 1.5);
+            
+            // Add gradients for enhanced visual appearance
+            // Root node gradient
+            const rootGradient = defs.append('linearGradient')
+                .attr('id', 'root-gradient')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            rootGradient.append('stop')
+                .attr('offset', '0%')
+                .style('stop-color', '#34495e');
+            rootGradient.append('stop')
+                .attr('offset', '100%')
+                .style('stop-color', '#2c3e50');
+            
+            // Base class gradient
+            const baseGradient = defs.append('linearGradient')
+                .attr('id', 'base-gradient')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            baseGradient.append('stop')
+                .attr('offset', '0%')
+                .style('stop-color', '#fff8e1');
+            baseGradient.append('stop')
+                .attr('offset', '100%')
+                .style('stop-color', '#fff3e0');
+            
+            // Utils gradient
+            const utilsGradient = defs.append('linearGradient')
+                .attr('id', 'utils-gradient')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            utilsGradient.append('stop')
+                .attr('offset', '0%')
+                .style('stop-color', '#c8e6c9');
+            utilsGradient.append('stop')
+                .attr('offset', '100%')
+                .style('stop-color', '#a8e6a3');
+            
+            // Tables gradient
+            const tablesGradient = defs.append('linearGradient')
+                .attr('id', 'tables-gradient')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            tablesGradient.append('stop')
+                .attr('offset', '0%')
+                .style('stop-color', '#ffebee');
+            tablesGradient.append('stop')
+                .attr('offset', '100%')
+                .style('stop-color', '#ffcdd2');
+            
+            // Drop shadow filter
+            const dropShadow = defs.append('filter')
+                .attr('id', 'drop-shadow')
+                .attr('height', '130%');
+            dropShadow.append('feGaussianBlur')
+                .attr('in', 'SourceAlpha')
+                .attr('stdDeviation', 2);
+            dropShadow.append('feOffset')
+                .attr('dx', 1)
+                .attr('dy', 2)
+                .attr('result', 'offsetblur');
+            const feMerge = dropShadow.append('feMerge');
+            feMerge.append('feMergeNode')
+                .attr('in', 'offsetblur');
+            feMerge.append('feMergeNode')
+                .attr('in', 'SourceGraphic');
+            
+            // Create a zoom layer so we can keep our centering translation separate
+            const zoomLayer = svg.append('g');
+            const g = zoomLayer.append('g');
+            
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.3, 2])
+                .on('zoom', (event) => {
+                    zoomLayer.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom);
+            
+            // Create tree layout
+            const hierarchyData = createHierarchicalStructure();
+            const treeLayout = d3.tree()
+                .nodeSize([200, 120])
+                .separation((a, b) => {
+                    // Give more space between different groups
+                    if (a.parent !== b.parent) return 2;
+                    if (a.data.type === 'group' || b.data.type === 'group') return 1.5;
+                    return 1;
+                });
+            
+            const root = d3.hierarchy(hierarchyData);
+            const treeData = treeLayout(root);
+            
+            // Offset positions so inherited tables appear below their base tables
+            treeData.descendants().forEach(d => {
+                if (d.data && d.data.type === 'file') {
+                    if (d.data.isBase) {
+                        d.y -= 30; // slightly lift base classes (upwards)
+                    }
+                    if (d.data.isDerived) {
+                        d.y += 60; // push derived classes below
+                    }
+                }
+            });
+
+            // We will center and scale after we measure rendered node sizes
+            
+            // Draw hierarchy links first (so they appear behind nodes)
+            const links = g.append('g')
+                .selectAll('.link')
+                .data(treeData.links())
+                .enter().append('path')
+                .attr('class', 'link')
+                .attr('d', d3.linkVertical()
+                    .x(d => d.x)
+                    .y(d => d.y));
+            
+            // Create groups for dependency arrows (separate layer)
+            const arrowGroup = g.append('g')
+                .attr('class', 'arrow-group');
+            
+            // Draw nodes
+            const nodes = g.append('g')
+                .selectAll('.node')
+                .data(treeData.descendants())
+                .enter().append('g')
+                .attr('class', d => {
+                    let classes = 'node';
+                    if (d.data.type === 'root') {
+                        classes += ' root-node';
+                    } else if (d.data.type === 'folder') {
+                        classes += ' folder-node';
+                    } else if (d.data.type === 'group') {
+                        return 'group-node'; // Groups are invisible
+                    } else if (d.data.type === 'file') {
+                        if (d.data.isBase) {
+                            classes += ' base-class-node';
+                        } else if (d.data.category === 'utils') {
+                            classes += ' utils-node';
+                        } else if (d.data.category === 'tables') {
+                            classes += ' tables-node';
+                        } else if (d.data.category === 'data') {
+                            classes += ' data-node';
+                        } else {
+                            classes += ' core-node';
+                        }
+                    }
+                    return classes;
+                })
+                .attr('transform', d => `translate(${d.x},${d.y})`)
+                .each(function(d) {
+                    // Store DOM node reference for hover effects
+                    d.domNode = this;
+                });
+            
+            // Draw rectangles sized based on text length so labels fit
+            const labelPaddingX = 16;
+            const labelPaddingY = 10;
+            const approxCharWidth = 8; // conservative estimate
+
+            nodes.filter(d => d.data.type !== 'group')
+                .append('rect')
+                .attr('width', d => {
+                    const baseWidth = d.data.type === 'root' ? 140 : (d.data.type === 'folder' ? 150 : 170);
+                    const textLen = (d.data.name || '').length;
+                    const needed = textLen * approxCharWidth + labelPaddingX * 2;
+                    return Math.max(baseWidth, needed);
+                })
+                .attr('height', d => (d.data.type === 'root' ? 50 : 38))
+                .attr('x', function(d) {
+                    const width = d3.select(this).attr('width');
+                    return -Number(width) / 2;
+                })
+                .attr('y', function(d) {
+                    const height = d3.select(this).attr('height');
+                    return -Number(height) / 2;
+                });
+            
+            // Add icons for different node types
+            nodes.filter(d => d.data.type === 'folder')
+                .append('text')
+                .attr('x', -70)
+                .attr('y', 5)
+                .attr('font-family', 'monospace')
+                .attr('font-size', '16px')
+                .attr('fill', '#7f8c8d')
+                .text('');
+            
+            nodes.filter(d => d.data.type === 'file' && d.data.isBase)
+                .append('text')
+                .attr('x', -75)
+                .attr('y', 5)
+                .attr('font-family', 'monospace')
+                .attr('font-size', '14px')
+                .attr('fill', '#ff6f00')
+                .text('');
+            
+            nodes.filter(d => d.data.type === 'file' && d.data.category === 'tables')
+                .append('text')
+                .attr('x', -75)
+                .attr('y', 5)
+                .attr('font-family', 'monospace')
+                .attr('font-size', '14px')
+                .attr('fill', '#d32f2f')
+                .text('');
+            
+            nodes.filter(d => d.data.type === 'file' && d.data.category === 'utils')
+                .append('text')
+                .attr('x', -75)
+                .attr('y', 5)
+                .attr('font-family', 'monospace')
+                .attr('font-size', '14px')
+                .attr('fill', '#4caf50');
+                // .text('🔧');
+            
+            // Add text for non-group nodes
+            nodes.filter(d => d.data.type !== 'group')
+                .append('text')
+                .attr('dy', 5)
+                .attr('x', 0)
+                .style('text-anchor', 'middle')
+                .text(d => d.data.name);
+            
+            // Add click handler for file nodes
+            nodes.filter(d => d.data.type === 'file')
+                .on('click', function(event, d) {
+                    selectNode(d3.select(this), d.data.data);
+                });
+            
+            // After nodes render, fit the entire diagram in view ("zoom to fit")
+            setTimeout(() => {
+                const bbox = g.node().getBBox();
+                const margin = 40;
+                const scaleX = (width - margin * 2) / bbox.width;
+                const scaleY = (height - margin * 2) / bbox.height;
+                const scale = Math.min(1, scaleX, scaleY); // don't zoom in beyond 1
+                const translateX = (width - bbox.width * scale) / 2 - bbox.x * scale;
+                const translateY = (height - bbox.height * scale) / 2 - bbox.y * scale;
+                zoomLayer.attr('transform', `translate(${translateX},${translateY}) scale(${scale})`);
+
+                drawDependencyArrows(arrowGroup, treeData);
+            }, 50);
+        }
+        
+        function drawDependencyArrows(arrowGroup, treeData) {
+            const nodeMap = {};
+            treeData.descendants().forEach(d => {
+                if (d.data.type === 'file') {
+                    nodeMap[d.data.data.path] = d;
+                }
+            });
+            
+            projectData.connections.forEach(conn => {
+                const source = nodeMap[conn.source];
+                const target = nodeMap[conn.target];
+                
+                if (source && target) {
+                    // Calculate start and end points
+                    // Top-to-bottom orientation: x is horizontal, y is vertical
+                    const sx = source.x;
+                    const sy = source.y + 17.5; // bottom of source node
+                    const tx = target.x;
+                    const ty = target.y - 17.5; // top of target node
+                    
+                    // Different routing for inheritance vs imports
+                    let path;
+                    const dx = tx - sx;
+                    const dy = ty - sy;
+                    
+                    if (conn.relationship === 'inheritance') {
+                        // Orthogonal routing for inheritance arrows
+                        if (Math.abs(dx) < 20) {
+                            // Nearly vertical - use straight line
+                            path = `M ${sx},${sy} L ${tx},${ty}`;
+                        } else {
+                            // Use right-angle routing
+                            const midY = sy + (dy / 2);
+                            path = `M ${sx},${sy} L ${sx},${midY} L ${tx},${midY} L ${tx},${ty}`;
+                        }
+                    } else {
+                        // Smoother orthogonal routing for imports
+                        if (Math.abs(dx) < 20 && dy < 0) {
+                            // Nearly vertical upward - route around
+                            const offset = 100;
+                            const midY = Math.min(sy, ty) - 30;
+                            path = `M ${sx},${sy} L ${sx},${midY} L ${sx + offset},${midY} L ${tx + offset},${midY} L ${tx},${midY} L ${tx},${ty}`;
+                        } else if (Math.abs(dy) < 50) {
+                            // Nearly horizontal
+                            const midX = sx + (dx / 2);
+                            path = `M ${sx},${sy} L ${midX},${sy} L ${midX},${ty} L ${tx},${ty}`;
+                        } else {
+                            // Standard orthogonal routing
+                            const midY = sy + (dy * 0.6);
+                            path = `M ${sx},${sy} L ${sx},${midY} L ${tx},${midY} L ${tx},${ty}`;
+                        }
+                    }
+                    
+                    const arrow = arrowGroup.append('path')
+                        .attr('class', conn.relationship === 'inheritance' ? 'inheritance-link' : 'import-link')
+                        .attr('id', `dep-${conn.source.replace(/[^\w]/g, '-')}-${conn.target.replace(/[^\w]/g, '-')}`)
+                        .attr('d', path)
+                        .style('opacity', 0.6);
+                    
+                    // Add labels for inheritance relationships
+                    if (conn.relationship === 'inheritance') {
+                        // Calculate midpoint for label placement
+                        const midX = (sx + tx) / 2;
+                        const midY = (sy + ty) / 2;
+                        
+                        const labelGroup = arrowGroup.append('g')
+                            .attr('transform', `translate(${midX}, ${midY})`);
+                        
+                        // Background for label
+                        // labelGroup.append('rect')
+                        //     .attr('x', -25)
+                        //     .attr('y', -8)
+                        //     .attr('width', 50)
+                        //     .attr('height', 16)
+                        //     .attr('fill', 'white')
+                        //     .attr('stroke', '#3498db')
+                        //     .attr('stroke-width', 1)
+                        //     .attr('rx', 3)
+                        //     .style('opacity', 0.9);
+                        
+                        // labelGroup.append('text')
+                        //     .attr('class', 'arrow-label')
+                        //     .attr('text-anchor', 'middle')
+                        //     .attr('dy', 4)
+                        //     .style('font-size', '10px')
+                        //     .style('fill', '#3498db');
+                        //     // .text('extends');
+                    }
+                    
+                    // Add hover effects for better clarity
+                    arrow.on('mouseover', function() {
+                        d3.select(this)
+                            .style('opacity', 1)
+                            .style('stroke-width', conn.relationship === 'inheritance' ? 4 : 3);
+                        
+                        // Highlight connected nodes
+                        d3.select(source.domNode).classed('connection-highlight', true);
+                        d3.select(target.domNode).classed('connection-highlight', true);
+                        
+                        // Show tooltip with relationship details
+                        const tooltip = d3.select('body').append('div')
+                            .attr('class', 'arrow-tooltip')
+                            .style('position', 'absolute')
+                            .style('background', 'rgba(0, 0, 0, 0.8)')
+                            .style('color', 'white')
+                            .style('padding', '8px')
+                            .style('border-radius', '4px')
+                            .style('font-size', '12px')
+                            .style('pointer-events', 'none')
+                            .style('opacity', 0);
+                        
+                        tooltip.html(`
+                            <strong>${conn.source.split('/').pop()}</strong><br/>
+                            ${conn.relationship === 'inheritance' ? 'extends' : 'imports'}<br/>
+                            <strong>${conn.target.split('/').pop()}</strong>
+                        `)
+                        .style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY - 10) + 'px')
+                        .transition()
+                        .duration(200)
+                        .style('opacity', 0.9);
+                        
+                        // Store tooltip reference
+                        d3.select(this).property('tooltip', tooltip);
+                    })
+                    .on('mouseout', function() {
+                        d3.select(this)
+                            .style('opacity', 0.6)
+                            .style('stroke-width', conn.relationship === 'inheritance' ? 2.5 : 2);
+                        
+                        // Remove highlights
+                        d3.select(source.domNode).classed('connection-highlight', false);
+                        d3.select(target.domNode).classed('connection-highlight', false);
+                        
+                        // Remove tooltip
+                        const tooltip = d3.select(this).property('tooltip');
+                        if (tooltip) {
+                            tooltip.remove();
+                        }
+                    });
+                }
+            });
+        }
+        
+        function selectNode(node, fileData) {
+            // Remove previous selection
+            d3.selectAll('.node').classed('selected', false);
+            
+            // Add selection to clicked node
+            node.classed('selected', true);
+            selectedNode = fileData;
+            
+            // Show details
+            showFileDetails(fileData);
+            
+            // Highlight connections
+            highlightConnections(fileData.path);
+        }
+        
+        function showFileDetails(file) {
+            const panel = d3.select('#details-panel');
+            panel.html('');
+            
+            panel.append('h2').text(file.name);
+            panel.append('p').text(`Path: ${file.path}`);
+            
+            // Show classes
+            if (file.classes.length > 0) {
+                panel.append('h3').text('Classes');
+                file.classes.forEach(cls => {
+                    const classDiv = panel.append('div').attr('class', 'class-item');
+                    const classHeader = classDiv.append('div')
+                        .attr('class', 'class-name');
+                    
+                    classHeader.text(`class ${cls.name}`);
+                    
+                    if (cls.base_classes && cls.base_classes.length > 0) {
+                        classHeader.append('span')
+                            .style('color', '#3498db')
+                            .style('font-weight', 'normal')
+                            .text(` (${cls.base_classes.join(', ')})`);
+                    }
+                    
+                    if (cls.methods.length > 0) {
+                        cls.methods.forEach(method => {
+                            const methodDiv = classDiv.append('div')
+                                .style('margin-left', '20px')
+                                .attr('class', 'method-item');
+                            methodDiv.append('span')
+                                .attr('class', 'method-name')
+                                .text(`def ${method.name}`);
+                            methodDiv.append('span')
+                                .attr('class', 'params')
+                                .text(`(${method.params.join(', ')})`);
+                        });
+                    }
+                });
+            }
+            
+            // Show functions
+            if (file.functions.length > 0) {
+                panel.append('h3').text('Functions');
+                file.functions.forEach(func => {
+                    const funcDiv = panel.append('div').attr('class', 'function-item');
+                    funcDiv.append('span')
+                        .attr('class', 'function-name')
+                        .text(`def ${func.name}`);
+                    funcDiv.append('span')
+                        .attr('class', 'params')
+                        .text(`(${func.params.join(', ')})`);
+                });
+            }
+            
+            // Separate imports by type
+            const imports = projectData.connections.filter(conn => conn.source === file.path && conn.relationship === 'import');
+            const inheritances = projectData.connections.filter(conn => conn.source === file.path && conn.relationship === 'inheritance');
+            
+            if (inheritances.length > 0) {
+                panel.append('h3').text('Inherits From');
+                const inheritsList = panel.append('ul');
+                inheritances.forEach(inh => {
+                    inheritsList.append('li')
+                        .style('color', '#3498db')
+                        .text(`${inh.base_class} (${inh.target})`);
+                });
+            }
+            
+            if (imports.length > 0) {
+                panel.append('h3').text('Imports');
+                const importsList = panel.append('ul');
+                imports.forEach(imp => {
+                    importsList.append('li').text(imp.target);
+                });
+            }
+            
+            // Show what inherits from this file
+            const inheritedBy = projectData.connections.filter(conn => conn.target === file.path && conn.relationship === 'inheritance');
+            if (inheritedBy.length > 0) {
+                panel.append('h3').text('Extended By');
+                const inheritedByList = panel.append('ul');
+                inheritedBy.forEach(inh => {
+                    inheritedByList.append('li')
+                        .style('color', '#3498db')
+                        .text(`${inh.class_name} (${inh.source})`);
+                });
+            }
+            
+            // Show what imports this file
+            const importedBy = projectData.connections.filter(conn => conn.target === file.path && conn.relationship === 'import');
+            if (importedBy.length > 0) {
+                panel.append('h3').text('Imported By');
+                const importedByList = panel.append('ul');
+                importedBy.forEach(imp => {
+                    importedByList.append('li').text(imp.source);
+                });
+            }
+        }
+        
+        function highlightConnections(filePath) {
+            // Reset all dependency links
+            d3.selectAll('.import-link, .inheritance-link').classed('highlighted', false);
+            
+            // Highlight connections for selected file
+            projectData.connections.forEach(conn => {
+                if (conn.source === filePath || conn.target === filePath) {
+                    const id = `dep-${conn.source.replace(/[^\w]/g, '-')}-${conn.target.replace(/[^\w]/g, '-')}`;
+                    d3.select(`#${id}`).classed('highlighted', true);
+                }
+            });
+        }
+        
+        function refreshVisualization() {
+            fetch('/run-analyzer', {
+                method: 'POST'
+            }).then(() => {
+                loadProjectData();
+            }).catch(() => {
+                loadProjectData();
+            });
+        }
+        
+        // Initialize
+        loadProjectData();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (projectData) {
+                renderHierarchicalDiagram();
+            }
+        });
+        
+        // Auto-refresh every 30 seconds
+        setInterval(refreshVisualization, 30000);
+    </script>
+</body>
+</html>
