@@ -64,24 +64,61 @@ class Labs(BaseTable):
     # ------------------------------------------------------------------
     # Labs Specific Methods
     # ------------------------------------------------------------------
-    def filter_by_lab_category(self, lab_category: str) -> pd.DataFrame:
-        """Return all records for a specific lab category."""
-        if self.df is None or 'lab_category' not in self.df.columns:
-            return pd.DataFrame()
+    def get_lab_category_stats(self) -> pd.DataFrame:
+        """Return summary statistics for each lab category, including missingness and unique hospitalization_id counts."""
+        if (
+            self.df is None
+            or 'lab_value_numeric' not in self.df.columns
+            or 'hospitalization_id' not in self.df.columns        # remove this line if hosp-id is optional
+        ):
+            return {"status": "Missing columns"}
         
-        return self.df[self.df['lab_category'] == lab_category].copy()
+        stats = (
+            self.df
+            .groupby('lab_category')
+            .agg(
+                count=('lab_value_numeric', 'count'),
+                unique=('hospitalization_id', 'nunique'),
+                missing_pct=('lab_value_numeric', lambda x: 100 * x.isna().mean()),
+                mean=('lab_value_numeric', 'mean'),
+                std=('lab_value_numeric', 'std'),
+                min=('lab_value_numeric', 'min'),
+                q1=('lab_value_numeric', lambda x: x.quantile(0.25)),
+                median=('lab_value_numeric', 'median'),
+                q3=('lab_value_numeric', lambda x: x.quantile(0.75)),
+                max=('lab_value_numeric', 'max'),
+            )
+            .round(2)
+        )
+
+        return stats
     
-    def get_lab_summary_stats(self) -> pd.DataFrame:
-        """Return summary statistics for each lab category."""
-        if self.df is None or 'lab_value_numeric' not in self.df.columns:
-            return pd.DataFrame()
+    def get_lab_specimen_stats(self) -> pd.DataFrame:
+        """Return summary statistics for each lab category, including missingness and unique hospitalization_id counts."""
+        if (
+            self.df is None
+            or 'lab_value_numeric' not in self.df.columns
+            or 'hospitalization_id' not in self.df.columns 
+            or 'lab_speciment_category' not in self.df.columns       # remove this line if hosp-id is optional
+        ):
+            return {"status": "Missing columns"}
         
-        # Group by lab category and calculate stats
-        stats = self.df.groupby('lab_category')['lab_value_numeric'].agg([
-            'count', 'mean', 'std', 'min', 'max',
-            ('q1', lambda x: x.quantile(0.25)),
-            ('median', lambda x: x.quantile(0.5)),
-            ('q3', lambda x: x.quantile(0.75))
-        ]).round(2)
-        
+        stats = (
+            self.df
+            .groupby('lab_specimen_category')
+            .agg(
+                count=('lab_value_numeric', 'count'),
+                unique=('hospitalization_id', 'nunique'),
+                missing_pct=('lab_value_numeric', lambda x: 100 * x.isna().mean()),
+                mean=('lab_value_numeric', 'mean'),
+                std=('lab_value_numeric', 'std'),
+                min=('lab_value_numeric', 'min'),
+                q1=('lab_value_numeric', lambda x: x.quantile(0.25)),
+                median=('lab_value_numeric', 'median'),
+                q3=('lab_value_numeric', lambda x: x.quantile(0.75)),
+                max=('lab_value_numeric', 'max'),
+            )
+            .round(2)
+        )
+
         return stats
