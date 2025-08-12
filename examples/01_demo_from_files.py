@@ -51,44 +51,44 @@ def _(mo, project_root):
 def _(DATA_DIR, FILETYPE, OUTPUT_DIR, TIMEZONE, mo):
     # Import table classes from top-level clifpy exports
     from clifpy import (
-        patient,
-        hospitalization,
-        adt,
-        labs,
-        vitals,
+        Patient,
+        Hospitalization,
+        Adt,
+        Labs,
+        Vitals,
     )
 
     mo.md("## Load tables using from_file()")
 
-    patient_table = patient.from_file(
+    patient_table = Patient.from_file(
         data_directory=str(DATA_DIR),
         filetype=FILETYPE,
         timezone=TIMEZONE,
         output_directory=str(OUTPUT_DIR),
     )
 
-    hospitalization_table = hospitalization.from_file(
+    hospitalization_table = Hospitalization.from_file(
         data_directory=str(DATA_DIR),
         filetype=FILETYPE,
         timezone=TIMEZONE,
         output_directory=str(OUTPUT_DIR),
     )
 
-    adt_table = adt.from_file(
+    adt_table = Adt.from_file(
         data_directory=str(DATA_DIR),
         filetype=FILETYPE,
         timezone=TIMEZONE,
         output_directory=str(OUTPUT_DIR),
     )
 
-    labs_table = labs.from_file(
+    labs_table = Labs.from_file(
         data_directory=str(DATA_DIR),
         filetype=FILETYPE,
         timezone=TIMEZONE,
         output_directory=str(OUTPUT_DIR),
     )
 
-    vitals_table = vitals.from_file(
+    vitals_table = Vitals.from_file(
         data_directory=str(DATA_DIR),
         filetype=FILETYPE,
         timezone=TIMEZONE,

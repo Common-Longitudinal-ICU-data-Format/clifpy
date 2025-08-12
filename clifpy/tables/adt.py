@@ -4,7 +4,7 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class adt(BaseTable):
+class Adt(BaseTable):
     """
     ADT (Admission/Discharge/Transfer) table wrapper inheriting from BaseTable.
     

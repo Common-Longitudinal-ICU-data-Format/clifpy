@@ -3,7 +3,7 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class patient_assessments(BaseTable):
+class PatientAssessments(BaseTable):
     """
     Patient assessments table wrapper inheriting from BaseTable.
     

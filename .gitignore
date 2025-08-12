@@ -1,6 +1,7 @@
 __pycache__/
 .DS_Store
 /dev
+examples/output/
 dev/readme.md
 dev/requirements.txt
 /archive
@@ -18,6 +19,7 @@ __pycache__/
 .venv/
 .pyclif_dev/
 .claude
+
 
 #dev
 

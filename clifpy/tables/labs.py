@@ -3,7 +3,7 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class labs(BaseTable):
+class Labs(BaseTable):
     """
     Labs table wrapper inheriting from BaseTable.
     

@@ -3,7 +3,7 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class respiratory_support(BaseTable):
+class RespiratorySupport(BaseTable):
     """
     Respiratory support table wrapper inheriting from BaseTable.
     

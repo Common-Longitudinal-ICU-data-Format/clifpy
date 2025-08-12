@@ -43,9 +43,9 @@ def _load_demo_table(table_name: str, return_raw: bool = False) -> Union[pd.Data
         return df
     
     # Import table classes here to avoid circular imports
-    from ..tables.patient import patient
-    from ..tables.adt import adt
-    from ..tables.hospitalization import hospitalization
+    from ..tables.patient import Patient
+    from ..tables.adt import Adt
+    from ..tables.hospitalization import Hospitalization
     # TODO: Uncomment as tables are implemented
     # from ..tables.labs import labs
     # from ..tables.vitals import vitals
@@ -56,9 +56,9 @@ def _load_demo_table(table_name: str, return_raw: bool = False) -> Union[pd.Data
     
     # Return wrapped table object
     table_classes = {
-        'patient': patient,
-        'adt': adt,
-        'hospitalization': hospitalization,
+        'patient': Patient,
+        'adt': Adt,
+        'hospitalization': Hospitalization,
         # TODO: Add more as tables are implemented
         # 'labs': labs,
         # 'vitals': vitals,

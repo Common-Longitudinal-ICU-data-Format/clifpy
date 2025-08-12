@@ -3,7 +3,7 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class position(BaseTable):
+class Position(BaseTable):
     """
     Position table wrapper inheriting from BaseTable.
     
