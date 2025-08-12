@@ -1,0 +1,241 @@
+table_name: medication_admin_continuous
+composite_keys:
+  - hospitalization_id
+  - admin_dttm
+  - med_category
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: med_order_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: admin_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: med_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: med_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - norepinephrine
+      - epinephrine
+      - phenylephrine
+      - angiotensin
+      - vasopressin
+      - dopamine
+      - dobutamine
+      - milrinone
+      - isoproterenol
+      - propofol
+      - dexmedetomidine
+      - ketamine
+      - midazolam
+      - fentanyl
+      - hydromorphone
+      - morphine
+      - remifentanil
+      - pentobarbital
+      - lorazepam
+      - furosemide
+      - bumetanide
+      - torsemide
+      - heparin
+      - argatroban
+      - bivalirudin alteplase
+      - cangrelor
+      - eptifibatide
+      - amiodarone
+      - lidocaine
+      - nicardipine
+      - clevidipine
+      - nitroglycerin
+      - nitroprusside
+      - esmolol
+      - diltiazem
+      - labetalol
+      - procainamide
+      - papaverine
+      - adenosine
+      - cisatracurium
+      - vecuronium
+      - rocuronium
+      - treprostinil
+      - epoprostenol
+      - alprostadil
+      - octreotide
+      - pantoprazole
+      - esomeprazole
+      - albuterol
+      - terbutaline
+      - ipratropium
+      - narcan
+      - insulin
+      - thyroid replacement
+      - oxytocin
+      - cosyntropin
+      - repletion
+      - sodium bicarbonate
+      - tpn
+      - tocolytics
+      - magnesium
+      - pitocin
+      - dextrose
+      - sodium chloride
+      - aminocaproic
+      - aminophylline
+      - terbutaline
+      - naloxone
+      - phentolamine
+      - liothyronine
+      - zidovudine
+      - tacrolimus
+      - ropivacaine
+      - bupivacaine
+      - baclofen
+      - lactated_ringers_solution
+      - albumin_infusion
+      - plasma_lyte
+      - dextrose_in_water_d5w
+  - name: med_group
+    data_type: VARCHAR
+    required: false
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - vasoactives
+      - sedation
+      - diuretics
+      - anticoagulation
+      - cardiac
+      - paralytics
+      - pulmonary vasodilators (IV)
+      - gastrointestinal
+      - inhaled
+      - analgesia
+      - endocrine
+      - fluids_electrolytes
+      - others
+  - name: med_route_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: med_route_category
+    data_type: VARCHAR
+    required: false
+    is_category_column: true
+    is_group_column: false
+    permissible_values: []
+  - name: med_dose
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: med_dose_unit
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mar_action_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mar_action_category
+    data_type: VARCHAR
+    required: false
+    is_category_column: true
+    is_group_column: false
+    permissible_values: []
+
+required_columns:
+  - hospitalization_id
+  - admin_dttm
+  - med_category
+
+category_columns:
+  - med_category
+  - med_group
+  - med_route_category
+  - mar_action_category
+
+group_columns: []
+
+med_category_to_group_mapping:
+  norepinephrine: vasoactives
+  epinephrine: vasoactives
+  phenylephrine: vasoactives
+  angiotensin: vasoactives
+  vasopressin: vasoactives
+  dopamine: vasoactives
+  dobutamine: vasoactives
+  milrinone: vasoactives
+  isoproterenol: vasoactives
+  propofol: sedation
+  dexmedetomidine: sedation
+  ketamine: sedation
+  midazolam: sedation
+  fentanyl: sedation
+  hydromorphone: sedation
+  morphine: sedation
+  remifentanil: sedation
+  pentobarbital: sedation
+  lorazepam: sedation
+  furosemide: diuretics
+  bumetanide: diuretics
+  torsemide: diuretics
+  heparin: anticoagulation
+  argatroban: anticoagulation
+  bivalirudin alteplase: anticoagulation
+  cangrelor: anticoagulation
+  eptifibatide: anticoagulation
+  amiodarone: cardiac
+  lidocaine: cardiac
+  nicardipine: cardiac
+  clevidipine: cardiac
+  nitroglycerin: cardiac
+  nitroprusside: cardiac
+  esmolol: cardiac
+  diltiazem: cardiac
+  labetalol: cardiac
+  procainamide: cardiac
+  papaverine: cardiac
+  adenosine: cardiac
+  cisatracurium: paralytics
+  vecuronium: paralytics
+  rocuronium: paralytics
+  treprostinil: pulmonary vasodilators (IV)
+  epoprostenol: pulmonary vasodilators (IV)
+  alprostadil: pulmonary vasodilators (IV)
+  octreotide: gastrointestinal
+  pantoprazole: gastrointestinal
+  esomeprazole: gastrointestinal
+  albuterol: inhaled
+  terbutaline: inhaled
+  ipratropium: inhaled
+  narcan: analgesia
+  insulin: endocrine
+  thyroid replacement: endocrine
+  oxytocin: endocrine
+  cosyntropin: endocrine
+  repletion: fluids_electrolytes
+  sodium bicarbonate: fluids_electrolytes
+  tpn: fluids_electrolytes
+  lactated_ringers_solution: fluids_electrolytes
+  albumin_infusion: fluids_electrolytes
+  plasma_lyte: fluids_electrolytes
+  dextrose_in_water_d5w: fluids_electrolytes

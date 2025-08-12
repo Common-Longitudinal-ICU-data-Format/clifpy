@@ -1,0 +1,16 @@
+2025-08-12 11:46:04,544 - pyclif.patient - INFO - Initialized patient table
+2025-08-12 11:46:04,544 - pyclif.patient - INFO - Data directory: /Users/kavenchhikara/Desktop/CLIF/pyCLIF/src/clifpy/data/clif_demo
+2025-08-12 11:46:04,544 - pyclif.patient - INFO - File type: parquet
+2025-08-12 11:46:04,544 - pyclif.patient - INFO - Timezone: UTC
+2025-08-12 11:46:04,544 - pyclif.patient - INFO - Output directory: /Users/kavenchhikara/Desktop/CLIF/pyCLIF/output
+2025-08-12 11:46:04,548 - pyclif.patient - INFO - Loaded schema from /Users/kavenchhikara/Desktop/CLIF/pyCLIF/src/clifpy/schemas/patient_schema.yaml
+2025-08-12 11:46:04,548 - pyclif.patient - INFO - Starting validation
+2025-08-12 11:46:04,548 - pyclif.patient - INFO - Running schema validation
+2025-08-12 11:46:04,549 - pyclif.patient - WARNING - Schema validation found 2 errors
+2025-08-12 11:46:04,549 - pyclif.patient - INFO - Checking for duplicates on composite keys
+2025-08-12 11:46:04,550 - pyclif.patient - INFO - Calculating missing data statistics
+2025-08-12 11:46:04,551 - pyclif.patient - INFO - Saved missing data statistics to /Users/kavenchhikara/Desktop/CLIF/pyCLIF/output/missing_data_stats_patient.csv
+2025-08-12 11:46:04,552 - pyclif.patient - INFO - Missing data: 16.82% (185 cells)
+2025-08-12 11:46:04,552 - pyclif.patient - INFO - Cohort sizes: {'patient_id': 100, 'patient_id_with_nulls': np.int64(0), 'total_rows': 100}
+2025-08-12 11:46:04,552 - pyclif.patient - WARNING - Validation completed with 2 error(s)
+2025-08-12 11:46:04,553 - pyclif.patient - INFO - Saved validation errors to /Users/kavenchhikara/Desktop/CLIF/pyCLIF/output/validation_errors_patient.csv

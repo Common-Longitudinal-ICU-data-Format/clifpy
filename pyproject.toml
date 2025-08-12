@@ -28,15 +28,17 @@ dependencies = [
   "pydantic",
   "pytest",
   "pytz",
-  "tqdm"
+  "tqdm",
+  "marimo>=0.14.17",
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+# Removed src layout; packages discovered from project root
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["clifpy*"]
 
 [tool.setuptools.package-data]
 pyclif = ["data/clif_demo/*.parquet", "mCIDE/*.json"]
