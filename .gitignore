@@ -6,7 +6,6 @@ dev/readme.md
 dev/requirements.txt
 /archive
 *.csv
-*.parquet
  
 build/
 dist/
@@ -27,8 +26,7 @@ clif_2.1.0.txt
 context7.json
 
 # visualization
-visualization/
-
+output/
 uv.lock
 
 
