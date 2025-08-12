@@ -44,5 +44,24 @@ class Position(BaseTable):
             data=data
         )
     
-    # Position-specific methods can be added here if needed
-    # The base functionality (validate, isvalid, from_file) is inherited from BaseTable
+    def get_position_category_stats(self) -> pd.DataFrame:
+        """
+        Return summary statistics for each position category, including missingness and unique patient counts.
+        Expects columns: 'position_category', 'position_name', and optionally 'hospitalization_id'.
+        """
+        if self.df is None or 'position_category' not in self.df.columns or 'hospitalization_id' not in self.df.columns:
+            return {"status": "Missing columns"}
+
+        agg_dict = {
+            'count': ('position_category', 'count'),
+            'unique': ('hospitalization_id', 'nunique'),
+        }
+
+        stats = (
+            self.df
+            .groupby('position_category')
+            .agg(**agg_dict)
+            .round(2)
+        )
+
+        return stats
