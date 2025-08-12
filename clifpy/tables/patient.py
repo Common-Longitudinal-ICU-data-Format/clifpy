@@ -29,13 +29,7 @@ class Patient(BaseTable):
             output_directory (str, optional): Directory for saving output files and logs
             data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
         """
-        # For backward compatibility, handle the old signature
-        if data_directory is None and filetype is None and data is not None:
-            # Old signature: patient(data)
-            # Use dummy values for required parameters
-            data_directory = "."
-            filetype = "parquet"
-        
+   
         super().__init__(
             data_directory=data_directory,
             filetype=filetype,
