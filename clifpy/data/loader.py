@@ -46,26 +46,24 @@ def _load_demo_table(table_name: str, return_raw: bool = False) -> Union[pd.Data
     from ..tables.patient import Patient
     from ..tables.adt import Adt
     from ..tables.hospitalization import Hospitalization
-    # TODO: Uncomment as tables are implemented
-    # from ..tables.labs import labs
-    # from ..tables.vitals import vitals
-    # from ..tables.respiratory_support import respiratory_support
-    # from ..tables.position import position
-    # from ..tables.medication_admin_continuous import medication_admin_continuous
-    # from ..tables.patient_assessments import patient_assessments
+    from ..tables.labs import labs
+    from ..tables.vitals import vitals
+    from ..tables.respiratory_support import respiratory_support
+    from ..tables.position import position
+    from ..tables.medication_admin_continuous import medication_admin_continuous
+    from ..tables.patient_assessments import patient_assessments
     
     # Return wrapped table object
     table_classes = {
         'patient': Patient,
         'adt': Adt,
         'hospitalization': Hospitalization,
-        # TODO: Add more as tables are implemented
-        # 'labs': labs,
-        # 'vitals': vitals,
-        # 'respiratory_support': respiratory_support,
-        # 'position': position,
-        # 'medication_admin_continuous': medication_admin_continuous,
-        # 'patient_assessments': patient_assessments
+        'labs': labs,
+        'vitals': vitals,
+        'respiratory_support': respiratory_support,
+        'position': position,
+        'medication_admin_continuous': medication_admin_continuous,
+        'patient_assessments': patient_assessments
     }
     
     if table_name in table_classes:
@@ -133,60 +131,55 @@ def load_demo_patient(return_raw: bool = False):
     return _load_demo_table('patient', return_raw)
 
 
-# TODO: Uncomment when labs table is implemented
-# def load_demo_labs(return_raw: bool = False):
-#     """
-#     Load demo labs data.
-#     
-#     Parameters:
-#         return_raw (bool): If True, return raw DataFrame. If False, return labs object.
-#         
-#     Returns:
-#         Union[pd.DataFrame, labs]: Labs data
-#     """
-#     return _load_demo_table('labs', return_raw)
+def load_demo_labs(return_raw: bool = False):
+    """
+    Load demo labs data.
+    
+    Parameters:
+        return_raw (bool): If True, return raw DataFrame. If False, return labs object.
+        
+    Returns:
+        Union[pd.DataFrame, labs]: Labs data
+    """
+    return _load_demo_table('labs', return_raw)
 
 
-# TODO: Uncomment when vitals table is implemented
-# def load_demo_vitals(return_raw: bool = False):
-#     """
-#     Load demo vitals data.
-#     
-#     Parameters:
-#         return_raw (bool): If True, return raw DataFrame. If False, return vitals object.
-#         
-#     Returns:
-#         Union[pd.DataFrame, vitals]: Vitals data
-#     """
-#     return _load_demo_table('vitals', return_raw)
+def load_demo_vitals(return_raw: bool = False):
+    """
+    Load demo vitals data.
+    
+    Parameters:
+        return_raw (bool): If True, return raw DataFrame. If False, return vitals object.
+        
+    Returns:
+        Union[pd.DataFrame, vitals]: Vitals data
+    """
+    return _load_demo_table('vitals', return_raw)
 
 
-# TODO: Uncomment when respiratory_support table is implemented
-# def load_demo_respiratory_support(return_raw: bool = False):
-#     """
-#     Load demo respiratory support data.
-#     
-#     Parameters:
-#         return_raw (bool): If True, return raw DataFrame. If False, return respiratory_support object.
-#         
-#     Returns:
-#         Union[pd.DataFrame, respiratory_support]: Respiratory support data
-#     """
-#     return _load_demo_table('respiratory_support', return_raw)
+def load_demo_respiratory_support(return_raw: bool = False):
+    """
+    Load demo respiratory support data.
+    
+    Parameters:
+        return_raw (bool): If True, return raw DataFrame. If False, return respiratory_support object.
+        
+    Returns:
+        Union[pd.DataFrame, respiratory_support]: Respiratory support data
+    """
+    return _load_demo_table('respiratory_support', return_raw)
 
-
-# TODO: Uncomment when position table is implemented
-# def load_demo_position(return_raw: bool = False):
-#     """
-#     Load demo position data.
-#     
-#     Parameters:
-#         return_raw (bool): If True, return raw DataFrame. If False, return position object.
-#         
-#     Returns:
-#         Union[pd.DataFrame, position]: Position data
-#     """
-#     return _load_demo_table('position', return_raw)
+def load_demo_position(return_raw: bool = False):
+    """
+    Load demo position data.
+    
+    Parameters:
+        return_raw (bool): If True, return raw DataFrame. If False, return position object.
+        
+    Returns:
+        Union[pd.DataFrame, position]: Position data
+    """
+    return _load_demo_table('position', return_raw)
 
 
 def load_demo_adt(return_raw: bool = False):
@@ -214,33 +207,29 @@ def load_demo_hospitalization(return_raw: bool = False):
     """
     return _load_demo_table('hospitalization', return_raw)
 
+def load_demo_medication_admin_continuous(return_raw: bool = False):
+    """
+    Load demo medication admin continuous data.
+    
+    Parameters:
+        return_raw (bool): If True, return raw DataFrame. If False, return medication_admin_continuous object.
+        
+    Returns:
+        Union[pd.DataFrame, medication_admin_continuous]: Medication admin continuous data
+    """
+    return _load_demo_table('medication_admin_continuous', return_raw)
 
-# TODO: Uncomment when medication_admin_continuous table is implemented
-# def load_demo_medication_admin_continuous(return_raw: bool = False):
-#     """
-#     Load demo medication admin continuous data.
-#     
-#     Parameters:
-#         return_raw (bool): If True, return raw DataFrame. If False, return medication_admin_continuous object.
-#         
-#     Returns:
-#         Union[pd.DataFrame, medication_admin_continuous]: Medication admin continuous data
-#     """
-#     return _load_demo_table('medication_admin_continuous', return_raw)
-
-
-# TODO: Uncomment when patient_assessments table is implemented
-# def load_demo_patient_assessments(return_raw: bool = False):
-#     """
-#     Load demo patient assessments data.
-#     
-#     Parameters:
-#         return_raw (bool): If True, return raw DataFrame. If False, return patient_assessments object.
-#         
-#     Returns:
-#         Union[pd.DataFrame, patient_assessments]: Patient assessments data
-#     """
-#     return _load_demo_table('patient_assessments', return_raw)
+def load_demo_patient_assessments(return_raw: bool = False):
+    """
+    Load demo patient assessments data.
+    
+    Parameters:
+        return_raw (bool): If True, return raw DataFrame. If False, return patient_assessments object.
+        
+    Returns:
+        Union[pd.DataFrame, patient_assessments]: Patient assessments data
+    """
+    return _load_demo_table('patient_assessments', return_raw)
 
 
 def list_demo_datasets() -> Dict[str, Dict[str, Union[int, str]]]:
@@ -261,11 +250,10 @@ def list_demo_datasets() -> Dict[str, Dict[str, Union[int, str]]]:
     
     # Only include implemented tables
     table_names = [
-        'patient', 'hospitalization', 'adt'
+        'patient', 'hospitalization', 'adt',
+        'labs', 'vitals', 'respiratory_support', 'position',
+        'medication_admin_continuous', 'patient_assessments'
     ]
-    # TODO: Add more tables as they are implemented
-    # Full list: 'labs', 'vitals', 'respiratory_support', 'position',
-    # 'medication_admin_continuous', 'patient_assessments'
     
     for table_name in table_names:
         file_path = os.path.join(demo_path, f'clif_{table_name}.parquet')
