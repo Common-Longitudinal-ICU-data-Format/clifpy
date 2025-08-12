@@ -10,15 +10,16 @@ def _():
     import sys
     from pathlib import Path
 
-    # Add the src directory to the path so we can import clifpy
+    # Add repository root to sys.path so top-level clifpy is importable when running uninstalled
     project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root / "src"))
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
     header = mo.md(
         """
         # Demo: Load CLIF demo data from files
 
-        This app loads CLIF demo Parquet files from `src/clifpy/data/clif_demo` using the `clifpy` table APIs with timezone `US/Eastern`, and writes validation outputs to `examples/outpu`.
+        This app loads CLIF demo Parquet files from `clifpy/data/clif_demo` using the `clifpy` table APIs with timezone `US/Eastern`, and writes validation outputs to `examples/output`.
         """
     )
     return mo, project_root
@@ -27,7 +28,7 @@ def _():
 @app.cell
 def _(mo, project_root):
     # Configuration
-    DATA_DIR = (project_root / "src" / "clifpy" / "data" / "clif_demo").resolve()
+    DATA_DIR = (project_root / "clifpy" / "data" / "clif_demo").resolve()
     OUTPUT_DIR = (project_root / "examples" / "output").resolve()
     FILETYPE = "parquet"
     TIMEZONE = "US/Eastern"

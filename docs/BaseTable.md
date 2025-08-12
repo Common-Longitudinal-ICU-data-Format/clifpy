@@ -1,4 +1,7 @@
-# BaseTable Class Documentation
+# BaseTable class for pyCLIF tables.
+
+This module provides the base class that all pyCLIF table classes inherit from.
+It handles common functionality including data loading, validation, and reporting.
 
 ## Overview
 
@@ -28,7 +31,7 @@ self.output_directory: str # Where to save validation outputs
 ### 2. Schema Management
 ```python
 # Automatically loads YAML schema based on table name
-self.schema: Dict = None  # Loaded from src/clifpy/schemas/{table_name}_schema.yaml
+self.schema: Dict = None  # Loaded from clifpy/schemas/{table_name}_schema.yaml
 ```
 
 ### 3. Validation System
