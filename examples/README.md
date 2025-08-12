@@ -1,13 +1,13 @@
-# pyCLIF Examples
+# CLIFpy Examples
 
-This directory contains comprehensive Jupyter notebooks demonstrating the capabilities of the pyCLIF library for working with CLIF (Critical Care Data Exchange Format) data.
+This directory contains Python scripts and Jupyter notebooks demonstrating the capabilities of the CLIFpy library for working with CLIF (Critical Care Data Exchange Format) data.
 
 ## Prerequisites
 
 1. **Virtual Environment**: The project includes a `.venv` virtual environment with all dependencies installed.
-2. **Data Location**: Update the `DATA_DIR` variable in each notebook to point to your CLIF data directory:
+2. **Data Location**: Update the `DATA_DIR` variable in each script/notebook to point to your CLIF data directory:
    ```python
-   DATA_DIR = "/Users/vaishvik/downloads/CLIF_MIMIC"
+   DATA_DIR = "/path/to/your/CLIF_data"
    ```
 3. **Data Format**: These examples assume your data is in Parquet format.
 4. **Site Timezone**: Examples use `US/Eastern` timezone. Adjust as needed for your location.
@@ -15,26 +15,25 @@ This directory contains comprehensive Jupyter notebooks demonstrating the capabi
 ## Getting Started
 
 ### 1. Activate the Virtual Environment
-
 ```bash
 # From the project root directory
 source .venv/bin/activate
 ```
 
-### 2. Start Jupyter
+### 2. Start Jupyter (for notebook files)
 
 ```bash
 jupyter notebook examples/
 ```
 
-### 3. Run the Notebooks
+### 3. Run the Examples
 
-Start with `01_basic_usage.ipynb` and proceed through the examples in order.
+Start with `00_basic_usage.py` and proceed through the examples.
 
-## Notebook Overview
+## Examples Overview
 
-### 📚 [01_basic_usage.ipynb](01_basic_usage.ipynb)
-**Getting Started with pyCLIF**
+### 📚 [00_basic_usage.py](00_basic_usage.py)
+**Getting Started with CLIFpy**
 - Initialize CLIF objects with timezone settings
 - Load single and multiple tables
 - Basic data validation and exploration
@@ -46,103 +45,61 @@ Start with `01_basic_usage.ipynb` and proceed through the examples in order.
 - Data validation basics
 - Simple data exploration
 
-### 🔧 [02_individual_tables.ipynb](02_individual_tables.ipynb)
-**Working with Individual Table Classes**
-- Alternative approach using individual table classes
-- Memory-efficient loading strategies
-- Custom data processing workflows
-- Comparing CLIF class vs individual tables
+### 🔧 [01_demo_from_files.py](01_demo_from_files.py)
+**Demo Loading from Files**
+- Demonstrates loading CLIF data from files
+- File-based data processing workflows
+- Basic table operations and validation
 
 **Key Topics:**
-- `from_file()` class methods
-- Custom DataFrame initialization
-- Table-specific features
-- Memory and performance considerations
+- File-based data loading
+- Table initialization from files
+- Basic data processing patterns
 
-### ✅ [03_data_validation.ipynb](03_data_validation.ipynb)
-**Data Validation and Quality Assurance**
-- Comprehensive validation workflows
-- Schema compliance checking
-- Range validation for clinical data
-- Error handling and reporting
+### ⚙️ [clif_orchestrator_simple.py](clif_orchestrator_simple.py)
+**Simple CLIF Orchestrator**
+- Orchestration patterns for CLIF data processing
+- Simplified workflow management
 
 **Key Topics:**
-- Schema validation against CLIF specifications
-- Range validation for vital signs
-- Data quality metrics
-- Validation best practices
+- Data orchestration patterns
+- Workflow automation
 
-### 📊 [04_vitals_analysis.ipynb](04_vitals_analysis.ipynb)
-**Advanced Vitals Analysis**
-- In-depth vital signs analysis
-- Time-series patterns and trends
-- Clinical insights and correlations
-- Patient cohort analysis
+### 🧪 [labs_demo.ipynb](labs_demo.ipynb)
+**Laboratory Data Analysis**
+- Sample laboratory data exploration
+- Lab value distribution by *_cateorgy
+- Quality assurance for lab data
 
 **Key Topics:**
-- Vital signs exploration
-- Temporal pattern analysis
-- Range validation and outlier detection
-- Correlation analysis between vitals
-- Clinical cohort creation
+- Lab data loading and validation
 
-### 🌍 [05_timezone_handling.ipynb](05_timezone_handling.ipynb)
-**Timezone Handling and Conversion**
-- Comprehensive timezone management
-- Automatic conversion capabilities
-- Best practices for healthcare data
-- Validation and troubleshooting
+### 📍 [position_demo.ipynb](position_demo.ipynb)
+**Patient Position Data Analysis**
+- Patient positioning data exploration
 
 **Key Topics:**
-- Timezone format support
-- Automatic datetime conversion
-- Daylight saving time handling
-- Validation and troubleshooting
-- Performance considerations
+- Position data validation
 
-### 🔍 [06_data_filtering.ipynb](06_data_filtering.ipynb)
-**Advanced Data Filtering and Querying**
-- Efficient data filtering strategies
-- Memory-optimized processing
-- Complex multi-condition filtering
-- Performance optimization
+### 🫁 [respiratory_support_demo.ipynb](respiratory_support_demo.ipynb)
+**Respiratory Support Analysis**
+- Respiratory support device data analysis
+- Device utilization patterns
 
 **Key Topics:**
-- Load-time filtering for efficiency
-- Complex pandas operations
-- Statistical outlier removal
-- Memory-efficient chunking
-- Performance benchmarking
-
-### 📋 [wide_dataset_example.py](wide_dataset_example.py)
-**Wide Dataset Creation**
-- Create comprehensive wide datasets by joining multiple CLIF tables
-- Automatic table loading with category-based pivoting
-- Flexible sampling and filtering options
-- Save results in multiple formats
-
-**Key Topics:**
-- Multi-table joining with temporal alignment
-- Category-based pivoting (vitals, labs, medications, assessments)
-- Sampling modes (random hospitalizations, specific IDs)
-- Output management (CSV, Parquet, in-memory)
-
-### 🧪 [test_wide_dataset.py](test_wide_dataset.py)
-**Wide Dataset Testing**
-- Quick functionality test for wide dataset creation
-- Minimal example to verify installation
-- Basic error handling and validation
+- Respiratory device data validation
+- Ventilation parameter analysis
 
 ## Configuration for Your Environment
 
 ### Data Directory
-Update this in each notebook:
+Update this in each script/notebook:
 ```python
-DATA_DIR = "/path/to/your/CLIF_MIMIC/data"
+DATA_DIR = "/path/to/your/CLIF_data"
 ```
 
 ### Timezone Setting
-Your site timezone (US/Eastern):
+Your site timezone (default US/Eastern):
 ```python
 # In CLIF class
 clif = CLIF(data_dir=DATA_DIR, filetype='parquet', timezone='US/Eastern')
@@ -161,11 +118,11 @@ table_format_type = "parquet"
 
 ### Quick Start - Load and Validate Data
 ```python
-from pyclif import CLIF
+from clifpy import CLIF
 
 # Initialize with your settings
 clif = CLIF(
-    data_dir="/Users/vaishvik/downloads/CLIF_MIMIC",
+    data_dir=DATA_DIR,
     filetype='parquet',
     timezone='US/Eastern'
 )
@@ -178,69 +135,19 @@ print(f"Patient data valid: {clif.patient.isvalid()}")
 print(f"Vitals data valid: {clif.vitals.isvalid()}")
 ```
 
-### Memory-Efficient Loading
-```python
-from pyclif.utils.io import load_data
-
-# Load with filters and timezone conversion
-vitals_data = load_data(
-    table_name="vitals",
-    table_path="/Users/vaishvik/downloads/CLIF_MIMIC",
-    table_format_type="parquet",
-    columns=['patient_id', 'vital_category', 'vital_value', 'recorded_dttm'],
-    filters={'vital_category': ['heart_rate', 'sbp', 'dbp']},
-    sample_size=1000,
-    site_tz="US/Eastern"
-)
-```
-
 ### Individual Table Loading
 ```python
-from pyclif.tables.vitals import vitals
+from clifpy import vitals
 
 # Load vitals table directly
 vitals_table = vitals.from_file(
-    table_path="/Users/vaishvik/downloads/CLIF_MIMIC",
+    table_path=DATA_DIR,
     table_format_type="parquet"
 )
 
 # Use table-specific methods
 hr_data = vitals_table.filter_by_vital_category('heart_rate')
 summary = vitals_table.get_summary_stats()
-```
-
-### Wide Dataset Creation
-```python
-from pyclif import CLIF
-
-# Initialize CLIF with auto-loading capabilities
-clif = CLIF(
-    data_dir="/Users/vaishvik/downloads/CLIF_MIMIC",
-    filetype='parquet',
-    timezone='US/Eastern'
-)
-
-# Create wide dataset with automatic table loading
-wide_df = clif.create_wide_dataset(
-    optional_tables=['vitals', 'labs', 'medication_admin_continuous'],
-    category_filters={
-        'vitals': ['map', 'heart_rate', 'spo2'],
-        'labs': ['hemoglobin', 'wbc', 'sodium'],
-        'medication_admin_continuous': ['norepinephrine', 'propofol']
-    },
-    sample=True,  # Use 20 random hospitalizations
-    save_to_data_location=True,
-    output_format='parquet'
-)
-
-# Or create for specific hospitalizations
-target_ids = ['12345', '67890']
-wide_df_targeted = clif.create_wide_dataset(
-    hospitalization_ids=target_ids,
-    optional_tables=['patient_assessments'],
-    category_filters={'patient_assessments': ['gcs_total', 'rass']},
-    output_filename='targeted_wide_dataset'
-)
 ```
 
 ## Troubleshooting
@@ -266,7 +173,7 @@ wide_df_targeted = clif.create_wide_dataset(
    MemoryError: Unable to allocate memory
    ```
    - Use `sample_size` parameter to limit data
-   - Try chunked processing approaches shown in notebook 6
+   - Process data in smaller chunks
 
 4. **Validation Failures**
    - Check data format and column names
@@ -276,9 +183,9 @@ wide_df_targeted = clif.create_wide_dataset(
 ### Getting Help
 
 1. Check the validation error messages for specific guidance
-2. Review the best practices sections in each notebook
+2. Review the examples for best practices
 3. Start with smaller data samples to test your workflows
-4. Use the troubleshooting sections in the timezone and validation notebooks
+4. Check the main CLIFpy documentation
 
 ## Next Steps
 
@@ -286,16 +193,17 @@ After working through these examples:
 
 1. **Adapt to Your Research**: Modify the examples for your specific research questions
 2. **Create Custom Functions**: Build reusable functions based on the patterns shown
-3. **Combine Techniques**: Integrate filtering, validation, and analysis approaches
-4. **Scale Up**: Apply memory-efficient techniques to your full datasets
-5. **Automate Workflows**: Create scripts based on the notebook examples
+3. **Combine Techniques**: Integrate different analysis approaches from the examples
+4. **Scale Up**: Apply the techniques to your full datasets
+5. **Automate Workflows**: Create scripts based on the example patterns
 
 ## Additional Resources
 
-- **pyCLIF Documentation**: Check the main project documentation
-- **CLIF Specifications**: Review the mCIDE schema files in `src/pyclif/mCIDE/`
+- **CLIFpy Documentation**: Check the main project documentation
+- **CLIFpy Specifications**: Review the mCIDE schema files in `clifpy/mCIDE/`
 - **Healthcare Data Standards**: Consult CLIF specification documents for clinical context
 
 ---
 
-*These examples are designed to showcase the full capabilities of pyCLIF for healthcare data analysis. Start with the basic usage notebook and progress through the advanced topics as needed for your specific use cases.*
+*These examples demonstrate CLIFpy's capabilities for healthcare data analysis. Start with the basic usage examples and progress through the specialized demos as needed for your use cases.*
+
