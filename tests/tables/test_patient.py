@@ -7,7 +7,7 @@ import pandas as pd
 import json
 from datetime import datetime
 from typing import Optional
-from pyclif.tables.patient import patient
+from pyclif.tables.patient import Patient
 
 
 # --- Mock Schema ---
@@ -91,7 +91,7 @@ def mock_patient_file(tmp_path, sample_valid_patient_data):
 @pytest.mark.usefixtures("patch_load_spec")
 def test_patient_init_with_valid_data(sample_valid_patient_data):
     """Test patient initialization with valid data and mocked schema."""
-    patient_obj = patient(sample_valid_patient_data)
+    patient_obj = Patient(sample_valid_patient_data)
     assert patient_obj.df is not None
     assert patient_obj.isvalid() is True
     assert not patient_obj.errors
@@ -99,7 +99,7 @@ def test_patient_init_with_valid_data(sample_valid_patient_data):
 @pytest.mark.usefixtures("patch_load_spec")
 def test_patient_init_with_invalid_category(sample_patient_data_invalid_category):
     """Test patient initialization with invalid categorical data."""
-    patient_obj = patient(sample_patient_data_invalid_category)
+    patient_obj = Patient(sample_patient_data_invalid_category)
     assert patient_obj.isvalid() is False
     assert len(patient_obj.errors) > 0
     error_types = {e['type'] for e in patient_obj.errors}
@@ -109,7 +109,7 @@ def test_patient_init_with_invalid_category(sample_patient_data_invalid_category
 @pytest.mark.usefixtures("patch_load_spec")
 def test_patient_init_with_missing_columns(sample_patient_data_missing_cols):
     """Test patient initialization with missing required columns."""
-    patient_obj = patient(sample_patient_data_missing_cols)
+    patient_obj = Patient(sample_patient_data_missing_cols)
     assert patient_obj.isvalid() is False
     assert len(patient_obj.errors) > 0
     error_types = {e['type'] for e in patient_obj.errors}
@@ -120,7 +120,7 @@ def test_patient_init_with_missing_columns(sample_patient_data_missing_cols):
 
 def test_patient_init_without_data():
     """Test patient initialization without data."""
-    patient_obj = patient()
+    patient_obj = Patient()
     assert patient_obj.df is None
     assert patient_obj.isvalid() is True # isvalid is True because no errors were generated
     assert not patient_obj.errors
@@ -133,7 +133,7 @@ def test_schema_loading_file_not_found(monkeypatch):
     
     df = pd.DataFrame({'patient_id': ['P001']})
     with pytest.raises(FileNotFoundError, match="Mocked File Not Found"):
-        patient(df) # __init__ calls validate(), which calls _load_spec and will fail
+        Patient(df) # __init__ calls validate(), which calls _load_spec and will fail
 
 def test_schema_loading_json_error(monkeypatch):
     """Test schema loading when the schema file is malformed."""
@@ -143,13 +143,13 @@ def test_schema_loading_json_error(monkeypatch):
     
     df = pd.DataFrame({'patient_id': ['P001']})
     with pytest.raises(json.JSONDecodeError):
-        patient(df)
+        Patient(df)
 
 # from_file constructor
 @pytest.mark.usefixtures("patch_load_spec")
 def test_patient_from_file(mock_patient_file):
     """Test loading patient data from a parquet file."""
-    patient_obj = patient.from_file(mock_patient_file, table_format_type="parquet")
+    patient_obj = Patient.from_file(mock_patient_file, table_format_type="parquet")
     assert patient_obj.df is not None
     assert patient_obj.isvalid() is True
 
@@ -157,16 +157,16 @@ def test_patient_from_file_nonexistent(tmp_path):
     """Test loading patient data from a nonexistent file."""
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        patient.from_file(non_existent_path, table_format_type="parquet")
+        Patient.from_file(non_existent_path, table_format_type="parquet")
 
 # isvalid method
 @pytest.mark.usefixtures("patch_load_spec")
 def test_patient_isvalid(sample_valid_patient_data, sample_patient_data_invalid_category):
     """Test isvalid method."""
-    valid_patient = patient(sample_valid_patient_data)
+    valid_patient = Patient(sample_valid_patient_data)
     assert valid_patient.isvalid() is True
     
-    invalid_patient = patient(sample_patient_data_invalid_category)
+    invalid_patient = Patient(sample_patient_data_invalid_category)
     assert invalid_patient.isvalid() is False
 
 # validate method
@@ -174,17 +174,17 @@ def test_patient_isvalid(sample_valid_patient_data, sample_patient_data_invalid_
 def test_patient_validate_output(sample_valid_patient_data, sample_patient_data_invalid_category, capsys):
     """Test validate method output messages."""
     # Valid data
-    patient(sample_valid_patient_data)
+    Patient(sample_valid_patient_data)
     captured = capsys.readouterr()
     assert "Validation completed successfully" in captured.out
     
     # Invalid data
-    patient(sample_patient_data_invalid_category)
+    Patient(sample_patient_data_invalid_category)
     captured = capsys.readouterr()
     assert "Validation completed with 1 error(s)" in captured.out
     
     # No data
-    p_no_data = patient()
+    p_no_data = Patient()
     p_no_data.validate() # Explicitly call validate
     captured = capsys.readouterr()
     assert "No dataframe to validate" in captured.out

@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from pyclif.tables.vitals import vitals
+from pyclif.tables.vitals import Vitals
 
 # --- Data Fixtures ---
 @pytest.fixture
@@ -134,7 +134,7 @@ def patch_vitals_schema_path(monkeypatch, mock_vitals_model_json):
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_init_with_valid_data(sample_valid_vitals_data, mock_vitals_schema_content):
     """Test vitals initialization with valid data and mocked schema."""
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
     assert vital_obj.df is not None
     # Validate is called in __init__
     if not vital_obj.isvalid():
@@ -149,7 +149,7 @@ def test_vitals_init_with_valid_data(sample_valid_vitals_data, mock_vitals_schem
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_init_with_invalid_schema_data(sample_invalid_vitals_data_schema):
     """Test vitals initialization with schema-invalid data."""
-    vital_obj = vitals(sample_invalid_vitals_data_schema)
+    vital_obj = Vitals(sample_invalid_vitals_data_schema)
     assert vital_obj.df is not None
     # Validation is called in __init__. 
     assert vital_obj.isvalid() is False
@@ -161,7 +161,7 @@ def test_vitals_init_with_invalid_schema_data(sample_invalid_vitals_data_schema)
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_init_with_invalid_range_data(sample_invalid_vitals_data_range):
     """Test vitals initialization with out-of-range data."""
-    vital_obj = vitals(sample_invalid_vitals_data_range)
+    vital_obj = Vitals(sample_invalid_vitals_data_range)
     assert vital_obj.df is not None
     # Validation is called in __init__ which calls validate_vital_ranges.
     assert vital_obj.isvalid() is False
@@ -172,7 +172,7 @@ def test_vitals_init_with_invalid_range_data(sample_invalid_vitals_data_range):
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_init_without_data():
     """Test vitals initialization without data."""
-    vital_obj = vitals()
+    vital_obj = Vitals()
     assert vital_obj.df is None
     assert vital_obj.isvalid() is True # No data, so no data errors
     assert not vital_obj.errors
@@ -187,7 +187,7 @@ def test_load_vitals_schema_file_not_found(monkeypatch, capsys):
         return os.path.join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
     
-    vital_obj = vitals() # Init will call _load_vitals_schema
+    vital_obj = Vitals() # Init will call _load_vitals_schema
     assert vital_obj._vital_ranges == {}
     assert vital_obj._vital_units == {}
     captured = capsys.readouterr()
@@ -224,7 +224,7 @@ def test_load_vitals_schema_json_decode_error(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(os.path, 'abspath', mock_abspath_local)
     monkeypatch.setattr(os.path, 'join', mock_join_local)
 
-    vital_obj = vitals()
+    vital_obj = Vitals()
     assert vital_obj._vital_ranges == {}
     assert vital_obj._vital_units == {}
     captured = capsys.readouterr()
@@ -234,7 +234,7 @@ def test_load_vitals_schema_json_decode_error(monkeypatch, tmp_path, capsys):
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_from_file(mock_vitals_file, sample_valid_vitals_data):
     """Test loading vitals data from a parquet file."""
-    vital_obj = vitals.from_file(mock_vitals_file, table_format_type="parquet")
+    vital_obj = Vitals.from_file(mock_vitals_file, table_format_type="parquet")
     assert vital_obj.df is not None
     # Standardize DataFrames before comparison (e.g. reset index, sort)
     expected_df = sample_valid_vitals_data.reset_index(drop=True)
@@ -247,16 +247,16 @@ def test_vitals_from_file_nonexistent(tmp_path):
     """Test loading vitals data from a nonexistent file."""
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        vitals.from_file(non_existent_path, table_format_type="parquet")
+        Vitals.from_file(non_existent_path, table_format_type="parquet")
 
 # isvalid method
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_isvalid(sample_valid_vitals_data, sample_invalid_vitals_data_range):
     """Test isvalid method."""
-    valid_vital = vitals(sample_valid_vitals_data)
+    valid_vital = Vitals(sample_valid_vitals_data)
     assert valid_vital.isvalid() is True
     
-    invalid_vital = vitals(sample_invalid_vitals_data_range)
+    invalid_vital = Vitals(sample_invalid_vitals_data_range)
     # isvalid() reflects the state after the last validate() call, which happens at init
     assert invalid_vital.isvalid() is False 
 
@@ -265,18 +265,18 @@ def test_vitals_isvalid(sample_valid_vitals_data, sample_invalid_vitals_data_ran
 def test_vitals_validate_output(sample_valid_vitals_data, sample_invalid_vitals_data_range, capsys):
     """Test validate method output messages."""
     # Valid data - validation runs at init
-    vitals(sample_valid_vitals_data) 
+    Vitals(sample_valid_vitals_data) 
     captured = capsys.readouterr() 
     assert "Validation completed successfully." in captured.out
 
     # Invalid range data - validation runs at init
-    vitals(sample_invalid_vitals_data_range) 
+    Vitals(sample_invalid_vitals_data_range) 
     captured = capsys.readouterr()
     assert "Validation completed with" in captured.out
     assert "range validation error(s)" in captured.out
 
     # No data
-    vital_obj_no_data = vitals()
+    vital_obj_no_data = Vitals()
     vital_obj_no_data.validate() # Explicit call as init with no data might not print this
     captured = capsys.readouterr()
     assert "No dataframe to validate." in captured.out
@@ -285,7 +285,7 @@ def test_vitals_validate_output(sample_valid_vitals_data, sample_invalid_vitals_
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_properties_access(mock_vitals_schema_content):
     """Test access to vital_units and vital_ranges properties."""
-    vital_obj = vitals()
+    vital_obj = Vitals()
     # Test vital_units
     units = vital_obj.vital_units
     assert units == mock_vitals_schema_content['vital_units']
@@ -303,7 +303,7 @@ def test_vitals_properties_access(mock_vitals_schema_content):
     assert 'new_key' not in vital_obj.vital_ranges
 
     # Test properties when schema is not loaded
-    vital_obj_no_schema = vitals()
+    vital_obj_no_schema = Vitals()
     vital_obj_no_schema._vital_units = None
     vital_obj_no_schema._vital_ranges = None
     assert vital_obj_no_schema.vital_units == {}
@@ -313,7 +313,7 @@ def test_vitals_properties_access(mock_vitals_schema_content):
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_validate_vital_ranges_valid(sample_valid_vitals_data):
     """Test validate_vital_ranges with valid data."""
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
     # validate_vital_ranges is called during init's validate()
     assert not vital_obj.range_validation_errors
     assert vital_obj.isvalid() is True
@@ -321,7 +321,7 @@ def test_validate_vital_ranges_valid(sample_valid_vitals_data):
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_validate_vital_ranges_out_of_range(sample_invalid_vitals_data_range):
     """Test validate_vital_ranges with out-of-range values."""
-    vital_obj = vitals(sample_invalid_vitals_data_range)
+    vital_obj = Vitals(sample_invalid_vitals_data_range)
     assert len(vital_obj.range_validation_errors) > 0
     assert any(e['error_type'] == 'values_out_of_range' for e in vital_obj.range_validation_errors)
     # Check specific error details for one of the categories
@@ -335,7 +335,7 @@ def test_validate_vital_ranges_out_of_range(sample_invalid_vitals_data_range):
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_validate_vital_ranges_unknown_category(sample_vitals_data_unknown_category):
     """Test validate_vital_ranges with an unknown vital category."""
-    vital_obj = vitals(sample_vitals_data_unknown_category)
+    vital_obj = Vitals(sample_vitals_data_unknown_category)
     assert len(vital_obj.range_validation_errors) > 0
     assert any(e['error_type'] == 'unknown_vital_category' for e in vital_obj.range_validation_errors)
     unknown_cat_error = next((e for e in vital_obj.range_validation_errors if e['error_type'] == 'unknown_vital_category'), None)
@@ -352,7 +352,7 @@ def test_validate_vital_ranges_missing_columns():
         'recorded_dttm': pd.to_datetime(['2023-01-01 10:00']),
         'vital_category': ['heart_rate']
     })
-    vital_obj_missing_value = vitals(data_missing_value)
+    vital_obj_missing_value = Vitals(data_missing_value)
     # Schema validation will likely also report missing 'vital_value'
     # Here we explicitly check the range_validation_errors
     assert any(e['error_type'] == 'missing_columns_for_range_validation' for e in vital_obj_missing_value.range_validation_errors)
@@ -364,7 +364,7 @@ def test_validate_vital_ranges_missing_columns():
         'recorded_dttm': pd.to_datetime(['2023-01-01 10:00']),
         'vital_value': [75.0]
     })
-    vital_obj_missing_category = vitals(data_missing_category)
+    vital_obj_missing_category = Vitals(data_missing_category)
     assert any(e['error_type'] == 'missing_columns_for_range_validation' for e in vital_obj_missing_category.range_validation_errors)
     assert 'vital_category' in vital_obj_missing_category.range_validation_errors[0]['message']
 
@@ -372,17 +372,17 @@ def test_validate_vital_ranges_missing_columns():
 def test_validate_vital_ranges_no_data_or_schema(capsys):
     """Test validate_vital_ranges with no data or no schema ranges."""
     # No DataFrame
-    vital_obj_no_df = vitals()
+    vital_obj_no_df = Vitals()
     vital_obj_no_df.validate_vital_ranges() # Explicitly call
     assert not vital_obj_no_df.range_validation_errors
 
     # Empty DataFrame
-    vital_obj_empty_df = vitals(pd.DataFrame(columns=['hospitalization_id', 'recorded_dttm', 'vital_category', 'vital_value']))
+    vital_obj_empty_df = Vitals(pd.DataFrame(columns=['hospitalization_id', 'recorded_dttm', 'vital_category', 'vital_value']))
     vital_obj_empty_df.validate_vital_ranges()
     assert not vital_obj_empty_df.range_validation_errors
 
     # No vital_ranges in schema (e.g., schema loaded but _vital_ranges is empty)
-    vital_obj_no_schema_ranges = vitals(pd.DataFrame({'vital_category': ['hr'], 'vital_value': [70]}))
+    vital_obj_no_schema_ranges = Vitals(pd.DataFrame({'vital_category': ['hr'], 'vital_value': [70]}))
     vital_obj_no_schema_ranges._vital_ranges = {} # Manually clear ranges after init
     vital_obj_no_schema_ranges.validate_vital_ranges()
     assert not vital_obj_no_schema_ranges.range_validation_errors # Should not attempt validation if no ranges defined
@@ -393,24 +393,24 @@ def test_validate_vital_ranges_no_data_or_schema(capsys):
 def test_get_vital_categories(sample_valid_vitals_data):
     """Test get_vital_categories method."""
     # With data
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
     categories = vital_obj.get_vital_categories()
     assert isinstance(categories, list)
     assert set(categories) == set(['heart_rate', 'temp_c', 'sbp'])
 
     # With data missing vital_category column
     data_no_cat = sample_valid_vitals_data.drop(columns=['vital_category'])
-    vital_obj_no_cat = vitals(data_no_cat)
+    vital_obj_no_cat = Vitals(data_no_cat)
     assert vital_obj_no_cat.get_vital_categories() == []
 
     # No data
-    vital_obj_no_data = vitals()
+    vital_obj_no_data = Vitals()
     assert vital_obj_no_data.get_vital_categories() == []
 
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_filter_by_hospitalization(sample_valid_vitals_data):
     """Test filter_by_hospitalization method."""
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
     
     # Existing hospitalization_id
     filtered_df_h001 = vital_obj.filter_by_hospitalization('H001')
@@ -422,19 +422,19 @@ def test_filter_by_hospitalization(sample_valid_vitals_data):
     assert filtered_df_h003.empty
 
     # No data
-    vital_obj_no_data = vitals()
+    vital_obj_no_data = Vitals()
     assert vital_obj_no_data.filter_by_hospitalization('H001').empty
 
     # Data missing hospitalization_id column
     data_no_hosp_id = sample_valid_vitals_data.drop(columns=['hospitalization_id'])
-    vital_obj_no_hosp_id = vitals(data_no_hosp_id)
+    vital_obj_no_hosp_id = Vitals(data_no_hosp_id)
     # This will result in an empty DataFrame due to the key error during filtering, which is expected.
     assert vital_obj_no_hosp_id.filter_by_hospitalization('H001').empty
 
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_filter_by_vital_category(sample_valid_vitals_data):
     """Test filter_by_vital_category method."""
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
 
     # Existing vital_category
     filtered_df_hr = vital_obj.filter_by_vital_category('heart_rate')
@@ -446,18 +446,18 @@ def test_filter_by_vital_category(sample_valid_vitals_data):
     assert filtered_df_unknown.empty
 
     # No data
-    vital_obj_no_data = vitals()
+    vital_obj_no_data = Vitals()
     assert vital_obj_no_data.filter_by_vital_category('heart_rate').empty
 
     # Data missing vital_category column
     data_no_cat = sample_valid_vitals_data.drop(columns=['vital_category'])
-    vital_obj_no_cat = vitals(data_no_cat)
+    vital_obj_no_cat = Vitals(data_no_cat)
     assert vital_obj_no_cat.filter_by_vital_category('heart_rate').empty
 
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_filter_by_date_range(sample_valid_vitals_data):
     """Test filter_by_date_range method."""
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
     start_date = datetime(2023, 1, 1, 10, 30)
     end_date = datetime(2023, 1, 2, 8, 59) # Before the last record
 
@@ -476,19 +476,19 @@ def test_filter_by_date_range(sample_valid_vitals_data):
     assert filtered_none_df.empty
 
     # No data
-    vital_obj_no_data = vitals()
+    vital_obj_no_data = Vitals()
     assert vital_obj_no_data.filter_by_date_range(start_date, end_date).empty
 
     # Data missing recorded_dttm column
     data_no_dttm = sample_valid_vitals_data.drop(columns=['recorded_dttm'])
-    vital_obj_no_dttm = vitals(data_no_dttm)
+    vital_obj_no_dttm = Vitals(data_no_dttm)
     assert vital_obj_no_dttm.filter_by_date_range(start_date, end_date).empty
 
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_get_summary_stats(sample_valid_vitals_data):
     """Test get_summary_stats method."""
     # With data
-    vital_obj = vitals(sample_valid_vitals_data)
+    vital_obj = Vitals(sample_valid_vitals_data)
     stats = vital_obj.get_summary_stats()
     assert stats['total_records'] == 3
     assert stats['unique_hospitalizations'] == 2
@@ -498,7 +498,7 @@ def test_get_summary_stats(sample_valid_vitals_data):
     assert stats['vital_value_stats']['heart_rate']['mean'] == 75.0
 
     # No data
-    vital_obj_no_data = vitals()
+    vital_obj_no_data = Vitals()
     stats_no_data = vital_obj_no_data.get_summary_stats()
     assert stats_no_data == {}
 
@@ -506,14 +506,14 @@ def test_get_summary_stats(sample_valid_vitals_data):
 def test_get_range_validation_report(sample_invalid_vitals_data_range, sample_valid_vitals_data):
     """Test get_range_validation_report method."""
     # With range errors
-    vital_obj_errors = vitals(sample_invalid_vitals_data_range)
+    vital_obj_errors = Vitals(sample_invalid_vitals_data_range)
     report_errors = vital_obj_errors.get_range_validation_report()
     assert isinstance(report_errors, pd.DataFrame)
     assert not report_errors.empty
     assert 'values_out_of_range' in report_errors['error_type'].tolist()
 
     # No range errors
-    vital_obj_no_errors = vitals(sample_valid_vitals_data)
+    vital_obj_no_errors = Vitals(sample_valid_vitals_data)
     report_no_errors = vital_obj_no_errors.get_range_validation_report()
     assert isinstance(report_no_errors, pd.DataFrame)
     assert report_no_errors.empty # Or check for specific columns if an empty df with columns is returned

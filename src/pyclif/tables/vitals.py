@@ -5,7 +5,7 @@ import os
 from .base_table import BaseTable
 
 
-class vitals(BaseTable):
+class Vitals(BaseTable):
     """
     Vitals table wrapper inheriting from BaseTable.
     

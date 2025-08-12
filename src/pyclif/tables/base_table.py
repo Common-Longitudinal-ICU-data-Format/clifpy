@@ -67,7 +67,7 @@ class BaseTable:
         os.makedirs(self.output_directory, exist_ok=True)
         
         # Get table name from class name
-        self.table_name = self.__class__.__name__.lower()
+        self.table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in self.__class__.__name__]).lstrip('_')
         
         # Initialize data and validation state
         self.df: Optional[pd.DataFrame] = data
@@ -172,7 +172,7 @@ class BaseTable:
             Instance of the table class with loaded data
         """
         # Get table name from class name
-        table_name = cls.__name__.lower()
+        table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in cls.__name__]).lstrip('_')
         
         # Load data using existing io utility
         data = load_data(

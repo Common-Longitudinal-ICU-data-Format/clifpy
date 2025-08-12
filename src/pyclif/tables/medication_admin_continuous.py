@@ -3,7 +3,7 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class medication_admin_continuous(BaseTable):
+class MedicationAdminContinuous(BaseTable):
     """
     Medication administration continuous table wrapper inheriting from BaseTable.
     

@@ -5,7 +5,7 @@ import os
 import pytest
 import pandas as pd
 from datetime import datetime
-from pyclif.tables.hospitalization import hospitalization
+from pyclif.tables.hospitalization import Hospitalization
 # from pyclif.utils.validator import ValidationError # Not directly used in patient test, might not be needed if errors are checked via len(obj.errors)
 
 # Fixtures for hospitalization testing
@@ -47,14 +47,14 @@ def mock_hospitalization_file(tmp_path, sample_valid_hospitalization_data):
 # Tests for hospitalization class initialization
 def test_hospitalization_init_with_valid_data(sample_valid_hospitalization_data):
     """Test hospitalization initialization with valid data."""
-    hosp_obj = hospitalization(sample_valid_hospitalization_data)
+    hosp_obj = Hospitalization(sample_valid_hospitalization_data)
     assert hosp_obj.df is not None
     assert hosp_obj.isvalid() is True
     assert len(hosp_obj.errors) == 0
 
 def test_hospitalization_init_with_invalid_data(sample_invalid_hospitalization_data):
     """Test hospitalization initialization with invalid data."""
-    hosp_obj = hospitalization(sample_invalid_hospitalization_data)
+    hosp_obj = Hospitalization(sample_invalid_hospitalization_data)
     assert hosp_obj.df is not None
     assert hosp_obj.isvalid() is False
     assert len(hosp_obj.errors) > 0
@@ -65,7 +65,7 @@ def test_hospitalization_init_with_invalid_data(sample_invalid_hospitalization_d
 
 def test_hospitalization_init_without_data():
     """Test hospitalization initialization without data."""
-    hosp_obj = hospitalization()
+    hosp_obj = Hospitalization()
     assert hosp_obj.df is None
     assert hosp_obj.isvalid() is True # isvalid() should be true if no data to validate
     assert len(hosp_obj.errors) == 0
@@ -73,7 +73,7 @@ def test_hospitalization_init_without_data():
 # Tests for from_file constructor
 def test_hospitalization_from_file(mock_hospitalization_file):
     """Test loading hospitalization data from file."""
-    hosp_obj = hospitalization.from_file(mock_hospitalization_file, "parquet")
+    hosp_obj = Hospitalization.from_file(mock_hospitalization_file, "parquet")
     assert hosp_obj.df is not None
     assert hosp_obj.isvalid() is True
     assert len(hosp_obj.errors) == 0
@@ -82,34 +82,34 @@ def test_hospitalization_from_file_nonexistent(tmp_path):
     """Test loading hospitalization data from a nonexistent file."""
     non_existent_path = str(tmp_path / "nonexistent_dir") # from_file expects a directory path
     with pytest.raises(FileNotFoundError): # Or whatever error your load_data raises for missing dir/file
-        hospitalization.from_file(non_existent_path, "parquet")
+        Hospitalization.from_file(non_existent_path, "parquet")
 
 # Tests for isvalid method
 def test_hospitalization_isvalid(sample_valid_hospitalization_data, sample_invalid_hospitalization_data):
     """Test isvalid method."""
-    valid_hosp = hospitalization(sample_valid_hospitalization_data)
+    valid_hosp = Hospitalization(sample_valid_hospitalization_data)
     assert valid_hosp.isvalid() is True
     
-    invalid_hosp = hospitalization(sample_invalid_hospitalization_data)
+    invalid_hosp = Hospitalization(sample_invalid_hospitalization_data)
     assert invalid_hosp.isvalid() is False
 
 # Tests for validate method
 def test_hospitalization_validate(sample_valid_hospitalization_data, sample_invalid_hospitalization_data):
     """Test validate method."""
     # Test with valid data
-    valid_hosp = hospitalization()
+    valid_hosp = Hospitalization()
     valid_hosp.df = sample_valid_hospitalization_data
     valid_hosp.validate()
     assert valid_hosp.isvalid() is True
     
     # Test with invalid data
-    invalid_hosp = hospitalization()
+    invalid_hosp = Hospitalization()
     invalid_hosp.df = sample_invalid_hospitalization_data
     invalid_hosp.validate()
     assert invalid_hosp.isvalid() is False
     
     # Test with no data
-    no_data_hosp = hospitalization()
+    no_data_hosp = Hospitalization()
     no_data_hosp.validate()
     assert no_data_hosp.df is None
     assert no_data_hosp.isvalid() is True # Should remain valid if no df
@@ -117,20 +117,20 @@ def test_hospitalization_validate(sample_valid_hospitalization_data, sample_inva
 def test_hospitalization_validate_output(sample_valid_hospitalization_data, sample_invalid_hospitalization_data, capsys):
     """Test validate method output messages."""
     # Test with valid data
-    valid_hosp = hospitalization(sample_valid_hospitalization_data)
+    valid_hosp = Hospitalization(sample_valid_hospitalization_data)
     valid_hosp.validate() # Already called in init, but call again to capture output
     captured = capsys.readouterr()
     assert "Validation completed successfully" in captured.out
     
     # Test with invalid data
-    invalid_hosp = hospitalization(sample_invalid_hospitalization_data)
+    invalid_hosp = Hospitalization(sample_invalid_hospitalization_data)
     invalid_hosp.validate() # Already called in init
     captured = capsys.readouterr()
     assert "Validation completed with" in captured.out
     assert "error(s)" in captured.out
     
     # Test with no data
-    no_data_hosp = hospitalization()
+    no_data_hosp = Hospitalization()
     no_data_hosp.validate()
     captured = capsys.readouterr()
     assert "No dataframe to validate" in captured.out
@@ -139,7 +139,7 @@ def test_hospitalization_validate_output(sample_valid_hospitalization_data, samp
 
 def test_calculate_length_of_stay(sample_valid_hospitalization_data):
     """Test calculate_length_of_stay method."""
-    hosp_obj = hospitalization(sample_valid_hospitalization_data)
+    hosp_obj = Hospitalization(sample_valid_hospitalization_data)
     los_df = hosp_obj.calculate_length_of_stay()
     assert 'length_of_stay_days' in los_df.columns
     assert not los_df['length_of_stay_days'].isnull().any()
@@ -148,13 +148,13 @@ def test_calculate_length_of_stay(sample_valid_hospitalization_data):
     assert los_df[los_df['hospitalization_id'] == 'H001']['length_of_stay_days'].iloc[0] == pytest.approx(expected_los_h001)
 
     # Test with missing columns
-    hosp_obj_missing_cols = hospitalization(pd.DataFrame({'hospitalization_id': ['H005']}))
+    hosp_obj_missing_cols = Hospitalization(pd.DataFrame({'hospitalization_id': ['H005']}))
     los_df_missing = hosp_obj_missing_cols.calculate_length_of_stay()
     assert los_df_missing.empty
 
 def test_get_mortality_rate(sample_valid_hospitalization_data):
     """Test get_mortality_rate method."""
-    hosp_obj = hospitalization(sample_valid_hospitalization_data)
+    hosp_obj = Hospitalization(sample_valid_hospitalization_data)
     # In sample_valid_hospitalization_data: 1 expired out of 4 hospitalizations
     expected_mortality_rate = (1 / 4) * 100
     assert hosp_obj.get_mortality_rate() == pytest.approx(expected_mortality_rate)
@@ -162,22 +162,22 @@ def test_get_mortality_rate(sample_valid_hospitalization_data):
     # Test with no 'Expired' cases
     data_no_expired = sample_valid_hospitalization_data.copy()
     data_no_expired['discharge_category'] = 'Home'
-    hosp_obj_no_expired = hospitalization(data_no_expired)
+    hosp_obj_no_expired = Hospitalization(data_no_expired)
     assert hosp_obj_no_expired.get_mortality_rate() == 0.0
 
     # Test with no data
-    hosp_obj_no_data = hospitalization()
+    hosp_obj_no_data = Hospitalization()
     assert hosp_obj_no_data.get_mortality_rate() == 0.0
 
     # Test with missing discharge_category column
     data_missing_col = sample_valid_hospitalization_data.drop(columns=['discharge_category'])
-    hosp_obj_missing_col = hospitalization(data_missing_col)
+    hosp_obj_missing_col = Hospitalization(data_missing_col)
     # Validation should fail, but test the method's robustness
     assert hosp_obj_missing_col.get_mortality_rate() == 0.0 
 
 def test_get_summary_stats(sample_valid_hospitalization_data):
     """Test get_summary_stats method."""
-    hosp_obj = hospitalization(sample_valid_hospitalization_data)
+    hosp_obj = Hospitalization(sample_valid_hospitalization_data)
     stats = hosp_obj.get_summary_stats()
     
     assert stats['total_hospitalizations'] == 4
@@ -192,12 +192,12 @@ def test_get_summary_stats(sample_valid_hospitalization_data):
     assert stats['mortality_rate_percent'] == pytest.approx(25.0)
 
     # Test with no data
-    hosp_obj_no_data = hospitalization()
+    hosp_obj_no_data = Hospitalization()
     assert hosp_obj_no_data.get_summary_stats() == {}
 
 def test_get_patient_hospitalization_counts(sample_valid_hospitalization_data):
     """Test get_patient_hospitalization_counts method."""
-    hosp_obj = hospitalization(sample_valid_hospitalization_data)
+    hosp_obj = Hospitalization(sample_valid_hospitalization_data)
     counts_df = hosp_obj.get_patient_hospitalization_counts()
     
     assert not counts_df.empty
@@ -215,11 +215,11 @@ def test_get_patient_hospitalization_counts(sample_valid_hospitalization_data):
     assert counts_df['hospitalization_count'].is_monotonic_decreasing
 
     # Test with no data
-    hosp_obj_no_data = hospitalization()
+    hosp_obj_no_data = Hospitalization()
     assert hosp_obj_no_data.get_patient_hospitalization_counts().empty
 
     # Test with missing patient_id column
     data_missing_pid = sample_valid_hospitalization_data.drop(columns=['patient_id'])
-    hosp_obj_missing_pid = hospitalization(data_missing_pid)
+    hosp_obj_missing_pid = Hospitalization(data_missing_pid)
     # Validation should fail, but test the method's robustness
     assert hosp_obj_missing_pid.get_patient_hospitalization_counts().empty

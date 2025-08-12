@@ -8,14 +8,14 @@ import re
 from .utils.io import load_data 
 from .utils.wide_dataset import create_wide_dataset, convert_wide_to_hourly
 from .tables.adt import adt
-from .tables.hospitalization import hospitalization
+from .tables.hospitalization import Hospitalization
 from .tables.labs import labs
-from .tables.medication_admin_continuous import medication_admin_continuous
-from .tables.patient import patient
+from .tables.medication_admin_continuous import MedicationAdminContinuous
+from .tables.patient import Patient
 from .tables.patient_assessments import patient_assessments
 from .tables.position import position
 from .tables.respiratory_support import respiratory_support
-from .tables.vitals import vitals
+from .tables.vitals import Vitals
 
 class CLIF:
     def __init__(self, data_dir, filetype='csv', timezone ="UTC", output_dir=None):
@@ -61,7 +61,7 @@ class CLIF:
             The initialized patient table object.
         """
         data = load_data('patient', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
-        self.patient = patient(
+        self.patient = Patient(
             data_directory=self.data_dir,
             filetype=self.filetype,
             timezone=self.timezone,
@@ -83,7 +83,7 @@ class CLIF:
             The initialized hospitalization table object.
         """
         data = load_data('hospitalization', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
-        self.hospitalization = hospitalization(
+        self.hospitalization = Hospitalization(
             data_directory=self.data_dir,
             filetype=self.filetype,
             timezone=self.timezone,
@@ -171,7 +171,7 @@ class CLIF:
             The initialized vitals table object.
         """
         data = load_data('vitals', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
-        self.vitals = vitals(
+        self.vitals = Vitals(
             data_directory=self.data_dir,
             filetype=self.filetype,
             timezone=self.timezone,
@@ -193,7 +193,7 @@ class CLIF:
             The initialized medication_admin_continuous table object.
         """
         data = load_data('medication_admin_continuous', self.data_dir, self.filetype, sample_size, columns, filters, site_tz=self.timezone)
-        self.medication_admin_continuous = medication_admin_continuous(
+        self.medication_admin_continuous = MedicationAdminContinuous(
             data_directory=self.data_dir,
             filetype=self.filetype,
             timezone=self.timezone,

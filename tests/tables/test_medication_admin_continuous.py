@@ -7,7 +7,7 @@ import pandas as pd
 import json
 from datetime import datetime
 import numpy as np
-from pyclif.tables.medication_admin_continuous import medication_admin_continuous
+from pyclif.tables.medication_admin_continuous import MedicationAdminContinuous
 
 # --- Mock Schema --- 
 @pytest.fixture
@@ -152,7 +152,7 @@ def mock_med_admin_continuous_file(tmp_path, sample_valid_med_admin_continuous_d
 # Initialization and Schema Loading
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_with_valid_data(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     assert mac_obj.df is not None
     assert mac_obj.isvalid() is True
     assert not mac_obj.errors
@@ -160,7 +160,7 @@ def test_init_with_valid_data(sample_valid_med_admin_continuous_data):
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_with_invalid_schema_data(sample_invalid_med_admin_continuous_data_schema):
-    mac_obj = medication_admin_continuous(sample_invalid_med_admin_continuous_data_schema)
+    mac_obj = MedicationAdminContinuous(sample_invalid_med_admin_continuous_data_schema)
     assert mac_obj.df is not None
     mac_obj.validate() # Ensure validation is run if not fully in init or for clarity
     assert mac_obj.isvalid() is False
@@ -180,7 +180,7 @@ def test_init_with_invalid_schema_data(sample_invalid_med_admin_continuous_data_
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_without_data():
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     assert mac_obj.df is None
     assert mac_obj.isvalid() is True # No data, so no validation errors
     assert not mac_obj.errors
@@ -193,7 +193,7 @@ def test_load_medication_schema_file_not_found(monkeypatch, capsys):
         return os.path.join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
     
-    mac_obj = medication_admin_continuous() # Init calls _load_medication_schema
+    mac_obj = MedicationAdminContinuous() # Init calls _load_medication_schema
     assert mac_obj._med_category_to_group == {}
     captured = capsys.readouterr()
     assert "Warning: Medication_admin_continuousModel.json not found" in captured.out
@@ -228,14 +228,14 @@ def test_load_medication_schema_json_decode_error(monkeypatch, tmp_path, capsys)
     monkeypatch.setattr(os.path, 'dirname', mock_dirname_local)
     monkeypatch.setattr(os.path, 'join', mock_join_local)
 
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     assert mac_obj._med_category_to_group == {}
     captured = capsys.readouterr()
     assert "Warning: Invalid JSON in Medication_admin_continuousModel.json" in captured.out
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path") # Only this patch needed as it tests _load_medication_schema directly
 def test_med_category_to_group_mapping_property(mock_med_admin_continuous_schema_content):
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     expected_mapping = mock_med_admin_continuous_schema_content['med_category_to_group_mapping']
     assert mac_obj.med_category_to_group_mapping == expected_mapping
     # Test it returns a copy
@@ -246,7 +246,7 @@ def test_med_category_to_group_mapping_property(mock_med_admin_continuous_schema
 # from_file constructor
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_from_file(mock_med_admin_continuous_file, sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous.from_file(mock_med_admin_continuous_file, table_format_type="parquet")
+    mac_obj = MedicationAdminContinuous.from_file(mock_med_admin_continuous_file, table_format_type="parquet")
     assert mac_obj.df is not None
     pd.testing.assert_frame_equal(mac_obj.df.reset_index(drop=True), sample_valid_med_admin_continuous_data.reset_index(drop=True), check_dtype=False)
     assert mac_obj.isvalid() is True
@@ -255,29 +255,29 @@ def test_from_file(mock_med_admin_continuous_file, sample_valid_med_admin_contin
 def test_from_file_nonexistent(tmp_path):
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        medication_admin_continuous.from_file(non_existent_path, table_format_type="parquet")
+        MedicationAdminContinuous.from_file(non_existent_path, table_format_type="parquet")
 
 # isvalid method
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_isvalid(sample_valid_med_admin_continuous_data, sample_invalid_med_admin_continuous_data_schema):
-    valid_mac = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    valid_mac = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     assert valid_mac.isvalid() is True
     
-    invalid_mac = medication_admin_continuous(sample_invalid_med_admin_continuous_data_schema)
+    invalid_mac = MedicationAdminContinuous(sample_invalid_med_admin_continuous_data_schema)
     assert invalid_mac.isvalid() is False 
 
 # validate method
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_validate_output(sample_valid_med_admin_continuous_data, sample_invalid_med_admin_continuous_data_schema, capsys):
-    medication_admin_continuous(sample_valid_med_admin_continuous_data) # Validation runs at init
+    MedicationAdminContinuous(sample_valid_med_admin_continuous_data) # Validation runs at init
     captured = capsys.readouterr()
     assert "Validation completed successfully." in captured.out
 
-    medication_admin_continuous(sample_invalid_med_admin_continuous_data_schema)
+    MedicationAdminContinuous(sample_invalid_med_admin_continuous_data_schema)
     captured = capsys.readouterr()
     assert f"Validation completed with" in captured.out # Checks for presence of error count
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     mac_obj_no_data.validate() # Explicit call
     captured = capsys.readouterr()
     assert "No dataframe to validate." in captured.out
@@ -285,33 +285,33 @@ def test_validate_output(sample_valid_med_admin_continuous_data, sample_invalid_
 # Medication Admin Continuous Specific Methods
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_med_categories(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     categories = mac_obj.get_med_categories()
     assert isinstance(categories, list)
     assert set(categories) == {'Antibiotics', 'Vasopressors'}
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.get_med_categories() == []
 
-    mac_obj_no_col = medication_admin_continuous(pd.DataFrame({'hospitalization_id': [1]}))
+    mac_obj_no_col = MedicationAdminContinuous(pd.DataFrame({'hospitalization_id': [1]}))
     assert mac_obj_no_col.get_med_categories() == []
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_med_groups(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     groups = mac_obj.get_med_groups()
     assert isinstance(groups, list)
     assert set(groups) == {'Cephalosporins', 'Catecholamines'}
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.get_med_groups() == []
 
-    mac_obj_no_col = medication_admin_continuous(pd.DataFrame({'hospitalization_id': [1]}))
+    mac_obj_no_col = MedicationAdminContinuous(pd.DataFrame({'hospitalization_id': [1]}))
     assert mac_obj_no_col.get_med_groups() == []
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_filter_by_med_group(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     filtered_df = mac_obj.filter_by_med_group('Cephalosporins')
     assert len(filtered_df) == 2
     assert all(filtered_df['med_group'] == 'Cephalosporins')
@@ -319,15 +319,15 @@ def test_filter_by_med_group(sample_valid_med_admin_continuous_data):
     filtered_df_non_existent = mac_obj.filter_by_med_group('NonExistentGroup')
     assert filtered_df_non_existent.empty
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.filter_by_med_group('AnyGroup').empty
 
-    mac_obj_no_col = medication_admin_continuous(pd.DataFrame({'hospitalization_id': [1]}))
+    mac_obj_no_col = MedicationAdminContinuous(pd.DataFrame({'hospitalization_id': [1]}))
     assert mac_obj_no_col.filter_by_med_group('AnyGroup').empty
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_summary_stats(sample_med_admin_continuous_data_for_stats):
-    mac_obj = medication_admin_continuous(sample_med_admin_continuous_data_for_stats)
+    mac_obj = MedicationAdminContinuous(sample_med_admin_continuous_data_for_stats)
     stats = mac_obj.get_summary_stats()
 
     assert stats['total_records'] == 5
@@ -356,7 +356,7 @@ def test_get_summary_stats(sample_med_admin_continuous_data_for_stats):
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_summary_stats_empty_df():
-    mac_obj = medication_admin_continuous(pd.DataFrame(columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_group', 'med_dose']))
+    mac_obj = MedicationAdminContinuous(pd.DataFrame(columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_group', 'med_dose']))
     stats = mac_obj.get_summary_stats()
     assert stats['total_records'] == 0
     assert stats['unique_hospitalizations'] == 0
@@ -368,7 +368,7 @@ def test_get_summary_stats_empty_df():
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_summary_stats_no_df():
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     stats = mac_obj.get_summary_stats()
     assert stats == {}
 
@@ -382,7 +382,7 @@ def test_get_summary_stats_missing_columns():
         'med_group': ['Cephalosporins']
         # med_dose is missing
     })
-    mac_obj = medication_admin_continuous(data_missing_dose)
+    mac_obj = MedicationAdminContinuous(data_missing_dose)
     stats = mac_obj.get_summary_stats()
     assert 'dose_stats_by_group' not in stats or stats['dose_stats_by_group'] == {}
 
@@ -394,7 +394,7 @@ def test_get_summary_stats_missing_columns():
         'med_dose': [100.0]
         # med_group is missing
     })
-    mac_obj_missing_group = medication_admin_continuous(data_missing_group)
+    mac_obj_missing_group = MedicationAdminContinuous(data_missing_group)
     stats_missing_group = mac_obj_missing_group.get_summary_stats()
     assert stats_missing_group['med_group_counts'] == {}
     assert 'dose_stats_by_group' not in stats_missing_group or stats_missing_group['dose_stats_by_group'] == {}
