@@ -14,7 +14,7 @@ def _():
     project_root = Path(__file__).parent.parent
     sys.path.insert(0, str(project_root / "src"))
 
-    mo.md(
+    header = mo.md(
         """
         # Demo: Load CLIF demo data from files
 
@@ -25,20 +25,24 @@ def _():
 
 
 @app.cell
-def _(project_root):
+def _(mo, project_root):
     # Configuration
     DATA_DIR = (project_root / "src" / "clifpy" / "data" / "clif_demo").resolve()
-    OUTPUT_DIR = (project_root / "examples" / "outpu").resolve()
+    OUTPUT_DIR = (project_root / "examples" / "output").resolve()
     FILETYPE = "parquet"
     TIMEZONE = "US/Eastern"
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Data directory:", DATA_DIR)
-    print("Output directory:", OUTPUT_DIR)
-    print("Filetype:", FILETYPE)
-    print("Timezone:", TIMEZONE)
-
+    info = mo.md(
+        f"""
+        - **Data directory**: `{DATA_DIR}`  
+        - **Output directory**: `{OUTPUT_DIR}`  
+        - **Filetype**: `{FILETYPE}`  
+        - **Timezone**: `{TIMEZONE}`
+        """
+    )
+    print("Setup complete")
     return DATA_DIR, FILETYPE, OUTPUT_DIR, TIMEZONE
 
 
@@ -100,79 +104,42 @@ def _(DATA_DIR, FILETYPE, OUTPUT_DIR, TIMEZONE, mo):
 
 
 @app.cell
-def _(
-    adt_table,
-    hospitalization_table,
-    labs_table,
-    mo,
-    patient_table,
-    vitals_table,
-):
-    mo.md("## Validation status")
-
-    mo.md(
-        f"""
-        - **patient valid**: {patient_table.isvalid()}  
-        - **hospitalization valid**: {hospitalization_table.isvalid()}  
-        - **adt valid**: {adt_table.isvalid()}  
-        - **labs valid**: {labs_table.isvalid()}  
-        - **vitals valid**: {vitals_table.isvalid()}
-        """
-    )
-    return
-
-
-@app.cell
-def _(mo, patient_table):
-    mo.md("### patient sample")
-    patient_table.df.head(10)
-    return
-
-
-@app.cell
-def _(hospitalization_table, mo):
-    mo.md("### hospitalization sample and summary")
-    summary = hospitalization_table.get_summary_stats()
-    mo.md(f"Total hospitalizations: {summary.get('total_hospitalizations', 0)}")
-    hospitalization_table.df.head(10)
-    return
-
-
-@app.cell
-def _(adt_table, mo):
-    mo.md("### ADT locations")
-    locations = adt_table.get_location_categories()
-    mo.md(", ".join(f"`{loc}`" for loc in locations) or "No locations found")
-    adt_table.df.head(10)
-    return
-
-
-@app.cell
-def _(labs_table, mo):
-    mo.md("### Labs sample and summary stats")
-    labs_table.df.head(10)
-    stats = labs_table.get_lab_summary_stats()
-    if not stats.empty:
-        stats.head(10)
-    return
-
-
-@app.cell
-def _(mo, vitals_table):
-    mo.md("### Vitals sample and summary stats")
-    vitals_table.df.head(10)
-    stats = vitals_table.get_vital_summary_stats()
-    if not stats.empty:
-        stats.head(10)
-    return
-
-
-@app.cell
 def _(patient_table):
-    # Ensure validation has run and display number of errors found
-    patient_table.validate()
-    print("patient validation errors:", len(patient_table.errors))
+    patient_table.isvalid()
+    return
 
+
+@app.cell
+def _(hospitalization_table):
+    summary = hospitalization_table.get_summary_stats()
+    summary
+    return
+
+
+@app.cell
+def _(adt_table):
+    locations = adt_table.get_location_categories()
+    locations
+    return
+
+
+@app.cell
+def _(labs_table):
+    labs_table.get_lab_summary_stats()
+    return
+
+
+@app.cell
+def _(labs_table):
+    labs_summary = labs_table.get_lab_summary_stats()
+    labs_summary
+    return
+
+
+@app.cell
+def _(vitals_table):
+    vitals_summary = vitals_table.get_vital_summary_stats()
+    vitals_summary 
     return
 
 
