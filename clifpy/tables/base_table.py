@@ -81,9 +81,6 @@ class BaseTable:
         # Load schema
         self._load_schema()
         
-        # If data was provided, validate it
-        if self.df is not None:
-            self.validate()
     
     def _setup_logging(self):
         """Set up logging for this table."""
