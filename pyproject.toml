@@ -10,15 +10,16 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
   {name = "Kaveri Chhikara", email = "kaveri.chhikara@gmail.com"},
-  {name = "Dema Therese", email = "dema@uchicago.edu"},
-  {name = "Vaishvik Chaudhari", email = "Vaishvikc@gmail.com"}
+  {name = "Dema Therese Maria", email = "theresemaria98@gmail.com"},
+  {name = "Vaishvik Chaudhari", email = "Vaishvikc@gmail.com"},
+  {name = "Zewei 'Whiskey' Liao", email = "whiskey0504@gmail.com"}
 ]
 classifiers = [
   "Programming Language :: Python :: 3.9",
   "License :: OSI Approved :: Apache 2.0",
   "Operating System :: OS Independent"
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.9"p
 dependencies = [
   "pandas",
   "duckdb",
