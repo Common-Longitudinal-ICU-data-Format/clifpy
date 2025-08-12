@@ -1,0 +1,18 @@
+2025-08-12 11:46:04,609 - pyclif.hospitalization - INFO - Initialized hospitalization table
+2025-08-12 11:46:04,609 - pyclif.hospitalization - INFO - Data directory: /Users/kavenchhikara/Desktop/CLIF/pyCLIF/src/clifpy/data/clif_demo
+2025-08-12 11:46:04,609 - pyclif.hospitalization - INFO - File type: parquet
+2025-08-12 11:46:04,609 - pyclif.hospitalization - INFO - Timezone: UTC
+2025-08-12 11:46:04,609 - pyclif.hospitalization - INFO - Output directory: /Users/kavenchhikara/Desktop/CLIF/pyCLIF/output
+2025-08-12 11:46:04,613 - pyclif.hospitalization - INFO - Loaded schema from /Users/kavenchhikara/Desktop/CLIF/pyCLIF/src/clifpy/schemas/hospitalization_schema.yaml
+2025-08-12 11:46:04,613 - pyclif.hospitalization - INFO - Starting validation
+2025-08-12 11:46:04,613 - pyclif.hospitalization - INFO - Running schema validation
+2025-08-12 11:46:04,613 - pyclif.hospitalization - INFO - Schema validation passed
+2025-08-12 11:46:04,613 - pyclif.hospitalization - INFO - Checking for duplicates on composite keys
+2025-08-12 11:46:04,613 - pyclif.hospitalization - INFO - Calculating missing data statistics
+2025-08-12 11:46:04,614 - pyclif.hospitalization - INFO - Saved missing data statistics to /Users/kavenchhikara/Desktop/CLIF/pyCLIF/output/missing_data_stats_hospitalization.csv
+2025-08-12 11:46:04,615 - pyclif.hospitalization - INFO - Missing data: 47.96% (2242 cells)
+2025-08-12 11:46:04,615 - pyclif.hospitalization - INFO - Generating summary statistics for numeric columns
+2025-08-12 11:46:04,617 - pyclif.hospitalization - INFO - Generated summary statistics
+2025-08-12 11:46:04,618 - pyclif.hospitalization - INFO - Analyzed skewed distributions
+2025-08-12 11:46:04,618 - pyclif.hospitalization - INFO - Cohort sizes: {'patient_id': 100, 'patient_id_with_nulls': np.int64(0), 'hospitalization_id': 275, 'hospitalization_id_with_nulls': np.int64(0), 'total_rows': 275}
+2025-08-12 11:46:04,618 - pyclif.hospitalization - INFO - Validation completed successfully

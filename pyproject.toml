@@ -28,7 +28,8 @@ dependencies = [
   "pydantic",
   "pytest",
   "pytz",
-  "tqdm"
+  "tqdm",
+  "marimo>=0.14.17",
 ]
 
 [tool.setuptools]

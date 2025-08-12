@@ -1,0 +1,183 @@
+table_name: respiratory_support
+composite_keys:
+  - hospitalization_id
+  - recorded_dttm
+  - device_category
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: device_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: device_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - IMV
+      - NIPPV
+      - CPAP
+      - High Flow NC
+      - Face Mask
+      - Trach Collar
+      - Nasal Cannula
+      - Room Air
+      - Other
+  - name: vent_brand_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mode_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mode_category
+    data_type: VARCHAR
+    required: false
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - Assist Control-Volume Control
+      - Pressure Control
+      - Pressure-Regulated Volume Control
+      - SIMV
+      - Pressure Support/CPAP
+      - Volume Support
+      - Blow by
+      - Other
+  - name: tracheostomy
+    data_type: INT
+    required: false
+    is_category_column: true
+    is_group_column: false
+    permissible_values: [0, 1]
+  - name: fio2_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: lpm_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: tidal_volume_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: resp_rate_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: pressure_control_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: pressure_support_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: flow_rate_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: peak_inspiratory_pressure_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: inspiratory_time_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: peep_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: tidal_volume_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: resp_rate_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: plateau_pressure_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: peak_inspiratory_pressure_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: peep_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: minute_vent_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mean_airway_pressure_obs
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - device_category
+  - mode_category
+  - vent_brand_name
+  - tracheostomy
+  - fio2_set
+  - lpm_set
+  - tidal_volume_set
+  - resp_rate_set
+  - pressure_control_set
+  - pressure_support_set
+  - flow_rate_set
+  - peak_inspiratory_pressure_set
+  - inspiratory_time_set
+  - peep_set
+  - tidal_volume_obs
+  - resp_rate_obs
+  - plateau_pressure_obs
+  - peak_inspiratory_pressure_obs
+  - peep_obs
+  - minute_vent_obs
+  - mean_airway_pressure_obs
+
+category_columns:
+  - device_category
+  - mode_category
+
+group_columns: []
