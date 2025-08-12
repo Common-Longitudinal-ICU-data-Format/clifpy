@@ -394,7 +394,7 @@ class ClifOrchestrator:
                 loaded.append(table_name)
         return loaded
     
-    def get_table_list(self) -> List:
+    def get_tables_obj_list(self) -> List:
         """
         Return list of loaded table objects.
         

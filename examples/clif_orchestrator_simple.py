@@ -138,27 +138,6 @@ def _(co, mo):
 
 
 @app.cell
-def _(co, mo):
-    # Display basic info about each loaded table
-    info = []
-
-    if co.patient and hasattr(co.patient, 'df') and co.patient.df is not None:
-        info.append(f"**Patient:** {len(co.patient.df)} rows, {len(co.patient.df.columns)} columns")
-
-    if co.hospitalization and hasattr(co.hospitalization, 'df') and co.hospitalization.df is not None:
-        info.append(f"**Hospitalization:** {len(co.hospitalization.df)} rows, {len(co.hospitalization.df.columns)} columns")
-
-    if co.adt and hasattr(co.adt, 'df') and co.adt.df is not None:
-        info.append(f"**ADT:** {len(co.adt.df)} rows, {len(co.adt.df.columns)} columns")
-
-    if info:
-        mo.md("## Table Information\n\n" + "\n\n".join(info))
-    else:
-        mo.md("*No data loaded. Check that your data files exist in the specified directory.*")
-    return
-
-
-@app.cell
 def _(mo):
     mo.md(
         r"""
@@ -180,6 +159,29 @@ def _(mo):
     ```
     """
     )
+    return
+
+
+@app.cell
+def _(co):
+    co.validate_all()
+    return
+
+
+@app.cell
+def _(co):
+    co.get_loaded_tables() # gives list of active tables in co
+    return
+
+
+@app.cell
+def _(co):
+    co.get_tables_obj_list()
+    return
+
+
+@app.cell
+def _():
     return
 
 
