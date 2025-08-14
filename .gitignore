@@ -24,3 +24,4 @@ clif_2.1.0.txt
 context7.json
 cohort_metadata.json
 
+output/*.log
