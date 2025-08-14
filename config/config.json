@@ -1,5 +1,5 @@
 {
-    "site": "UCMC",
-    "clif2_path": "/Users/kavenchhikara/Desktop/CLIF/CLIF-UCMC/rclif/c19",
+    "site": "MIMIC-demo",
+    "tables_path": "/Users/wliao0504/code/clif/pyCLIF/src/pyclif/data/clif_demo",
     "filetype": "parquet"
 }

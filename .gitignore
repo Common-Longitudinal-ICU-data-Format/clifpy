@@ -25,3 +25,5 @@ context7.json
 cohort_metadata.json
 
 output/*.log
+config/config.*
+config/config.json
