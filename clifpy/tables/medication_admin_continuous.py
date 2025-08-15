@@ -1,5 +1,4 @@
-from ast import Set
-from typing import Optional, Dict, Tuple, Union
+from typing import Optional, Dict, Tuple, Union, Set
 import pandas as pd
 from pyarrow import BooleanArray
 from .base_table import BaseTable
@@ -86,7 +85,7 @@ class MedicationAdminContinuous(BaseTable):
         """
         Standardize dose unit to a consistent, convertible pattern, e.g. 'mL/ hr' -> 'ml/hr'.
         
-        - removes white space
+        - removes white space (including internal spaces)
         - converts to lowercase
         - uses self.df by default if no argument is provided
         
@@ -100,7 +99,11 @@ class MedicationAdminContinuous(BaseTable):
         if med_df is None:
             raise ValueError("No data provided")
         
-        med_df['med_dose_unit_clean'] = med_df['med_dose_unit'].str.lower().str.strip()
+        # Make a copy to avoid SettingWithCopyWarning
+        med_df = med_df.copy()
+        
+        # Remove ALL whitespace (including internal) and convert to lowercase
+        med_df['med_dose_unit_clean'] = med_df['med_dose_unit'].str.replace(r'\s+', '', regex=True).str.lower()
         
         # find any rows with unseen, unaccounted-for dose units which we do not know how to convert
         mask = ~med_df['med_dose_unit_clean'].isin(self._acceptable_dose_unit_patterns)
