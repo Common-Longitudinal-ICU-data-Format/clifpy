@@ -6,6 +6,7 @@ dev/readme.md
 dev/requirements.txt
 /archive
 *.csv
+!tests/fixtures/*/*.csv
  
 build/
 dist/
