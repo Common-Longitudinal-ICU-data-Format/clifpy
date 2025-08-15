@@ -7,7 +7,17 @@ import pandas as pd
 import json
 from datetime import datetime
 import numpy as np
+from pathlib import Path
 from clifpy.tables.medication_admin_continuous import MedicationAdminContinuous
+
+# --- Helper Fixtures for CSV Loading ---
+@pytest.fixture
+def load_fixture_csv():
+    """Load CSV fixture from tests/fixtures/medication_admin_continuous/"""
+    def _load(filename):
+        path = Path(__file__).parent.parent / 'fixtures' / 'medication_admin_continuous' / filename
+        return pd.read_csv(path)
+    return _load
 
 # --- Mock Schema --- 
 @pytest.fixture
@@ -54,7 +64,7 @@ def patch_med_admin_continuous_schema_path(monkeypatch, mock_med_admin_continuou
 
     import importlib
     # Explicitly import the module to ensure we get the module object, not potentially the class
-    module_name = "pyclif.tables.medication_admin_continuous"
+    module_name = "clifpy.tables.medication_admin_continuous"
     module_obj = importlib.import_module(module_name)
     target_module_file_path = os.path.normpath(module_obj.__file__)
 
@@ -101,7 +111,7 @@ def patch_validator_load_schema(monkeypatch, mock_med_admin_continuous_schema_co
         # If other tables were processed by validate_table in these tests, they'd need their own mock handling.
         raise ValueError(f"patch_validator_load_schema called for unexpected table: {table_name}")
 
-    monkeypatch.setattr("pyclif.utils.validator._load_spec", mock_load_schema_for_validation)
+    monkeypatch.setattr("clifpy.utils.validator._load_spec", mock_load_schema_for_validation)
 
 # --- Data Fixtures --- 
 @pytest.fixture
@@ -408,26 +418,240 @@ Implement the following tests in tests/tables/test_medication_admin_continuous.p
 
 Use pytest features to make the tests more readable and less verbose.
 If helpful, follow the pattern of existing tests in the same file.
+
+----
+the overall pattern looks good but please improve on the following issues:
+1. the test data are not easily human readable and verificable. Can you create them as .csv's under 
+tests/fixtures? the csv would look like the output df which contains the original df and the newly generated
+appended columns. e.g. for test_convert_dose_to_same_units, the csv would have the following columns:
+['med_dose', 'med_dose_unit_clean', 'weight_kg', 'med_dose_converted', 'med_dose_unit_converted']
+2. within the same test function, we are testing multiple scenarios. Does it make sense to split them up into
+separate test functions? I'm not sure about it either way. I think splitting them up seems like a good pattern
+but I worry about code duplication and overcomplicating things. Can you advise and implement what you think would
+be a preferred strategy, esp. taking into account the first issue above?
+
+it looks good overall! but would it make sense to consolidate related test data into the same csv's and 
+just add a new column like 'case' to differentiate between the different scenarios? i.e. I think i'd make sense
+for me to be able to view the valid and invalid unit cases at the same time in the same csv, and we can just load
+the csv as a whole and then filter by 'case'. Of course, for tests that are rather distinct and would require different columns, they should be still in different
+csv's.
+
+1. remove dose_unit_patterns.csv as that test does not necessarily need a tabular structure and the 
+test data can be easily understood as two lists written in the .py file directly.
+2. rename the csv to be aligned with the test names
+3. modify column names in the csv's to be exactly aligned with the dataframes, e.g. 'expected_clean'
+should be 'med_dose_unit_clean'; 'expected_dose_converted' should just be 'med_dose_converted'
+4. remove unnecessary columns in the csv's such as 'med_category' which does not impact unit conversion
+at all. 
 """
 
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_acceptable_dose_unit_patterns():
     """
     Test that acceptable dose unit pattern (e.g. 'mcg/kg/hr') are included in the `_acceptable_dose_unit_patterns` property
     and wrong patterns (e.g. 'mcg/lb/min') are not.
     """
-    raise NotImplementedError()
+    mac_obj = MedicationAdminContinuous()
+    acceptable_patterns = mac_obj._acceptable_dose_unit_patterns
+    
+    # Test cases that should be acceptable
+    acceptable_cases = [
+        'mcg/kg/hr',
+        'mcg/kg/h',
+        'mcg/kg/hour',
+        'mcg/kg/min',
+        'mcg/kg/m',
+        'mcg/kg/minute',
+        'mg/hr',
+        'mg/min',
+        'units/hr',
+        'units/min',
+        'ml/hr',
+        'ml/min',
+        'l/hr',
+        'ng/kg/min',
+        'milli-units/min'
+    ]
+    
+    for pattern in acceptable_cases:
+        assert pattern in acceptable_patterns, f"Pattern '{pattern}' should be acceptable"
+    
+    # Test cases that should NOT be acceptable
+    unacceptable_cases = [
+        'mcg/lb/min',  # lb instead of kg
+        'mcg/kg/sec',  # sec not supported
+        'mcg/kg/day',  # day not supported
+        'tablespoon/hr',  # tablespoon not supported
+        'mcg/m2/hr',  # m2 not supported
+        'invalid/unit',  # completely invalid
+    ]
+    
+    for pattern in unacceptable_cases:
+        assert pattern not in acceptable_patterns, f"Pattern '{pattern}' should NOT be acceptable"
 
-def test_standardize_dose_unit_pattern():
-    """
-    Test that the `_standardize_dose_unit_pattern` private method
-    1. correctly strips whitespace and converts `med_dose_unit` to lowercase. e.g. 'mL/ hr' -> 'ml/hr'.
-    2. correctly identifies and logs unaccounted-for dose units.
-    """
-    raise NotImplementedError()
+# Fixtures for standardize tests
+@pytest.fixture
+def standardize_test_data(load_fixture_csv):
+    return load_fixture_csv('test_standardize_dose_unit_pattern.csv')
 
-def test_convert_dose_to_same_units():
-    """
-    Test that the `convert_dose_to_same_units` method correctly converts the numeric value of `med_dose` 
-    to the target unit of `mcg/min`, `ml/min`, or `units/min`.
-    """
-    raise NotImplementedError()
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_standardize_normal_units(standardize_test_data):
+    """Test standardization of valid dose units with various case and spacing"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = standardize_test_data[standardize_test_data['case'] == 'normal']
+    result_df, unaccounted = mac_obj._standardize_dose_unit_pattern(test_df[['med_dose_unit']])
+    
+    pd.testing.assert_series_equal(
+        result_df['med_dose_unit_clean'].reset_index(drop=True),
+        test_df['med_dose_unit_clean'].reset_index(drop=True),
+        check_names=False
+    )
+    assert unaccounted is False
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_standardize_units_with_spaces(standardize_test_data):
+    """Test that internal spaces are properly removed during standardization"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = standardize_test_data[standardize_test_data['case'] == 'spaces']
+    result_df, unaccounted = mac_obj._standardize_dose_unit_pattern(test_df[['med_dose_unit']])
+    
+    pd.testing.assert_series_equal(
+        result_df['med_dose_unit_clean'].reset_index(drop=True),
+        test_df['med_dose_unit_clean'].reset_index(drop=True),
+        check_names=False
+    )
+    assert unaccounted is False  # Now these should be accounted after whitespace removal
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_standardize_invalid_units(standardize_test_data, caplog):
+    """Test that invalid units are properly identified and logged"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = standardize_test_data[standardize_test_data['case'] == 'invalid']
+    
+    with caplog.at_level('WARNING'):
+        _, unaccounted = mac_obj._standardize_dose_unit_pattern(test_df[['med_dose_unit']])
+    
+    assert unaccounted is not False
+    for unit in test_df['med_dose_unit_clean']:
+        assert (unit,) in unaccounted
+    assert "not accounted by the converter" in caplog.text
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_standardize_empty_dataframe():
+    """Test standardization with empty dataframe"""
+    mac_obj = MedicationAdminContinuous()
+    empty_df = pd.DataFrame({'med_dose_unit': pd.Series([], dtype='object')})
+    result_df, unaccounted = mac_obj._standardize_dose_unit_pattern(empty_df)
+    assert 'med_dose_unit_clean' in result_df.columns
+    assert unaccounted is False
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_standardize_using_self_df():
+    """Test that standardize uses self.df when no dataframe is provided"""
+    test_data = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'admin_dttm': pd.to_datetime(['2023-01-01']),
+        'med_dose_unit': ['ML/HR']
+    })
+    mac_obj_with_data = MedicationAdminContinuous(data_directory=".", filetype="parquet", data=test_data)
+    result_df, unaccounted = mac_obj_with_data._standardize_dose_unit_pattern()
+    assert result_df['med_dose_unit_clean'].iloc[0] == 'ml/hr'
+    assert unaccounted is False
+
+# Fixtures for conversion tests
+@pytest.fixture
+def convert_test_data(load_fixture_csv):
+    df = load_fixture_csv('test_convert_dose_to_same_units.csv')
+    df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
+    # Replace empty strings with NaN for weight_kg column
+    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    return df
+
+@pytest.fixture
+def vitals_data(load_fixture_csv):
+    df = load_fixture_csv('vitals_weights.csv')
+    df['recorded_dttm'] = pd.to_datetime(df['recorded_dttm'])
+    return df
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_standard_units(convert_test_data, vitals_data):
+    """Test conversion of standard dose units to target units"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = convert_test_data[convert_test_data['case'] == 'standard'].copy()
+    test_df['med_category'] = 'Vasopressors'  # Required for SQL query
+    
+    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    result_df = mac_obj.convert_dose_to_same_units(vitals_data, input_df)
+    
+    # Verify columns exist
+    assert 'med_dose_converted' in result_df.columns
+    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'weight_kg' in result_df.columns
+    
+    # Compare converted values
+    for i, row in test_df.iterrows():
+        result_row = result_df[result_df['admin_dttm'] == row['admin_dttm']].iloc[0]
+        if pd.notna(row['med_dose_converted']):
+            assert result_row['med_dose_converted'] == pytest.approx(row['med_dose_converted'], rel=1e-3)
+            assert result_row['med_dose_unit_converted'] == row['med_dose_unit_converted']
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_units_with_spaces(convert_test_data, vitals_data):
+    """Test that units with internal spaces are properly converted"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = convert_test_data[convert_test_data['case'] == 'spaces'].copy()
+    test_df['med_category'] = 'Vasopressors'
+    
+    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    result_df = mac_obj.convert_dose_to_same_units(vitals_data, input_df)
+    
+    # Should handle spaces and convert properly
+    assert result_df.iloc[0]['med_dose_converted'] == pytest.approx(11.833333, rel=1e-3)
+    assert result_df.iloc[0]['med_dose_unit_converted'] == 'mcg/min'
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_with_preset_weight(convert_test_data, vitals_data):
+    """Test conversion when weight is already present in med_df"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = convert_test_data[convert_test_data['case'] == 'with_weight'].copy()
+    test_df['med_category'] = 'Vasopressors'
+    
+    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    result_df = mac_obj.convert_dose_to_same_units(vitals_data, input_df)
+    
+    assert result_df.iloc[0]['med_dose_converted'] == pytest.approx(375.0, rel=1e-3)
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_invalid_units(convert_test_data, vitals_data, caplog):
+    """Test that invalid units generate appropriate warnings"""
+    mac_obj = MedicationAdminContinuous()
+    test_df = convert_test_data[convert_test_data['case'] == 'invalid'].copy()
+    test_df['med_category'] = 'Antibiotics'
+    
+    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    
+    with caplog.at_level('WARNING'):
+        _ = mac_obj.convert_dose_to_same_units(vitals_data, input_df)
+        assert "Unaccounted-for dose units found" in caplog.text
+
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_missing_columns():
+    """Test that missing required columns raise appropriate errors"""
+    mac_obj = MedicationAdminContinuous()
+    vitals_df = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'recorded_dttm': pd.to_datetime(['2023-01-01 09:00']),
+        'vital_category': ['weight_kg'],
+        'vital_value': [70.0]
+    })
+    
+    med_df_missing = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'admin_dttm': pd.to_datetime(['2023-01-01 11:00']),
+        'med_category': ['Antibiotics'],  # Include required column for SQL
+        # Missing med_dose_unit
+        'med_dose': [100.0]
+    })
+    
+    with pytest.raises(ValueError, match="required but not found"):
+        mac_obj.convert_dose_to_same_units(vitals_df, med_df_missing)
