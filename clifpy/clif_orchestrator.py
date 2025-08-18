@@ -19,6 +19,19 @@ from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
 
 
+TABLE_CLASSES = {
+    'patient': Patient,
+    'hospitalization': Hospitalization,
+    'adt': Adt,
+    'labs': Labs,
+    'vitals': Vitals,
+    'medication_admin_continuous': MedicationAdminContinuous,
+    'patient_assessments': PatientAssessments,
+    'respiratory_support': RespiratorySupport,
+    'position': Position
+}
+
+
 class ClifOrchestrator:
     """
     Orchestrator class for managing multiple CLIF table objects.
@@ -82,24 +95,30 @@ class ClifOrchestrator:
         
         print('ClifOrchestrator initialized.')
     
-    def load_patient_data(
+    def load_table(
         self,
+        table_name: str,
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
     ):
         """
-        Load patient data and create Patient table object.
+        Load table data and create table object.
         
         Parameters:
+            table_name (str): Name of the table to load
             sample_size (int, optional): Number of rows to load
             columns (List[str], optional): Specific columns to load
             filters (Dict, optional): Filters to apply when loading
             
         Returns:
-            Patient: The loaded Patient table object
+            The loaded table object
         """
-        self.patient = Patient.from_file(
+        if table_name not in TABLE_CLASSES:
+            raise ValueError(f"Unknown table: {table_name}. Available tables: {list(TABLE_CLASSES.keys())}")
+        
+        table_class = TABLE_CLASSES[table_name]
+        table_object = table_class.from_file(
             data_directory=self.data_directory,
             filetype=self.filetype,
             timezone=self.timezone,
@@ -108,231 +127,8 @@ class ClifOrchestrator:
             columns=columns,
             filters=filters
         )
-        return self.patient
-    
-    def load_hospitalization_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load hospitalization data and create Hospitalization table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Hospitalization: The loaded Hospitalization table object
-        """
-        self.hospitalization = Hospitalization.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.hospitalization
-    
-    def load_adt_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load ADT data and create Adt table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Adt: The loaded Adt table object
-        """
-        self.adt = Adt.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.adt
-    
-    def load_labs_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load labs data and create Labs table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Labs: The loaded Labs table object
-        """
-        self.labs = Labs.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.labs
-    
-    def load_vitals_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load vitals data and create Vitals table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Vitals: The loaded Vitals table object
-        """
-        self.vitals = Vitals.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.vitals
-    
-    def load_medication_admin_continuous_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load medication administration continuous data and create MedicationAdminContinuous table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            MedicationAdminContinuous: The loaded MedicationAdminContinuous table object
-        """
-        self.medication_admin_continuous = MedicationAdminContinuous.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.medication_admin_continuous
-    
-    def load_patient_assessments_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load patient assessments data and create PatientAssessments table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            PatientAssessments: The loaded PatientAssessments table object
-        """
-        self.patient_assessments = PatientAssessments.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.patient_assessments
-    
-    def load_respiratory_support_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load respiratory support data and create RespiratorySupport table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            RespiratorySupport: The loaded RespiratorySupport table object
-        """
-        self.respiratory_support = RespiratorySupport.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.respiratory_support
-    
-    def load_position_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load position data and create Position table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Position: The loaded Position table object
-        """
-        self.position = Position.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.position
+        setattr(self, table_name, table_object)
+        return table_object
     
     def initialize(
         self,
@@ -358,26 +154,10 @@ class ClifOrchestrator:
             table_columns = columns.get(table) if columns else None
             table_filters = filters.get(table) if filters else None
             
-            if table == 'patient':
-                self.load_patient_data(sample_size, table_columns, table_filters)
-            elif table == 'hospitalization':
-                self.load_hospitalization_data(sample_size, table_columns, table_filters)
-            elif table == 'adt':
-                self.load_adt_data(sample_size, table_columns, table_filters)
-            elif table == 'labs':
-                self.load_labs_data(sample_size, table_columns, table_filters)
-            elif table == 'vitals':
-                self.load_vitals_data(sample_size, table_columns, table_filters)
-            elif table == 'medication_admin_continuous':
-                self.load_medication_admin_continuous_data(sample_size, table_columns, table_filters)
-            elif table == 'patient_assessments':
-                self.load_patient_assessments_data(sample_size, table_columns, table_filters)
-            elif table == 'respiratory_support':
-                self.load_respiratory_support_data(sample_size, table_columns, table_filters)
-            elif table == 'position':
-                self.load_position_data(sample_size, table_columns, table_filters)
-            else:
-                print(f"Warning: Unknown table '{table}', skipping.")
+            try:
+                self.load_table(table, sample_size, table_columns, table_filters)
+            except ValueError as e:
+                print(f"Warning: {e}")
     
     def get_loaded_tables(self) -> List[str]:
         """

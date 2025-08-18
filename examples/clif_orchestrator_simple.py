@@ -28,7 +28,7 @@ def _():
     from clifpy.clif_orchestrator import ClifOrchestrator
 
     print("Libraries imported successfully!")
-    return ClifOrchestrator, os
+    return (ClifOrchestrator,)
 
 
 @app.cell
@@ -38,49 +38,13 @@ def _(mo):
 
 
 @app.cell
-def _(mo, os):
-    # Create input widgets for configuration
-    data_dir = mo.ui.text(
-        value="./sample_data",
-        label="Data Directory:",
-        placeholder="Enter path to data directory"
-    )
-
-    filetype = mo.ui.dropdown(
-        options=["csv", "parquet"],
-        value="csv",
-        label="File Type:"
-    )
-
-    timezone = mo.ui.dropdown(
-        options=["UTC", "America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London"],
-        value="UTC",
-        label="Timezone:"
-    )
-
-    output_dir = mo.ui.text(
-        value=os.path.join(os.getcwd(), "output"),
-        label="Output Directory:",
-        placeholder="Leave empty for default"
-    )
-
-    mo.vstack([
-        data_dir,
-        filetype,
-        timezone,
-        output_dir
-    ])
-    return data_dir, filetype, output_dir, timezone
-
-
-@app.cell
-def _(ClifOrchestrator, data_dir, filetype, output_dir, timezone):
+def _(ClifOrchestrator):
     # Create ClifOrchestrator instance
     co = ClifOrchestrator(
-        data_directory=data_dir.value,
-        filetype=filetype.value,
-        timezone=timezone.value,
-        output_directory=output_dir.value if output_dir.value else None
+        data_directory='/Users/sudo_sage/Documents/work/clif_mimic',
+        filetype='parquet',
+        timezone='UTC',
+        output_directory= None
     )
 
     print(f"ClifOrchestrator initialized")
@@ -99,18 +63,18 @@ def _(mo):
 
 @app.cell
 def _(co):
-    # Load the three main tables
+    # Load the three main tables using the new generic load_table function
     try:
         # Load patient table
-        co.load_patient_data()
+        co.load_table('patient')
         print("✅ Patient table loaded")
 
         # Load hospitalization table
-        co.load_hospitalization_data()
+        co.load_table('hospitalization')
         print("✅ Hospitalization table loaded")
 
         # Load ADT table
-        co.load_adt_data()
+        co.load_table('adt')
         print("✅ ADT table loaded")
 
     except Exception as e:
@@ -151,6 +115,13 @@ def _(mo):
     hosp_df = co.hospitalization.df
     adt_df = co.adt.df
 
+    # Load additional tables using the new generic function
+    co.load_table('labs')
+    co.load_table('vitals')
+
+    # Or load multiple tables at once using initialize
+    co.initialize(['patient', 'hospitalization', 'labs', 'vitals'])
+
     # Run validation
     co.validate_all()
 
@@ -177,6 +148,12 @@ def _(co):
 @app.cell
 def _(co):
     co.get_tables_obj_list()
+    return
+
+
+@app.cell
+def _(co):
+    co.patient.errors
     return
 
 
