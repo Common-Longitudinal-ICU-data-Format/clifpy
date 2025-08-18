@@ -122,6 +122,26 @@ def _(mo):
     # Or load multiple tables at once using initialize
     co.initialize(['patient', 'hospitalization', 'labs', 'vitals'])
 
+    # Create wide dataset (NEW FUNCTIONALITY)
+    wide_df = co.create_wide_dataset(
+        tables_to_load=['vitals', 'labs'],
+        category_filters={
+            'vitals': ['heart_rate', 'sbp', 'spo2'],
+            'labs': ['hemoglobin', 'sodium', 'glucose']
+        },
+        sample=True  # Use 20 random hospitalizations
+    )
+
+    # Convert to hourly aggregation (NEW FUNCTIONALITY)
+    hourly_df = co.convert_wide_to_hourly(
+        wide_df,
+        aggregation_config={
+            'mean': ['heart_rate', 'sbp'],
+            'max': ['spo2'],
+            'boolean': ['hemoglobin', 'sodium']
+        }
+    )
+
     # Run validation
     co.validate_all()
 
@@ -154,6 +174,104 @@ def _(co):
 @app.cell
 def _(co):
     co.patient.errors
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## Wide Dataset Creation (NEW!)
+
+    The ClifOrchestrator now supports creating wide time-series datasets by joining multiple tables with automatic pivoting.
+    """
+    )
+    return
+
+
+@app.cell
+def _(co):
+    # Create wide dataset with sample data
+    try:
+        print("Creating wide dataset...")
+        wide_df = co.create_wide_dataset(
+            tables_to_load=['vitals', 'labs'],
+            category_filters={
+                'vitals': ['heart_rate', 'sbp', 'spo2', 'respiratory_rate'],
+                'labs': ['hemoglobin', 'sodium', 'glucose', 'creatinine']
+            },
+            sample=True,  # Use 20 random hospitalizations for demo
+            show_progress=True
+        )
+
+        print(f"✅ Wide dataset created!")
+        print(f"   Shape: {wide_df.shape}")
+        print(f"   Columns: {list(wide_df.columns[:10])}...")  # Show first 10 columns
+        print(f"   Time range: {wide_df['event_time'].min()} to {wide_df['event_time'].max()}")
+
+    except Exception as e:
+        print(f"❌ Error creating wide dataset: {e}")
+        print("Note: Make sure vitals and labs tables exist in your data directory")
+        wide_df = None
+
+    return (wide_df,)
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## Hourly Aggregation (NEW!)
+
+    Convert the wide dataset to hourly aggregation with different aggregation methods.
+    """
+    )
+    return
+
+
+@app.cell
+def _(co, wide_df):
+    # Convert to hourly aggregation if wide_df was created successfully
+    if wide_df is not None:
+        try:
+            print("Converting to hourly aggregation...")
+            hourly_df = co.convert_wide_to_hourly(
+                wide_df,
+                aggregation_config={
+                    'mean': ['heart_rate', 'sbp', 'respiratory_rate'],
+                    'max': ['spo2'],
+                    'min': ['sbp'],
+                    'boolean': ['hemoglobin', 'sodium', 'glucose'],
+                    'first': ['creatinine']
+                },
+                memory_limit='4GB'
+            )
+
+            print(f"✅ Hourly dataset created!")
+            print(f"   Shape: {hourly_df.shape}")
+            print(f"   Unique hospitalizations: {hourly_df['hospitalization_id'].nunique()}")
+            print(f"   Hour range: {hourly_df['nth_hour'].min()} to {hourly_df['nth_hour'].max()}")
+            print(f"   Sample columns: {list(hourly_df.columns[:15])}...")
+
+        except Exception as e:
+            print(f"❌ Error creating hourly dataset: {e}")
+            hourly_df = None
+    else:
+        print("⏭️ Skipping hourly aggregation (no wide dataset available)")
+        hourly_df = None
+
+    return (hourly_df,)
+
+
+@app.cell
+def _(wide_df):
+    wide_df
+    return
+
+
+@app.cell
+def _(hourly_df):
+    hourly_df
     return
 
 

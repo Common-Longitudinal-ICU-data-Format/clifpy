@@ -6,6 +6,7 @@ all CLIF table objects with consistent configuration.
 """
 
 import os
+import pandas as pd
 from typing import Optional, List, Dict, Any
 
 from .tables.patient import Patient
@@ -209,3 +210,128 @@ class ClifOrchestrator:
             table_obj = getattr(self, table_name)
             print(f"\nValidating {table_name}...")
             table_obj.validate()
+    
+    def create_wide_dataset(
+        self,
+        tables_to_load: Optional[List[str]] = None,
+        category_filters: Optional[Dict[str, List[str]]] = None,
+        sample: bool = False,
+        hospitalization_ids: Optional[List[str]] = None,
+        cohort_df: Optional[pd.DataFrame] = None,
+        output_format: str = 'dataframe',
+        save_to_data_location: bool = False,
+        output_filename: Optional[str] = None,
+        return_dataframe: bool = True,
+        batch_size: int = 1000,
+        memory_limit: Optional[str] = None,
+        threads: Optional[int] = None,
+        show_progress: bool = True
+    ) -> Optional[pd.DataFrame]:
+        """
+        Create wide time-series dataset using DuckDB for high performance.
+        
+        Parameters:
+            tables_to_load: List of tables to include (e.g., ['vitals', 'labs'])
+            category_filters: Dict of categories to pivot for each table
+                Example: {
+                    'vitals': ['heart_rate', 'sbp', 'spo2'],
+                    'labs': ['hemoglobin', 'sodium'],
+                    'respiratory_support': ['device_category']
+                }
+            sample: If True, use 20 random hospitalizations
+            hospitalization_ids: Specific hospitalization IDs to include
+            cohort_df: DataFrame with time windows for filtering
+            output_format: 'dataframe', 'csv', or 'parquet'
+            save_to_data_location: Save output to data directory
+            output_filename: Custom filename for output
+            return_dataframe: Return DataFrame even when saving
+            batch_size: Number of hospitalizations per batch
+            memory_limit: DuckDB memory limit (e.g., '8GB')
+            threads: Number of threads for DuckDB
+            show_progress: Show progress bars
+            
+        Returns:
+            Wide dataset as DataFrame or None
+        """
+        # Import the utility function
+        from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
+        
+        # Auto-load base tables if not loaded
+        if self.patient is None:
+            print("Loading patient table...")
+            self.load_table('patient')
+        if self.hospitalization is None:
+            print("Loading hospitalization table...")
+            self.load_table('hospitalization')
+        if self.adt is None:
+            print("Loading adt table...")
+            self.load_table('adt')
+        
+        # Load optional tables only if not already loaded
+        if tables_to_load:
+            for table_name in tables_to_load:
+                if getattr(self, table_name, None) is None:
+                    print(f"Loading {table_name} table...")
+                    try:
+                        self.load_table(table_name)
+                    except Exception as e:
+                        print(f"Warning: Could not load {table_name}: {e}")
+        
+        # Call utility function with self as clif_instance
+        return _create_wide(
+            clif_instance=self,
+            optional_tables=tables_to_load,
+            category_filters=category_filters,
+            sample=sample,
+            hospitalization_ids=hospitalization_ids,
+            cohort_df=cohort_df,
+            output_format=output_format,
+            save_to_data_location=save_to_data_location,
+            output_filename=output_filename,
+            return_dataframe=return_dataframe,
+            batch_size=batch_size,
+            memory_limit=memory_limit,
+            threads=threads,
+            show_progress=show_progress
+        )
+    
+    def convert_wide_to_hourly(
+        self,
+        wide_df: pd.DataFrame,
+        aggregation_config: Dict[str, List[str]],
+        memory_limit: str = '4GB',
+        temp_directory: Optional[str] = None,
+        batch_size: Optional[int] = None
+    ) -> pd.DataFrame:
+        """
+        Convert wide dataset to hourly aggregation using DuckDB.
+        
+        Parameters:
+            wide_df: Wide dataset from create_wide_dataset()
+            aggregation_config: Dict mapping aggregation methods to columns
+                Example: {
+                    'mean': ['heart_rate', 'sbp'],
+                    'max': ['spo2'],
+                    'min': ['map'],
+                    'median': ['glucose'],
+                    'first': ['gcs_total'],
+                    'last': ['assessment_value'],
+                    'boolean': ['norepinephrine'],
+                    'one_hot_encode': ['device_category']
+                }
+            memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
+            temp_directory: Directory for DuckDB temp files
+            batch_size: Process in batches if specified
+            
+        Returns:
+            Hourly aggregated DataFrame with nth_hour column
+        """
+        from clifpy.utils.wide_dataset import convert_wide_to_hourly
+        
+        return convert_wide_to_hourly(
+            wide_df=wide_df,
+            aggregation_config=aggregation_config,
+            memory_limit=memory_limit,
+            temp_directory=temp_directory,
+            batch_size=batch_size
+        )
