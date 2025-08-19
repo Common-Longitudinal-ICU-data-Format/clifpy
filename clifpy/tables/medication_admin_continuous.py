@@ -168,7 +168,7 @@ class MedicationAdminContinuous(BaseTable):
             - DataFrame with added 'med_dose_unit_clean' column containing standardized units
             - Either:
                 - False if all units are acceptable
-                - Dict mapping unaccounted unit patterns to their occurrence counts
+                - Dict mapping unrecognized unit patterns to their occurrence counts
         
         Raises
         ------
@@ -177,15 +177,15 @@ class MedicationAdminContinuous(BaseTable):
         
         Warnings
         --------
-        Logs a warning if unaccounted-for dose units are found.
+        Logs a warning if unrecognized dose units are found.
         
         Examples
         --------
         >>> df = pd.DataFrame({'med_dose_unit': ['ML/HR', 'mcg / kg/ min', 'invalid']})
-        >>> result_df, unaccounted = mac._normalize_dose_unit_pattern(df)
+        >>> result_df, unrecognized = mac._normalize_dose_unit_pattern(df)
         >>> result_df['med_dose_unit_clean'].tolist()
         ['ml/hr', 'mcg/kg/min', 'invalid']
-        >>> unaccounted
+        >>> unrecognized
         {'invalid': 1}
         """
         if med_df is None:
@@ -199,14 +199,14 @@ class MedicationAdminContinuous(BaseTable):
         # Remove ALL whitespace (including internal) and convert to lowercase
         med_df['med_dose_unit_clean'] = med_df['med_dose_unit'].str.replace(r'\s+', '', regex=True).str.lower()
         
-        # find any rows with unseen, unaccounted-for dose units which we do not know how to convert
+        # find any rows with unseen, unrecognized dose units which we do not know how to convert
         mask = ~med_df['med_dose_unit_clean'].isin(self._acceptable_dose_unit_patterns)
-        unaccounted: pd.DataFrame = med_df[mask]
+        unrecognized: pd.DataFrame = med_df[mask]
         
-        if not unaccounted.empty:
-            unaccounted_unit_counts = unaccounted.value_counts('med_dose_unit_clean').to_dict()
-            self.logger.warning(f"The following dose units are not accounted by the converter: {unaccounted_unit_counts}")
-            return med_df, unaccounted_unit_counts
+        if not unrecognized.empty:
+            unrecognized_unit_counts = unrecognized.value_counts('med_dose_unit_clean').to_dict()
+            self.logger.warning(f"The following dose units are not recognized by the converter: {unrecognized_unit_counts}")
+            return med_df, unrecognized_unit_counts
         
         return med_df, False
         
@@ -258,7 +258,7 @@ class MedicationAdminContinuous(BaseTable):
         
         Warnings
         --------
-        Logs warnings for unaccounted-for dose units that cannot be converted.
+        Logs warnings for unrecognized dose units that cannot be converted.
         
         Notes
         -----
@@ -317,11 +317,11 @@ class MedicationAdminContinuous(BaseTable):
         if missing_columns:
             raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
         
-        med_df, unaccounted = self._normalize_dose_unit_pattern(med_df)
-        if not unaccounted:
-            self.logger.info("No unaccounted-for dose units found, continuing with conversion")
+        med_df, unrecognized = self._normalize_dose_unit_pattern(med_df)
+        if not unrecognized:
+            self.logger.info("No unrecognized dose units found, continuing with conversion")
         else:
-            self.logger.warning(f"Unaccounted-for dose units found: {unaccounted}")
+            self.logger.warning(f"Unrecognized dose units found: {unrecognized}")
         
         acceptable_unit_patterns_str = "','".join(self._acceptable_dose_unit_patterns)
         

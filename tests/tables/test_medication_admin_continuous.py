@@ -474,21 +474,21 @@ def normalize_dose_unit_pattern_test_data(load_fixture_csv):
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_normalize_dose_unit_pattern_accounted(normalize_dose_unit_pattern_test_data):
+def test_normalize_dose_unit_pattern_recognized(normalize_dose_unit_pattern_test_data):
     """
     Test that the `_normalize_dose_unit_pattern` private method correctly normalizes valid dose units.
     
     Validates:
     1. Whitespace removal (including internal spaces): 'mL/ hr' -> 'ml/hr'
     2. Case conversion to lowercase: 'ML/HR' -> 'ml/hr'
-    3. Return value indicates no unaccounted units (False)
+    3. Return value indicates no unrecognized units (False)
     
     Uses fixture data filtered for 'valid' test cases.
     """
     mac_obj = MedicationAdminContinuous()
     test_df = normalize_dose_unit_pattern_test_data.query("case == 'valid'")
-    result_df, unaccounted = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
-
+    result_df, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
+    
     # first check the filtering went right, i.e. test_df is not empty
     assert test_df.shape[0] > 0
     
@@ -497,32 +497,32 @@ def test_normalize_dose_unit_pattern_accounted(normalize_dose_unit_pattern_test_
         test_df['med_dose_unit_clean'].reset_index(drop=True),
         check_names=False
     )
-    assert unaccounted is False # no unaccounted-for dose units so the return should be False
+    assert unrecognized is False # no unrecognized dose units so the return should be False
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_normalize_dose_unit_pattern_unaccounted(normalize_dose_unit_pattern_test_data, caplog):
+def test_normalize_dose_unit_pattern_unrecognized(normalize_dose_unit_pattern_test_data, caplog):
     """
     Test that the `_normalize_dose_unit_pattern` private method handles unrecognized dose units.
     
     Validates:
     1. Unrecognized units are identified and returned as a dictionary with counts
-    2. Warning is logged with details about unaccounted units
-    3. All invalid units from test data appear in the unaccounted dictionary
+    2. Warning is logged with details about unrecognized units
+    3. All invalid units from test data appear in the unrecognized dictionary
     
     Uses fixture data filtered for 'invalid' test cases.
     """
     mac_obj = MedicationAdminContinuous()
     test_df = normalize_dose_unit_pattern_test_data.query("case == 'invalid'")
-assert test_df.shape[0] > 0
+    assert test_df.shape[0] > 0
     
     with caplog.at_level('WARNING'):
-        _, unaccounted = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
+        _, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
     
-    assert isinstance(unaccounted, dict)
+    assert isinstance(unrecognized, dict)
     for unit in test_df['med_dose_unit_clean']:
-        assert unit in unaccounted # check that all invalid units are in the unaccounted dict
-    assert "not accounted by the converter" in caplog.text
+        assert unit in unrecognized # check that all invalid units are in the unrecognized dict
+    assert "not recognized by the converter" in caplog.text
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
@@ -533,13 +533,13 @@ def test_normalize_dose_unit_pattern_empty_dataframe():
     Validates:
     - Empty DataFrame input doesn't cause errors
     - Output DataFrame contains required 'med_dose_unit_clean' column
-    - Returns False for unaccounted units (no units to process)
+    - Returns False for unrecognized units (no units to process)
     """
     mac_obj = MedicationAdminContinuous()
     empty_df = pd.DataFrame({'med_dose_unit': pd.Series([], dtype='object')})
-    result_df, unaccounted = mac_obj._normalize_dose_unit_pattern(empty_df)
+    result_df, unrecognized = mac_obj._normalize_dose_unit_pattern(empty_df)
     assert 'med_dose_unit_clean' in result_df.columns
-    assert unaccounted is False
+    assert unrecognized is False
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
@@ -558,9 +558,9 @@ def test_normalize_dose_unit_pattern_using_self_df():
         'med_dose_unit': ['ML/HR']
     })
     mac_obj_with_data = MedicationAdminContinuous(data_directory=".", filetype="parquet", data=test_data)
-    result_df, unaccounted = mac_obj_with_data._normalize_dose_unit_pattern()
+    result_df, unrecognized = mac_obj_with_data._normalize_dose_unit_pattern()
     assert result_df['med_dose_unit_clean'].iloc[0] == 'ml/hr'
-    assert unaccounted is False
+    assert unrecognized is False
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
@@ -629,7 +629,7 @@ def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, 
     - Weight-based calculations using patient weights from vitals
     - Time unit conversions (per hour to per minute)
     - Proper handling of various dose patterns from test data
-    - Warning logged for unaccounted dose units
+    - Warning logged for unrecognized dose units
     - Output columns include med_dose_converted, med_dose_unit_converted, weight_kg
     
     Compares actual conversions against expected values from test fixture.
@@ -648,7 +648,7 @@ def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, 
     assert 'med_dose_converted' in result_df.columns
     assert 'med_dose_unit_converted' in result_df.columns
     assert 'weight_kg' in result_df.columns
-    assert "Unaccounted-for dose units found" in caplog.text # check that the warning is logged
+    assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
 
     # Verify converted values
     pd.testing.assert_series_equal(
