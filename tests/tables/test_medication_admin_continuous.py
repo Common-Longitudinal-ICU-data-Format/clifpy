@@ -488,6 +488,9 @@ def test_normalize_dose_unit_pattern_accounted(normalize_dose_unit_pattern_test_
     mac_obj = MedicationAdminContinuous()
     test_df = normalize_dose_unit_pattern_test_data.query("case == 'valid'")
     result_df, unaccounted = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
+
+    # first check the filtering went right, i.e. test_df is not empty
+    assert test_df.shape[0] > 0
     
     pd.testing.assert_series_equal(
         result_df['med_dose_unit_clean'].reset_index(drop=True),
@@ -511,6 +514,7 @@ def test_normalize_dose_unit_pattern_unaccounted(normalize_dose_unit_pattern_tes
     """
     mac_obj = MedicationAdminContinuous()
     test_df = normalize_dose_unit_pattern_test_data.query("case == 'invalid'")
+assert test_df.shape[0] > 0
     
     with caplog.at_level('WARNING'):
         _, unaccounted = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
