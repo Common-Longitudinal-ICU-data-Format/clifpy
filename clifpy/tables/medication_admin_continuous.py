@@ -110,7 +110,7 @@ class MedicationAdminContinuous(BaseTable):
         unaccounted: pd.DataFrame = med_df[mask]
         
         if not unaccounted.empty:
-            unaccounted_unit_counts = unaccounted.value_counts(subset=['med_dose_unit_clean']).to_dict()
+            unaccounted_unit_counts = unaccounted.value_counts('med_dose_unit_clean').to_dict()
             self.logger.warning(f"The following dose units are not accounted by the converter: {unaccounted_unit_counts}")
             return med_df, unaccounted_unit_counts
         
@@ -126,7 +126,7 @@ class MedicationAdminContinuous(BaseTable):
         - weight_kg: the most recent weight of the patient
         
         Returns:
-            pd.DataFrame: The input `med_df` with appended columns 'med_dose_converted' and 'med_dose_unit_converted'
+            pd.DataFrame: The input `med_df` with appended columns `med_dose_converted` and `med_dose_unit_converted`
         """
         if med_df is None:
             med_df = self.df
@@ -166,6 +166,8 @@ class MedicationAdminContinuous(BaseTable):
         else:
             self.logger.warning(f"Unaccounted-for dose units found: {unaccounted}")
         
+        acceptable_unit_patterns_str = "','".join(self._acceptable_dose_unit_patterns)
+        
         query = f"""
         SELECT *
             , CASE WHEN regexp_matches(med_dose_unit_clean, '/h(r|our)?\\b') THEN 1/60.0
@@ -182,7 +184,8 @@ class MedicationAdminContinuous(BaseTable):
                 WHEN contains(med_dose_unit_clean, 'l/') AND NOT contains(med_dose_unit_clean, 'ml/') THEN 1000.0
                 ELSE NULL END as amount_multiplier
             , med_dose * time_multiplier * pt_weight_multiplier * amount_multiplier as med_dose_converted
-            , CASE WHEN contains(med_dose_unit_clean, 'units/') THEN 'units/min'
+            , CASE WHEN med_dose_unit_clean NOT IN ('{acceptable_unit_patterns_str}') THEN NULL
+                WHEN contains(med_dose_unit_clean, 'units/') THEN 'units/min'
                 WHEN contains(med_dose_unit_clean, 'l/') THEN 'ml/min'
                 ELSE 'mcg/min' END as med_dose_unit_converted
         FROM med_df
