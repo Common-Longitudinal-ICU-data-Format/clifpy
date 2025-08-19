@@ -409,6 +409,9 @@ def test_get_summary_stats_missing_columns():
     assert stats_missing_group['med_group_counts'] == {}
     assert 'dose_stats_by_group' not in stats_missing_group or stats_missing_group['dose_stats_by_group'] == {}
 
+# ===========================================
+# Tests for `_acceptable_dose_unit_patterns`
+# ===========================================
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_acceptable_dose_unit_patterns():
@@ -454,20 +457,22 @@ def test_acceptable_dose_unit_patterns():
     for pattern in unacceptable_cases:
         assert pattern not in acceptable_patterns, f"Pattern '{pattern}' should NOT be acceptable"
 
-# Fixtures for standardize_dose_unit_pattern tests
+# ===========================================
+# Tests for `_normalize_dose_unit_pattern`
+# ===========================================
 @pytest.fixture
-def standardize_dose_unit_pattern_test_data(load_fixture_csv):
-    return load_fixture_csv('test_standardize_dose_unit_pattern.csv')
+def normalize_dose_unit_pattern_test_data(load_fixture_csv):
+    return load_fixture_csv('test_normalize_dose_unit_pattern.csv')
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_standardize_dose_unit_pattern_accounted(standardize_dose_unit_pattern_test_data):
-    """Test that the `_standardize_dose_unit_pattern` private method
+def test_normalize_dose_unit_pattern_accounted(normalize_dose_unit_pattern_test_data):
+    """Test that the `_normalize_dose_unit_pattern` private method
     1. correctly removes whitespace and converts `med_dose_unit` to lowercase. e.g. 'mL/ hr' -> 'ml/hr'.
     """
     mac_obj = MedicationAdminContinuous()
-    test_df = standardize_dose_unit_pattern_test_data.query("case == 'valid'")
-    result_df, unaccounted = mac_obj._standardize_dose_unit_pattern(test_df[['med_dose_unit']])
+    test_df = normalize_dose_unit_pattern_test_data.query("case == 'valid'")
+    result_df, unaccounted = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
     
     pd.testing.assert_series_equal(
         result_df['med_dose_unit_clean'].reset_index(drop=True),
@@ -478,15 +483,15 @@ def test_standardize_dose_unit_pattern_accounted(standardize_dose_unit_pattern_t
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_standardize_dose_unit_pattern_unaccounted(standardize_dose_unit_pattern_test_data, caplog):
-    """Test that the `_standardize_dose_unit_pattern` private method
+def test_normalize_dose_unit_pattern_unaccounted(normalize_dose_unit_pattern_test_data, caplog):
+    """Test that the `_normalize_dose_unit_pattern` private method
     2. correctly identifies, logs unaccounted-for dose units as warning and return as a dict.
     """
     mac_obj = MedicationAdminContinuous()
-    test_df = standardize_dose_unit_pattern_test_data.query("case == 'invalid'")
+    test_df = normalize_dose_unit_pattern_test_data.query("case == 'invalid'")
     
     with caplog.at_level('WARNING'):
-        _, unaccounted = mac_obj._standardize_dose_unit_pattern(test_df[['med_dose_unit']])
+        _, unaccounted = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
     
     assert isinstance(unaccounted, dict)
     for unit in test_df['med_dose_unit_clean']:
@@ -495,32 +500,44 @@ def test_standardize_dose_unit_pattern_unaccounted(standardize_dose_unit_pattern
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_standardize_empty_dataframe():
+def test_normalize_dose_unit_pattern_empty_dataframe():
     """Test the method gracefully handles empty input without crashing. """
     mac_obj = MedicationAdminContinuous()
     empty_df = pd.DataFrame({'med_dose_unit': pd.Series([], dtype='object')})
-    result_df, unaccounted = mac_obj._standardize_dose_unit_pattern(empty_df)
+    result_df, unaccounted = mac_obj._normalize_dose_unit_pattern(empty_df)
     assert 'med_dose_unit_clean' in result_df.columns
     assert unaccounted is False
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_standardize_using_self_df():
-    """Test that standardize uses self.df when no dataframe is provided"""
+def test_normalize_dose_unit_pattern_using_self_df():
+    """Test that `_normalize_dose_unit_pattern` uses self.df when no dataframe is provided"""
     test_data = pd.DataFrame({
         'hospitalization_id': ['H001'],
         'admin_dttm': pd.to_datetime(['2023-01-01']),
         'med_dose_unit': ['ML/HR']
     })
     mac_obj_with_data = MedicationAdminContinuous(data_directory=".", filetype="parquet", data=test_data)
-    result_df, unaccounted = mac_obj_with_data._standardize_dose_unit_pattern()
+    result_df, unaccounted = mac_obj_with_data._normalize_dose_unit_pattern()
     assert result_df['med_dose_unit_clean'].iloc[0] == 'ml/hr'
     assert unaccounted is False
 
-# Fixtures for conversion tests
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_normalize_dose_unit_pattern_no_data_provided():
+    """Test that _normalize_dose_unit_pattern raises ValueError when no data provided"""
+    mac_obj = MedicationAdminContinuous()
+    # mac_obj.df is None since no data was provided during initialization
+    with pytest.raises(ValueError, match="No data provided"):
+        mac_obj._normalize_dose_unit_pattern()
+
+
+# ===========================================
+# Tests for `convert_dose_to_limited_units`
+# ===========================================
 @pytest.fixture
-def convert_dose_to_same_units_test_data(load_fixture_csv):
-    df = load_fixture_csv('test_convert_dose_to_same_units.csv')
+def convert_dose_to_limited_units_test_data(load_fixture_csv):
+    df = load_fixture_csv('test_convert_dose_to_limited_units.csv')
     df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -534,18 +551,18 @@ def vitals_mock_data(load_fixture_csv):
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_dose_to_same_units(convert_dose_to_same_units_test_data, vitals_mock_data, caplog):
-    """Test that the `convert_dose_to_same_units` method correctly converts 
+def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, vitals_mock_data, caplog):
+    """Test that the `convert_dose_to_limited_units` method correctly converts 
     the numeric value of `med_dose` to the target unit of `mcg/min`, `ml/min`, 
     or `units/min`."""
     mac_obj = MedicationAdminContinuous()
-    test_df = convert_dose_to_same_units_test_data #.query("case == 'valid'")
+    test_df = convert_dose_to_limited_units_test_data #.query("case == 'valid'")
     test_df['med_category'] = 'Vasopressors'  # Required for SQL query
     
     input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
     
     with caplog.at_level('WARNING'):
-        result_df = mac_obj.convert_dose_to_same_units(vitals_df = vitals_mock_data, med_df = input_df) \
+        result_df = mac_obj.convert_dose_to_limited_units(vitals_df = vitals_mock_data, med_df = input_df) \
             .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
@@ -570,7 +587,7 @@ def test_convert_dose_to_same_units(convert_dose_to_same_units_test_data, vitals
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_dose_to_same_units_missing_columns():
+def test_convert_dose_to_limited_units_missing_columns():
     """Test that missing required columns raise appropriate errors"""
     mac_obj = MedicationAdminContinuous()
     vitals_df = pd.DataFrame({
@@ -589,21 +606,12 @@ def test_convert_dose_to_same_units_missing_columns():
     })
     
     with pytest.raises(ValueError, match="required but not found"):
-        mac_obj.convert_dose_to_same_units(vitals_df, med_df_missing)
+        mac_obj.convert_dose_to_limited_units(vitals_df, med_df_missing)
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_standardize_dose_unit_pattern_no_data_provided():
-    """Test that _standardize_dose_unit_pattern raises ValueError when no data provided"""
-    mac_obj = MedicationAdminContinuous()
-    # mac_obj.df is None since no data was provided during initialization
-    with pytest.raises(ValueError, match="No data provided"):
-        mac_obj._standardize_dose_unit_pattern()
-
-@pytest.mark.unit_conversion
-@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_dose_to_same_units_no_data_provided():
-    """Test that convert_dose_to_same_units raises ValueError when no data provided"""
+def test_convert_dose_to_limited_units_no_data_provided():
+    """Test that convert_dose_to_limited_units raises ValueError when no data provided"""
     mac_obj = MedicationAdminContinuous()
     vitals_df = pd.DataFrame({
         'hospitalization_id': ['H001'],
@@ -613,4 +621,4 @@ def test_convert_dose_to_same_units_no_data_provided():
     })
     # mac_obj.df is None since no data was provided during initialization
     with pytest.raises(ValueError, match="No data provided"):
-        mac_obj.convert_dose_to_same_units(vitals_df)
+        mac_obj.convert_dose_to_limited_units(vitals_df)

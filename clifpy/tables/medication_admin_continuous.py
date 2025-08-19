@@ -119,7 +119,7 @@ class MedicationAdminContinuous(BaseTable):
         
         This property creates all valid combinations of dose units that the converter
         can handle. All patterns are in lowercase with no whitespace, matching the
-        format produced by _standardize_dose_unit_pattern().
+        format produced by _normalize_dose_unit_pattern().
         
         Returns
         -------
@@ -145,7 +145,7 @@ class MedicationAdminContinuous(BaseTable):
         # find the cartesian product of the three sets
         return {a + b + c for a in acceptable_amounts for b in acceptable_weights for c in acceptable_times}
     
-    def _standardize_dose_unit_pattern(
+    def _normalize_dose_unit_pattern(
         self, med_df: Optional[pd.DataFrame] = None
         ) -> Tuple[pd.DataFrame, Union[Dict, bool]]:
         """
@@ -182,7 +182,7 @@ class MedicationAdminContinuous(BaseTable):
         Examples
         --------
         >>> df = pd.DataFrame({'med_dose_unit': ['ML/HR', 'mcg / kg/ min', 'invalid']})
-        >>> result_df, unaccounted = mac._standardize_dose_unit_pattern(df)
+        >>> result_df, unaccounted = mac._normalize_dose_unit_pattern(df)
         >>> result_df['med_dose_unit_clean'].tolist()
         ['ml/hr', 'mcg/kg/min', 'invalid']
         >>> unaccounted
@@ -210,7 +210,7 @@ class MedicationAdminContinuous(BaseTable):
         
         return med_df, False
         
-    def convert_dose_to_same_units(self, vitals_df: pd.DataFrame, med_df: pd.DataFrame = None) -> pd.DataFrame:
+    def convert_dose_to_limited_units(self, vitals_df: pd.DataFrame, med_df: pd.DataFrame = None) -> pd.DataFrame:
         """
         Convert medication doses to standardized units per minute.
         
@@ -281,7 +281,7 @@ class MedicationAdminContinuous(BaseTable):
         ...     'med_dose_unit': ['mcg/kg/hr'],
         ...     'med_category': ['Vasopressors']
         ... })
-        >>> result = mac.convert_dose_to_same_units(vitals, meds)
+        >>> result = mac.convert_dose_to_limited_units(vitals, meds)
         >>> result['med_dose_converted'].iloc[0]
         5.833333...  # 5 * 70 / 60 (mcg/kg/hr to mcg/min with 70kg patient)
         """
@@ -317,7 +317,7 @@ class MedicationAdminContinuous(BaseTable):
         if missing_columns:
             raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
         
-        med_df, unaccounted = self._standardize_dose_unit_pattern(med_df)
+        med_df, unaccounted = self._normalize_dose_unit_pattern(med_df)
         if not unaccounted:
             self.logger.info("No unaccounted-for dose units found, continuing with conversion")
         else:
