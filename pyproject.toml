@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyclif"  
+name = "clifpy"  
 version = "0.0.1"
 description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
