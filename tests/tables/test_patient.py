@@ -12,7 +12,7 @@ def sample_valid_patient_data():
     return pd.DataFrame({
         'patient_id': ['P001', 'P002', 'P003'],
         'birth_date': pd.to_datetime(['1980-01-01', '1990-02-02', '2000-03-03']),
-        'death_dttm': pd.to_datetime(['2024-12-01 08:15', '2024-12-01 08:15', '2024-12-01 08:15']),  # All have valid dates
+        'death_dttm': pd.to_datetime(['2113-08-25 12:00:00-05:00', '2113-08-25 12:00:00-05:00', '2113-08-25 12:00:00-05:00']),  # All have valid dates
         'race_name': ['white', 'black or african american', 'asian'],
         'race_category': ['White', 'Black or African American', 'Asian'],
         'ethnicity_name': ['hispanic', 'non-hispanic', 'non-hispanic'],
@@ -24,29 +24,12 @@ def sample_valid_patient_data():
     })
 
 @pytest.fixture
-def sample_valid_patient_data_minimal():
-    """Create a minimal valid patient DataFrame that should pass validation."""
-    return pd.DataFrame({
-        'patient_id': ['P001'],
-        'birth_date': pd.to_datetime(['1980-01-01']),
-        'death_dttm': pd.to_datetime(['2024-12-01 08:15']),
-        'race_name': ['white'],
-        'race_category': ['White'],
-        'ethnicity_name': ['hispanic'],
-        'ethnicity_category': ['Hispanic'],
-        'sex_name': ['male'],
-        'sex_category': ['Male'],
-        'language_name': ['english'],
-        'language_category': ['Unknown']
-    })
-
-@pytest.fixture
 def sample_patient_data_invalid_category():
     """Create a patient DataFrame with invalid categorical values."""
     return pd.DataFrame({
         'patient_id': ['P001'],
         'birth_date': pd.to_datetime(['1980-01-01']),
-        'death_dttm': pd.to_datetime(['2024-12-01 08:15']),
+        'death_dttm': pd.to_datetime(['2113-08-25 12:00:00-05:00']),
         'race_name': ['white'],
         'ethnicity_name': ['hispanic'],
         'sex_name': ['male'],
@@ -117,9 +100,9 @@ def mock_patient_file(tmp_path, sample_valid_patient_data):
 # --- Tests for patient class ---
 
 # Initialization and Schema Loading
-def test_patient_init_with_valid_data(sample_valid_patient_data_minimal):
+def test_patient_init_with_valid_data(sample_valid_patient_data):
     """Test patient initialization with valid data and mocked schema."""
-    patient_obj = Patient(data=sample_valid_patient_data_minimal)   
+    patient_obj = Patient(data=sample_valid_patient_data)   
     patient_obj.validate()
     assert patient_obj.df is not None
     assert patient_obj.isvalid() is True
@@ -185,9 +168,9 @@ def test_patient_from_file_nonexistent(tmp_path):
         Patient.from_file(non_existent_path, filetype="parquet")
 
 # isvalid method
-def test_patient_isvalid(sample_valid_patient_data_minimal, sample_patient_data_invalid_category):
+def test_patient_isvalid(sample_valid_patient_data, sample_patient_data_invalid_category):
     """Test isvalid method."""
-    valid_patient = Patient(data=sample_valid_patient_data_minimal)
+    valid_patient = Patient(data=sample_valid_patient_data)
     valid_patient.validate()  # Need to call validate first
     assert valid_patient.isvalid() is True
     
@@ -196,10 +179,10 @@ def test_patient_isvalid(sample_valid_patient_data_minimal, sample_patient_data_
     assert invalid_patient.isvalid() is False
 
 # validate method
-def test_patient_validate_output(sample_valid_patient_data_minimal, sample_patient_data_invalid_category, capsys):
+def test_patient_validate_output(sample_valid_patient_data, sample_patient_data_invalid_category, capsys):
     """Test validate method output messages."""
     # Valid data
-    valid_patient = Patient(data=sample_valid_patient_data_minimal)
+    valid_patient = Patient(data=sample_valid_patient_data)
     valid_patient.validate()
     captured = capsys.readouterr()
     assert "Validation completed successfully" in captured.out
