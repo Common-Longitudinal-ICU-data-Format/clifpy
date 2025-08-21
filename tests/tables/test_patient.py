@@ -138,37 +138,6 @@ def test_timezone_validation_non_utc_datetime(sample_patient_data_non_utc_timezo
     assert tz_error['column'] == 'death_dttm'
     assert 'EST' in str(tz_error.get('timezone', '')) 
 
-## Base table does the below, so we don't need to test it here
-# def test_schema_loading_file_not_found(tmp_path):
-#     """Test schema loading when the schema file is not found."""
-#     # Create a temporary directory without schemas
-#     test_dir = tmp_path / "test_data"
-#     test_dir.mkdir()
-    
-#     # This should work (schema loading is handled gracefully)
-#     patient_obj = Patient(data_directory=str(test_dir), filetype="parquet")
-#     assert patient_obj.schema is None  # Schema will be None if not found
-#     assert patient_obj.errors == []    # No errors during init
-
-# def test_schema_loading_malformed_yaml(tmp_path, monkeypatch):
-#     """Test schema loading when the YAML schema is malformed."""
-#     # Create a malformed YAML file
-#     schema_dir = tmp_path / "schemas"
-#     schema_dir.mkdir()
-#     malformed_schema = schema_dir / "patient_schema.yaml"
-#     malformed_schema.write_text("invalid: yaml: content: [")
-    
-#     # Mock the schema directory path
-#     def mock_schema_dir(*args, **kwargs):
-#         return str(schema_dir)
-    
-#     monkeypatch.setattr("clifpy.tables.base_table.BaseTable._load_schema", 
-#                        lambda self: self._load_schema_from_dir(str(schema_dir)))
-    
-#     # This should handle the YAML error gracefully
-#     patient_obj = Patient(data_directory=str(tmp_path), filetype="parquet")
-#     assert patient_obj.schema is None
-
 # from_file constructor
 def test_patient_from_file(mock_patient_file):
     """Test loading patient data from a parquet file."""
