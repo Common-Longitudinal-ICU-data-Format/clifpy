@@ -1,0 +1,120 @@
+site_name: CLIFpy Documentation
+site_description: Python Client for Common Longitudinal ICU data Format
+site_author: CLIF Consortium
+site_url: https://common-longitudinal-icu-data-format.github.io/CLIFpy/
+repo_url: https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy
+repo_name: CLIFpy
+
+theme:
+  name: material
+  logo: images/clif_logo_no_text_white.png  # Add your logo here
+  favicon: images/clif_logo_red_no_text.png  # Optional: use same logo as favicon
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: maroon
+      accent: red
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue grey
+      accent: red
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            docstring_style: google
+            merge_init_into_class: true
+            separate_signature: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Basic Usage: getting-started/basic-usage.md
+  - User Guide:
+      - Overview: user-guide/index.md
+      - CLIF Orchestrator: user-guide/orchestrator.md
+      - Tables:
+          - Overview: user-guide/tables/index.md
+          - Patient: user-guide/tables/patient.md
+          - ADT: user-guide/tables/adt.md
+          - Hospitalization: user-guide/tables/hospitalization.md
+          - Labs: user-guide/tables/labs.md
+          - Vitals: user-guide/tables/vitals.md
+          - Respiratory Support: user-guide/tables/respiratory-support.md
+          - Medications: user-guide/tables/medication-admin.md
+          - Assessments: user-guide/tables/patient-assessments.md
+          - Position: user-guide/tables/position.md
+      - Data Validation: user-guide/validation.md
+      - Working with Timezones: user-guide/timezones.md
+  - How-to Guides:
+      - Overview: examples/index.md
+      - Loading Data: examples/loading-data.md
+      - Analyzing ICU Stays: examples/icu-analysis.md
+      - Clinical Calculations: examples/clinical-calculations.md
+  - API Reference:
+      - Overview: api/index.md
+      - Orchestrator: api/orchestrator.md
+      - Base Table: api/base-table.md
+      - Tables: api/tables.md
+      - Utilities: api/utilities.md
+  - Contributing: contributing.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - js/dark-mode-default.js

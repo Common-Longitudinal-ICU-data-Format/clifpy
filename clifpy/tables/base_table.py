@@ -74,6 +74,7 @@ class BaseTable:
         self.df: Optional[pd.DataFrame] = data
         self.errors: List[Dict[str, Any]] = []
         self.schema: Optional[Dict[str, Any]] = None
+        self._validated: bool = False
         
         # Setup logging
         self._setup_logging()
@@ -210,6 +211,7 @@ class BaseTable:
         
         self.logger.info("Starting validation")
         self.errors = []
+        self._validated = True
         
         try:
             # Run basic schema validation
@@ -251,7 +253,7 @@ class BaseTable:
 
         datetime_columns = [
             col['name'] for col in self.schema.get('columns', [])
-            if col.get('data_type') == 'DATETIME' and col['name'] in self.df.columns
+            if col.get('data_type') == 'DATETIME' and col['name'] in self.df.columns and col['name'] != 'birth_date'
         ]
         if datetime_columns:
             self.logger.info(f"Validating timezone for datetime columns: {datetime_columns}")
@@ -286,7 +288,7 @@ class BaseTable:
                     self.logger.warning(f"Found {duplicate_result['duplicate_rows']} duplicate rows")
             
             # 2. Validate datetime timezone
-
+            self._run_tz_validation()
             
             # 3. Calculate and save missing data statistics
             self.logger.info("Calculating missing data statistics")
@@ -403,8 +405,12 @@ class BaseTable:
         Check if the data is valid based on the last validation run.
         
         Returns:
-            bool: True if no errors were found in the last validation
+            bool: True if validation has been run and no errors were found,
+                  False if validation found errors or hasn't been run yet
         """
+        if not self._validated:
+            print("Validation has not been run yet. Please call validate() first.")
+            return False
         return not self.errors
     
     def get_summary(self) -> Dict[str, Any]:
@@ -423,7 +429,8 @@ class BaseTable:
             "num_columns": len(self.df.columns),
             "columns": list(self.df.columns),
             "memory_usage_mb": self.df.memory_usage(deep=True).sum() / 1024 / 1024,
-            "validation_errors": len(self.errors),
+            "validation_run": self._validated,
+            "validation_errors": len(self.errors) if self._validated else None,
             "is_valid": self.isvalid()
         }
         
