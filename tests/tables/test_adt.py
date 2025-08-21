@@ -158,7 +158,7 @@ def test_adt_validate_output(sample_valid_adt_data, sample_adt_data_invalid_cate
     captured = capsys.readouterr()
     assert "Validation completed successfully" in captured.out
     
-    # Invalid data - should have multiple validation errors
+    ## Invalid data - should have multiple validation errors
     invalid_adt = Adt(data=sample_adt_data_invalid_category)
     invalid_adt.validate()
     captured = capsys.readouterr()
