@@ -135,20 +135,18 @@ def convert_datetime_columns_to_site_tz(df, site_tz_str, verbose=True):
         df[col] = pd.to_datetime(df[col], errors='coerce')
         if pd.api.types.is_datetime64tz_dtype(df[col]):
             current_tz = df[col].dt.tz
-            if current_tz == site_tz:
+            # Compare timezone names/strings instead of timezone objects
+            if str(current_tz) == str(site_tz):
                 if verbose:
                     print(f"{col}: Already in your timezone ({current_tz}), no conversion needed.")
-            elif current_tz == pytz.UTC:
-                print(f"{col}: null count before conversion= {df[col].isna().sum()}")
-                df[col] = df[col].dt.tz_convert(site_tz)
-                if verbose:
-                    print(f"{col}: Converted from UTC to your timezone ({site_tz}).")
-                    print(f"{col}: null count after conversion= {df[col].isna().sum()}")
             else:
                 print(f"{col}: null count before conversion= {df[col].isna().sum()}")
                 df[col] = df[col].dt.tz_convert(site_tz)
                 if verbose:
-                    print(f"{col}: Your timezone is {current_tz}, Converting to your site timezone ({site_tz}).")
+                    if current_tz == pytz.UTC or str(current_tz) == 'UTC':
+                        print(f"{col}: Converted from UTC to your timezone ({site_tz}).")
+                    else:
+                        print(f"{col}: Your timezone is {current_tz}, Converting to your site timezone ({site_tz}).")
                     print(f"{col}: null count after conversion= {df[col].isna().sum()}")
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             if verbose:
