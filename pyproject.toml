@@ -19,7 +19,7 @@ classifiers = [
   "License :: OSI Approved :: Apache 2.0",
   "Operating System :: OS Independent"
 ]
-requires-python = ">=3.9"p
+requires-python = ">=3.9"
 dependencies = [
   "pandas",
   "duckdb",
