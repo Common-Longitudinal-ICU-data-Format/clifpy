@@ -547,52 +547,52 @@ tables:
       max: 1.0
     lpm_set:
       min: 0.0
-      max: 100.0
+      max: 60.0
     tidal_volume_set:
       min: 100.0
-      max: 2000.0
+      max: 3000.0
     resp_rate_set:
       min: 0
-      max: 60
+      max: 200
     pressure_control_set:
-      min: 0.0
-      max: 100.0
+      min: -50.0
+      max: 50.0
     pressure_support_set:
-      min: 0.0
+      min: -50.0
       max: 50.0
     flow_rate_set:
-      min: 0.0
-      max: 200.0
+      min: -50.0
+      max: 100.0
     peak_inspiratory_pressure_set:
-      min: 0.0
+      min: -50.0
       max: 100.0
     inspiratory_time_set:
-      min: 0.1
-      max: 10.0
+      min: -1.0
+      max: 50.0
     peep_set:
       min: 0.0
-      max: 50.0
+      max: 30.0
     tidal_volume_obs:
-      min: 50.0
-      max: 2500.0
+      min: 100.0
+      max: 3000.0
     resp_rate_obs:
       min: 0
-      max: 80
+      max: 200
     plateau_pressure_obs:
       min: 0.0
       max: 100.0
     peak_inspiratory_pressure_obs:
-      min: 0.0
-      max: 120.0
+      min: -50.0
+      max: 100.0
     peep_obs:
       min: 0.0
       max: 50.0
     minute_vent_obs:
       min: 0.0
-      max: 50.0
+      max: 40.0
     mean_airway_pressure_obs:
       min: 0.0
-      max: 100.0
+      max: 50.0
 
   # Vitals table - values depend on vital category
   vitals:
