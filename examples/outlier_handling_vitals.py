@@ -35,16 +35,16 @@ def _():
 @app.cell
 def _():
     # Configuration - Edit these parameters for your data
-    DATA_DIR = "/Users/vaishvik/Downloads/work/clif_mimic"  # Edit this path
+    DATA_DIR = "/Users/sudo_sage/Documents/work/clif_mimic"  # Edit this path
     FILETYPE = "parquet"  # Edit this: "csv", "parquet", etc.
     TIMEZONE = "US/Eastern"  # Edit this: "UTC", "US/Eastern", "US/Pacific", etc.
     SAMPLE_SIZE = 1000000  # Edit this: None for all data, or integer for sample
 
-    return DATA_DIR, FILETYPE, SAMPLE_SIZE, TIMEZONE
+    return DATA_DIR, FILETYPE, TIMEZONE
 
 
 @app.cell
-def _(DATA_DIR, FILETYPE, SAMPLE_SIZE, TIMEZONE):
+def _(DATA_DIR, FILETYPE, TIMEZONE):
     # Import Vitals table class from top-level clifpy exports
     from clifpy import Vitals
 
@@ -52,8 +52,7 @@ def _(DATA_DIR, FILETYPE, SAMPLE_SIZE, TIMEZONE):
     vitals_table = Vitals.from_file(
         data_directory=DATA_DIR,
         filetype=FILETYPE,
-        timezone=TIMEZONE,
-        sample_size=SAMPLE_SIZE
+        timezone=TIMEZONE
     )
 
     print(f"Loaded vitals data:")
@@ -78,6 +77,11 @@ def _(vitals_table):
     apply_outlier_handling(vitals_table)
 
     print("\nOutlier handling completed!")
+    return
+
+
+@app.cell
+def _():
     return
 
 

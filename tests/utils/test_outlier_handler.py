@@ -202,17 +202,17 @@ class TestVitalsOutlierHandling:
     
     def test_heart_rate_outliers(self):
         """Test heart rate outlier detection."""
-        # Based on config: heart_rate min: 0, max: 70
+        # Based on config: heart_rate min: 0, max: 300
         df = pd.DataFrame({
             'vital_category': ['heart_rate'] * 5,
-            'vital_value': [-10, 30, 60, 80, 150]  # -10, 80, 150 are outliers
+            'vital_value': [-10, 30, 60, 80, 350]  # -10, 350 are outliers
         })
         table_obj = MockTableObj(df, 'vitals')
         
         apply_outlier_handling(table_obj)
         
         # Check that outliers were set to NaN
-        expected_values = [pd.NA, 30, 60, pd.NA, pd.NA]
+        expected_values = [pd.NA, 30, 60, 80, pd.NA]
         pd.testing.assert_series_equal(
             table_obj.df['vital_value'], 
             pd.Series(expected_values, name='vital_value', dtype='Int64'),
@@ -221,17 +221,17 @@ class TestVitalsOutlierHandling:
     
     def test_temperature_outliers(self):
         """Test temperature outlier detection."""
-        # Based on config: temp_c min: 30, max: 35 (seems like config has narrow ranges)
+        # Based on config: temp_c min: 32, max: 44
         df = pd.DataFrame({
             'vital_category': ['temp_c'] * 4,
-            'vital_value': [25, 32, 37, 45]  # 25, 37, 45 are outliers
+            'vital_value': [25, 32, 37, 45]  # 25, 45 are outliers
         })
         table_obj = MockTableObj(df, 'vitals')
         
         apply_outlier_handling(table_obj)
         
         # Check that outliers were set to NaN
-        expected_values = [pd.NA, 32, pd.NA, pd.NA]
+        expected_values = [pd.NA, 32, 37, pd.NA]
         pd.testing.assert_series_equal(
             table_obj.df['vital_value'], 
             pd.Series(expected_values, name='vital_value', dtype='Int64'),
@@ -242,14 +242,14 @@ class TestVitalsOutlierHandling:
         """Test outlier handling with mixed vital categories."""
         df = pd.DataFrame({
             'vital_category': ['heart_rate', 'temp_c', 'heart_rate', 'temp_c'],
-            'vital_value': [50, 32, 100, 40]  # 100 and 40 are outliers
+            'vital_value': [50, 32, 100, 50]  # 50 (temp_c) is outlier (below min 32)
         })
         table_obj = MockTableObj(df, 'vitals')
         
         apply_outlier_handling(table_obj)
         
         # Check that outliers were set to NaN per category
-        expected_values = [50, 32, pd.NA, pd.NA]
+        expected_values = [50, 32, 100, pd.NA]
         pd.testing.assert_series_equal(
             table_obj.df['vital_value'], 
             pd.Series(expected_values, name='vital_value', dtype='Int64'),
@@ -281,10 +281,10 @@ class TestLabsOutlierHandling:
     
     def test_glucose_outliers(self):
         """Test glucose outlier detection."""
-        # Based on config: glucose_serum min: 20.0, max: 1000.0
+        # Based on config: glucose_serum min: 0.0, max: 2000.0
         df = pd.DataFrame({
             'lab_category': ['glucose_serum'] * 4,
-            'lab_value_numeric': [10.0, 100.0, 500.0, 1500.0]  # 10.0 and 1500.0 are outliers
+            'lab_value_numeric': [-10.0, 100.0, 500.0, 2500.0]  # -10.0 and 2500.0 are outliers
         })
         table_obj = MockTableObj(df, 'labs')
         
@@ -522,13 +522,13 @@ class TestEdgeCases:
         """Test handling null values in data."""
         df = pd.DataFrame({
             'vital_category': ['heart_rate', 'heart_rate', 'heart_rate'],
-            'vital_value': [50, None, 80]  # One null value, 80 is outlier
+            'vital_value': [50, None, 350]  # One null value, 350 is outlier (above max 300)
         })
         table_obj = MockTableObj(df, 'vitals')
         
         apply_outlier_handling(table_obj)
         
-        # Null should remain null, 50 should be preserved, 80 should become NaN (outlier)
+        # Null should remain null, 50 should be preserved, 350 should become NaN (outlier)
         assert table_obj.df['vital_value'].iloc[0] == 50
         assert pd.isna(table_obj.df['vital_value'].iloc[1])
         assert pd.isna(table_obj.df['vital_value'].iloc[2])

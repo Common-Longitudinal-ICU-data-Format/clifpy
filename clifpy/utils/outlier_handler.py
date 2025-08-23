@@ -163,8 +163,8 @@ def _process_category_dependent_column_pandas(table_obj, column_name: str, colum
             min_val = range_config['min']
             max_val = range_config['max']
             
-            # Create mask for this category
-            category_mask = (table_obj.df[category_col] == category)
+            # Create mask for this category (case-insensitive)
+            category_mask = (table_obj.df[category_col].astype(str).str.lower() == category.lower())
             
             # Create mask for values outside range
             outlier_mask = (
@@ -207,8 +207,8 @@ def _process_medication_column_pandas(table_obj, column_config: Dict[str, Any]) 
                     min_val = range_config['min']
                     max_val = range_config['max']
                     
-                    # Create mask for this medication category and unit
-                    med_mask = (table_obj.df['med_category'] == med_category) & (table_obj.df['med_dose_unit'] == unit)
+                    # Create mask for this medication category and unit (case-insensitive)
+                    med_mask = (table_obj.df['med_category'].astype(str).str.lower() == med_category.lower()) & (table_obj.df['med_dose_unit'].astype(str).str.lower() == unit.lower())
                     
                     # Create mask for values outside range
                     outlier_mask = (
