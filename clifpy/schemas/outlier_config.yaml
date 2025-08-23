@@ -21,157 +21,160 @@ tables:
     lab_value_numeric:
       albumin:
         min: 0.0
-        max: 8.0
+        max: 15.0
       alkaline_phosphatase:
         min: 0
-        max: 2000
+        max: 5000
       alt:
         min: 0
-        max: 5000
+        max: 20000
       ast:
         min: 0
-        max: 5000
+        max: 20000
       basophils_percent:
         min: 0.0
-        max: 10.0
+        max: 100.0
       basophils_absolute:
         min: 0.0
-        max: 5.0
+        max: 50.0
       bicarbonate:
-        min: 5.0
+        min: 0.0
         max: 50.0
       bilirubin_total:
         min: 0.0
-        max: 50.0
+        max: 80.0
       bilirubin_conjugated:
         min: 0.0
-        max: 40.0
+        max: 50.0
       bilirubin_unconjugated:
         min: 0.0
-        max: 40.0
+        max: 50.0
       bun:
-        min: 1.0
-        max: 300.0
+        min: 0.0
+        max: 250.0
       calcium_total:
-        min: 5.0
-        max: 15.0
+        min: 0.0
+        max: 20.0
       calcium_ionized:
-        min: 0.5
-        max: 2.0
+        min: 0.0
+        max: 20.0
       chloride:
-        min: 70.0
-        max: 130.0
+        min: 50.0
+        max: 140.0
       creatinine:
-        min: 0.1
-        max: 30.0
+        min: 0.0
+        max: 20.0
       crp:
         min: 0.0
-        max: 500.0
+        max: 1000.0
       eosinophils_percent:
         min: 0.0
-        max: 15.0
+        max: 100.0
       eosinophils_absolute:
         min: 0.0
-        max: 5.0
+        max: 50.0
       esr:
         min: 0
-        max: 200
+        max: 1000
       ferritin:
         min: 0.0
-        max: 10000.0
+        max: 300000.0
       glucose_fingerstick:
-        min: 20.0
-        max: 1000.0
+        min: 0.0
+        max: 2000.0
       glucose_serum:
-        min: 20.0
-        max: 1000.0
+        min: 0.0
+        max: 2000.0
       hemoglobin:
-        min: 3.0
+        min: 2.0
         max: 25.0
       phosphate:
-        min: 0.5
+        min: 0.0
         max: 15.0
       inr:
-        min: 0.5
-        max: 20.0
+        min: 0.0
+        max: 15.0
       lactate:
         min: 0.0
         max: 30.0
       ldh:
-        min: 50
-        max: 5000
+        min: 0
+        max: 10000
       lymphocytes_percent:
         min: 0.0
-        max: 80.0
+        max: 100.0
       lymphocytes_absolute:
         min: 0.0
         max: 50.0
       magnesium:
-        min: 0.5
-        max: 5.0
-      monocytes_percent:
-        min: 0.0
-        max: 25.0
-      monocytes_absolute:
         min: 0.0
         max: 10.0
-      neutrophils_percent:
-        min: 0.0
-        max: 95.0
-      neutrophils_absolute:
+      monocytes_percent:
         min: 0.0
         max: 100.0
+      monocytes_absolute:
+        min: 0.0
+        max: 50.0
+      neutrophils_percent:
+        min: 0.0
+        max: 100.0
+      neutrophils_absolute:
+        min: 0.0
+        max: 50.0
       pco2_arterial:
-        min: 10.0
-        max: 150.0
+        min: 0.0
+        max: 250.0
       pco2_venous:
-        min: 15.0
-        max: 200.0
+        min: 0.0
+        max: 250.0
+      po2_arterial:
+        min: 0.0
+        max: 700.0
       ph_arterial:
-        min: 6.5
-        max: 8.0
+        min: 6.0
+        max: 10.0
       ph_venous:
-        min: 6.8
-        max: 7.8
+        min: 5.0
+        max: 10.0
       platelet_count:
         min: 0.0
         max: 2000.0
       potassium:
-        min: 1.5
-        max: 10.0
+        min: 0.0
+        max: 15.0
       procalcitonin:
         min: 0.0
-        max: 200.0
+        max: 1000.0
       pt:
-        min: 5.0
-        max: 120.0
+        min: 1.0
+        max: 200.0
       ptt:
-        min: 15.0
+        min: 1.0
         max: 200.0
       so2_arterial:
-        min: 30.0
+        min: 0.0
         max: 100.0
       so2_mixed_venous:
-        min: 20.0
+        min: 0.0
         max: 100.0
       so2_central_venous:
-        min: 20.0
+        min: 0.0
         max: 100.0
       sodium:
-        min: 110.0
-        max: 170.0
+        min: 90.0
+        max: 210.0
       total_protein:
-        min: 3.0
-        max: 12.0
+        min: 0.0
+        max: 20.0
       troponin_i:
         min: 0.0
-        max: 50000.0
+        max: 10000.0
       troponin_t:
         min: 0.0
-        max: 50000.0
+        max: 10000.0
       wbc:
         min: 0.0
-        max: 200.0
+        max: 500.0
 
   # Medication administration continuous table - dose depends on medication category and unit
   medication_admin_continuous:
