@@ -595,29 +595,29 @@ tables:
   vitals:
     vital_value:
       temp_c:
-        min: 30
-        max: 35
+        min: 32
+        max: 44
       heart_rate:
         min: 0
-        max: 70
+        max: 300
       sbp:
         min: 0
-        max: 70
+        max: 300
       dbp:
         min: 0
-        max: 70
+        max: 200
       spo2:
         min: 50
-        max: 70
+        max: 100
       respiratory_rate:
         min: 0
         max: 60
       map:
         min: 0
-        max: 70
+        max: 250
       height_cm:
-        min: 70
-        max: 70
+        min: 76
+        max: 255
       weight_kg:
         min: 30
-        max: 70
+        max: 1100
