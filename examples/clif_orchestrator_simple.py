@@ -276,6 +276,12 @@ def _(hourly_df):
 
 
 @app.cell
+def _(co):
+    co.get_system_resources()
+    return
+
+
+@app.cell
 def _():
     return
 

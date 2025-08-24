@@ -7,6 +7,7 @@ all CLIF table objects with consistent configuration.
 
 import os
 import pandas as pd
+import psutil
 from typing import Optional, List, Dict, Any
 
 from .tables.patient import Patient
@@ -335,3 +336,80 @@ class ClifOrchestrator:
             temp_directory=temp_directory,
             batch_size=batch_size
         )
+    
+    def get_system_resources(self, print_summary: bool = True) -> Dict[str, Any]:
+        """
+        Get system resource information including CPU, memory, and thread usage.
+        
+        Parameters:
+            print_summary (bool): Whether to print a formatted summary
+            
+        Returns:
+            Dict containing system resource information:
+            - cpu_count_physical: Number of physical CPU cores
+            - cpu_count_logical: Number of logical CPU cores
+            - cpu_usage_percent: Current CPU usage percentage
+            - memory_total_gb: Total RAM in GB
+            - memory_available_gb: Available RAM in GB
+            - memory_used_gb: Used RAM in GB
+            - memory_usage_percent: Memory usage percentage
+            - process_threads: Number of threads used by current process
+            - system_threads: Total number of threads in the system
+        """
+        # Get current process
+        current_process = psutil.Process()
+        
+        # CPU information
+        cpu_count_physical = psutil.cpu_count(logical=False)
+        cpu_count_logical = psutil.cpu_count(logical=True)
+        cpu_usage_percent = psutil.cpu_percent(interval=1)
+        
+        # Memory information
+        memory = psutil.virtual_memory()
+        memory_total_gb = memory.total / (1024**3)
+        memory_available_gb = memory.available / (1024**3)
+        memory_used_gb = memory.used / (1024**3)
+        memory_usage_percent = memory.percent
+        
+        # Thread information
+        process_threads = current_process.num_threads()
+        
+        # System-wide thread count (approximate)
+        system_threads = sum(p.num_threads() for p in psutil.process_iter(['num_threads']) 
+                           if p.info['num_threads'] is not None)
+        
+        resource_info = {
+            'cpu_count_physical': cpu_count_physical,
+            'cpu_count_logical': cpu_count_logical,
+            'cpu_usage_percent': cpu_usage_percent,
+            'memory_total_gb': memory_total_gb,
+            'memory_available_gb': memory_available_gb,
+            'memory_used_gb': memory_used_gb,
+            'memory_usage_percent': memory_usage_percent,
+            'process_threads': process_threads,
+            'system_threads': system_threads
+        }
+        
+        if print_summary:
+            print("=" * 50)
+            print("SYSTEM RESOURCES")
+            print("=" * 50)
+            print(f"CPU Cores (Physical): {cpu_count_physical}")
+            print(f"CPU Cores (Logical):  {cpu_count_logical}")
+            print(f"CPU Usage:            {cpu_usage_percent:.1f}%")
+            print("-" * 50)
+            print(f"Total RAM:            {memory_total_gb:.1f} GB")
+            print(f"Available RAM:        {memory_available_gb:.1f} GB")
+            print(f"Used RAM:             {memory_used_gb:.1f} GB")
+            print(f"Memory Usage:         {memory_usage_percent:.1f}%")
+            print("-" * 50)
+            print(f"Process Threads:      {process_threads}")
+            print(f"System Threads:       {system_threads}")
+            threads_available = system_threads - process_threads
+            print(f"Available Threads:    {threads_available}")
+            print("-" * 50)
+            print(f"RECOMMENDATION: Use {cpu_count_physical-2}-{cpu_count_physical} threads for optimal performance")
+            print(f"(Close to physical core count, avoiding system overhead)")
+            print("=" * 50)
+        
+        return resource_info
