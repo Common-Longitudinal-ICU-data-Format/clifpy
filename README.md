@@ -31,25 +31,17 @@ clifpy is a Python package for working with CLIF (Common Longitudinal ICU data F
 
 ## 📦 Installation
 
-### Development Installation
+### User Installation
+
+For most users, simply install from PyPI using pip:
+
 ```bash
-# Clone the repository
-git clone https://github.com/<your github username>/clifpy.git
-cd clifpy
-
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install in development mode
-pip install -e .
-```
-
-### Package Installation (Coming Soon)
-```bash
-# Will be available after PyPI release
 pip install clifpy
 ```
+
+This is all you need to start using clifpy in your projects.
+
+
 
 ## 📋 Requirements
 
@@ -66,14 +58,55 @@ See `pyproject.toml` for complete dependencies.
 
 We welcome contributions! Please see our contributing guidelines (coming soon).
 
+### Prerequisites
+
+First, install [uv](https://docs.astral.sh/uv/) if you haven't already:
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Or on Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
 ### Development Setup
+
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pytest`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+2. Clone your fork and set up the development environment:
+   ```bash
+   # Clone the repository
+   git clone https://github.com/<your github username>/clifpy.git
+   cd clifpy
+   
+   # Install dependencies and create virtual environment automatically
+   uv sync
+   ```
+3. Create a feature branch (`git checkout -b feature/amazing-feature`)
+4. Make your changes
+5. Add new dependencies with `uv add <package>` (for permanent dependencies)
+6. Run tests (`uv run pytest`)
+7. Commit your changes (`git commit -m 'Add amazing feature'`)
+8. Push to the branch (`git push origin feature/amazing-feature`)
+9. Open a Pull Request
+
+### Development Commands
+```bash
+# Run tests
+uv run pytest
+
+# Add a new dependency (updates pyproject.toml)
+uv add <package>
+
+# Add a development dependency
+uv add --dev <package>
+
+# Install temporary/experimental package (not committed to pyproject.toml)
+uv pip install <package>
+
+# Run any Python script
+uv run python your_script.py
+
+# Sync dependencies after pulling changes
+uv sync
+```
 
 ## 📄 License
 
