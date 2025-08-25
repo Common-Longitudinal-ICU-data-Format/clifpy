@@ -337,9 +337,9 @@ class ClifOrchestrator:
             batch_size=batch_size
         )
     
-    def get_system_resources(self, print_summary: bool = True) -> Dict[str, Any]:
+    def get_sys_resource_info(self, print_summary: bool = True) -> Dict[str, Any]:
         """
-        Get system resource information including CPU, memory, and thread usage.
+        Get system resource information including CPU, memory, and practical thread limits.
         
         Parameters:
             print_summary (bool): Whether to print a formatted summary
@@ -354,7 +354,7 @@ class ClifOrchestrator:
             - memory_used_gb: Used RAM in GB
             - memory_usage_percent: Memory usage percentage
             - process_threads: Number of threads used by current process
-            - system_threads: Total number of threads in the system
+            - max_recommended_threads: Recommended max threads for optimal performance
         """
         # Get current process
         current_process = psutil.Process()
@@ -373,10 +373,7 @@ class ClifOrchestrator:
         
         # Thread information
         process_threads = current_process.num_threads()
-        
-        # System-wide thread count (approximate)
-        system_threads = sum(p.num_threads() for p in psutil.process_iter(['num_threads']) 
-                           if p.info['num_threads'] is not None)
+        max_recommended_threads = cpu_count_physical  # Conservative recommendation
         
         resource_info = {
             'cpu_count_physical': cpu_count_physical,
@@ -387,7 +384,7 @@ class ClifOrchestrator:
             'memory_used_gb': memory_used_gb,
             'memory_usage_percent': memory_usage_percent,
             'process_threads': process_threads,
-            'system_threads': system_threads
+            'max_recommended_threads': max_recommended_threads
         }
         
         if print_summary:
@@ -404,12 +401,10 @@ class ClifOrchestrator:
             print(f"Memory Usage:         {memory_usage_percent:.1f}%")
             print("-" * 50)
             print(f"Process Threads:      {process_threads}")
-            print(f"System Threads:       {system_threads}")
-            threads_available = system_threads - process_threads
-            print(f"Available Threads:    {threads_available}")
+            print(f"Max Recommended:      {max_recommended_threads} threads")
             print("-" * 50)
-            print(f"RECOMMENDATION: Use {cpu_count_physical-2}-{cpu_count_physical} threads for optimal performance")
-            print(f"(Close to physical core count, avoiding system overhead)")
+            print(f"RECOMMENDATION: Use {max(1, cpu_count_physical-2)}-{cpu_count_physical} threads for optimal performance")
+            print(f"(Based on {cpu_count_physical} physical CPU cores)")
             print("=" * 50)
         
         return resource_info
