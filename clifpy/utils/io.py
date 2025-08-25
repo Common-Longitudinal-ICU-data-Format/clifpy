@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import duckdb
 import pytz
+from typing import Dict
+import yaml
 
 # conn = duckdb.connect(database=':memory:')
 
@@ -11,6 +13,13 @@ def _cast_id_cols_to_string(df):
     if id_cols:                                   # no-op if none found
         df[id_cols] = df[id_cols].astype("string")
     return df
+
+
+def load_config(file_path: str) -> Dict:
+    with open(file_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
+
 
 def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None):
     # Extract just the filename for cleaner output
