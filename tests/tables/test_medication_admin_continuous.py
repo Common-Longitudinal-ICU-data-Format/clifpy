@@ -451,7 +451,10 @@ def test_acceptable_dose_unit_patterns():
         'mcg/kg/day',  # day not supported
         'tablespoon/hr',  # tablespoon not supported
         'mcg/m2/hr',  # m2 not supported
-        'invalid/unit',  # completely invalid
+        'mcg',
+        "ml",
+        "l"
+        
     ]
     
     for pattern in unacceptable_cases:
@@ -579,10 +582,10 @@ def test_normalize_dose_unit_pattern_no_data_provided():
 
 
 # ===========================================
-# Tests for `convert_dose_to_limited_units`
+# Tests for `_convert_normalized_dose_units_to_limited_units`
 # ===========================================
 @pytest.fixture
-def convert_dose_to_limited_units_test_data(load_fixture_csv):
+def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
     """
     Load test data for dose unit conversion tests.
     
@@ -595,7 +598,7 @@ def convert_dose_to_limited_units_test_data(load_fixture_csv):
     
     Processes admin_dttm to datetime and converts empty weight_kg to NaN.
     """
-    df = load_fixture_csv('test_convert_dose_to_limited_units.csv')
+    df = load_fixture_csv('test_convert_normalized_dose_units_to_limited_units.csv')
     df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -620,9 +623,9 @@ def vitals_mock_data(load_fixture_csv):
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, vitals_mock_data, caplog):
+def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_units_to_limited_units_test_data, vitals_mock_data, caplog):
     """
-    Test that the `convert_dose_to_limited_units` method correctly converts doses to standard units.
+    Test that the `_convert_normalized_dose_units_to_limited_units` method correctly converts doses to standard units.
     
     Validates:
     - Conversion to target units: mcg/min, ml/min, or units/min
@@ -635,13 +638,13 @@ def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, 
     Compares actual conversions against expected values from test fixture.
     """
     mac_obj = MedicationAdminContinuous()
-    test_df = convert_dose_to_limited_units_test_data #.query("case == 'valid'")
+    test_df = convert_normalized_dose_units_to_limited_units_test_data #.query("case == 'valid'")
     test_df['med_category'] = 'Vasopressors'  # Required for SQL query
     
     input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
     
     with caplog.at_level('WARNING'):
-        result_df = mac_obj.convert_dose_to_limited_units(vitals_df = vitals_mock_data, med_df = input_df) \
+        result_df = mac_obj.standardize_dose_to_limited_units(vitals_df = vitals_mock_data, med_df = input_df) \
             .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
@@ -666,9 +669,9 @@ def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, 
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_dose_to_limited_units_missing_columns():
+def test_convert_normalized_dose_units_to_limited_units_missing_columns():
     """
-    Test that `convert_dose_to_limited_units` raises errors for missing required columns.
+    Test that `_convert_normalized_dose_units_to_limited_units` raises errors for missing required columns.
     
     Validates:
     - ValueError is raised when required columns are missing
@@ -693,13 +696,13 @@ def test_convert_dose_to_limited_units_missing_columns():
     })
     
     with pytest.raises(ValueError, match="required but not found"):
-        mac_obj.convert_dose_to_limited_units(vitals_df, med_df_missing)
+        mac_obj.standardize_dose_to_limited_units(vitals_df, med_df_missing)
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_dose_to_limited_units_no_data_provided():
+def test_convert_normalized_dose_units_to_limited_units_no_data_provided():
     """
-    Test that `convert_dose_to_limited_units` raises ValueError when no medication data is available.
+    Test that `_convert_normalized_dose_units_to_limited_units` raises ValueError when no medication data is available.
     
     Validates:
     - ValueError is raised with message "No data provided"
@@ -715,4 +718,4 @@ def test_convert_dose_to_limited_units_no_data_provided():
     })
     # mac_obj.df is None since no data was provided during initialization
     with pytest.raises(ValueError, match="No data provided"):
-        mac_obj.convert_dose_to_limited_units(vitals_df)
+        mac_obj.standardize_dose_to_limited_units(vitals_df)

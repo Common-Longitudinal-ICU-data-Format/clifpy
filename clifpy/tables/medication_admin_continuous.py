@@ -146,26 +146,24 @@ class MedicationAdminContinuous(BaseTable):
         return {a + b + c for a in acceptable_amounts for b in acceptable_weights for c in acceptable_times}
     
     def _normalize_dose_unit_pattern(
-        self, med_df: Optional[pd.DataFrame] = None
+        self, med_dose_unit_series: Optional[pd.Series] = None
         ) -> Tuple[pd.DataFrame, Union[Dict, bool]]:
         """
-        Standardize medication dose units to a consistent, convertible pattern.
-        
-        This method normalizes dose unit strings by removing all whitespace (including
-        internal spaces) and converting to lowercase. For example, 'mL/ hr' becomes 'ml/hr'.
-        It also identifies any dose units that don't match acceptable patterns.
+        Standardize medication dose units to a consistent, convertible pattern, by removing all 
+        whitespace (including internal spaces) and converting to lowercase. For example, 'mL/ hr' 
+        becomes 'ml/hr'. It also identifies any dose units that don't match acceptable patterns.
         
         Parameters
         ----------
-        med_df : pd.DataFrame, optional
-            DataFrame containing a 'med_dose_unit' column to standardize.
-            If None, uses self.df. Must not be None if self.df is also None.
+        med_dose_unit_series : pd.Series, optional
+            A vector of med dose unitsto standardize.
+            If None, uses self.df['med_dose_unit']. Must not be None if self.df is also None.
         
         Returns
         -------
-        Tuple[pd.DataFrame, Union[Dict, bool]]
+        Tuple[pd.Series, Union[Dict, bool]]
             A tuple containing:
-            - DataFrame with added 'med_dose_unit_clean' column containing standardized units
+            - Series containing standardized units
             - Either:
                 - False if all units are acceptable
                 - Dict mapping unrecognized unit patterns to their occurrence counts
@@ -181,40 +179,80 @@ class MedicationAdminContinuous(BaseTable):
         
         Examples
         --------
-        >>> df = pd.DataFrame({'med_dose_unit': ['ML/HR', 'mcg / kg/ min', 'invalid']})
+        >>> df = pd.Series(['ML/HR', 'mcg / kg/ min', 'MCG'])
         >>> result_df, unrecognized = mac._normalize_dose_unit_pattern(df)
-        >>> result_df['med_dose_unit_clean'].tolist()
-        ['ml/hr', 'mcg/kg/min', 'invalid']
+        >>> result_df
+        ['ml/hr', 'mcg/kg/min', 'mcg']
         >>> unrecognized
-        {'invalid': 1}
+        {'mcg': 1}
         """
-        if med_df is None:
-            med_df = self.df
-        if med_df is None:
+        if med_dose_unit_series is None:
+            med_dose_unit_series = self.df['med_dose_unit']
+        if med_dose_unit_series is None:
             raise ValueError("No data provided")
         
-        # Make a copy to avoid SettingWithCopyWarning
-        med_df = med_df.copy()
-        
         # Remove ALL whitespace (including internal) and convert to lowercase
-        med_df['med_dose_unit_clean'] = med_df['med_dose_unit'].str.replace(r'\s+', '', regex=True).str.lower()
+        med_dose_unit_clean_series = med_dose_unit_series.str.replace(r'\s+', '', regex=True).str.lower()
         
         # find any rows with unseen, unrecognized dose units which we do not know how to convert
-        mask = ~med_df['med_dose_unit_clean'].isin(self._acceptable_dose_unit_patterns)
-        unrecognized: pd.DataFrame = med_df[mask]
+        mask = ~med_dose_unit_clean_series.isin(self._acceptable_dose_unit_patterns)
+        unrecognized: pd.Series = med_dose_unit_clean_series[mask]
         
         if not unrecognized.empty:
-            unrecognized_unit_counts = unrecognized.value_counts('med_dose_unit_clean').to_dict()
+            unrecognized_unit_counts = unrecognized.value_counts().to_dict()
             self.logger.warning(f"The following dose units are not recognized by the converter: {unrecognized_unit_counts}")
-            return med_df, unrecognized_unit_counts
+            return med_dose_unit_clean_series, unrecognized_unit_counts
         
-        return med_df, False
-        
-    def convert_dose_to_limited_units(self, vitals_df: pd.DataFrame, med_df: pd.DataFrame = None) -> pd.DataFrame:
+        return med_dose_unit_clean_series, False
+    
+    def _convert_normalized_dose_units_to_limited_units(self, med_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Convert medication doses to standardized units per minute.
+        Convert normalized dose units to limited units.
         
-        This method converts all medication doses to one of three standard units:
+        Required columns:
+        - med_dose_unit_clean: Standardized unit pattern
+        - weight_kg: Patient weight used for conversion (if applicable)
+        - med_dose: Original dose value
+        
+        Returns:
+        - med_dose_converted: Dose value in standardized units
+        - med_dose_unit_converted: Standardized unit ('mcg/min', 'ml/min', or 'units/min')
+        """
+        # check if the required columns are present
+        required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
+        missing_columns = required_columns - set(med_df.columns)
+        if missing_columns:
+            raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
+        
+        acceptable_unit_patterns_str = "','".join(self._acceptable_dose_unit_patterns)
+        
+        query = f"""
+        SELECT *
+            , CASE WHEN regexp_matches(med_dose_unit_clean, '/h(r|our)?\\b') THEN 1/60.0
+                WHEN regexp_matches(med_dose_unit_clean, '/m(in|inute)?\\b') THEN 1.0
+                ELSE NULL END as time_multiplier
+            , CASE WHEN contains(med_dose_unit_clean, '/kg/') THEN weight_kg
+                ELSE 1 END AS pt_weight_multiplier
+            , CASE WHEN contains(med_dose_unit_clean, 'mcg/') THEN 1.0
+                WHEN contains(med_dose_unit_clean, 'mg/') THEN 1000.0
+                WHEN contains(med_dose_unit_clean, 'ng/') THEN 0.001
+                WHEN contains(med_dose_unit_clean, 'milli') THEN 0.001
+                WHEN contains(med_dose_unit_clean, 'units/') THEN 1
+                WHEN contains(med_dose_unit_clean, 'ml/') THEN 1.0
+                WHEN contains(med_dose_unit_clean, 'l/') AND NOT contains(med_dose_unit_clean, 'ml/') THEN 1000.0
+                ELSE NULL END as amount_multiplier
+            , med_dose * time_multiplier * pt_weight_multiplier * amount_multiplier as med_dose_converted
+            , CASE WHEN med_dose_unit_clean NOT IN ('{acceptable_unit_patterns_str}') THEN NULL
+                WHEN contains(med_dose_unit_clean, 'units/') THEN 'units/min'
+                WHEN contains(med_dose_unit_clean, 'l/') THEN 'ml/min'
+                ELSE 'mcg/min' END as med_dose_unit_converted
+        FROM med_df
+        """
+        return duckdb.sql(query).to_df()        
+        
+    def standardize_dose_to_limited_units(self, vitals_df: pd.DataFrame, med_df: pd.DataFrame = None) -> pd.DataFrame:
+        """
+        Converts all medication doses to one of three standard units:
         - mcg/min for mass-based medications
         - ml/min for volume-based medications  
         - units/min for unit-based medications
@@ -317,37 +355,13 @@ class MedicationAdminContinuous(BaseTable):
         if missing_columns:
             raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
         
-        med_df, unrecognized = self._normalize_dose_unit_pattern(med_df)
+        med_df['med_dose_unit_clean'], unrecognized = self._normalize_dose_unit_pattern(med_df['med_dose_unit'])
         if not unrecognized:
             self.logger.info("No unrecognized dose units found, continuing with conversion")
         else:
             self.logger.warning(f"Unrecognized dose units found: {unrecognized}")
         
-        acceptable_unit_patterns_str = "','".join(self._acceptable_dose_unit_patterns)
-        
-        query = f"""
-        SELECT *
-            , CASE WHEN regexp_matches(med_dose_unit_clean, '/h(r|our)?\\b') THEN 1/60.0
-                WHEN regexp_matches(med_dose_unit_clean, '/m(in|inute)?\\b') THEN 1.0
-                ELSE NULL END as time_multiplier
-            , CASE WHEN contains(med_dose_unit_clean, '/kg/') THEN weight_kg
-                ELSE 1 END AS pt_weight_multiplier
-            , CASE WHEN contains(med_dose_unit_clean, 'mcg/') THEN 1.0
-                WHEN contains(med_dose_unit_clean, 'mg/') THEN 1000.0
-                WHEN contains(med_dose_unit_clean, 'ng/') THEN 0.001
-                WHEN contains(med_dose_unit_clean, 'milli') THEN 0.001
-                WHEN contains(med_dose_unit_clean, 'units/') THEN 1
-                WHEN contains(med_dose_unit_clean, 'ml/') THEN 1.0
-                WHEN contains(med_dose_unit_clean, 'l/') AND NOT contains(med_dose_unit_clean, 'ml/') THEN 1000.0
-                ELSE NULL END as amount_multiplier
-            , med_dose * time_multiplier * pt_weight_multiplier * amount_multiplier as med_dose_converted
-            , CASE WHEN med_dose_unit_clean NOT IN ('{acceptable_unit_patterns_str}') THEN NULL
-                WHEN contains(med_dose_unit_clean, 'units/') THEN 'units/min'
-                WHEN contains(med_dose_unit_clean, 'l/') THEN 'ml/min'
-                ELSE 'mcg/min' END as med_dose_unit_converted
-        FROM med_df
-        """
-        return duckdb.sql(query).to_df()
+        return self._convert_normalized_dose_units_to_limited_units(med_df)
     
     
     
