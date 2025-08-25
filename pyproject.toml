@@ -43,3 +43,8 @@ include = ["clifpy*"]
 
 [tool.setuptools.package-data]
 pyclif = ["data/clif_demo/*.parquet", "mCIDE/*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+  "unit_conversion: marks tests related to unit conversion",
+]

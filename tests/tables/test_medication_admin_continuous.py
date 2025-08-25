@@ -7,7 +7,17 @@ import pandas as pd
 import json
 from datetime import datetime
 import numpy as np
-from pyclif.tables.medication_admin_continuous import medication_admin_continuous
+from pathlib import Path
+from clifpy.tables.medication_admin_continuous import MedicationAdminContinuous
+
+# --- Helper Fixtures for CSV Loading ---
+@pytest.fixture
+def load_fixture_csv():
+    """Load CSV fixture from tests/fixtures/medication_admin_continuous/"""
+    def _load(filename):
+        path = Path(__file__).parent.parent / 'fixtures' / 'medication_admin_continuous' / filename
+        return pd.read_csv(path)
+    return _load
 
 # --- Mock Schema --- 
 @pytest.fixture
@@ -54,7 +64,7 @@ def patch_med_admin_continuous_schema_path(monkeypatch, mock_med_admin_continuou
 
     import importlib
     # Explicitly import the module to ensure we get the module object, not potentially the class
-    module_name = "pyclif.tables.medication_admin_continuous"
+    module_name = "clifpy.tables.medication_admin_continuous"
     module_obj = importlib.import_module(module_name)
     target_module_file_path = os.path.normpath(module_obj.__file__)
 
@@ -101,7 +111,7 @@ def patch_validator_load_schema(monkeypatch, mock_med_admin_continuous_schema_co
         # If other tables were processed by validate_table in these tests, they'd need their own mock handling.
         raise ValueError(f"patch_validator_load_schema called for unexpected table: {table_name}")
 
-    monkeypatch.setattr("pyclif.utils.validator._load_spec", mock_load_schema_for_validation)
+    monkeypatch.setattr("clifpy.utils.validator._load_spec", mock_load_schema_for_validation)
 
 # --- Data Fixtures --- 
 @pytest.fixture
@@ -152,7 +162,7 @@ def mock_med_admin_continuous_file(tmp_path, sample_valid_med_admin_continuous_d
 # Initialization and Schema Loading
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_with_valid_data(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     assert mac_obj.df is not None
     assert mac_obj.isvalid() is True
     assert not mac_obj.errors
@@ -160,7 +170,7 @@ def test_init_with_valid_data(sample_valid_med_admin_continuous_data):
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_with_invalid_schema_data(sample_invalid_med_admin_continuous_data_schema):
-    mac_obj = medication_admin_continuous(sample_invalid_med_admin_continuous_data_schema)
+    mac_obj = MedicationAdminContinuous(sample_invalid_med_admin_continuous_data_schema)
     assert mac_obj.df is not None
     mac_obj.validate() # Ensure validation is run if not fully in init or for clarity
     assert mac_obj.isvalid() is False
@@ -180,7 +190,7 @@ def test_init_with_invalid_schema_data(sample_invalid_med_admin_continuous_data_
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_without_data():
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     assert mac_obj.df is None
     assert mac_obj.isvalid() is True # No data, so no validation errors
     assert not mac_obj.errors
@@ -193,7 +203,7 @@ def test_load_medication_schema_file_not_found(monkeypatch, capsys):
         return os.path.join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
     
-    mac_obj = medication_admin_continuous() # Init calls _load_medication_schema
+    mac_obj = MedicationAdminContinuous() # Init calls _load_medication_schema
     assert mac_obj._med_category_to_group == {}
     captured = capsys.readouterr()
     assert "Warning: Medication_admin_continuousModel.json not found" in captured.out
@@ -228,14 +238,14 @@ def test_load_medication_schema_json_decode_error(monkeypatch, tmp_path, capsys)
     monkeypatch.setattr(os.path, 'dirname', mock_dirname_local)
     monkeypatch.setattr(os.path, 'join', mock_join_local)
 
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     assert mac_obj._med_category_to_group == {}
     captured = capsys.readouterr()
     assert "Warning: Invalid JSON in Medication_admin_continuousModel.json" in captured.out
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path") # Only this patch needed as it tests _load_medication_schema directly
 def test_med_category_to_group_mapping_property(mock_med_admin_continuous_schema_content):
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     expected_mapping = mock_med_admin_continuous_schema_content['med_category_to_group_mapping']
     assert mac_obj.med_category_to_group_mapping == expected_mapping
     # Test it returns a copy
@@ -246,7 +256,7 @@ def test_med_category_to_group_mapping_property(mock_med_admin_continuous_schema
 # from_file constructor
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_from_file(mock_med_admin_continuous_file, sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous.from_file(mock_med_admin_continuous_file, table_format_type="parquet")
+    mac_obj = MedicationAdminContinuous.from_file(mock_med_admin_continuous_file, table_format_type="parquet")
     assert mac_obj.df is not None
     pd.testing.assert_frame_equal(mac_obj.df.reset_index(drop=True), sample_valid_med_admin_continuous_data.reset_index(drop=True), check_dtype=False)
     assert mac_obj.isvalid() is True
@@ -255,29 +265,29 @@ def test_from_file(mock_med_admin_continuous_file, sample_valid_med_admin_contin
 def test_from_file_nonexistent(tmp_path):
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        medication_admin_continuous.from_file(non_existent_path, table_format_type="parquet")
+        MedicationAdminContinuous.from_file(non_existent_path, table_format_type="parquet")
 
 # isvalid method
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_isvalid(sample_valid_med_admin_continuous_data, sample_invalid_med_admin_continuous_data_schema):
-    valid_mac = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    valid_mac = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     assert valid_mac.isvalid() is True
     
-    invalid_mac = medication_admin_continuous(sample_invalid_med_admin_continuous_data_schema)
+    invalid_mac = MedicationAdminContinuous(sample_invalid_med_admin_continuous_data_schema)
     assert invalid_mac.isvalid() is False 
 
 # validate method
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_validate_output(sample_valid_med_admin_continuous_data, sample_invalid_med_admin_continuous_data_schema, capsys):
-    medication_admin_continuous(sample_valid_med_admin_continuous_data) # Validation runs at init
+    MedicationAdminContinuous(sample_valid_med_admin_continuous_data) # Validation runs at init
     captured = capsys.readouterr()
     assert "Validation completed successfully." in captured.out
 
-    medication_admin_continuous(sample_invalid_med_admin_continuous_data_schema)
+    MedicationAdminContinuous(sample_invalid_med_admin_continuous_data_schema)
     captured = capsys.readouterr()
     assert f"Validation completed with" in captured.out # Checks for presence of error count
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     mac_obj_no_data.validate() # Explicit call
     captured = capsys.readouterr()
     assert "No dataframe to validate." in captured.out
@@ -285,33 +295,33 @@ def test_validate_output(sample_valid_med_admin_continuous_data, sample_invalid_
 # Medication Admin Continuous Specific Methods
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_med_categories(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     categories = mac_obj.get_med_categories()
     assert isinstance(categories, list)
     assert set(categories) == {'Antibiotics', 'Vasopressors'}
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.get_med_categories() == []
 
-    mac_obj_no_col = medication_admin_continuous(pd.DataFrame({'hospitalization_id': [1]}))
+    mac_obj_no_col = MedicationAdminContinuous(pd.DataFrame({'hospitalization_id': [1]}))
     assert mac_obj_no_col.get_med_categories() == []
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_med_groups(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     groups = mac_obj.get_med_groups()
     assert isinstance(groups, list)
     assert set(groups) == {'Cephalosporins', 'Catecholamines'}
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.get_med_groups() == []
 
-    mac_obj_no_col = medication_admin_continuous(pd.DataFrame({'hospitalization_id': [1]}))
+    mac_obj_no_col = MedicationAdminContinuous(pd.DataFrame({'hospitalization_id': [1]}))
     assert mac_obj_no_col.get_med_groups() == []
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_filter_by_med_group(sample_valid_med_admin_continuous_data):
-    mac_obj = medication_admin_continuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
     filtered_df = mac_obj.filter_by_med_group('Cephalosporins')
     assert len(filtered_df) == 2
     assert all(filtered_df['med_group'] == 'Cephalosporins')
@@ -319,15 +329,15 @@ def test_filter_by_med_group(sample_valid_med_admin_continuous_data):
     filtered_df_non_existent = mac_obj.filter_by_med_group('NonExistentGroup')
     assert filtered_df_non_existent.empty
 
-    mac_obj_no_data = medication_admin_continuous()
+    mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.filter_by_med_group('AnyGroup').empty
 
-    mac_obj_no_col = medication_admin_continuous(pd.DataFrame({'hospitalization_id': [1]}))
+    mac_obj_no_col = MedicationAdminContinuous(pd.DataFrame({'hospitalization_id': [1]}))
     assert mac_obj_no_col.filter_by_med_group('AnyGroup').empty
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_summary_stats(sample_med_admin_continuous_data_for_stats):
-    mac_obj = medication_admin_continuous(sample_med_admin_continuous_data_for_stats)
+    mac_obj = MedicationAdminContinuous(sample_med_admin_continuous_data_for_stats)
     stats = mac_obj.get_summary_stats()
 
     assert stats['total_records'] == 5
@@ -356,7 +366,7 @@ def test_get_summary_stats(sample_med_admin_continuous_data_for_stats):
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_summary_stats_empty_df():
-    mac_obj = medication_admin_continuous(pd.DataFrame(columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_group', 'med_dose']))
+    mac_obj = MedicationAdminContinuous(pd.DataFrame(columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_group', 'med_dose']))
     stats = mac_obj.get_summary_stats()
     assert stats['total_records'] == 0
     assert stats['unique_hospitalizations'] == 0
@@ -368,7 +378,7 @@ def test_get_summary_stats_empty_df():
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_get_summary_stats_no_df():
-    mac_obj = medication_admin_continuous()
+    mac_obj = MedicationAdminContinuous()
     stats = mac_obj.get_summary_stats()
     assert stats == {}
 
@@ -382,7 +392,7 @@ def test_get_summary_stats_missing_columns():
         'med_group': ['Cephalosporins']
         # med_dose is missing
     })
-    mac_obj = medication_admin_continuous(data_missing_dose)
+    mac_obj = MedicationAdminContinuous(data_missing_dose)
     stats = mac_obj.get_summary_stats()
     assert 'dose_stats_by_group' not in stats or stats['dose_stats_by_group'] == {}
 
@@ -394,7 +404,315 @@ def test_get_summary_stats_missing_columns():
         'med_dose': [100.0]
         # med_group is missing
     })
-    mac_obj_missing_group = medication_admin_continuous(data_missing_group)
+    mac_obj_missing_group = MedicationAdminContinuous(data_missing_group)
     stats_missing_group = mac_obj_missing_group.get_summary_stats()
     assert stats_missing_group['med_group_counts'] == {}
     assert 'dose_stats_by_group' not in stats_missing_group or stats_missing_group['dose_stats_by_group'] == {}
+
+# ===========================================
+# Tests for `_acceptable_dose_unit_patterns`
+# ===========================================
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_acceptable_dose_unit_patterns():
+    """
+    Test that acceptable dose unit pattern (e.g. 'mcg/kg/hr') are included in the `_acceptable_dose_unit_patterns` property
+    and wrong patterns (e.g. 'mcg/lb/min') are not.
+    """
+    mac_obj = MedicationAdminContinuous()
+    acceptable_patterns = mac_obj._acceptable_dose_unit_patterns
+    
+    # Test cases that should be acceptable
+    acceptable_cases = [
+        'mcg/kg/hr',
+        'mcg/kg/h',
+        'mcg/kg/hour',
+        'mcg/kg/min',
+        'mcg/kg/m',
+        'mcg/kg/minute',
+        'mg/hr',
+        'mg/min',
+        'units/hr',
+        'units/min',
+        'ml/hr',
+        'ml/min',
+        'l/hr',
+        'ng/kg/min',
+        'milli-units/min'
+    ]
+    
+    for pattern in acceptable_cases:
+        assert pattern in acceptable_patterns, f"Pattern '{pattern}' should be acceptable"
+    
+    # Test cases that should NOT be acceptable
+    unacceptable_cases = [
+        'mcg/lb/min',  # lb instead of kg
+        'mcg/kg/sec',  # sec not supported
+        'mcg/kg/day',  # day not supported
+        'tablespoon/hr',  # tablespoon not supported
+        'mcg/m2/hr',  # m2 not supported
+        'invalid/unit',  # completely invalid
+    ]
+    
+    for pattern in unacceptable_cases:
+        assert pattern not in acceptable_patterns, f"Pattern '{pattern}' should NOT be acceptable"
+
+# ===========================================
+# Tests for `_normalize_dose_unit_pattern`
+# ===========================================
+@pytest.fixture
+def normalize_dose_unit_pattern_test_data(load_fixture_csv):
+    """
+    Load test data for dose unit pattern normalization tests.
+    
+    Returns CSV data with columns:
+    - case: 'valid' or 'invalid' to categorize test scenarios
+    - med_dose_unit: Original dose unit string
+    - med_dose_unit_clean: Expected normalized result
+    """
+    return load_fixture_csv('test_normalize_dose_unit_pattern.csv')
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_normalize_dose_unit_pattern_recognized(normalize_dose_unit_pattern_test_data):
+    """
+    Test that the `_normalize_dose_unit_pattern` private method correctly normalizes valid dose units.
+    
+    Validates:
+    1. Whitespace removal (including internal spaces): 'mL/ hr' -> 'ml/hr'
+    2. Case conversion to lowercase: 'ML/HR' -> 'ml/hr'
+    3. Return value indicates no unrecognized units (False)
+    
+    Uses fixture data filtered for 'valid' test cases.
+    """
+    mac_obj = MedicationAdminContinuous()
+    test_df = normalize_dose_unit_pattern_test_data.query("case == 'valid'")
+    result_df, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
+    
+    # first check the filtering went right, i.e. test_df is not empty
+    assert test_df.shape[0] > 0
+    
+    pd.testing.assert_series_equal(
+        result_df['med_dose_unit_clean'].reset_index(drop=True),
+        test_df['med_dose_unit_clean'].reset_index(drop=True),
+        check_names=False
+    )
+    assert unrecognized is False # no unrecognized dose units so the return should be False
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_normalize_dose_unit_pattern_unrecognized(normalize_dose_unit_pattern_test_data, caplog):
+    """
+    Test that the `_normalize_dose_unit_pattern` private method handles unrecognized dose units.
+    
+    Validates:
+    1. Unrecognized units are identified and returned as a dictionary with counts
+    2. Warning is logged with details about unrecognized units
+    3. All invalid units from test data appear in the unrecognized dictionary
+    
+    Uses fixture data filtered for 'invalid' test cases.
+    """
+    mac_obj = MedicationAdminContinuous()
+    test_df = normalize_dose_unit_pattern_test_data.query("case == 'invalid'")
+    assert test_df.shape[0] > 0
+    
+    with caplog.at_level('WARNING'):
+        _, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
+    
+    assert isinstance(unrecognized, dict)
+    for unit in test_df['med_dose_unit_clean']:
+        assert unit in unrecognized # check that all invalid units are in the unrecognized dict
+    assert "not recognized by the converter" in caplog.text
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_normalize_dose_unit_pattern_empty_dataframe():
+    """
+    Test that `_normalize_dose_unit_pattern` gracefully handles empty DataFrames.
+    
+    Validates:
+    - Empty DataFrame input doesn't cause errors
+    - Output DataFrame contains required 'med_dose_unit_clean' column
+    - Returns False for unrecognized units (no units to process)
+    """
+    mac_obj = MedicationAdminContinuous()
+    empty_df = pd.DataFrame({'med_dose_unit': pd.Series([], dtype='object')})
+    result_df, unrecognized = mac_obj._normalize_dose_unit_pattern(empty_df)
+    assert 'med_dose_unit_clean' in result_df.columns
+    assert unrecognized is False
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_normalize_dose_unit_pattern_using_self_df():
+    """
+    Test that `_normalize_dose_unit_pattern` uses self.df when no DataFrame is provided.
+    
+    Validates:
+    - Method defaults to using self.df when med_df parameter is None
+    - Normalization works correctly on instance data
+    - 'ML/HR' is properly normalized to 'ml/hr'
+    """
+    test_data = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'admin_dttm': pd.to_datetime(['2023-01-01']),
+        'med_dose_unit': ['ML/HR']
+    })
+    mac_obj_with_data = MedicationAdminContinuous(data_directory=".", filetype="parquet", data=test_data)
+    result_df, unrecognized = mac_obj_with_data._normalize_dose_unit_pattern()
+    assert result_df['med_dose_unit_clean'].iloc[0] == 'ml/hr'
+    assert unrecognized is False
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_normalize_dose_unit_pattern_no_data_provided():
+    """
+    Test that `_normalize_dose_unit_pattern` raises ValueError when no data is available.
+    
+    Validates:
+    - ValueError is raised with message "No data provided"
+    - Occurs when both med_df parameter is None and self.df is None
+    """
+    mac_obj = MedicationAdminContinuous()
+    # mac_obj.df is None since no data was provided during initialization
+    with pytest.raises(ValueError, match="No data provided"):
+        mac_obj._normalize_dose_unit_pattern()
+
+
+# ===========================================
+# Tests for `convert_dose_to_limited_units`
+# ===========================================
+@pytest.fixture
+def convert_dose_to_limited_units_test_data(load_fixture_csv):
+    """
+    Load test data for dose unit conversion tests.
+    
+    Returns CSV data with columns:
+    - hospitalization_id, admin_dttm: Patient and timing identifiers
+    - med_dose, med_dose_unit: Original dose values and units
+    - weight_kg: Patient weight (may be empty/NaN)
+    - med_dose_converted, med_dose_unit_converted: Expected conversion results
+    - case: Test scenario category
+    
+    Processes admin_dttm to datetime and converts empty weight_kg to NaN.
+    """
+    df = load_fixture_csv('test_convert_dose_to_limited_units.csv')
+    df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
+    # Replace empty strings with NaN for weight_kg column
+    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    return df
+
+@pytest.fixture
+def vitals_mock_data(load_fixture_csv):
+    """
+    Load mock vitals data containing patient weights.
+    
+    Returns CSV data with columns:
+    - hospitalization_id: Patient identifier
+    - recorded_dttm: Timestamp of vital recording
+    - vital_category: Type of vital (expects 'weight_kg')
+    - vital_value: Numeric weight value
+    
+    Used for testing weight-based dose conversions.
+    """
+    df = load_fixture_csv('vitals_weights.csv')
+    df['recorded_dttm'] = pd.to_datetime(df['recorded_dttm'])
+    return df
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_dose_to_limited_units(convert_dose_to_limited_units_test_data, vitals_mock_data, caplog):
+    """
+    Test that the `convert_dose_to_limited_units` method correctly converts doses to standard units.
+    
+    Validates:
+    - Conversion to target units: mcg/min, ml/min, or units/min
+    - Weight-based calculations using patient weights from vitals
+    - Time unit conversions (per hour to per minute)
+    - Proper handling of various dose patterns from test data
+    - Warning logged for unrecognized dose units
+    - Output columns include med_dose_converted, med_dose_unit_converted, weight_kg
+    
+    Compares actual conversions against expected values from test fixture.
+    """
+    mac_obj = MedicationAdminContinuous()
+    test_df = convert_dose_to_limited_units_test_data #.query("case == 'valid'")
+    test_df['med_category'] = 'Vasopressors'  # Required for SQL query
+    
+    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    
+    with caplog.at_level('WARNING'):
+        result_df = mac_obj.convert_dose_to_limited_units(vitals_df = vitals_mock_data, med_df = input_df) \
+            .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
+    
+    # Verify columns exist
+    assert 'med_dose_converted' in result_df.columns
+    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'weight_kg' in result_df.columns
+    assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
+
+    # Verify converted values
+    pd.testing.assert_series_equal(
+        test_df['med_dose_converted'].fillna(pd.NA).reset_index(drop=True),
+        result_df['med_dose_converted'].fillna(pd.NA).reset_index(drop=True),
+        check_names=False
+    )
+
+    # Verify converted units
+    pd.testing.assert_series_equal(
+        test_df['med_dose_unit_converted'].fillna(pd.NA).reset_index(drop=True),
+        result_df['med_dose_unit_converted'].fillna(pd.NA).reset_index(drop=True),
+        check_names=False
+    )
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_dose_to_limited_units_missing_columns():
+    """
+    Test that `convert_dose_to_limited_units` raises errors for missing required columns.
+    
+    Validates:
+    - ValueError is raised when required columns are missing
+    - Error message includes "required but not found"
+    - Specifically tests missing 'med_dose_unit' column
+    - Other required columns (med_dose, weight_kg) would trigger same error
+    """
+    mac_obj = MedicationAdminContinuous()
+    vitals_df = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'recorded_dttm': pd.to_datetime(['2023-01-01 09:00']),
+        'vital_category': ['weight_kg'],
+        'vital_value': [70.0]
+    })
+    
+    med_df_missing = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'admin_dttm': pd.to_datetime(['2023-01-01 11:00']),
+        'med_category': ['Antibiotics'],  # Include required column for SQL
+        # Missing med_dose_unit
+        'med_dose': [100.0]
+    })
+    
+    with pytest.raises(ValueError, match="required but not found"):
+        mac_obj.convert_dose_to_limited_units(vitals_df, med_df_missing)
+
+@pytest.mark.unit_conversion
+@pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
+def test_convert_dose_to_limited_units_no_data_provided():
+    """
+    Test that `convert_dose_to_limited_units` raises ValueError when no medication data is available.
+    
+    Validates:
+    - ValueError is raised with message "No data provided"
+    - Occurs when both med_df parameter is None and self.df is None
+    - Vitals data is provided but medication data is missing
+    """
+    mac_obj = MedicationAdminContinuous()
+    vitals_df = pd.DataFrame({
+        'hospitalization_id': ['H001'],
+        'recorded_dttm': pd.to_datetime(['2023-01-01 09:00']),
+        'vital_category': ['weight_kg'],
+        'vital_value': [70.0]
+    })
+    # mac_obj.df is None since no data was provided during initialization
+    with pytest.raises(ValueError, match="No data provided"):
+        mac_obj.convert_dose_to_limited_units(vitals_df)

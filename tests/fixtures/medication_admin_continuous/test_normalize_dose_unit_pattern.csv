@@ -1,0 +1,13 @@
+case,med_dose_unit,med_dose_unit_clean,is_recognized
+valid,ml/h,ml/h,true
+valid,MCG/KG/MIN,mcg/kg/min,true
+valid, Mg/Hr ,mg/hr,true
+valid,units/minute,units/minute,true
+valid,ml/min,ml/min,true
+valid,ml/ hr,ml/hr,true
+valid,mcg /kg/min,mcg/kg/min,true
+valid,mg / hour,mg/hour,true
+valid,mL/ kg/ min,ml/kg/min,true
+invalid,mcg/lb/min,mcg/lb/min,false
+invalid,tablespoon/hr,tablespoon/hr,false
+invalid,invalid_unit,invalid_unit,false
