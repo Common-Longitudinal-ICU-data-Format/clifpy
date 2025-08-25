@@ -6,6 +6,8 @@ all CLIF table objects with consistent configuration.
 """
 
 import os
+import pandas as pd
+import psutil
 from typing import Optional, List, Dict, Any
 
 from .tables.patient import Patient
@@ -17,6 +19,19 @@ from .tables.medication_admin_continuous import MedicationAdminContinuous
 from .tables.patient_assessments import PatientAssessments
 from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
+
+
+TABLE_CLASSES = {
+    'patient': Patient,
+    'hospitalization': Hospitalization,
+    'adt': Adt,
+    'labs': Labs,
+    'vitals': Vitals,
+    'medication_admin_continuous': MedicationAdminContinuous,
+    'patient_assessments': PatientAssessments,
+    'respiratory_support': RespiratorySupport,
+    'position': Position
+}
 
 
 class ClifOrchestrator:
@@ -82,24 +97,30 @@ class ClifOrchestrator:
         
         print('ClifOrchestrator initialized.')
     
-    def load_patient_data(
+    def load_table(
         self,
+        table_name: str,
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
     ):
         """
-        Load patient data and create Patient table object.
+        Load table data and create table object.
         
         Parameters:
+            table_name (str): Name of the table to load
             sample_size (int, optional): Number of rows to load
             columns (List[str], optional): Specific columns to load
             filters (Dict, optional): Filters to apply when loading
             
         Returns:
-            Patient: The loaded Patient table object
+            The loaded table object
         """
-        self.patient = Patient.from_file(
+        if table_name not in TABLE_CLASSES:
+            raise ValueError(f"Unknown table: {table_name}. Available tables: {list(TABLE_CLASSES.keys())}")
+        
+        table_class = TABLE_CLASSES[table_name]
+        table_object = table_class.from_file(
             data_directory=self.data_directory,
             filetype=self.filetype,
             timezone=self.timezone,
@@ -108,231 +129,8 @@ class ClifOrchestrator:
             columns=columns,
             filters=filters
         )
-        return self.patient
-    
-    def load_hospitalization_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load hospitalization data and create Hospitalization table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Hospitalization: The loaded Hospitalization table object
-        """
-        self.hospitalization = Hospitalization.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.hospitalization
-    
-    def load_adt_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load ADT data and create Adt table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Adt: The loaded Adt table object
-        """
-        self.adt = Adt.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.adt
-    
-    def load_labs_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load labs data and create Labs table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Labs: The loaded Labs table object
-        """
-        self.labs = Labs.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.labs
-    
-    def load_vitals_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load vitals data and create Vitals table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Vitals: The loaded Vitals table object
-        """
-        self.vitals = Vitals.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.vitals
-    
-    def load_medication_admin_continuous_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load medication administration continuous data and create MedicationAdminContinuous table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            MedicationAdminContinuous: The loaded MedicationAdminContinuous table object
-        """
-        self.medication_admin_continuous = MedicationAdminContinuous.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.medication_admin_continuous
-    
-    def load_patient_assessments_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load patient assessments data and create PatientAssessments table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            PatientAssessments: The loaded PatientAssessments table object
-        """
-        self.patient_assessments = PatientAssessments.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.patient_assessments
-    
-    def load_respiratory_support_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load respiratory support data and create RespiratorySupport table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            RespiratorySupport: The loaded RespiratorySupport table object
-        """
-        self.respiratory_support = RespiratorySupport.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.respiratory_support
-    
-    def load_position_data(
-        self,
-        sample_size: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Load position data and create Position table object.
-        
-        Parameters:
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
-            
-        Returns:
-            Position: The loaded Position table object
-        """
-        self.position = Position.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters
-        )
-        return self.position
+        setattr(self, table_name, table_object)
+        return table_object
     
     def initialize(
         self,
@@ -358,26 +156,10 @@ class ClifOrchestrator:
             table_columns = columns.get(table) if columns else None
             table_filters = filters.get(table) if filters else None
             
-            if table == 'patient':
-                self.load_patient_data(sample_size, table_columns, table_filters)
-            elif table == 'hospitalization':
-                self.load_hospitalization_data(sample_size, table_columns, table_filters)
-            elif table == 'adt':
-                self.load_adt_data(sample_size, table_columns, table_filters)
-            elif table == 'labs':
-                self.load_labs_data(sample_size, table_columns, table_filters)
-            elif table == 'vitals':
-                self.load_vitals_data(sample_size, table_columns, table_filters)
-            elif table == 'medication_admin_continuous':
-                self.load_medication_admin_continuous_data(sample_size, table_columns, table_filters)
-            elif table == 'patient_assessments':
-                self.load_patient_assessments_data(sample_size, table_columns, table_filters)
-            elif table == 'respiratory_support':
-                self.load_respiratory_support_data(sample_size, table_columns, table_filters)
-            elif table == 'position':
-                self.load_position_data(sample_size, table_columns, table_filters)
-            else:
-                print(f"Warning: Unknown table '{table}', skipping.")
+            try:
+                self.load_table(table, sample_size, table_columns, table_filters)
+            except ValueError as e:
+                print(f"Warning: {e}")
     
     def get_loaded_tables(self) -> List[str]:
         """
@@ -429,3 +211,200 @@ class ClifOrchestrator:
             table_obj = getattr(self, table_name)
             print(f"\nValidating {table_name}...")
             table_obj.validate()
+    
+    def create_wide_dataset(
+        self,
+        tables_to_load: Optional[List[str]] = None,
+        category_filters: Optional[Dict[str, List[str]]] = None,
+        sample: bool = False,
+        hospitalization_ids: Optional[List[str]] = None,
+        cohort_df: Optional[pd.DataFrame] = None,
+        output_format: str = 'dataframe',
+        save_to_data_location: bool = False,
+        output_filename: Optional[str] = None,
+        return_dataframe: bool = True,
+        batch_size: int = 1000,
+        memory_limit: Optional[str] = None,
+        threads: Optional[int] = None,
+        show_progress: bool = True
+    ) -> Optional[pd.DataFrame]:
+        """
+        Create wide time-series dataset using DuckDB for high performance.
+        
+        Parameters:
+            tables_to_load: List of tables to include (e.g., ['vitals', 'labs'])
+            category_filters: Dict of categories to pivot for each table
+                Example: {
+                    'vitals': ['heart_rate', 'sbp', 'spo2'],
+                    'labs': ['hemoglobin', 'sodium'],
+                    'respiratory_support': ['device_category']
+                }
+            sample: If True, use 20 random hospitalizations
+            hospitalization_ids: Specific hospitalization IDs to include
+            cohort_df: DataFrame with time windows for filtering
+            output_format: 'dataframe', 'csv', or 'parquet'
+            save_to_data_location: Save output to data directory
+            output_filename: Custom filename for output
+            return_dataframe: Return DataFrame even when saving
+            batch_size: Number of hospitalizations per batch
+            memory_limit: DuckDB memory limit (e.g., '8GB')
+            threads: Number of threads for DuckDB
+            show_progress: Show progress bars
+            
+        Returns:
+            Wide dataset as DataFrame or None
+        """
+        # Import the utility function
+        from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
+        
+        # Auto-load base tables if not loaded
+        if self.patient is None:
+            print("Loading patient table...")
+            self.load_table('patient')
+        if self.hospitalization is None:
+            print("Loading hospitalization table...")
+            self.load_table('hospitalization')
+        if self.adt is None:
+            print("Loading adt table...")
+            self.load_table('adt')
+        
+        # Load optional tables only if not already loaded
+        if tables_to_load:
+            for table_name in tables_to_load:
+                if getattr(self, table_name, None) is None:
+                    print(f"Loading {table_name} table...")
+                    try:
+                        self.load_table(table_name)
+                    except Exception as e:
+                        print(f"Warning: Could not load {table_name}: {e}")
+        
+        # Call utility function with self as clif_instance
+        return _create_wide(
+            clif_instance=self,
+            optional_tables=tables_to_load,
+            category_filters=category_filters,
+            sample=sample,
+            hospitalization_ids=hospitalization_ids,
+            cohort_df=cohort_df,
+            output_format=output_format,
+            save_to_data_location=save_to_data_location,
+            output_filename=output_filename,
+            return_dataframe=return_dataframe,
+            batch_size=batch_size,
+            memory_limit=memory_limit,
+            threads=threads,
+            show_progress=show_progress
+        )
+    
+    def convert_wide_to_hourly(
+        self,
+        wide_df: pd.DataFrame,
+        aggregation_config: Dict[str, List[str]],
+        memory_limit: str = '4GB',
+        temp_directory: Optional[str] = None,
+        batch_size: Optional[int] = None
+    ) -> pd.DataFrame:
+        """
+        Convert wide dataset to hourly aggregation using DuckDB.
+        
+        Parameters:
+            wide_df: Wide dataset from create_wide_dataset()
+            aggregation_config: Dict mapping aggregation methods to columns
+                Example: {
+                    'mean': ['heart_rate', 'sbp'],
+                    'max': ['spo2'],
+                    'min': ['map'],
+                    'median': ['glucose'],
+                    'first': ['gcs_total'],
+                    'last': ['assessment_value'],
+                    'boolean': ['norepinephrine'],
+                    'one_hot_encode': ['device_category']
+                }
+            memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
+            temp_directory: Directory for DuckDB temp files
+            batch_size: Process in batches if specified
+            
+        Returns:
+            Hourly aggregated DataFrame with nth_hour column
+        """
+        from clifpy.utils.wide_dataset import convert_wide_to_hourly
+        
+        return convert_wide_to_hourly(
+            wide_df=wide_df,
+            aggregation_config=aggregation_config,
+            memory_limit=memory_limit,
+            temp_directory=temp_directory,
+            batch_size=batch_size
+        )
+    
+    def get_sys_resource_info(self, print_summary: bool = True) -> Dict[str, Any]:
+        """
+        Get system resource information including CPU, memory, and practical thread limits.
+        
+        Parameters:
+            print_summary (bool): Whether to print a formatted summary
+            
+        Returns:
+            Dict containing system resource information:
+            - cpu_count_physical: Number of physical CPU cores
+            - cpu_count_logical: Number of logical CPU cores
+            - cpu_usage_percent: Current CPU usage percentage
+            - memory_total_gb: Total RAM in GB
+            - memory_available_gb: Available RAM in GB
+            - memory_used_gb: Used RAM in GB
+            - memory_usage_percent: Memory usage percentage
+            - process_threads: Number of threads used by current process
+            - max_recommended_threads: Recommended max threads for optimal performance
+        """
+        # Get current process
+        current_process = psutil.Process()
+        
+        # CPU information
+        cpu_count_physical = psutil.cpu_count(logical=False)
+        cpu_count_logical = psutil.cpu_count(logical=True)
+        cpu_usage_percent = psutil.cpu_percent(interval=1)
+        
+        # Memory information
+        memory = psutil.virtual_memory()
+        memory_total_gb = memory.total / (1024**3)
+        memory_available_gb = memory.available / (1024**3)
+        memory_used_gb = memory.used / (1024**3)
+        memory_usage_percent = memory.percent
+        
+        # Thread information
+        process_threads = current_process.num_threads()
+        max_recommended_threads = cpu_count_physical  # Conservative recommendation
+        
+        resource_info = {
+            'cpu_count_physical': cpu_count_physical,
+            'cpu_count_logical': cpu_count_logical,
+            'cpu_usage_percent': cpu_usage_percent,
+            'memory_total_gb': memory_total_gb,
+            'memory_available_gb': memory_available_gb,
+            'memory_used_gb': memory_used_gb,
+            'memory_usage_percent': memory_usage_percent,
+            'process_threads': process_threads,
+            'max_recommended_threads': max_recommended_threads
+        }
+        
+        if print_summary:
+            print("=" * 50)
+            print("SYSTEM RESOURCES")
+            print("=" * 50)
+            print(f"CPU Cores (Physical): {cpu_count_physical}")
+            print(f"CPU Cores (Logical):  {cpu_count_logical}")
+            print(f"CPU Usage:            {cpu_usage_percent:.1f}%")
+            print("-" * 50)
+            print(f"Total RAM:            {memory_total_gb:.1f} GB")
+            print(f"Available RAM:        {memory_available_gb:.1f} GB")
+            print(f"Used RAM:             {memory_used_gb:.1f} GB")
+            print(f"Memory Usage:         {memory_usage_percent:.1f}%")
+            print("-" * 50)
+            print(f"Process Threads:      {process_threads}")
+            print(f"Max Recommended:      {max_recommended_threads} threads")
+            print("-" * 50)
+            print(f"RECOMMENDATION: Use {max(1, cpu_count_physical-2)}-{cpu_count_physical} threads for optimal performance")
+            print(f"(Based on {cpu_count_physical} physical CPU cores)")
+            print("=" * 50)
+        
+        return resource_info
