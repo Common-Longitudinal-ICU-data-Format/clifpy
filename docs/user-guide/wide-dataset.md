@@ -199,58 +199,12 @@ wide_df = co.create_wide_dataset(
 )
 ```
 
-## Available Categories by Table
-
-### Vitals Categories
-Common vital sign categories:
-```python
-vitals_categories = [
-    'heart_rate', 'sbp', 'dbp', 'map', 'spo2', 
-    'respiratory_rate', 'temp_c', 'weight_kg', 'height_cm'
-]
-```
-
-### Labs Categories  
-Common laboratory categories:
-```python
-labs_categories = [
-    'hemoglobin', 'hematocrit', 'wbc', 'platelets',
-    'sodium', 'potassium', 'chloride', 'co2',
-    'bun', 'creatinine', 'glucose', 'lactate'
-]
-```
-
-### Medication Categories
-Common continuous medication categories:
-```python
-medication_categories = [
-    # Vasopressors
-    'norepinephrine', 'epinephrine', 'phenylephrine', 'vasopressin', 'dopamine',
-    # Sedatives
-    'propofol', 'fentanyl', 'midazolam', 'lorazepam', 'morphine'
-]
-```
-
-### Assessment Categories
-Common assessment categories:
-```python
-assessment_categories = [
-    'gcs_total', 'rass', 'sbt_delivery_pass_fail', 
-    'sat_delivery_pass_fail', 'sbt_screen_pass_fail'
-]
-```
-
-### Respiratory Support
-For respiratory support table, specify column names instead of categories:
-```python
-respiratory_columns = ['device_category', 'flow_rate', 'fio2_percent']
-```
 
 ## Memory Management and Batch Processing
 
 ### Understanding Batch Processing
 
-Batch processing divides hospitalizations into smaller groups to prevent memory issues:
+Batch processing divides hospitalizations into smaller groups to prevent memory (larger-than-memory, OOM) issues:
 
 ```python
 # Large dataset - use batching
@@ -313,7 +267,7 @@ The wide dataset includes:
 - `hospitalization_id`: Hospitalization identifier  
 - `event_time`: Timestamp for each event
 - `day_number`: Sequential day within hospitalization
-- `hosp_id_day_key`: Unique daily identifier
+- `hosp_id_day_key`: Unique hospitalization-daily identifier
 
 ### Patient Demographics
 - `age_at_admission`: Patient age
@@ -323,45 +277,9 @@ The wide dataset includes:
 - Location and transfer data from ADT table
 
 ### Pivoted Data Columns
-- Individual columns for each category (e.g., `heart_rate`, `hemoglobin`, `norepinephrine`)
+- Individual columns for each category (e.g., `heart_rate`, `hemoglobin`, `norepinephrine`) as per use provided in `category_filters`
 - Values aligned by timestamp and hospitalization
 
-## Performance Considerations
-
-### For Large Datasets (>10GB)
-
-```python
-# Optimize for large datasets
-resources = co.get_sys_resource_info(print_summary=False)
-
-wide_df = co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
-    category_filters={
-        'vitals': ['heart_rate', 'sbp'],  # Limit categories
-        'labs': ['hemoglobin', 'sodium']
-    },
-    batch_size=500,  # Smaller batches
-    memory_limit=f"{int(resources['memory_available_gb'] * 0.8)}GB",
-    threads=resources['max_recommended_threads'],
-    save_to_data_location=True,  # Don't keep in memory
-    return_dataframe=False  # Don't return if saving to file
-)
-```
-
-### For Development and Testing
-
-```python
-# Fast development setup
-wide_df = co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
-    category_filters={
-        'vitals': ['heart_rate'],  # Single category for testing
-        'labs': ['hemoglobin']
-    },
-    sample=True,  # Only 20 hospitalizations
-    batch_size=-1  # No batching for speed
-)
-```
 
 ## Troubleshooting
 
@@ -398,7 +316,7 @@ if hasattr(co, 'vitals') and co.vitals is not None:
 
 **Slow Performance**
 ```python
-# Use fewer categories and optimize settings
+# Use optimize settings
 wide_df = co.create_wide_dataset(
     tables_to_load=['vitals'],  # Start with one table
     category_filters={
