@@ -136,11 +136,12 @@ class MedicationAdminContinuous(BaseTable):
         Invalid patterns include: 'mcg/lb/min', 'mg/sec', 'tablespoon/hr'
         """
         acceptable_amounts = {
-            "ml", "l", 
-            "milli-units", "units", 
+            "ml", "milliliter", "millilitre", "milliliters", "millilitres", 
+            "l", "liter", "litre", "liters", "litres",
+            "units", "u", "unit", "milli-units", "milliunits", "milli-unit", "milliunit",
             "mcg", "mg", "ng"
             }
-        acceptable_weights = {'/kg', ''}
+        acceptable_weights = {'/kg', '/lb', ''}
         acceptable_times = {'/h', '/hr', '/hour', '/m', '/min', '/minute'}
         # find the cartesian product of the three sets
         return {a + b + c for a in acceptable_amounts for b in acceptable_weights for c in acceptable_times}
@@ -187,9 +188,10 @@ class MedicationAdminContinuous(BaseTable):
         {'mcg': 1}
         """
         if med_dose_unit_series is None:
-            med_dose_unit_series = self.df['med_dose_unit']
-        if med_dose_unit_series is None:
-            raise ValueError("No data provided")
+            try:    
+                med_dose_unit_series = self.df['med_dose_unit']
+            except:
+                raise ValueError("No data provided")
         
         # Remove ALL whitespace (including internal) and convert to lowercase
         med_dose_unit_clean_series = med_dose_unit_series.str.replace(r'\s+', '', regex=True).str.lower()
@@ -219,7 +221,7 @@ class MedicationAdminContinuous(BaseTable):
         - med_dose_unit_converted: Standardized unit ('mcg/min', 'ml/min', or 'units/min')
         """
         # check if the required columns are present
-        required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
+        required_columns = {'med_dose_unit_clean', 'med_dose', 'weight_kg'}
         missing_columns = required_columns - set(med_df.columns)
         if missing_columns:
             raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
@@ -232,19 +234,21 @@ class MedicationAdminContinuous(BaseTable):
                 WHEN regexp_matches(med_dose_unit_clean, '/m(in|inute)?\\b') THEN 1.0
                 ELSE NULL END as time_multiplier
             , CASE WHEN contains(med_dose_unit_clean, '/kg/') THEN weight_kg
+                WHEN contains(med_dose_unit_clean, '/lb/') THEN weight_kg * 2.20462
                 ELSE 1 END AS pt_weight_multiplier
             , CASE WHEN contains(med_dose_unit_clean, 'mcg/') THEN 1.0
                 WHEN contains(med_dose_unit_clean, 'mg/') THEN 1000.0
                 WHEN contains(med_dose_unit_clean, 'ng/') THEN 0.001
-                WHEN contains(med_dose_unit_clean, 'milli') THEN 0.001
-                WHEN contains(med_dose_unit_clean, 'units/') THEN 1
-                WHEN contains(med_dose_unit_clean, 'ml/') THEN 1.0
-                WHEN contains(med_dose_unit_clean, 'l/') AND NOT contains(med_dose_unit_clean, 'ml/') THEN 1000.0
+                -- make sure the milli prefix is not applied on liters
+                WHEN contains(med_dose_unit_clean, 'milli') AND NOT regexp_matches(med_dose_unit_clean, 'lit(er|re)s?') THEN 0.001
+                WHEN regexp_matches(med_dose_unit_clean, 'u(nit|nits)?/') THEN 1
+                WHEN regexp_matches(med_dose_unit_clean, '(ml|milli(liter|litre)s?)/') THEN 1.0
+                WHEN regexp_matches(med_dose_unit_clean, '(\\bl|lit(er|re)s?)/') THEN 1000.0
                 ELSE NULL END as amount_multiplier
             , med_dose * time_multiplier * pt_weight_multiplier * amount_multiplier as med_dose_converted
             , CASE WHEN med_dose_unit_clean NOT IN ('{acceptable_unit_patterns_str}') THEN NULL
-                WHEN contains(med_dose_unit_clean, 'units/') THEN 'units/min'
-                WHEN contains(med_dose_unit_clean, 'l/') THEN 'ml/min'
+                WHEN regexp_matches(med_dose_unit_clean, 'u(nit|nits)?/') THEN 'units/min'
+                WHEN regexp_matches(med_dose_unit_clean, '(ml|millilit(er|re)s?|l|lit(er|re)s?)/') THEN 'ml/min'
                 ELSE 'mcg/min' END as med_dose_unit_converted
         FROM med_df
         """

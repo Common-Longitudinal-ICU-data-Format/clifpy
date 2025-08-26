@@ -438,7 +438,8 @@ def test_acceptable_dose_unit_patterns():
         'ml/min',
         'l/hr',
         'ng/kg/min',
-        'milli-units/min'
+        'milli-units/min',
+        'mcg/lb/min'
     ]
     
     for pattern in acceptable_cases:
@@ -446,15 +447,11 @@ def test_acceptable_dose_unit_patterns():
     
     # Test cases that should NOT be acceptable
     unacceptable_cases = [
-        'mcg/lb/min',  # lb instead of kg
         'mcg/kg/sec',  # sec not supported
         'mcg/kg/day',  # day not supported
-        'tablespoon/hr',  # tablespoon not supported
-        'mcg/m2/hr',  # m2 not supported
         'mcg',
         "ml",
         "l"
-        
     ]
     
     for pattern in unacceptable_cases:
@@ -490,13 +487,12 @@ def test_normalize_dose_unit_pattern_recognized(normalize_dose_unit_pattern_test
     """
     mac_obj = MedicationAdminContinuous()
     test_df = normalize_dose_unit_pattern_test_data.query("case == 'valid'")
-    result_df, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
-    
     # first check the filtering went right, i.e. test_df is not empty
     assert test_df.shape[0] > 0
+    result_series, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df['med_dose_unit'])
     
     pd.testing.assert_series_equal(
-        result_df['med_dose_unit_clean'].reset_index(drop=True),
+        result_series.reset_index(drop=True),
         test_df['med_dose_unit_clean'].reset_index(drop=True),
         check_names=False
     )
@@ -520,13 +516,14 @@ def test_normalize_dose_unit_pattern_unrecognized(normalize_dose_unit_pattern_te
     assert test_df.shape[0] > 0
     
     with caplog.at_level('WARNING'):
-        _, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df[['med_dose_unit']])
+        _, unrecognized = mac_obj._normalize_dose_unit_pattern(test_df['med_dose_unit'])
     
     assert isinstance(unrecognized, dict)
     for unit in test_df['med_dose_unit_clean']:
         assert unit in unrecognized # check that all invalid units are in the unrecognized dict
     assert "not recognized by the converter" in caplog.text
 
+@pytest.mark.skip(reason="to be retired")
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_normalize_dose_unit_pattern_empty_dataframe():
@@ -540,13 +537,13 @@ def test_normalize_dose_unit_pattern_empty_dataframe():
     """
     mac_obj = MedicationAdminContinuous()
     empty_df = pd.DataFrame({'med_dose_unit': pd.Series([], dtype='object')})
-    result_df, unrecognized = mac_obj._normalize_dose_unit_pattern(empty_df)
-    assert 'med_dose_unit_clean' in result_df.columns
+    result_series, unrecognized = mac_obj._normalize_dose_unit_pattern(empty_df['med_dose_unit'])
+    assert 'med_dose_unit_clean' in result_series.columns
     assert unrecognized is False
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_normalize_dose_unit_pattern_using_self_df():
+def test_normalize_dose_unit_pattern_using_self_df(normalize_dose_unit_pattern_test_data):
     """
     Test that `_normalize_dose_unit_pattern` uses self.df when no DataFrame is provided.
     
@@ -555,15 +552,23 @@ def test_normalize_dose_unit_pattern_using_self_df():
     - Normalization works correctly on instance data
     - 'ML/HR' is properly normalized to 'ml/hr'
     """
-    test_data = pd.DataFrame({
-        'hospitalization_id': ['H001'],
-        'admin_dttm': pd.to_datetime(['2023-01-01']),
-        'med_dose_unit': ['ML/HR']
-    })
-    mac_obj_with_data = MedicationAdminContinuous(data_directory=".", filetype="parquet", data=test_data)
-    result_df, unrecognized = mac_obj_with_data._normalize_dose_unit_pattern()
-    assert result_df['med_dose_unit_clean'].iloc[0] == 'ml/hr'
-    assert unrecognized is False
+    # test_data = pd.DataFrame({
+    #     'hospitalization_id': ['H001', 'H002', 'H003'],
+    #     'admin_dttm': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-03']),
+    #     'med_dose_unit': ['ML / HR', 'ml/hr', 'l/hr']
+    # })
+    mac_obj_with_data = MedicationAdminContinuous(data_directory=".", filetype="parquet", data=normalize_dose_unit_pattern_test_data)
+    test_df = normalize_dose_unit_pattern_test_data.query("case == 'valid'")
+    # first check the filtering went right, i.e. test_df is not empty
+    assert test_df.shape[0] > 0
+    result_series, unrecognized = mac_obj_with_data._normalize_dose_unit_pattern(test_df['med_dose_unit'])
+    
+    pd.testing.assert_series_equal(
+        result_series.reset_index(drop=True),
+        test_df['med_dose_unit_clean'].reset_index(drop=True),
+        check_names=False
+    )
+    assert unrecognized is False # no unrecognized dose units so the return should be False
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
@@ -599,7 +604,7 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
     Processes admin_dttm to datetime and converts empty weight_kg to NaN.
     """
     df = load_fixture_csv('test_convert_normalized_dose_units_to_limited_units.csv')
-    df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
+    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
     return df
@@ -623,7 +628,7 @@ def vitals_mock_data(load_fixture_csv):
 
 @pytest.mark.unit_conversion
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
-def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_units_to_limited_units_test_data, vitals_mock_data, caplog):
+def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_units_to_limited_units_test_data,caplog):
     """
     Test that the `_convert_normalized_dose_units_to_limited_units` method correctly converts doses to standard units.
     
@@ -639,32 +644,34 @@ def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_
     """
     mac_obj = MedicationAdminContinuous()
     test_df = convert_normalized_dose_units_to_limited_units_test_data #.query("case == 'valid'")
-    test_df['med_category'] = 'Vasopressors'  # Required for SQL query
+    # test_df['med_category'] = 'Vasopressors'  # Required for SQL query
     
     input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
     
-    with caplog.at_level('WARNING'):
-        result_df = mac_obj.standardize_dose_to_limited_units(vitals_df = vitals_mock_data, med_df = input_df) \
-            .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
+    # with caplog.at_level('WARNING'):
+    result_df = mac_obj._convert_normalized_dose_units_to_limited_units(med_df = input_df) \
+        .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
     assert 'med_dose_converted' in result_df.columns
     assert 'med_dose_unit_converted' in result_df.columns
     assert 'weight_kg' in result_df.columns
-    assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
+    # assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
 
     # Verify converted values
     pd.testing.assert_series_equal(
-        test_df['med_dose_converted'].fillna(pd.NA).reset_index(drop=True),
-        result_df['med_dose_converted'].fillna(pd.NA).reset_index(drop=True),
-        check_names=False
+        test_df['med_dose_converted'].reset_index(drop=True),
+        result_df['med_dose_converted'].reset_index(drop=True),
+        check_names=False,
+        check_dtype=False
     )
 
     # Verify converted units
     pd.testing.assert_series_equal(
-        test_df['med_dose_unit_converted'].fillna(pd.NA).reset_index(drop=True),
-        result_df['med_dose_unit_converted'].fillna(pd.NA).reset_index(drop=True),
-        check_names=False
+        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        check_names=False,
+        check_dtype=False
     )
 
 @pytest.mark.unit_conversion

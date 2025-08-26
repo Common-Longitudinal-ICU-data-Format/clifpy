@@ -1,10 +1,39 @@
-rn,case,hospitalization_id,admin_dttm,med_dose,med_dose_unit,weight_kg,med_dose_converted,med_dose_unit_converted
-0,valid,H001,2023/1/1 11:00,10,mcg/kg/hr,71,11.83333333,mcg/min
-1,valid,H001,2023/1/1 12:00,5,mg/min,,5000,mcg/min
-2,valid,H002,2023/1/2 09:00,60,ml/hr,,1,ml/min
-3,valid,H003,2023/1/3 08:00,100,units/min,,100,units/min
-4,valid,H001,2023/1/1 13:00,1000,ng/kg/min,71,71,mcg/min
-5,valid,H001,2023/1/1 14:00,1.2,l/hr,,20,ml/min
-6,valid,H001,2023/1/1 11:00,5,mcg/kg/min,75,375,mcg/min
-7,valid,H001,2023/1/1 15:00,10,mCg / kg / hr,71,11.83333333,mcg/min
-8,invalid,H001,2023/1/1 11:00,100,tablespoon/hr,,,
+rn,case,med_dose,med_dose_unit_clean,weight_kg,med_dose_converted,med_dose_unit_converted,note
+0,valid,6,mcg/kg/hr,70,7,mcg/min,test variation of the /hr unit
+1,valid,6,mcg/kg/h,71,7.1,mcg/min,test variation of the /hr unit
+2,valid,6,mcg/kg/hour,72,7.2,mcg/min,test variation of the /hr unit
+3,valid,6,mcg/hr,73,0.1,mcg/min,test weight is not used if not required even when present
+4,valid,6,mcg/h,74,0.1,mcg/min,test weight is not used if not required even when present
+5,valid,6,mcg/hour,75,0.1,mcg/min,test weight is not used if not required even when present
+6,valid,6,mcg/hour,,0.1,mcg/min,test weight missing is ok if not required
+7,valid,6,mcg/hr,,0.1,mcg/min,test weight missing is ok if not required
+8,valid,6,mcg/h,,0.1,mcg/min,test weight missing is ok if not required
+9,valid,6,mcg/kg/min,77,462,mcg/min,test variation of the /min unit
+10,valid,6,mcg/kg/m,78,468,mcg/min,test variation of the /min unit
+11,valid,6,mcg/kg/minute,79,474,mcg/min,test variation of the /min unit
+12,valid,6,units/kg/hr,80,8,units/min,test variation of the unit amount
+13,valid,6,unit/kg/hr,81,8.1,units/min,test variation of the unit amount
+14,valid,6,u/kg/hr,82,8.2,units/min,test variation of the unit amount
+15,valid,6,milli-units/kg/min,83,0.498,units/min,test variation of the unit amount
+16,valid,6,milli-unit/kg/min,84,0.504,units/min,test variation of the unit amount
+17,valid,6,milliunits/kg/min,85,0.51,units/min,test variation of the unit amount
+18,valid,6,milliunit/kg/min,86,0.516,units/min,test variation of the unit amount
+19,valid,6,ml/kg/hr,87,8.7,ml/min,test variation of the volume amount
+20,valid,6,milliliter/kg/hr,88,8.8,ml/min,test variation of the volume amount
+21,valid,6,millilitre/kg/hr,89,8.9,ml/min,test variation of the volume amount
+22,valid,6,milliliters/kg/hr,90,9,ml/min,test variation of the volume amount
+23,valid,6,millilitres/kg/hr,91,9.1,ml/min,test variation of the volume amount
+24,valid,6,l/kg/hr,92,9200,ml/min,test variation of the volume amount
+25,valid,6,liter/kg/hr,93,9300,ml/min,test variation of the volume amount
+26,valid,6,liters/kg/hr,94,9400,ml/min,test variation of the volume amount
+27,valid,6,ng/kg/min,95,0.57,mcg/min,test variation of the mass amount
+28,valid,6,mg/kg/min,96,576000,mcg/min,test variation of the mass amount
+29,valid,6,mcg/lb/hr,97,21.384814,mcg/min,test lb is acceptable
+30,invalid,6,g/kg/hr,98,,,test g is not accepted
+31,invalid,6,mcg,99,,,test non-rate units are not convertible
+32,invalid,6,ml,100,,,test non-rate units are not convertible
+33,invalid,6,l,101,,,test non-rate units are not convertible
+34,invalid,6,units,102,,,test non-rate units are not convertible
+35,invalid,6,u,103,,,test non-rate units are not convertible
+36,invalid,6,kg,104,,,test non-rate units are not convertible
+37,invalid,6,g,105,,,test non-rate units are not convertible
