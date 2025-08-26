@@ -418,28 +418,7 @@ print(f"Will affect {summary['total_rows']} rows")
 apply_outlier_handling(table)
 ```
 
-### 2. Document Custom Configurations
-```python
-# Save custom config with documentation
-custom_config = """
-# Research Configuration for Adult ICU Patients
-# Stricter ranges for quality research data
-# Created: 2024-01-15
-# Author: Research Team
-
-tables:
-  vitals:
-    vital_value:
-      heart_rate:
-        min: 50    # Exclude bradycardia <50
-        max: 150   # Exclude severe tachycardia >150
-"""
-
-with open('adult_icu_config.yaml', 'w') as f:
-    f.write(custom_config)
-```
-
-### 3. Keep Original Data
+### 2. Keep Original Data
 ```python
 # Make backup before outlier handling
 original_df = vitals.df.copy()
@@ -451,19 +430,6 @@ apply_outlier_handling(vitals)
 print(f"Original: {original_df['vital_value'].notna().sum()} values")
 print(f"Cleaned:  {vitals.df['vital_value'].notna().sum()} values")
 print(f"Removed:  {original_df['vital_value'].notna().sum() - vitals.df['vital_value'].notna().sum()} values")
-```
-
-### 4. Validate After Outlier Removal
-```python
-# Apply outlier handling before validation
-apply_outlier_handling(vitals)
-
-# Validate cleaned data
-vitals.validate()
-if vitals.isvalid():
-    print("✅ Data is valid after outlier removal")
-else:
-    print(f"❌ {len(vitals.errors)} validation errors remain")
 ```
 
 ## Troubleshooting
@@ -493,34 +459,6 @@ print(vitals.df.columns.tolist())  # Check actual column names
 ```
 # All values are within range - this is normal for clean data
 # The statistics will show "0 nullified" for all categories
-```
-
-**Custom Config Not Loading**
-```python
-# Check file path and YAML syntax
-import yaml
-with open('your_config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
-    print(config)  # Verify structure
-```
-
-## Performance Considerations
-
-### For Large Datasets
-- Outlier handling uses efficient pandas operations
-- Memory usage scales with data size
-- Processing time is typically under 1 minute for most datasets
-
-### Memory Usage
-```python
-# Monitor memory usage for very large datasets
-import psutil
-process = psutil.Process()
-print(f"Memory before: {process.memory_info().rss / 1024**3:.1f} GB")
-
-apply_outlier_handling(large_table)
-
-print(f"Memory after: {process.memory_info().rss / 1024**3:.1f} GB")
 ```
 
 ## Internal CLIF Standard Ranges
