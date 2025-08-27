@@ -30,10 +30,10 @@ def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
     e.g. 
     s = pd.Series(['milliliter/hour', 'milliliter/h', 'ml/minute', 'ml/m'])
     '''
-    s = pd.Series(['milliliter/hour', 'milliliters/hour', 'millilitres/hour', 'millilitre/h', 'ml/minute', 'ml/m', 'units/lb/hr', 'unit/lb/hr', 'u/kg/h', 'mcg', 'mg', 'ng', 'milli-units/kg/min', 'milli-unit/kg/min', 'milliunits/kg/min', 'milliunit/kg/min'])
+    # s = pd.Series(['milliliter/hour', 'milliliters/hour', 'millilitres/hour', 'millilitre/h', 'ml/minute', 'ml/m', 'units/lb/hr', 'unit/lb/hr', 'u/kg/h', 'mcg', 'mg', 'ng', 'milli-units/kg/min', 'milli-unit/kg/min', 'milliunits/kg/min', 'milliunit/kg/min'])
     for repl, pattern in REGEX_PATTERNS.items():
         s = s.str.replace(pattern, repl, regex=True)
-    s
+    return s
 
 def _detect_and_classify_normalized_dose_units():
     '''
