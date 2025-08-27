@@ -48,11 +48,11 @@ def _(mo, project_root):
         """
     )
     print("Setup complete")
-    return DATA_DIR, FILETYPE, OUTPUT_DIR, TIMEZONE
+    return OUTPUT_DIR, TIMEZONE
 
 
 @app.cell
-def _(DATA_DIR, FILETYPE, OUTPUT_DIR, TIMEZONE, mo, pd):
+def _(OUTPUT_DIR, TIMEZONE, mo, pd):
     # Import HospitalDiagnosis from top-level clifpy exports
     from clifpy import HospitalDiagnosis
 
@@ -100,7 +100,7 @@ def _(DATA_DIR, FILETYPE, OUTPUT_DIR, TIMEZONE, mo, pd):
     )
 
     mo.md(f"**Sample data loaded**: {len(sample_data)} diagnosis records")
-    return hospital_diagnosis_table, sample_data
+    return (hospital_diagnosis_table,)
 
 
 @app.cell
@@ -147,12 +147,11 @@ def _(hospital_diagnosis_table, mo):
 
     if poa_stats:
         poa_display_text = f"**Total diagnoses**: {poa_stats['total_diagnoses']}\n\n**Present on Admission Breakdown**:\n"
-        for status, count in poa_stats['poa_counts'].items():
-            percentage = poa_stats['poa_percentages'][status]
-            poa_display_text += f"- **{status}**: {count} ({percentage}%)\n"
-        mo.md(poa_display_text)
-    else:
-        mo.md("No present on admission data available")
+        for status_poa_stats, count_poa_stats in poa_stats['poa_counts'].items():
+            percentage_poa_stats = poa_stats['poa_percentages'][status_poa_stats]
+            poa_display_text += f"- **{status_poa_stats}**: {count_poa_stats} ({percentage_poa_stats}%)\n"
+    mo.md(poa_display_text)
+
     return
 
 
@@ -166,9 +165,7 @@ def _(hospital_diagnosis_table, mo):
         hosp_display_text = "**Diagnosis counts by hospitalization**:\n\n"
         for _, hosp_row in diagnoses_per_hosp.head().iterrows():
             hosp_display_text += f"- **{hosp_row['hospitalization_id']}**: {hosp_row['total_diagnoses']} total ({hosp_row['principal_diagnoses']} principal, {hosp_row['secondary_diagnoses']} secondary)\n"
-        mo.md(hosp_display_text)
-    else:
-        mo.md("No hospitalization data available")
+    mo.md(hosp_display_text)
     return
 
 
@@ -183,9 +180,7 @@ def _(hospital_diagnosis_table, mo):
         for i, (_, common_row) in enumerate(common_diagnoses.iterrows(), 1):
             diagnosis_name = common_row.get('diagnosis_name', 'N/A')
             common_display_text += f"{i}. **{common_row['diagnosis_code']}** - {diagnosis_name} ({common_row['count']} occurrences)\n"
-        mo.md(common_display_text)
-    else:
-        mo.md("No diagnosis data available")
+    mo.md(common_display_text)
     return
 
 
@@ -213,10 +208,7 @@ def _(hospital_diagnosis_table, mo):
             stats_display_text += "\n**Code Format Distribution**:\n"
             for format_type, count in summary_stats['code_format_counts'].items():
                 stats_display_text += f"- {format_type}: {count}\n"
-
-        mo.md(stats_display_text)
-    else:
-        mo.md("No summary statistics available")
+    mo.md(stats_display_text)
     return
 
 
