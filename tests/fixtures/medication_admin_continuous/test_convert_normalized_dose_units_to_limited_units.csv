@@ -29,11 +29,12 @@ rn,case,med_dose,med_dose_unit_clean,weight_kg,med_dose_converted,med_dose_unit_
 27,valid,6,ng/kg/min,95,0.57,mcg/min,test variation of the mass amount
 28,valid,6,mg/kg/min,96,576000,mcg/min,test variation of the mass amount
 29,valid,6,mcg/lb/hr,97,21.384814,mcg/min,test lb is acceptable
-30,invalid,6,g/kg/hr,98,,,test g is not accepted
-31,invalid,6,mcg,99,,,test non-rate units are not convertible
-32,invalid,6,ml,100,,,test non-rate units are not convertible
-33,invalid,6,l,101,,,test non-rate units are not convertible
-34,invalid,6,units,102,,,test non-rate units are not convertible
-35,invalid,6,u,103,,,test non-rate units are not convertible
-36,invalid,6,kg,104,,,test non-rate units are not convertible
-37,invalid,6,g,105,,,test non-rate units are not convertible
+30,valid,6,l/lb/hr,98,21605.276,ml/min,test lb is acceptable
+31,invalid,6,g/kg/hr,99,,,test g is not accepted
+32,invalid,6,mcg,100,,,test non-rate units are not convertible
+33,invalid,6,ml,101,,,test non-rate units are not convertible
+34,invalid,6,l,102,,,test non-rate units are not convertible
+35,invalid,6,units,103,,,test non-rate units are not convertible
+36,invalid,6,u,104,,,test non-rate units are not convertible
+37,invalid,6,kg,105,,,test non-rate units are not convertible
+38,invalid,6,g,106,,,test non-rate units are not convertible
