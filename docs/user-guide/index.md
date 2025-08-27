@@ -11,6 +11,12 @@ CLIFpy is designed to make working with CLIF (Common Longitudinal ICU data Forma
 ### [CLIF Orchestrator](orchestrator.md)
 Learn how to manage multiple CLIF tables simultaneously with consistent configuration and validation.
 
+### [Wide Dataset Creation](wide-dataset.md)
+Create comprehensive time-series datasets by joining multiple CLIF tables with automatic pivoting and high-performance processing.
+
+### [Outlier Handling](outlier-handling.md)
+Detect and remove physiologically implausible values using configurable ranges and category-specific validation.
+
 ### [Tables](tables/index.md)
 Detailed guides for each CLIF table type: 
 
