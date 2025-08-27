@@ -12,13 +12,9 @@
         <meta name="author" content="CLIF Consortium">
       
       
-        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/">
+        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/CLIFpy/prompts/">
       
       
-        <link rel="prev" href="../getting-started/basic-usage/">
-      
-      
-        <link rel="next" href="orchestrator/">
       
       
       <link rel="icon" href="../images/clif_logo_red_no_text.png">
@@ -26,7 +22,7 @@
     
     
       
-        <title>Overview - CLIFpy Documentation</title>
+        <title>Prompts - CLIFpy Documentation</title>
       
     
     
@@ -82,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#user-guide" class="md-skip">
+        <a href="#medication_admin_continuous" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Prompts
             
           </span>
         </div>
@@ -269,13 +265,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../user-guide/" class="md-tabs__link">
           
   
   
@@ -537,31 +531,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -574,7 +565,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             User Guide
@@ -585,32 +576,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../user-guide/" class="md-nav__link">
         
   
   
@@ -621,206 +590,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    <span class="md-ellipsis">
-      Overview
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#guide-organization" class="md-nav__link">
-    <span class="md-ellipsis">
-      Guide Organization
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Guide Organization">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#clif-orchestrator" class="md-nav__link">
-    <span class="md-ellipsis">
-      CLIF Orchestrator
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#wide-dataset-creation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Wide Dataset Creation
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#outlier-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Outlier Handling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#tables" class="md-nav__link">
-    <span class="md-ellipsis">
-      Tables
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Data Validation
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#working-with-timezones" class="md-nav__link">
-    <span class="md-ellipsis">
-      Working with Timezones
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-concepts" class="md-nav__link">
-    <span class="md-ellipsis">
-      Key Concepts
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Key Concepts">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#table-based-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      Table-Based Architecture
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#consistent-interface" class="md-nav__link">
-    <span class="md-ellipsis">
-      Consistent Interface
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#standardized-categories" class="md-nav__link">
-    <span class="md-ellipsis">
-      Standardized Categories
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#timezone-awareness" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timezone Awareness
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-workflows" class="md-nav__link">
-    <span class="md-ellipsis">
-      Common Workflows
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common Workflows">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#loading-and-validating-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      Loading and Validating Data
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#filtering-and-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Filtering and Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#best-practices" class="md-nav__link">
-    <span class="md-ellipsis">
-      Best Practices
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      Next Steps
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -833,7 +602,7 @@
   
   
     <li class="md-nav__item">
-      <a href="orchestrator/" class="md-nav__link">
+      <a href="../user-guide/orchestrator/" class="md-nav__link">
         
   
   
@@ -862,13 +631,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -877,7 +643,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
             
   
   
@@ -904,7 +670,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/" class="md-nav__link">
+      <a href="../user-guide/tables/" class="md-nav__link">
         
   
   
@@ -927,7 +693,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/patient/" class="md-nav__link">
+      <a href="../user-guide/tables/patient/" class="md-nav__link">
         
   
   
@@ -950,7 +716,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/adt/" class="md-nav__link">
+      <a href="../user-guide/tables/adt/" class="md-nav__link">
         
   
   
@@ -973,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/hospitalization/" class="md-nav__link">
+      <a href="../user-guide/tables/hospitalization/" class="md-nav__link">
         
   
   
@@ -996,7 +762,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/labs/" class="md-nav__link">
+      <a href="../user-guide/tables/labs/" class="md-nav__link">
         
   
   
@@ -1019,7 +785,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/vitals/" class="md-nav__link">
+      <a href="../user-guide/tables/vitals/" class="md-nav__link">
         
   
   
@@ -1042,7 +808,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/respiratory-support/" class="md-nav__link">
+      <a href="../user-guide/tables/respiratory-support/" class="md-nav__link">
         
   
   
@@ -1065,7 +831,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/medication-admin/" class="md-nav__link">
+      <a href="../user-guide/tables/medication-admin/" class="md-nav__link">
         
   
   
@@ -1088,7 +854,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/patient-assessments/" class="md-nav__link">
+      <a href="../user-guide/tables/patient-assessments/" class="md-nav__link">
         
   
   
@@ -1111,7 +877,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tables/position/" class="md-nav__link">
+      <a href="../user-guide/tables/position/" class="md-nav__link">
         
   
   
@@ -1142,7 +908,7 @@
   
   
     <li class="md-nav__item">
-      <a href="validation/" class="md-nav__link">
+      <a href="../user-guide/validation/" class="md-nav__link">
         
   
   
@@ -1165,7 +931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="timezones/" class="md-nav__link">
+      <a href="../user-guide/timezones/" class="md-nav__link">
         
   
   
@@ -1538,8 +1304,6 @@
   
   
   
-    
-  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -1548,180 +1312,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#medication_admin_continuous" class="md-nav__link">
     <span class="md-ellipsis">
-      Overview
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#guide-organization" class="md-nav__link">
-    <span class="md-ellipsis">
-      Guide Organization
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Guide Organization">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#clif-orchestrator" class="md-nav__link">
-    <span class="md-ellipsis">
-      CLIF Orchestrator
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#wide-dataset-creation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Wide Dataset Creation
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#outlier-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Outlier Handling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#tables" class="md-nav__link">
-    <span class="md-ellipsis">
-      Tables
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#data-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Data Validation
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#working-with-timezones" class="md-nav__link">
-    <span class="md-ellipsis">
-      Working with Timezones
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-concepts" class="md-nav__link">
-    <span class="md-ellipsis">
-      Key Concepts
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Key Concepts">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#table-based-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      Table-Based Architecture
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#consistent-interface" class="md-nav__link">
-    <span class="md-ellipsis">
-      Consistent Interface
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#standardized-categories" class="md-nav__link">
-    <span class="md-ellipsis">
-      Standardized Categories
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#timezone-awareness" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timezone Awareness
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-workflows" class="md-nav__link">
-    <span class="md-ellipsis">
-      Common Workflows
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common Workflows">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#loading-and-validating-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      Loading and Validating Data
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#filtering-and-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Filtering and Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#best-practices" class="md-nav__link">
-    <span class="md-ellipsis">
-      Best Practices
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      Next Steps
+      medication_admin_continuous
     </span>
   </a>
   
@@ -1746,105 +1339,42 @@
   
 
 
-<h1 id="user-guide">User Guide<a class="headerlink" href="#user-guide" title="Permanent link">&para;</a></h1>
-<p>Welcome to the CLIFpy User Guide. This guide provides comprehensive documentation for working with CLIF data using CLIFpy.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>CLIFpy is designed to make working with CLIF (Common Longitudinal ICU data Format) data straightforward and efficient. Whether you're a researcher analyzing ICU outcomes, a data scientist building predictive models, or a clinician exploring patient data, this guide will help you make the most of CLIFpy.</p>
-<h2 id="guide-organization">Guide Organization<a class="headerlink" href="#guide-organization" title="Permanent link">&para;</a></h2>
-<h3 id="clif-orchestrator"><a href="orchestrator/">CLIF Orchestrator</a><a class="headerlink" href="#clif-orchestrator" title="Permanent link">&para;</a></h3>
-<p>Learn how to manage multiple CLIF tables simultaneously with consistent configuration and validation.</p>
-<h3 id="wide-dataset-creation"><a href="wide-dataset/">Wide Dataset Creation</a><a class="headerlink" href="#wide-dataset-creation" title="Permanent link">&para;</a></h3>
-<p>Create comprehensive time-series datasets by joining multiple CLIF tables with automatic pivoting and high-performance processing.</p>
-<h3 id="outlier-handling"><a href="outlier-handling/">Outlier Handling</a><a class="headerlink" href="#outlier-handling" title="Permanent link">&para;</a></h3>
-<p>Detect and remove physiologically implausible values using configurable ranges and category-specific validation.</p>
-<h3 id="tables"><a href="tables/">Tables</a><a class="headerlink" href="#tables" title="Permanent link">&para;</a></h3>
-<p>Detailed guides for each CLIF table type: </p>
-<ul>
-<li>Patient demographics</li>
-<li>ADT (Admission, Discharge, Transfer) events</li>
-<li>Hospitalization information</li>
-<li>Laboratory results</li>
-<li>Vital signs</li>
-<li>Respiratory support</li>
-<li>Medication administration</li>
-<li>Clinical assessments</li>
-<li>Patient positioning</li>
-</ul>
-<h3 id="data-validation"><a href="validation/">Data Validation</a><a class="headerlink" href="#data-validation" title="Permanent link">&para;</a></h3>
-<p>Understand how CLIFpy validates your data against CLIF schemas and how to interpret validation results.</p>
-<h3 id="working-with-timezones"><a href="timezones/">Working with Timezones</a><a class="headerlink" href="#working-with-timezones" title="Permanent link">&para;</a></h3>
-<p>Learn best practices for handling timezone-aware datetime data across different hospital systems.</p>
-<h2 id="key-concepts">Key Concepts<a class="headerlink" href="#key-concepts" title="Permanent link">&para;</a></h2>
-<h3 id="table-based-architecture">Table-Based Architecture<a class="headerlink" href="#table-based-architecture" title="Permanent link">&para;</a></h3>
-<p>CLIFpy organizes ICU data into standardized tables, each representing a specific aspect of patient care:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">clifpy.tables</span> <span class="kn">import</span> <span class="n">Patient</span><span class="p">,</span> <span class="n">Labs</span><span class="p">,</span> <span class="n">Vitals</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Each table is a self-contained unit</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">patient</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">labs</span> <span class="o">=</span> <span class="n">Labs</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">vitals</span> <span class="o">=</span> <span class="n">Vitals</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="consistent-interface">Consistent Interface<a class="headerlink" href="#consistent-interface" title="Permanent link">&para;</a></h3>
-<p>All tables share common methods inherited from <code>BaseTable</code>: </p>
-<ul>
-<li><code>from_file()</code> - Load data from files</li>
-<li><code>validate()</code> - Run comprehensive validation</li>
-<li><code>isvalid()</code> - Check validation status</li>
-<li><code>get_summary()</code> - Get table statistics</li>
-</ul>
-<h3 id="standardized-categories">Standardized Categories<a class="headerlink" href="#standardized-categories" title="Permanent link">&para;</a></h3>
-<p>CLIF defines standardized categories for consistent data representation:
-- Lab categories: chemistry, hematology, coagulation, etc.
-- Location categories: icu, ward, ed, etc.
-- Medication groups: vasopressor, sedative, antibiotic, etc.</p>
-<h3 id="timezone-awareness">Timezone Awareness<a class="headerlink" href="#timezone-awareness" title="Permanent link">&para;</a></h3>
-<p>All datetime columns are timezone-aware to handle data from different time zones correctly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Specify timezone when loading</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">TableClass</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;US/Central&#39;</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">)</span>
-</code></pre></div>
-<h2 id="common-workflows">Common Workflows<a class="headerlink" href="#common-workflows" title="Permanent link">&para;</a></h2>
-<h3 id="loading-and-validating-data">Loading and Validating Data<a class="headerlink" href="#loading-and-validating-data" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span> <span class="nn">clifpy.clif_orchestrator</span> <span class="kn">import</span> <span class="n">ClifOrchestrator</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Load multiple tables</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;US/Central&#39;</span><span class="p">)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">orchestrator</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;patient&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">])</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Validate all tables</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">orchestrator</span><span class="o">.</span><span class="n">validate_all</span><span class="p">()</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Check validation status</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="k">for</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">orchestrator</span><span class="o">.</span><span class="n">get_loaded_tables</span><span class="p">():</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">table</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">orchestrator</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;Valid&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">table</span><span class="o">.</span><span class="n">isvalid</span><span class="p">()</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;Invalid&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="filtering-and-analysis">Filtering and Analysis<a class="headerlink" href="#filtering-and-analysis" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Category-based filtering</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">icu_stays</span> <span class="o">=</span> <span class="n">adt</span><span class="o">.</span><span class="n">filter_by_location_category</span><span class="p">(</span><span class="s1">&#39;icu&#39;</span><span class="p">)</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Patient cohort analysis </span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">cohort_ids</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;P001&#39;</span><span class="p">,</span> <span class="s1">&#39;P002&#39;</span><span class="p">,</span> <span class="s1">&#39;P003&#39;</span><span class="p">]</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">cohort_vitals</span> <span class="o">=</span> <span class="n">vitals</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">vitals</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">cohort_ids</span><span class="p">)]</span>
-</code></pre></div>
-<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+  <h1>Prompts</h1>
+
+<h2 id="medication_admin_continuous"><code>medication_admin_continuous</code><a class="headerlink" href="#medication_admin_continuous" title="Permanent link">&para;</a></h2>
+<p>Implement the following tests in tests/tables/test_medication_admin_continuous.py following instructions in their docstrings:
+- test_acceptable_dose_unit_patterns
+- test_standardize_dose_unit_pattern
+- test_convert_dose_to_same_units</p>
+<p>Use pytest features to make the tests more readable and less verbose.
+If helpful, follow the pattern of existing tests in the same file.</p>
+<p>the overall pattern looks good but please improve on the following issues:
+1. the test data are not easily human readable and verificable. Can you create them as .csv's under 
+tests/fixtures? the csv would look like the output df which contains the original df and the newly generated
+appended columns. e.g. for test_convert_dose_to_same_units, the csv would have the following columns:
+['med_dose', 'med_dose_unit_clean', 'weight_kg', 'med_dose_converted', 'med_dose_unit_converted']
+2. within the same test function, we are testing multiple scenarios. Does it make sense to split them up into
+separate test functions? I'm not sure about it either way. I think splitting them up seems like a good pattern
+but I worry about code duplication and overcomplicating things. Can you advise and implement what you think would
+be a preferred strategy, esp. taking into account the first issue above?</p>
+<p>it looks good overall! but would it make sense to consolidate related test data into the same csv's and 
+just add a new column like 'case' to differentiate between the different scenarios? i.e. I think i'd make sense
+for me to be able to view the valid and invalid unit cases at the same time in the same csv, and we can just load
+the csv as a whole and then filter by 'case'. Of course, for tests that are rather distinct and would require different columns, they should be still in different
+csv's.</p>
 <ol>
-<li><strong>Always validate data</strong> after loading to ensure compliance with CLIF standards</li>
-<li><strong>Use appropriate timezones</strong> for your data source</li>
-<li><strong>Filter early</strong> to reduce memory usage with large datasets</li>
-<li><strong>Review validation errors</strong> to understand data quality issues</li>
-<li><strong>Use the orchestrator</strong> when working with multiple related tables</li>
+<li>remove dose_unit_patterns.csv as that test does not necessarily need a tabular structure and the 
+test data can be easily understood as two lists written in the .py file directly.</li>
+<li>rename the csv to be aligned with the test names</li>
+<li>modify column names in the csv's to be exactly aligned with the dataframes, e.g. 'expected_clean'
+should be 'med_dose_unit_clean'; 'expected_dose_converted' should just be 'med_dose_converted'</li>
+<li>remove unnecessary columns in the csv's such as 'med_category' which does not impact unit conversion
+at all. </li>
 </ol>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Explore specific <a href="tables/">table guides</a></li>
-<li>Learn about <a href="validation/">data validation</a></li>
-<li>See <a href="../examples/">practical examples</a></li>
-<li>Review the <a href="../api/">API reference</a></li>
-</ul>
+<p>Based on these two files: @tests/tables/test_medication_admin_continuous.py                                            │
+@clifpy/tables/medication_admin_continuous.py
+1. Add a test(s) for when no med_df was ever provided (self.df was not even populated), triggering the ValueError("No data provided")
+2. Flesh out the doc strings for all functions</p>
 
 
 
