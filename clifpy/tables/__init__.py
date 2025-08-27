@@ -1,6 +1,7 @@
 from .patient import Patient
 from .adt import Adt
 from .hospitalization import Hospitalization
+from .hospital_diagnosis import HospitalDiagnosis
 from .labs import Labs
 from .respiratory_support import RespiratorySupport
 from .vitals import Vitals
