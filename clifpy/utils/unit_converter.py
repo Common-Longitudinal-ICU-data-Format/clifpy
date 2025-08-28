@@ -214,7 +214,10 @@ def _create_unit_conversion_counts_table(med_df: pd.DataFrame) -> pd.DataFrame:
     return duckdb.sql(q).to_df()
     
 
-def standardize_dose_to_limited_units(med_df: pd.DataFrame, vitals_df: pd.DataFrame = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def standardize_dose_to_limited_units(
+    med_df: pd.DataFrame, 
+    vitals_df: pd.DataFrame = None
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     '''
     Should handle both rate and amount units and report the distribution
     '''
@@ -248,6 +251,7 @@ def standardize_dose_to_limited_units(med_df: pd.DataFrame, vitals_df: pd.DataFr
     med_df['med_dose_unit_normalized'] = (
         med_df['med_dose_unit'].pipe(_normalize_dose_unit_formats).pipe(_normalize_dose_unit_names)
     )
+    
     return _convert_normalized_dose_units_to_limited_units(med_df) #, _create_unit_conversion_counts_table(med_df)
     
     

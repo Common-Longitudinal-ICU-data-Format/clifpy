@@ -1,0 +1,15 @@
+case,med_dose_unit,med_dose_unit_format_normalized
+valid,ml/h,ml/h
+valid,MCG/KG/MIN,mcg/kg/min
+valid," Mg/Hr ",mg/hr
+valid,units/minute,units/minute
+valid,ml/min,ml/min
+valid,ml/ hr,ml/hr
+valid,mcg /kg/min,mcg/kg/min
+valid,mg / hour,mg/hour
+valid,mL/ kg/ min,ml/kg/min
+valid,mCG/ lb/ m in,mcg/lb/min
+valid,mCG/lb/min,mcg/lb/min
+invalid,"mCG ",mcg
+invalid,mCG,mcg
+invalid,tablespoon/hr,tablespoon/hr

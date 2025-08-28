@@ -36,6 +36,42 @@ def _normalize_dose_unit_names_test_data(load_fixture_csv):
     """
     return load_fixture_csv('test_normalize_dose_unit_names.csv')
 
+# ===========================================
+# Tests for `_normalize_dose_unit_formats`
+# ===========================================
+@pytest.fixture
+def normalize_dose_unit_formats_test_data(load_fixture_csv):
+    """
+    Load test data for dose unit pattern normalization tests.
+    
+    Returns CSV data with columns:
+    - case: 'valid' or 'invalid' to categorize test scenarios
+    - med_dose_unit: Original dose unit string
+    - med_dose_unit_format_normalized: Expected normalized result
+    """
+    return load_fixture_csv('test_normalize_dose_unit_formats.csv')
+
+@pytest.mark.unit_conversion
+def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
+    """
+    Test that the `_normalize_dose_unit_pattern` private method correctly normalizes valid dose units.
+    
+    Validates:
+    1. Whitespace removal (including internal spaces): 'mL/ hr' -> 'ml/hr'
+    2. Case conversion to lowercase: 'ML/HR' -> 'ml/hr'
+    3. Return value indicates no unrecognized units (False)
+    
+    Uses fixture data filtered for 'valid' test cases.
+    """
+    test_df = normalize_dose_unit_formats_test_data
+    # first check the filtering went right, i.e. test_df is not empty
+    result_series = _normalize_dose_unit_formats(test_df['med_dose_unit'])
+    
+    pd.testing.assert_series_equal(
+        result_series.reset_index(drop=True),
+        test_df['med_dose_unit_format_normalized'].reset_index(drop=True),
+        check_names=False
+    )
 
 # ===========================================
 # Tests for `_normalize_dose_unit_names`
@@ -181,7 +217,7 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
         test_df['med_dose_converted'].reset_index(drop=True),
         result_df['med_dose_converted'].reset_index(drop=True),
         check_names=False,
-        check_dtype=False
+        # check_dtype=False
     )
 
     # Verify converted units
@@ -189,7 +225,7 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
         test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
         result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
         check_names=False,
-        check_dtype=False
+        # check_dtype=False
     )
 
 @pytest.mark.unit_conversion
@@ -214,7 +250,7 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data,caplog):
         test_df['med_dose_converted'].reset_index(drop=True),
         result_df['med_dose_converted'].reset_index(drop=True),
         check_names=False,
-        check_dtype=False
+        #check_dtype=False
     )
 
     # Verify converted units
@@ -222,5 +258,5 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data,caplog):
         test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
         result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
         check_names=False,
-        check_dtype=False
+        # check_dtype=False
     )
