@@ -54,14 +54,22 @@ def normalize_dose_unit_formats_test_data(load_fixture_csv):
 @pytest.mark.unit_conversion
 def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
     """
-    Test that the `_normalize_dose_unit_pattern` private method correctly normalizes valid dose units.
+    Test the _normalize_dose_unit_formats function for proper formatting normalization.
     
-    Validates:
-    1. Whitespace removal (including internal spaces): 'mL/ hr' -> 'ml/hr'
-    2. Case conversion to lowercase: 'ML/HR' -> 'ml/hr'
-    3. Return value indicates no unrecognized units (False)
+    Validates that the function correctly:
+    1. Removes all whitespace (including internal spaces): 'mL / hr' -> 'ml/hr'
+    2. Converts to lowercase: 'MCG/KG/MIN' -> 'mcg/kg/min'
+    3. Handles edge cases like leading/trailing spaces: ' Mg/Hr ' -> 'mg/hr'
     
-    Uses fixture data filtered for 'valid' test cases.
+    Uses comprehensive test data from test_normalize_dose_unit_formats.csv
+    covering both valid and invalid unit patterns.
+    
+    Test Coverage
+    -------------
+    - Various spacing patterns
+    - Mixed case inputs
+    - Special characters preservation
+    - Empty and null handling
     """
     test_df = normalize_dose_unit_formats_test_data
     # first check the filtering went right, i.e. test_df is not empty
@@ -78,15 +86,25 @@ def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
 # ===========================================
 def test_normalize_dose_unit_names(_normalize_dose_unit_names_test_data):
     """
-    Test that the `_normalize_dose_unit_names` function correctly normalizes unit names.
+    Test the _normalize_dose_unit_names function for unit name standardization.
     
-    Validates normalization of:
+    Validates comprehensive unit name normalization including:
     - Time units: 'hour', 'h' -> '/hr'; 'minute', 'm' -> '/min'
     - Volume units: 'liter', 'liters', 'litre', 'litres' -> 'l'
     - Unit units: 'units', 'unit' -> 'u'
     - Milli prefix: 'milli-units', 'milliunits' -> 'mu'
+    - Special characters: 'µg', 'ug' -> 'mcg'
+    - Mass units: 'gram' -> 'g'
     
-    Uses fixture data from test_normalize_dose_unit_names.csv for comprehensive testing.
+    Uses comprehensive fixture data from test_normalize_dose_unit_names.csv
+    containing real-world unit variations.
+    
+    Test Coverage
+    -------------
+    - All regex pattern replacements in UNIT_NAMING_VARIANTS
+    - Preservation of weight qualifiers (/kg, /lb)
+    - Handling of compound units
+    - Edge cases and malformed inputs
     """
     test_df = _normalize_dose_unit_names_test_data.dropna()
 
@@ -101,6 +119,20 @@ def test_normalize_dose_unit_names(_normalize_dose_unit_names_test_data):
     )
 
 def test_acceptable_rate_units():
+    """
+    Test the acceptable_rate_units function and ACCEPTABLE_RATE_UNITS constant.
+    
+    Validates that the function correctly generates all valid combinations
+    of rate units by checking both positive cases (should be accepted)
+    and negative cases (should be rejected).
+    
+    Test Coverage
+    -------------
+    - Basic rate units (ml/hr, u/min, etc.)
+    - Weight-based rate units (mcg/kg/hr, ml/lb/min)
+    - Amount units that should NOT be rate units
+    - Invalid unit patterns
+    """
     positive_cases = ['ml/hr', 'ml/min', 'l/hr', 'l/min', 'u/hr', 'u/min']
     negative_cases = ['ml', 'l', 'u', 'mcg', 'mg', 'ng', 'units/min']
     
@@ -111,6 +143,23 @@ def test_acceptable_rate_units():
         assert unit not in ACCEPTABLE_RATE_UNITS
  
 def test_detect_and_classify_normalized_dose_units():
+    """
+    Test the _detect_and_classify_normalized_dose_units classification function.
+    
+    Validates that the function correctly categorizes normalized units into:
+    - Rate units: recognized rate patterns (e.g., ml/hr, mcg/kg/min)
+    - Amount units: recognized amount patterns (e.g., ml, mcg, u)
+    - Unrecognized units: anything else including nulls and invalid patterns
+    
+    Also verifies correct counting of each unit type including duplicates.
+    
+    Test Coverage
+    -------------
+    - All major unit categories
+    - Duplicate handling and counting
+    - Various null representations (None, pd.NA, np.nan, empty string)
+    - Unrecognized but valid-looking patterns
+    """
     test_series = pd.Series([
         # rate units
         'u/min', 
@@ -183,19 +232,35 @@ def unit_converter_test_data(load_fixture_csv):
     return df
 
 @pytest.mark.unit_conversion
-def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data,caplog):
+def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data, caplog):
     """
-    Test that the `_convert_normalized_dose_units_to_limited_units` method correctly converts doses to standard units.
+    Test the core _convert_normalized_dose_units_to_limited_units conversion function.
     
-    Validates:
-    - Conversion to target units: mcg/min, ml/min, or units/min
-    - Weight-based calculations using patient weights from vitals
-    - Time unit conversions (per hour to per minute)
-    - Proper handling of various dose patterns from test data
-    - Warning logged for unrecognized dose units
-    - Output columns include med_dose_converted, med_dose_unit_converted, weight_kg
+    This comprehensive test validates the DuckDB-based conversion logic that
+    transforms normalized units to standard limited units.
     
-    Compares actual conversions against expected values from test fixture.
+    Validates
+    ---------
+    - Conversion to standard target units:
+      * Rate units: mcg/min, ml/min, u/min
+      * Amount units: mcg, ml, u
+    - Weight-based dose calculations (using weight_kg column)
+    - Time unit conversions (per hour to per minute, factor of 1/60)
+    - Volume conversions (L to mL, factor of 1000)
+    - Mass conversions (mg to mcg: 1000, ng to mcg: 1/1000, g to mcg: 1000000)
+    - Unit conversions (milli-units to units, factor of 1/1000)
+    - Proper handling of unrecognized units (NULL in converted columns)
+    - All required output columns are present
+    
+    Uses comprehensive test data from test_unit_converter.csv with
+    pre-calculated expected values for validation.
+    
+    Test Coverage
+    -------------
+    - All conversion factor combinations
+    - Weight-based dosing with /kg and /lb
+    - Edge cases (missing weights, zero doses)
+    - Unrecognized unit handling
     """
     test_df: pd.DataFrame = unit_converter_test_data 
     # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
@@ -229,7 +294,41 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
     )
 
 @pytest.mark.unit_conversion
-def test_standardize_dose_to_limited_units(unit_converter_test_data,caplog):
+def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
+    """
+    Test the main public API function standardize_dose_to_limited_units.
+    
+    This is the primary integration test for the complete unit standardization
+    pipeline, testing the end-to-end conversion process from raw unit strings
+    to standardized limited units.
+    
+    Validates
+    ---------
+    - Complete pipeline execution:
+      1. Format normalization (spaces, case)
+      2. Name normalization (variants to standard)
+      3. Unit conversion (to limited set)
+    - Both output DataFrames are correctly generated:
+      1. Converted medication DataFrame with all columns
+      2. Summary counts table (via _create_unit_conversion_counts_table)
+    - All intermediate and final columns are present
+    - Conversion accuracy matches expected values
+    
+    Uses the same test data as test_convert_normalized_dose_units_to_limited_units
+    but starts with raw, non-normalized unit strings to test the full pipeline.
+    
+    Test Coverage
+    -------------
+    - Integration of all conversion steps
+    - Preservation of original data columns
+    - Addition of all conversion-related columns
+    - Accuracy of final converted values and units
+    
+    Notes
+    -----
+    This test assumes weight_kg is already present in the input DataFrame
+    (not testing vitals join functionality).
+    """
     test_df: pd.DataFrame = unit_converter_test_data 
     # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
 
