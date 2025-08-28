@@ -19,7 +19,12 @@ u/kg/h,u/kg/hr
 units,u
 unit,u
 u,u
+mu,mu
 mcg,mcg
+ug,mcg
+ug/kg/m,mcg/kg/min
+µg,mcg
+µg/kg/hr,mcg/kg/hr
 mg,mg
 ng,ng
 milli-units/lb/m,mu/lb/min
@@ -30,3 +35,5 @@ milliunit,mu
 milliunits,mu
 milli-unit,mu
 milli-units,mu
+lit,lit
+mcgs,mcgs
