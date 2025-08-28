@@ -4,7 +4,7 @@ In general, convert both rate and amount indiscriminately and report them as wel
 
 import pandas as pd
 import duckdb
-from typing import Set
+from typing import Set, Tuple
 
 UNIT_NAMING_VARIANTS = {
     # time
@@ -17,7 +17,8 @@ UNIT_NAMING_VARIANTS = {
     # volume
     "l": 'l(iters|itres|itre|iter)?'    ,
     # mass
-    'mcg': '^(u|µ)g'
+    'mcg': '^(u|µ)g',
+    'g': '^g(ram)?',
 }
 
 AMOUNT_ENDER = "($|/*)"
@@ -97,6 +98,7 @@ def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
 
 def _detect_and_classify_normalized_dose_units(s: pd.Series) -> dict:
     '''
+    [LIKELY DEPRECATED]
     report the distribution of 1. rate units 2. amount units 3. unrecognized units
     '''
     counts_dict = s.value_counts(dropna=False).to_dict()
@@ -121,7 +123,7 @@ def when_then_regex_builder(pattern: str) -> str:
         return f"WHEN regexp_matches(med_dose_unit_normalized, '{pattern}') THEN {REGEX_MAPPER.get(pattern)}"
     raise ValueError(f"regex pattern {pattern} not found in CONVERT_FACTORS dict")
 
-def _convert_normalized_dose_units_to_limited_units(df: pd.DataFrame) -> pd.DataFrame:
+def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.DataFrame:
     '''
     Convert normalized dose units to limited units.
     
@@ -179,12 +181,78 @@ def _convert_normalized_dose_units_to_limited_units(df: pd.DataFrame) -> pd.Data
             WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{VOLUME_REGEX}') THEN 'ml'
             WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{UNIT_REGEX}') THEN 'u'
             END as med_dose_unit_converted
-    FROM df 
+    FROM med_df 
     """
     return duckdb.sql(q).to_df()
 
-def standardize_dose_to_limited_units():
+def _create_unit_conversion_counts_table(med_df: pd.DataFrame) -> pd.DataFrame:
+    '''    
+    Need the following columns:
+    - med_dose_unit
+    - med_dose_unit_normalized
+    - med_dose_unit_converted
+    - unit_class
+    '''
+    # check presense of all required columns
+    required_columns = {'med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_converted', 'unit_class'}
+    missing_columns = required_columns - set(med_df.columns)
+    if missing_columns:
+        raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
+    
+    q = """
+    SELECT med_dose_unit
+        , med_dose_unit_normalized
+        , med_dose_unit_converted
+        , unit_class
+        , COUNT(*) as count
+    FROM med_df
+    GROUP BY med_dose_unit
+        , med_dose_unit_normalized
+        , med_dose_unit_converted
+        , unit_class
+    """
+    return duckdb.sql(q).to_df()
+    
+
+def standardize_dose_to_limited_units(med_df: pd.DataFrame, vitals_df: pd.DataFrame = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
     '''
     Should handle both rate and amount units and report the distribution
     '''
-    pass
+    if 'weight_kg' not in med_df.columns:
+        print("No weight_kg column found, adding the most recent from vitals")
+        query = """
+        SELECT m.*
+            , v.vital_value as weight_kg
+            , v.recorded_dttm as weight_recorded_dttm
+            , ROW_NUMBER() OVER (
+                PARTITION BY m.hospitalization_id, m.admin_dttm, m.med_category
+                ORDER BY v.recorded_dttm DESC
+                ) as rn
+        FROM med_df m
+        LEFT JOIN vitals_df v 
+            ON m.hospitalization_id = v.hospitalization_id 
+            AND v.vital_category = 'weight_kg' AND v.vital_value IS NOT NULL
+            AND v.recorded_dttm <= m.admin_dttm  -- only past weights
+        -- rn = 1 for the weight w/ the latest recorded_dttm (and thus most recent)
+        QUALIFY (rn = 1) 
+        ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category, rn
+        """
+        med_df = duckdb.sql(query).to_df()
+    
+    # check if the required columns are present
+    required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
+    missing_columns = required_columns - set(med_df.columns)
+    if missing_columns:
+        raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
+    
+    med_df['med_dose_unit_normalized'] = (
+        med_df['med_dose_unit'].pipe(_normalize_dose_unit_formats).pipe(_normalize_dose_unit_names)
+    )
+    return _convert_normalized_dose_units_to_limited_units(med_df) #, _create_unit_conversion_counts_table(med_df)
+    
+    
+    
+    
+    
+    
+    

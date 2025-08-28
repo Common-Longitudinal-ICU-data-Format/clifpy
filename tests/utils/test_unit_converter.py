@@ -10,7 +10,8 @@ from clifpy.utils.unit_converter import (
     _normalize_dose_unit_names,
     _detect_and_classify_normalized_dose_units,
     ACCEPTABLE_RATE_UNITS,
-    _convert_normalized_dose_units_to_limited_units
+    _convert_normalized_dose_units_to_limited_units,
+    standardize_dose_to_limited_units
 )
 
 # --- Helper Fixtures for CSV Loading ---
@@ -132,8 +133,21 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
     return df
 
+@pytest.fixture
+def unit_converter_test_data(load_fixture_csv):
+    """
+    Load test data for dose unit conversion tests.
+    
+    Returns CSV data with columns:
+    """
+    df = load_fixture_csv('test_unit_converter.csv').dropna(subset=['unit_class'])
+    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
+    # Replace empty strings with NaN for weight_kg column
+    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    return df
+
 @pytest.mark.unit_conversion
-def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_units_to_limited_units_test_data,caplog):
+def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data,caplog):
     """
     Test that the `_convert_normalized_dose_units_to_limited_units` method correctly converts doses to standard units.
     
@@ -147,13 +161,13 @@ def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_
     
     Compares actual conversions against expected values from test fixture.
     """
-    test_df = convert_normalized_dose_units_to_limited_units_test_data 
+    test_df: pd.DataFrame = unit_converter_test_data 
     # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
 
-    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit_normalized', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    result_df = _convert_normalized_dose_units_to_limited_units(df = input_df) \
+    result_df = _convert_normalized_dose_units_to_limited_units(med_df = input_df) \
         .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
@@ -161,6 +175,39 @@ def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_
     assert 'med_dose_unit_converted' in result_df.columns
     assert 'weight_kg' in result_df.columns
     # assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
+
+    # Verify converted values
+    pd.testing.assert_series_equal(
+        test_df['med_dose_converted'].reset_index(drop=True),
+        result_df['med_dose_converted'].reset_index(drop=True),
+        check_names=False,
+        check_dtype=False
+    )
+
+    # Verify converted units
+    pd.testing.assert_series_equal(
+        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        check_names=False,
+        check_dtype=False
+    )
+
+@pytest.mark.unit_conversion
+def test_standardize_dose_to_limited_units(unit_converter_test_data,caplog):
+    test_df: pd.DataFrame = unit_converter_test_data 
+    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
+
+    input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
+    
+    # with caplog.at_level('WARNING'):
+    result_df = standardize_dose_to_limited_units(med_df = input_df) \
+        .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
+    
+    # Verify columns exist
+    assert 'med_dose_unit_normalized' in result_df.columns
+    assert 'med_dose_converted' in result_df.columns
+    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'weight_kg' in result_df.columns
 
     # Verify converted values
     pd.testing.assert_series_equal(
