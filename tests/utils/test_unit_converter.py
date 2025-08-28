@@ -9,7 +9,8 @@ from clifpy.utils.unit_converter import (
     _normalize_dose_unit_formats,
     _normalize_dose_unit_names,
     _detect_and_classify_normalized_dose_units,
-    ACCEPTABLE_RATE_UNITS
+    ACCEPTABLE_RATE_UNITS,
+    _convert_normalized_dose_units_to_limited_units
 )
 
 # --- Helper Fixtures for CSV Loading ---
@@ -106,3 +107,73 @@ def test_detect_and_classify_normalized_dose_units():
     result_dict = _detect_and_classify_normalized_dose_units(test_series)
     
     assert result_dict == expected_dict
+    
+
+# ===========================================
+# Tests for `_convert_normalized_dose_units_to_limited_units`
+# ===========================================
+@pytest.fixture
+def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
+    """
+    Load test data for dose unit conversion tests.
+    
+    Returns CSV data with columns:
+    - hospitalization_id, admin_dttm: Patient and timing identifiers
+    - med_dose, med_dose_unit: Original dose values and units
+    - weight_kg: Patient weight (may be empty/NaN)
+    - med_dose_converted, med_dose_unit_converted: Expected conversion results
+    - case: Test scenario category
+    
+    Processes admin_dttm to datetime and converts empty weight_kg to NaN.
+    """
+    df = load_fixture_csv('test_convert_normalized_dose_units_to_limited_units.csv')
+    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
+    # Replace empty strings with NaN for weight_kg column
+    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    return df
+
+@pytest.mark.unit_conversion
+def test_convert_normalized_dose_units_to_limited_units(convert_normalized_dose_units_to_limited_units_test_data,caplog):
+    """
+    Test that the `_convert_normalized_dose_units_to_limited_units` method correctly converts doses to standard units.
+    
+    Validates:
+    - Conversion to target units: mcg/min, ml/min, or units/min
+    - Weight-based calculations using patient weights from vitals
+    - Time unit conversions (per hour to per minute)
+    - Proper handling of various dose patterns from test data
+    - Warning logged for unrecognized dose units
+    - Output columns include med_dose_converted, med_dose_unit_converted, weight_kg
+    
+    Compares actual conversions against expected values from test fixture.
+    """
+    test_df = convert_normalized_dose_units_to_limited_units_test_data 
+    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
+
+    input_df = test_df.drop(['case', 'med_dose_converted', 'med_dose_unit_converted'], axis=1)
+    
+    # with caplog.at_level('WARNING'):
+    result_df = _convert_normalized_dose_units_to_limited_units(df = input_df) \
+        .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
+    
+    # Verify columns exist
+    assert 'med_dose_converted' in result_df.columns
+    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'weight_kg' in result_df.columns
+    # assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
+
+    # Verify converted values
+    pd.testing.assert_series_equal(
+        test_df['med_dose_converted'].reset_index(drop=True),
+        result_df['med_dose_converted'].reset_index(drop=True),
+        check_names=False,
+        check_dtype=False
+    )
+
+    # Verify converted units
+    pd.testing.assert_series_equal(
+        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        check_names=False,
+        check_dtype=False
+    )

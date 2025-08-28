@@ -1,15 +1,15 @@
 '''
-In general, would convert both rate and amount indiscriminately and report them as well as unrecognized units.
+In general, convert both rate and amount indiscriminately and report them as well as unrecognized units.
 '''
 
 import pandas as pd
 import duckdb
 from typing import Set
 
-REGEX_PATTERNS = {
+UNIT_NAMING_VARIANTS = {
     # time
-    '/hr': '/h(r|our)?\\b',
-    '/min': '/m(in|inute)?\\b',
+    '/hr': '/h(r|our)?$',
+    '/min': '/m(in|inute)?$',
     # unit
     'u': 'u(nits|nit)?',
     # milli
@@ -17,26 +17,49 @@ REGEX_PATTERNS = {
     # volume
     "l": 'l(iters|itres|itre|iter)?'    ,
     # mass
-    'mcg': '\\b(u|µ)g'
+    'mcg': '^(u|µ)g'
 }
 
-CONVERT_FACTORS = {
+AMOUNT_ENDER = "($|/*)"
+MASS_REGEX = f"^(mcg|mg|ng|g){AMOUNT_ENDER}"
+VOLUME_REGEX = f"^(l|ml){AMOUNT_ENDER}"
+UNIT_REGEX = f"^(u|mu){AMOUNT_ENDER}"
+
+# time
+HR_REGEX = f"/hr$"
+
+# mass
+MU_REGEX = f"^(mu){AMOUNT_ENDER}"
+MG_REGEX = f"^(mg){AMOUNT_ENDER}"
+NG_REGEX = f"^(ng){AMOUNT_ENDER}"
+G_REGEX = f"^(g){AMOUNT_ENDER}"
+
+# volume
+L_REGEX = f"^l{AMOUNT_ENDER}"
+
+# weight
+LB_REGEX = f"/lb/"
+KG_REGEX = f"/kg/"
+WEIGHT_REGEX = f"/(lb|kg)/"
+
+REGEX_MAPPER = {
     # time -> /min
-    '/hr': 1/60,
+    HR_REGEX: 1/60,
     
     # volume -> ml
-    '\\bl(\\b|/)': 1000, # to ml
+    L_REGEX: 1000, # to ml
 
     # unit -> u
-    'mu': 1/1000,
+    MU_REGEX: 1/1000,
     
     # mass -> mcg
-    "mg": 1000,
-    "ng": 1/1000,
-    "\\bg": 1000000,
+    MG_REGEX: 1000,
+    NG_REGEX: 1/1000,
+    G_REGEX: 1000000,
     
     # weight -> /kg
-    '/lb': 2.20462
+    KG_REGEX: 'weight_kg',
+    LB_REGEX: 'weight_kg * 2.20462'
 }
 
 ACCEPTABLE_AMOUNT_UNITS = {
@@ -68,7 +91,7 @@ def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
     e.g. 
     s = pd.Series(['milliliter/hour', 'milliliter/h', 'ml/minute', 'ml/m'])
     '''
-    for repl, pattern in REGEX_PATTERNS.items():
+    for repl, pattern in UNIT_NAMING_VARIANTS.items():
         s = s.str.replace(pattern, repl, regex=True)
     return s
 
@@ -93,14 +116,72 @@ def _detect_and_classify_normalized_dose_units(s: pd.Series) -> dict:
         'unrecognized_units': unrecognized_units_counts
     }
 
+def when_then_regex_builder(pattern: str) -> str:
+    if pattern in REGEX_MAPPER:
+        return f"WHEN regexp_matches(med_dose_unit_normalized, '{pattern}') THEN {REGEX_MAPPER.get(pattern)}"
+    raise ValueError(f"regex pattern {pattern} not found in CONVERT_FACTORS dict")
+
 def _convert_normalized_dose_units_to_limited_units(df: pd.DataFrame) -> pd.DataFrame:
     '''
+    Convert normalized dose units to limited units.
+    
+    Required columns:
+    - med_dose_unit_normalized: Standardized unit pattern
+    - weight_kg: Patient weight used for conversion (if applicable)
+    - med_dose: Original dose value
+    
+    Returns:
+    - med_dose_converted: Dose value in standardized units
+    - med_dose_unit_converted: Standardized unit ('mcg/min', 'ml/min', or 'units/min')
+    
+    e.g.
     'ml/hr' -> 'ml/min'
     'mcg/kg/hr' -> 'mcg/min'
     'mcg/kg/min' -> 'mcg/min'
     'mcg/kg/min' -> 'mcg/min'
     '''
-    pass
+    # RESUME with a duckdb implementation
+    RATE_UNITS_STR = "','".join(ACCEPTABLE_RATE_UNITS)
+    AMOUNT_UNITS_STR = "','".join(ACCEPTABLE_AMOUNT_UNITS)
+    
+    q = f"""
+    SELECT *
+        -- classify and check acceptability first
+        , CASE WHEN med_dose_unit_normalized IN ('{RATE_UNITS_STR}') THEN 'rate' 
+            WHEN med_dose_unit_normalized IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+            ELSE 'unrecognized' END as unit_class
+        -- parse and generate multipliers
+        , CASE WHEN unit_class = 'unrecognized' THEN NULL ELSE (
+            CASE {when_then_regex_builder(L_REGEX)}
+                {when_then_regex_builder(MU_REGEX)}
+                {when_then_regex_builder(MG_REGEX)}
+                {when_then_regex_builder(NG_REGEX)}
+                {when_then_regex_builder(G_REGEX)}
+                ELSE 1 END
+            ) END AS amount_multiplier
+        , CASE WHEN unit_class = 'unrecognized' THEN NULL ELSE (
+            CASE {when_then_regex_builder(HR_REGEX)}
+                ELSE 1 END
+            ) END AS time_multiplier
+        , CASE WHEN unit_class = 'unrecognized' THEN NULL ELSE (
+            CASE {when_then_regex_builder(KG_REGEX)}
+                {when_then_regex_builder(LB_REGEX)}
+                ELSE 1 END
+            ) END AS weight_multiplier
+        -- calculate the converted dose
+        , med_dose * amount_multiplier * time_multiplier * weight_multiplier as med_dose_converted
+        -- id the converted unit
+        , CASE WHEN unit_class = 'unrecognized' THEN NULL
+            WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{MASS_REGEX}') THEN 'mcg/min'
+            WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{VOLUME_REGEX}') THEN 'ml/min'
+            WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{UNIT_REGEX}') THEN 'u/min'
+            WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{MASS_REGEX}') THEN 'mcg'
+            WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{VOLUME_REGEX}') THEN 'ml'
+            WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{UNIT_REGEX}') THEN 'u'
+            END as med_dose_unit_converted
+    FROM df 
+    """
+    return duckdb.sql(q).to_df()
 
 def standardize_dose_to_limited_units():
     '''
