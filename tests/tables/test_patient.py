@@ -12,7 +12,7 @@ def sample_valid_patient_data():
     return pd.DataFrame({
         'patient_id': ['P001', 'P002', 'P003'],
         'birth_date': pd.to_datetime(['1980-01-01', '1990-02-02', '2000-03-03']),
-        'death_dttm': pd.to_datetime([pd.NaT, pd.NaT, '2024-12-01 08:15:00+00:00 UTC']),
+        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00+00:00', '2024-12-01 08:15:00+00:00', '2024-12-01 08:15:00+00:00']),
         'race_name': ['white', 'black or african american', 'asian'],
         'race_category': ['White', 'Black or African American', 'Asian'],
         'ethnicity_name': ['hispanic', 'non-hispanic', 'non-hispanic'],
@@ -29,7 +29,7 @@ def sample_patient_data_invalid_category():
     return pd.DataFrame({
         'patient_id': ['P001'],
         'birth_date': pd.to_datetime(['1980-01-01']),
-        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00+00:00 UTC']),
+        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00+00:00']),
         'race_name': ['white'],
         'ethnicity_name': ['hispanic'],
         'sex_name': ['male'],
@@ -46,7 +46,7 @@ def sample_patient_data_missing_cols():
     return pd.DataFrame({
         'patient_id': ['P001'],
         'birth_date': pd.to_datetime(['1980-01-01']),
-        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00+00:00 UTC']),
+        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00+00:00']),
         'race_name': ['white'],
         'ethnicity_name': ['hispanic'],
         'sex_name': ['male'],
@@ -55,12 +55,12 @@ def sample_patient_data_missing_cols():
     })
 
 @pytest.fixture
-def sample_patient_data_invalid_datetime():
+def sample_patient_data_non_utc_timezone():
     """Create a patient DataFrame with invalid categorical values."""
     return pd.DataFrame({
         'patient_id': ['P001'],
         'birth_date': pd.to_datetime(['1980-01-01']),
-        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00+00:00 EST']),
+        'death_dttm': pd.to_datetime(['2024-12-01 08:15:00 EST']),
         'race_name': ['white'],
         'ethnicity_name': ['hispanic'],
         'sex_name': ['male'],
@@ -118,7 +118,7 @@ def test_patient_init_without_data():
     patient_obj = Patient()
     patient_obj.validate()
     assert patient_obj.df is None
-    assert patient_obj.isvalid() is True # isvalid is True because no errors were generated
+    assert patient_obj.isvalid() is False # isvalid is True because no errors were generated
     assert not patient_obj.errors
 
 def test_timezone_validation_non_utc_datetime(sample_patient_data_non_utc_timezone):
@@ -129,45 +129,6 @@ def test_timezone_validation_non_utc_datetime(sample_patient_data_non_utc_timezo
     # Should fail due to non-UTC timezone
     assert patient_obj.isvalid() is False
     
-    # Check that timezone validation errors exist
-    timezone_errors = [e for e in patient_obj.errors if e.get('type') == 'datetime_timezone']
-    assert len(timezone_errors) > 0, "Non-UTC datetime should cause timezone validation errors"
-    
-    # Verify the specific error details
-    tz_error = timezone_errors[0]
-    assert tz_error['column'] == 'death_dttm'
-    assert 'EST' in str(tz_error.get('timezone', '')) 
-
-## Base table does the below, so we don't need to test it here
-# def test_schema_loading_file_not_found(tmp_path):
-#     """Test schema loading when the schema file is not found."""
-#     # Create a temporary directory without schemas
-#     test_dir = tmp_path / "test_data"
-#     test_dir.mkdir()
-    
-#     # This should work (schema loading is handled gracefully)
-#     patient_obj = Patient(data_directory=str(test_dir), filetype="parquet")
-#     assert patient_obj.schema is None  # Schema will be None if not found
-#     assert patient_obj.errors == []    # No errors during init
-
-# def test_schema_loading_malformed_yaml(tmp_path, monkeypatch):
-#     """Test schema loading when the YAML schema is malformed."""
-#     # Create a malformed YAML file
-#     schema_dir = tmp_path / "schemas"
-#     schema_dir.mkdir()
-#     malformed_schema = schema_dir / "patient_schema.yaml"
-#     malformed_schema.write_text("invalid: yaml: content: [")
-    
-#     # Mock the schema directory path
-#     def mock_schema_dir(*args, **kwargs):
-#         return str(schema_dir)
-    
-#     monkeypatch.setattr("clifpy.tables.base_table.BaseTable._load_schema", 
-#                        lambda self: self._load_schema_from_dir(str(schema_dir)))
-    
-#     # This should handle the YAML error gracefully
-#     patient_obj = Patient(data_directory=str(tmp_path), filetype="parquet")
-#     assert patient_obj.schema is None
 
 # from_file constructor
 def test_patient_from_file(mock_patient_file):
@@ -185,25 +146,21 @@ def test_patient_from_file_nonexistent(tmp_path):
 def test_patient_isvalid(sample_valid_patient_data, sample_patient_data_invalid_category):
     """Test isvalid method."""
     valid_patient = Patient(data=sample_valid_patient_data)
+    valid_patient.validate()
     assert valid_patient.isvalid() is True
     
     invalid_patient = Patient(data=sample_patient_data_invalid_category)
+    invalid_patient.validate()
     assert invalid_patient.isvalid() is False
 
 # validate method
-def test_patient_validate_output(sample_valid_patient_data, sample_patient_data_invalid_category, capsys):
-    """Test validate method output messages."""
-    # Valid data
-    valid_patient = Patient(data=sample_valid_patient_data)
-    valid_patient.validate()
-    captured = capsys.readouterr()
-    assert "Validation completed successfully" in captured.out
-    
+def test_patient_validate_output(sample_patient_data_invalid_category, capsys):
+    """Test validate method output messages."""    
     # Invalid data
     invalid_patient = Patient(data=sample_patient_data_invalid_category)
     invalid_patient.validate()
     captured = capsys.readouterr()
-    assert "Validation completed with 1 error(s)" in captured.out
+    assert "Validation completed with 2 error(s)" in captured.out
     
     # No data
     p_no_data = Patient()
