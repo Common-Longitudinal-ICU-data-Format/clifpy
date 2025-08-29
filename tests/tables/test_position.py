@@ -66,7 +66,7 @@ def mock_position_file(tmp_path, sample_valid_position_data):
 # Initialization
 def test_position_init_with_valid_data(sample_valid_position_data):
     """Test position initialization with valid data."""
-    pos_obj = Position(sample_valid_position_data)
+    pos_obj = Position(data=sample_valid_position_data)
     pos_obj.validate()
     assert pos_obj.df is not None
     assert pos_obj.isvalid() is True
@@ -98,11 +98,11 @@ def test_position_from_file_nonexistent(tmp_path):
 # isvalid method
 def test_position_isvalid(sample_valid_position_data, ):
     """Test isvalid method."""
-    valid_pos = Position(sample_valid_position_data)
+    valid_pos = Position(data=sample_valid_position_data)
     valid_pos.validate()
     assert valid_pos.isvalid() is True
     
-    invalid_pos = Position(sample_position_data_missing_cols)
+    invalid_pos = Position(data=sample_position_data_missing_cols)
     invalid_pos.validate()
     assert invalid_pos.isvalid() is False
 
@@ -110,13 +110,13 @@ def test_position_isvalid(sample_valid_position_data, ):
 def test_position_validate_output(sample_valid_position_data, sample_position_data_missing_cols, capsys):
     """Test validate method output messages."""
     # Valid data - validation runs at init
-    valid_position = Position(sample_valid_position_data)
+    valid_position = Position(data=sample_valid_position_data)
     valid_position.validate()
     captured = capsys.readouterr()
     assert "Validation completed successfully." in captured.out
 
     # Invalid data - validation runs at init
-    invalid_position = Position(sample_position_data_missing_cols)
+    invalid_position = Position(data=sample_position_data_missing_cols)
     invalid_position.validate()
     captured = capsys.readouterr()
     # Expecting 2 errors, not 3, due to known issue with missing_columns reporting.
