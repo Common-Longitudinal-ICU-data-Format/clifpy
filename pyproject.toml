@@ -3,8 +3,8 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyclif"  
-version = "0.0.1"
+name = "clifpy"  
+version = "0.0.3"
 description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -16,7 +16,7 @@ authors = [
 ]
 classifiers = [
   "Programming Language :: Python :: 3.9",
-  "License :: OSI Approved :: Apache 2.0",
+  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent"
 ]
 requires-python = ">=3.9"
@@ -29,8 +29,7 @@ dependencies = [
   "pydantic",
   "pytest",
   "pytz",
-  "tqdm",
-  "marimo>=0.14.17",
+  "tqdm"
 ]
 
 [tool.setuptools]
@@ -43,3 +42,8 @@ include = ["clifpy*"]
 
 [tool.setuptools.package-data]
 pyclif = ["data/clif_demo/*.parquet", "mCIDE/*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+  "unit_conversion: marks tests related to unit conversion",
+]

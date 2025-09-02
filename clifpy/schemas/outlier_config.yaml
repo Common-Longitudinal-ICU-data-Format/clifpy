@@ -1,0 +1,626 @@
+# Outlier Configuration for Numeric Column Range Validation
+# This configuration file defines acceptable ranges for numeric columns across all tables
+# Values outside these ranges will be converted to NaN by the outlier detection function
+
+# Configuration structure:
+# - Simple numeric columns: direct min/max ranges
+# - Category-dependent columns: ranges organized by category value
+
+tables:
+  # ADT table has no numeric columns
+  adt: {}
+
+  # Hospitalization table
+  hospitalization:
+    age_at_admission:
+      min: 0
+      max: 120
+
+  # Labs table - numeric values depend on lab category
+  labs:
+    lab_value_numeric:
+      albumin:
+        min: 0.0
+        max: 15.0
+      alkaline_phosphatase:
+        min: 0
+        max: 5000
+      alt:
+        min: 0
+        max: 20000
+      ast:
+        min: 0
+        max: 20000
+      basophils_percent:
+        min: 0.0
+        max: 100.0
+      basophils_absolute:
+        min: 0.0
+        max: 50.0
+      bicarbonate:
+        min: 0.0
+        max: 50.0
+      bilirubin_total:
+        min: 0.0
+        max: 80.0
+      bilirubin_conjugated:
+        min: 0.0
+        max: 50.0
+      bilirubin_unconjugated:
+        min: 0.0
+        max: 50.0
+      bun:
+        min: 0.0
+        max: 250.0
+      calcium_total:
+        min: 0.0
+        max: 20.0
+      calcium_ionized:
+        min: 0.0
+        max: 20.0
+      chloride:
+        min: 50.0
+        max: 140.0
+      creatinine:
+        min: 0.0
+        max: 20.0
+      crp:
+        min: 0.0
+        max: 1000.0
+      eosinophils_percent:
+        min: 0.0
+        max: 100.0
+      eosinophils_absolute:
+        min: 0.0
+        max: 50.0
+      esr:
+        min: 0
+        max: 1000
+      ferritin:
+        min: 0.0
+        max: 300000.0
+      glucose_fingerstick:
+        min: 0.0
+        max: 2000.0
+      glucose_serum:
+        min: 0.0
+        max: 2000.0
+      hemoglobin:
+        min: 2.0
+        max: 25.0
+      phosphate:
+        min: 0.0
+        max: 15.0
+      inr:
+        min: 0.0
+        max: 15.0
+      lactate:
+        min: 0.0
+        max: 30.0
+      ldh:
+        min: 0
+        max: 10000
+      lymphocytes_percent:
+        min: 0.0
+        max: 100.0
+      lymphocytes_absolute:
+        min: 0.0
+        max: 50.0
+      magnesium:
+        min: 0.0
+        max: 10.0
+      monocytes_percent:
+        min: 0.0
+        max: 100.0
+      monocytes_absolute:
+        min: 0.0
+        max: 50.0
+      neutrophils_percent:
+        min: 0.0
+        max: 100.0
+      neutrophils_absolute:
+        min: 0.0
+        max: 50.0
+      pco2_arterial:
+        min: 0.0
+        max: 250.0
+      pco2_venous:
+        min: 0.0
+        max: 250.0
+      po2_arterial:
+        min: 0.0
+        max: 700.0
+      ph_arterial:
+        min: 6.0
+        max: 10.0
+      ph_venous:
+        min: 5.0
+        max: 10.0
+      platelet_count:
+        min: 0.0
+        max: 2000.0
+      potassium:
+        min: 0.0
+        max: 15.0
+      procalcitonin:
+        min: 0.0
+        max: 1000.0
+      pt:
+        min: 1.0
+        max: 200.0
+      ptt:
+        min: 1.0
+        max: 200.0
+      so2_arterial:
+        min: 0.0
+        max: 100.0
+      so2_mixed_venous:
+        min: 0.0
+        max: 100.0
+      so2_central_venous:
+        min: 0.0
+        max: 100.0
+      sodium:
+        min: 90.0
+        max: 210.0
+      total_protein:
+        min: 0.0
+        max: 20.0
+      troponin_i:
+        min: 0.0
+        max: 10000.0
+      troponin_t:
+        min: 0.0
+        max: 10000.0
+      wbc:
+        min: 0.0
+        max: 500.0
+
+  # Medication administration continuous table - dose depends on medication category and unit
+  medication_admin_continuous:
+    med_dose:
+      # Vasoactive medications
+      norepinephrine:
+        "mcg/kg/min":
+          min: 0.0
+          max: 3.0
+        "mcg/min":
+          min: 0.0
+          max: 200.0
+        "mg/hr":
+          min: 0.0
+          max: 10.0
+      epinephrine:
+        "mcg/kg/min":
+          min: 0.0
+          max: 2.0
+        "mcg/min":
+          min: 0.0
+          max: 100.0
+        "mg/hr":
+          min: 0.0
+          max: 5.0
+      phenylephrine:
+        "mcg/kg/min":
+          min: 0.0
+          max: 10.0
+        "mcg/min":
+          min: 0.0
+          max: 500.0
+        "mg/hr":
+          min: 0.0
+          max: 20.0
+      vasopressin:
+        "units/min":
+          min: 0.0
+          max: 0.1
+        "units/hr":
+          min: 0.0
+          max: 6.0
+      dopamine:
+        "mcg/kg/min":
+          min: 0.0
+          max: 50.0
+        "mg/hr":
+          min: 0.0
+          max: 100.0
+      dobutamine:
+        "mcg/kg/min":
+          min: 0.0
+          max: 20.0
+        "mg/hr":
+          min: 0.0
+          max: 50.0
+      milrinone:
+        "mcg/kg/min":
+          min: 0.0
+          max: 1.0
+        "mg/hr":
+          min: 0.0
+          max: 2.0
+      
+      # Sedation medications
+      propofol:
+        "mcg/kg/min":
+          min: 0.0
+          max: 200.0
+        "mg/hr":
+          min: 0.0
+          max: 400.0
+        "mg/kg/hr":
+          min: 0.0
+          max: 10.0
+      dexmedetomidine:
+        "mcg/kg/hr":
+          min: 0.0
+          max: 2.4
+        "mcg/hr":
+          min: 0.0
+          max: 200.0
+      ketamine:
+        "mcg/kg/min":
+          min: 0.0
+          max: 50.0
+        "mg/hr":
+          min: 0.0
+          max: 20.0
+        "mg/kg/hr":
+          min: 0.0
+          max: 5.0
+      midazolam:
+        "mcg/kg/min":
+          min: 0.0
+          max: 10.0
+        "mg/hr":
+          min: 0.0
+          max: 20.0
+      fentanyl:
+        "mcg/kg/hr":
+          min: 0.0
+          max: 10.0
+        "mcg/hr":
+          min: 0.0
+          max: 500.0
+        "mg/hr":
+          min: 0.0
+          max: 1.0
+      remifentanil:
+        "mcg/kg/min":
+          min: 0.0
+          max: 2.0
+        "mcg/hr":
+          min: 0.0
+          max: 100.0
+      pentobarbital:
+        "mg/kg/hr":
+          min: 0.0
+          max: 10.0
+        "mg/hr":
+          min: 0.0
+          max: 50.0
+      lorazepam:
+        "mg/hr":
+          min: 0.0
+          max: 10.0
+        "mcg/kg/min":
+          min: 0.0
+          max: 5.0
+      
+      # Paralytic medications
+      cisatracurium:
+        "mcg/kg/min":
+          min: 0.0
+          max: 10.0
+        "mg/hr":
+          min: 0.0
+          max: 20.0
+      vecuronium:
+        "mcg/kg/min":
+          min: 0.0
+          max: 5.0
+        "mg/hr":
+          min: 0.0
+          max: 10.0
+      rocuronium:
+        "mcg/kg/min":
+          min: 0.0
+          max: 20.0
+        "mg/hr":
+          min: 0.0
+          max: 50.0
+
+  # Patient table has no numeric columns
+  patient: {}
+
+  # Patient assessments table - numerical values depend on assessment category
+  patient_assessments:
+    numerical_value:
+      AM_PAC:
+        min: 0
+        max: 30
+      AMS:
+        min: 0
+        max: 5
+      APGAR:
+        min: 0
+        max: 10
+      AVPU:
+        min: 0
+        max: 4
+      BPS:
+        min: 0
+        max: 12
+      braden_activity:
+        min: 1
+        max: 4
+      braden_friction:
+        min: 1
+        max: 3
+      braden_mobility:
+        min: 1
+        max: 4
+      braden_moisture:
+        min: 1
+        max: 4
+      braden_nutrition:
+        min: 1
+        max: 4
+      braden_sensory:
+        min: 1
+        max: 4
+      braden_total:
+        min: 6
+        max: 23
+      cam_inattention:
+        min: 0
+        max: 2
+      cam_loc:
+        min: 0
+        max: 2
+      cam_mental:
+        min: 0
+        max: 2
+      cam_thinking:
+        min: 0
+        max: 2
+      cam_total:
+        min: 0
+        max: 8
+      CIWA:
+        min: 0
+        max: 67
+      COWS:
+        min: 0
+        max: 48
+      cpot_total:
+        min: 0
+        max: 8
+      cpot_facial:
+        min: 0
+        max: 2
+      cpot_body:
+        min: 0
+        max: 2
+      cpot_muscle:
+        min: 0
+        max: 2
+      cpot_vocalization:
+        min: 0
+        max: 2
+      DVPRS:
+        min: 0
+        max: 10
+      gcs_eye:
+        min: 1
+        max: 4
+      gcs_motor:
+        min: 1
+        max: 6
+      gcs_total:
+        min: 3
+        max: 15
+      gcs_verbal:
+        min: 1
+        max: 5
+      ICANS:
+        min: 0
+        max: 4
+      ICSDC:
+        min: 0
+        max: 8
+      icsdc_agitation:
+        min: 0
+        max: 4
+      icsdc_disorientation:
+        min: 0
+        max: 4
+      icsdc_hallucination:
+        min: 0
+        max: 4
+      icsdc_inattention:
+        min: 0
+        max: 4
+      icsdc_loc:
+        min: 0
+        max: 5
+      icsdc_sleep:
+        min: 0
+        max: 4
+      icsdc_speech:
+        min: 0
+        max: 4
+      icsdc_symptoms:
+        min: 0
+        max: 4
+      icsdc_total:
+        min: 0
+        max: 32
+      IMS:
+        min: 0
+        max: 5
+      MINDS:
+        min: 0
+        max: 10
+      "Morse Fall Scale":
+        min: 0
+        max: 125
+      NRS:
+        min: 0
+        max: 10
+      NVPS:
+        min: 0
+        max: 10
+      PAINAD:
+        min: 0
+        max: 10
+      RASS:
+        min: -5
+        max: 4
+      SAS:
+        min: 1
+        max: 7
+      sat_delivery_pass_fail:
+        min: 0
+        max: 1
+      sat_escalating_sedation:
+        min: 0
+        max: 1
+      sat_intracranial_pressure:
+        min: 0
+        max: 1
+      sat_myocardial_ischemia:
+        min: 0
+        max: 1
+      sat_neuromuscular_blockers:
+        min: 0
+        max: 1
+      sat_screen_pass_fail:
+        min: 0
+        max: 1
+      sat_sedative_infusion:
+        min: 0
+        max: 1
+      sbt_agitation:
+        min: 0
+        max: 1
+      sbt_delivery_pass_fail:
+        min: 0
+        max: 1
+      sbt_fail_reason:
+        min: 0
+        max: 1
+      sbt_inadequate_oxygenation:
+        min: 0
+        max: 1
+      sbt_intracranial_pressure:
+        min: 0
+        max: 1
+      sbt_no_spontaneous_effort:
+        min: 0
+        max: 1
+      sbt_screen_pass_fail:
+        min: 0
+        max: 1
+      sbt_vasopressor_use:
+        min: 0
+        max: 1
+      TOF:
+        min: 0
+        max: 4
+      VAS:
+        min: 0
+        max: 10
+      WAT:
+        min: 0
+        max: 12
+
+  # Position table has no numeric columns
+  position: {}
+
+  # Respiratory support table - multiple numeric columns
+  respiratory_support:
+    tracheostomy:
+      min: 0
+      max: 1
+    fio2_set:
+      min: 0.21
+      max: 1.0
+    lpm_set:
+      min: 0.0
+      max: 60.0
+    tidal_volume_set:
+      min: 100.0
+      max: 3000.0
+    resp_rate_set:
+      min: 0
+      max: 200
+    pressure_control_set:
+      min: -50.0
+      max: 50.0
+    pressure_support_set:
+      min: -50.0
+      max: 50.0
+    flow_rate_set:
+      min: -50.0
+      max: 100.0
+    peak_inspiratory_pressure_set:
+      min: -50.0
+      max: 100.0
+    inspiratory_time_set:
+      min: -1.0
+      max: 50.0
+    peep_set:
+      min: 0.0
+      max: 30.0
+    tidal_volume_obs:
+      min: 100.0
+      max: 3000.0
+    resp_rate_obs:
+      min: 0
+      max: 200
+    plateau_pressure_obs:
+      min: 0.0
+      max: 100.0
+    peak_inspiratory_pressure_obs:
+      min: -50.0
+      max: 100.0
+    peep_obs:
+      min: 0.0
+      max: 50.0
+    minute_vent_obs:
+      min: 0.0
+      max: 40.0
+    mean_airway_pressure_obs:
+      min: 0.0
+      max: 50.0
+
+  # Vitals table - values depend on vital category
+  vitals:
+    vital_value:
+      temp_c:
+        min: 32
+        max: 44
+      heart_rate:
+        min: 0
+        max: 300
+      sbp:
+        min: 0
+        max: 300
+      dbp:
+        min: 0
+        max: 200
+      spo2:
+        min: 50
+        max: 100
+      respiratory_rate:
+        min: 0
+        max: 60
+      map:
+        min: 0
+        max: 250
+      height_cm:
+        min: 76
+        max: 255
+      weight_kg:
+        min: 30
+        max: 1100
