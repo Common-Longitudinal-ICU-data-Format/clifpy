@@ -10,7 +10,7 @@ UNIT_NAMING_VARIANTS = {
     # time
     '/hr': '/h(r|our)?$',
     '/min': '/m(in|inute)?$',
-    # unit
+    # unit -- NOTE: plaural always go first to avoid having result like "us"
     'u': 'u(nits|nit)?',
     # milli
     'm': 'milli-?',
@@ -18,7 +18,7 @@ UNIT_NAMING_VARIANTS = {
     "l": 'l(iters|itres|itre|iter)?'    ,
     # mass
     'mcg': '^(u|µ)g',
-    'g': '^g(rams)?',
+    'g': '^g(rams|ram)?',
 }
 
 AMOUNT_ENDER = "($|/*)"
@@ -138,7 +138,7 @@ def _normalize_dose_unit_formats(s: pd.Series) -> pd.Series:
     This function is typically used as the first step in the normalization
     pipeline, followed by _normalize_dose_unit_names().
     """
-    return s.str.replace(r'\s+', '', regex=True).str.lower()
+    return s.str.replace(r'\s+', '', regex=True).str.lower().replace('', None, regex=False)
     
 def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
     """
@@ -237,7 +237,7 @@ def _detect_and_classify_normalized_dose_units(s: pd.Series) -> dict:
         'unrecognized_units': unrecognized_units_counts
     }
 
-def when_then_regex_builder(pattern: str) -> str:
+def _when_then_regex_builder(pattern: str) -> str:
     """
     Build SQL CASE WHEN statement for regex pattern matching.
     
@@ -323,7 +323,6 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
     Weight-based conversions use patient weight from weight_kg column.
     Time conversions: /hr -> /min (divide by 60).
     """
-    # RESUME with a duckdb implementation
     RATE_UNITS_STR = "','".join(ACCEPTABLE_RATE_UNITS)
     AMOUNT_UNITS_STR = "','".join(ACCEPTABLE_AMOUNT_UNITS)
     
@@ -334,27 +333,27 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
             WHEN med_dose_unit_normalized IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
             ELSE 'unrecognized' END as unit_class
         -- parse and generate multipliers
-        , CASE WHEN unit_class = 'unrecognized' THEN NULL ELSE (
-            CASE {when_then_regex_builder(L_REGEX)}
-                {when_then_regex_builder(MU_REGEX)}
-                {when_then_regex_builder(MG_REGEX)}
-                {when_then_regex_builder(NG_REGEX)}
-                {when_then_regex_builder(G_REGEX)}
+        , CASE WHEN unit_class = 'unrecognized' THEN 1 ELSE (
+            CASE {_when_then_regex_builder(L_REGEX)}
+                {_when_then_regex_builder(MU_REGEX)}
+                {_when_then_regex_builder(MG_REGEX)}
+                {_when_then_regex_builder(NG_REGEX)}
+                {_when_then_regex_builder(G_REGEX)}
                 ELSE 1 END
             ) END AS amount_multiplier
-        , CASE WHEN unit_class = 'unrecognized' THEN NULL ELSE (
-            CASE {when_then_regex_builder(HR_REGEX)}
+        , CASE WHEN unit_class = 'unrecognized' THEN 1 ELSE (
+            CASE {_when_then_regex_builder(HR_REGEX)}
                 ELSE 1 END
             ) END AS time_multiplier
-        , CASE WHEN unit_class = 'unrecognized' THEN NULL ELSE (
-            CASE {when_then_regex_builder(KG_REGEX)}
-                {when_then_regex_builder(LB_REGEX)}
+        , CASE WHEN unit_class = 'unrecognized' THEN 1 ELSE (
+            CASE {_when_then_regex_builder(KG_REGEX)}
+                {_when_then_regex_builder(LB_REGEX)}
                 ELSE 1 END
             ) END AS weight_multiplier
         -- calculate the converted dose
         , med_dose * amount_multiplier * time_multiplier * weight_multiplier as med_dose_converted
         -- id the converted unit
-        , CASE WHEN unit_class = 'unrecognized' THEN NULL
+        , CASE WHEN unit_class = 'unrecognized' THEN med_dose_unit_normalized
             WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{MASS_REGEX}') THEN 'mcg/min'
             WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{VOLUME_REGEX}') THEN 'ml/min'
             WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{UNIT_REGEX}') THEN 'u/min'

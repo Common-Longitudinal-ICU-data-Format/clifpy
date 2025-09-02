@@ -18,13 +18,13 @@ rn,case,med_dose,med_dose_unit,med_dose_unit_normalized,weight_kg,med_dose_conve
 16,valid,6,l,l,86,6000,ml,amount,
 17,valid,6,u,u,87,6,u,amount,
 18,valid,6,milli-unit,mu,88,0.006,u,amount,
-19,invalid,6,kg,kg,89,,,unrecognized,kg is not recognized
+19,invalid,6,kg,kg,89,6,kg,unrecognized,kg is not recognized
 20,valid,6,gram,g,90,6000000,mcg,amount,
-21,invalid,6,mEq,meq,91,,,unrecognized,mEq is not recognized
-22,invalid,6,%,%,92,,,unrecognized,% not supported
-23,invalid,6,IU,iu,93,,,unrecognized,IU not supported
-24,invalid,6,,,94,,,unrecognized,empty string not supported
-25,invalid,6,   ,,95,,,unrecognized,spaces not supported
+21,invalid,6,mEq,meq,91,6,meq,unrecognized,mEq is not recognized
+22,invalid,6,%,%,92,6,%,unrecognized,% not supported
+23,invalid,6,IU,iu,93,6,iu,unrecognized,IU not supported
+24,invalid,6,,,94,6,,unrecognized,empty string not supported
+25,invalid,6,   ,,95,6,,unrecognized,spaces not supported
 26,,,,,96,0,,,
 27,,,,,97,0,,,
 28,,,,,98,0,,,

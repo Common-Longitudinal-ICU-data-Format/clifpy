@@ -18,9 +18,11 @@ from clifpy.utils.unit_converter import (
 @pytest.fixture
 def load_fixture_csv():
     """Load CSV fixture from tests/fixtures/unit_converter/"""
-    def _load(filename):
+    def _load(filename) -> pd.DataFrame:
         path = Path(__file__).parent.parent / 'fixtures' / 'unit_converter' / filename
-        return pd.read_csv(path)
+        # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
+        df = pd.read_csv(path) # .replace(np.nan, '') 
+        return df
     return _load
 
 
@@ -49,7 +51,10 @@ def normalize_dose_unit_formats_test_data(load_fixture_csv):
     - med_dose_unit: Original dose unit string
     - med_dose_unit_format_normalized: Expected normalized result
     """
-    return load_fixture_csv('test_normalize_dose_unit_formats.csv')
+    df: pd.DataFrame =load_fixture_csv('test_normalize_dose_unit_formats.csv')
+    # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
+    df.replace(np.nan, None, inplace=True) 
+    return df
 
 @pytest.mark.unit_conversion
 def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
@@ -71,13 +76,13 @@ def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
     - Special characters preservation
     - Empty and null handling
     """
-    test_df = normalize_dose_unit_formats_test_data
+    test_df: pd.DataFrame = normalize_dose_unit_formats_test_data
     # first check the filtering went right, i.e. test_df is not empty
     result_series = _normalize_dose_unit_formats(test_df['med_dose_unit'])
     
     pd.testing.assert_series_equal(
-        result_series.reset_index(drop=True),
-        test_df['med_dose_unit_format_normalized'].reset_index(drop=True),
+        result_series.reset_index(drop=True), # actual
+        test_df['med_dose_unit_format_normalized'].reset_index(drop=True), # expected
         check_names=False
     )
 
@@ -212,7 +217,7 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
     
     Processes admin_dttm to datetime and converts empty weight_kg to NaN.
     """
-    df = load_fixture_csv('test_convert_normalized_dose_units_to_limited_units.csv')
+    df: pd.DataFrame = load_fixture_csv('test_convert_normalized_dose_units_to_limited_units.csv')
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -279,16 +284,25 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
 
     # Verify converted values
     pd.testing.assert_series_equal(
-        test_df['med_dose_converted'].reset_index(drop=True),
-        result_df['med_dose_converted'].reset_index(drop=True),
+        result_df['med_dose_converted'].reset_index(drop=True), # actual
+        test_df['med_dose_converted'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
     )
 
     # Verify converted units
     pd.testing.assert_series_equal(
-        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        # TODO: may consider adding a check NA test and avoid using fillna('None') here
         result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        check_names=False,
+        # check_dtype=False
+    )
+    
+    # Verify unit class
+    pd.testing.assert_series_equal(
+        result_df['unit_class'].reset_index(drop=True),
+        test_df['unit_class'].reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
@@ -335,27 +349,27 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
     input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    result_df = standardize_dose_to_limited_units(med_df = input_df) \
-        .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
+    converted_df, counts_df = standardize_dose_to_limited_units(med_df = input_df)
+    converted_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
-    assert 'med_dose_unit_normalized' in result_df.columns
-    assert 'med_dose_converted' in result_df.columns
-    assert 'med_dose_unit_converted' in result_df.columns
-    assert 'weight_kg' in result_df.columns
+    assert 'med_dose_unit_normalized' in converted_df.columns
+    assert 'med_dose_converted' in converted_df.columns
+    assert 'med_dose_unit_converted' in converted_df.columns
+    assert 'weight_kg' in converted_df.columns
 
     # Verify converted values
     pd.testing.assert_series_equal(
-        test_df['med_dose_converted'].reset_index(drop=True),
-        result_df['med_dose_converted'].reset_index(drop=True),
+        converted_df['med_dose_converted'].reset_index(drop=True), # actual
+        test_df['med_dose_converted'].reset_index(drop=True), # expected
         check_names=False,
         #check_dtype=False
     )
 
     # Verify converted units
     pd.testing.assert_series_equal(
+        converted_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
         test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
-        result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
