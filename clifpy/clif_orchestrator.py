@@ -62,7 +62,8 @@ class ClifOrchestrator:
         data_directory: str,
         filetype: str = 'csv',
         timezone: str = 'UTC',
-        output_directory: Optional[str] = None
+        output_directory: Optional[str] = None,
+        snake_case: bool = True
     ):
         """
         Initialize the ClifOrchestrator.
@@ -73,10 +74,12 @@ class ClifOrchestrator:
             timezone (str): Timezone for datetime columns
             output_directory (str, optional): Directory for saving output files and logs.
                 If not provided, creates an 'output' directory in the current working directory.
+            snake_case (bool, optional): Whether to apply snake_case formatting to categorical columns. Default True.
         """
         self.data_directory = data_directory
         self.filetype = filetype
         self.timezone = timezone
+        self.snake_case = snake_case
         
         # Set output directory (same logic as BaseTable)
         if output_directory is None:
@@ -102,7 +105,8 @@ class ClifOrchestrator:
         table_name: str,
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
+        snake_case: Optional[bool] = None
     ):
         """
         Load table data and create table object.
@@ -112,6 +116,8 @@ class ClifOrchestrator:
             sample_size (int, optional): Number of rows to load
             columns (List[str], optional): Specific columns to load
             filters (Dict, optional): Filters to apply when loading
+            snake_case (bool, optional): Whether to apply snake_case formatting to categorical columns.
+                If None, uses the orchestrator's default setting.
             
         Returns:
             The loaded table object
@@ -127,7 +133,8 @@ class ClifOrchestrator:
             output_directory=self.output_directory,
             sample_size=sample_size,
             columns=columns,
-            filters=filters
+            filters=filters,
+            snake_case=snake_case if snake_case is not None else self.snake_case
         )
         setattr(self, table_name, table_object)
         return table_object
