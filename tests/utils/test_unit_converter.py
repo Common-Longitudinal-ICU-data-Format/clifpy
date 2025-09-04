@@ -13,7 +13,8 @@ from clifpy.utils.unit_converter import (
     ACCEPTABLE_RATE_UNITS,
     _convert_normalized_dose_units_to_limited_units,
     standardize_dose_to_limited_units,
-    _convert_limited_units_to_preferred_units
+    _convert_limited_units_to_preferred_units,
+    convert_dose_units_by_med_category
 )
 
 # --- Helper Fixtures for CSV Loading ---
@@ -232,7 +233,20 @@ def unit_converter_test_data(load_fixture_csv):
     
     Returns CSV data with columns:
     """
-    df = load_fixture_csv('test_unit_converter.csv').dropna(subset=['unit_class'])
+    df = load_fixture_csv('test_unit_converter - standardize_dose_to_limited_units.csv').dropna(subset=['unit_class'])
+    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
+    # Replace empty strings with NaN for weight_kg column
+    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    return df
+
+@pytest.fixture
+def convert_dose_units_by_med_category_test_data(load_fixture_csv):
+    """
+    Load test data for dose unit conversion tests.
+    
+    Returns CSV data with columns:
+    """
+    df = load_fixture_csv('test_unit_converter - convert_dose_units_by_med_category.csv').dropna(subset=['unit_class'])
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -376,38 +390,120 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
         # check_dtype=False
     )
 
-def test_convert_limited_units_to_preferred_units(unit_converter_test_data, caplog):
+# @pytest.mark.skip
+def test__convert_limited_units_to_preferred_units_inverse(unit_converter_test_data, caplog):
     """
     Test the _convert_limited_units_to_preferred_units conversion function.
+    
+    is equivalent to the inverse process of converting from original to limited, i.e. converting from 
+    med_dose_limited and med_dose_unit_limited to med_dose and med_dose_unit_normalized respectively
+    
+    this test assumes the presense of med_dose_unit_normalized column
     """
     test_df: pd.DataFrame = unit_converter_test_data.query("case == 'valid'")
     assert len(test_df) > 0
     q = """
     SELECT rn
-        , med_dose
-        , med_dose_unit_limited as med_dose_unit_preferred
+        , med_dose_limited
+        , med_dose_unit_normalized as med_dose_unit_preferred
         , weight_kg
     FROM test_df
     """
     input_df = duckdb.sql(q).to_df()
     
-    preferred_units = {
-        'fentanyl': 'mcg/kg/hr',
-        'propofol': 'mcg/min',
-        'insulin': 'u/hr',
-        'dextrose': 'ml/hr'
-        }
     result_df = _convert_limited_units_to_preferred_units(med_df = input_df)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
     # Verify columns exist
-    assert 'med_dose_unit_preferred' in result_df.columns
+    # assert 'med_dose_unit_preferred' in result_df.columns
     assert 'med_dose_preferred' in result_df.columns
 
     # Verify preferred values
     pd.testing.assert_series_equal(
-        test_df['med_dose'].reset_index(drop=True), # expected
         result_df['med_dose_preferred'].reset_index(drop=True), # actual
+        test_df['med_dose'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
-    )    
+    ) 
+
+def test__convert_limited_units_to_preferred_units_new(convert_dose_units_by_med_category_test_data, caplog):
+    """
+    Test the _convert_limited_units_to_preferred_units conversion function.
+    
+    this test assumes the presense of med_dose_unit_preferred column
+    """
+    test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data.query("case == 'valid'")
+    assert len(test_df) > 0
+    q = """
+    SELECT rn
+        , med_dose_limited
+        , med_dose_unit_preferred
+        , weight_kg
+    FROM test_df
+    """
+    input_df = duckdb.sql(q).to_df()
+    
+    result_df = _convert_limited_units_to_preferred_units(med_df = input_df)
+    result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+
+    # Verify columns exist
+    assert 'med_dose_preferred' in result_df.columns
+
+    # Verify preferred values
+    pd.testing.assert_series_equal(
+        result_df['med_dose_preferred'].reset_index(drop=True), # actual
+        test_df['med_dose_preferred'].reset_index(drop=True), # expected
+        check_names=False,
+        check_exact=False,
+        rtol=1e-3,
+        atol=1e-5
+    ) 
+
+def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_test_data, caplog):
+    '''
+    test the public API function convert_dose_units_by_med_category which takes in a dict
+    '''
+    test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data
+    
+    input_df = test_df.filter(items=['rn','med_category', 'med_dose', 'med_dose_unit', 'weight_kg'])
+    
+    preferred_units = {
+        'propofol': 'mcg/kg/min',
+        'midazolam': 'mg/hr',
+        'fentanyl': 'mcg/hr',
+        'insulin': 'u/hr',
+        'norepinephrine': 'ng/kg/min',
+        'dextrose': 'g',
+        'heparin': 'l/hr',
+        'bivalirudin': 'ml/hr',
+        'oxytocin': 'mu',
+        'lactated_ringers_solution': 'ml'
+        }
+    
+    result_df = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units)
+    result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    
+    # check med_dose_preferred
+    pd.testing.assert_series_equal(
+        result_df['med_dose_preferred'].reset_index(drop=True), # actual
+        test_df['med_dose_preferred'].reset_index(drop=True), # expected
+        check_names=False,
+        # check_dtype=False
+    )
+    
+    # check med_dose_unit_preferred
+    pd.testing.assert_series_equal(
+        result_df['med_dose_unit_preferred'].reset_index(drop=True), # actual
+        test_df['med_dose_unit_preferred'].reset_index(drop=True), # expected
+        check_names=False,
+        # check_dtype=False
+    )
+        
+    
+"""
+TODO scenarios to test:
+1. med_category misspecified (misspelt)
+2. preferred_units not supported (not in the set)
+3. cannot convert from rate to amount
+4. cannot convert from mass (mcg) to volume (ml)
+"""

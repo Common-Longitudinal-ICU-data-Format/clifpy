@@ -278,7 +278,7 @@ def _pattern_to_factor_builder_for_limited(pattern: str) -> str:
 
 def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
     if pattern in REGEX_TO_FACTOR_MAPPER:
-        return f"WHEN regexp_matches(med_dose_unit_preferred, '{pattern}') THEN 1/{REGEX_TO_FACTOR_MAPPER.get(pattern)}"
+        return f"WHEN regexp_matches(med_dose_unit_preferred, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
 def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.DataFrame:
@@ -575,9 +575,11 @@ def _convert_limited_units_to_preferred_units(med_df: pd.DataFrame) -> pd.DataFr
     - conversion only within the same unit class (e.g. rate only rate and NOT to amount)
     - cannot convert from g to ml
     
-    e.g. assumes a column called med_dose_unit_preferred alreay is specified by the user
+    e.g. assumes the presense of 
+    - med_dose_limited
+    - med_dose_unit_preferred -- already specified
     
-    # TODO: move the following spec to another function
+    TODO: move the following spec to another function
     preferred_units = {
         'fentanyl': 'mcg/kg/hr'
         'propofol': 'mcg/min'
@@ -614,9 +616,48 @@ def _convert_limited_units_to_preferred_units(med_df: pd.DataFrame) -> pd.DataFr
         , amount_multiplier_preferred: {amount_clause}
         , time_multiplier_preferred: {time_clause}
         , weight_multiplier_preferred: {weight_clause}
-        , med_dose_preferred: med_dose * amount_multiplier_preferred * time_multiplier_preferred * weight_multiplier_preferred
+        , med_dose_preferred: ROUND(med_dose_limited * amount_multiplier_preferred * time_multiplier_preferred * weight_multiplier_preferred, 2)
     FROM med_df l
     -- LEFT JOIN preferred_units_df r USING (med_category)
     """
     return duckdb.sql(q).to_df()
+
+def convert_dose_units_by_med_category(
+    med_df: pd.DataFrame,
+    preferred_units: dict = None,
+    verbose: bool = False
+    ) -> pd.DataFrame:
+    """
+    Standardize medication dose units by medication category.
+    
+    NOTE: default is to parse preferred_units from a config file, but will be overridden if preferred_units is provided
+    """
+    try:
+        med_df_limited, _ = standardize_dose_to_limited_units(med_df)
+    except ValueError as e:
+        raise ValueError(f"Error standardizing dose units to limited units: {e}")
+    
+    try:
+        preferred_units_df = pd.DataFrame(preferred_units.items(), columns=['med_category', 'med_dose_unit_preferred'])
+        q = """
+        SELECT *
+            , COALESCE(r.med_dose_unit_preferred, l.med_dose_unit_limited) as med_dose_unit_preferred
+        FROM med_df_limited l
+        LEFT JOIN preferred_units_df r USING (med_category)
+        """
+        med_df_limited = duckdb.sql(q).to_df()
+        
+        med_df_preferred = _convert_limited_units_to_preferred_units(med_df_limited)
+    except ValueError as e:
+        raise ValueError(f"Error converting dose units to preferred units: {e}")
+    
+    if not verbose:
+        return med_df_preferred
+    # the default is to drop multiplier columns which likely are not useful for the user
+    q = """
+    SELECT * EXCLUDE(COLUMNS('multiplier'))
+    FROM med_df_preferred
+    """
+    return duckdb.sql(q).to_df()
+    
     
