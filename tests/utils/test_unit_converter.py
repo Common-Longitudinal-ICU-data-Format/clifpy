@@ -4,6 +4,7 @@ Tests for the unit_converter module.
 import pytest
 import pandas as pd
 import numpy as np
+import duckdb
 from pathlib import Path
 from clifpy.utils.unit_converter import (
     _normalize_dose_unit_formats,
@@ -11,7 +12,8 @@ from clifpy.utils.unit_converter import (
     _detect_and_classify_normalized_dose_units,
     ACCEPTABLE_RATE_UNITS,
     _convert_normalized_dose_units_to_limited_units,
-    standardize_dose_to_limited_units
+    standardize_dose_to_limited_units,
+    _convert_limited_units_to_preferred_units
 )
 
 # --- Helper Fixtures for CSV Loading ---
@@ -212,7 +214,7 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
     - hospitalization_id, admin_dttm: Patient and timing identifiers
     - med_dose, med_dose_unit: Original dose values and units
     - weight_kg: Patient weight (may be empty/NaN)
-    - med_dose_converted, med_dose_unit_converted: Expected conversion results
+    - med_dose_limited, med_dose_unit_limited: Expected conversion results
     - case: Test scenario category
     
     Processes admin_dttm to datetime and converts empty weight_kg to NaN.
@@ -254,7 +256,7 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
     - Volume conversions (L to mL, factor of 1000)
     - Mass conversions (mg to mcg: 1000, ng to mcg: 1/1000, g to mcg: 1000000)
     - Unit conversions (milli-units to units, factor of 1/1000)
-    - Proper handling of unrecognized units (NULL in converted columns)
+    - Proper handling of unrecognized units (NULL in limited columns)
     - All required output columns are present
     
     Uses comprehensive test data from test_unit_converter.csv with
@@ -277,24 +279,24 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
         .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
-    assert 'med_dose_converted' in result_df.columns
-    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'med_dose_limited' in result_df.columns
+    assert 'med_dose_unit_limited' in result_df.columns
     assert 'weight_kg' in result_df.columns
     # assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
 
-    # Verify converted values
+    # Verify limited values
     pd.testing.assert_series_equal(
-        result_df['med_dose_converted'].reset_index(drop=True), # actual
-        test_df['med_dose_converted'].reset_index(drop=True), # expected
+        result_df['med_dose_limited'].reset_index(drop=True), # actual
+        test_df['med_dose_limited'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
     )
 
-    # Verify converted units
+    # Verify limited units
     pd.testing.assert_series_equal(
         # TODO: may consider adding a check NA test and avoid using fillna('None') here
-        result_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
-        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        result_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
+        test_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
@@ -323,7 +325,7 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
       2. Name normalization (variants to standard)
       3. Unit conversion (to limited set)
     - Both output DataFrames are correctly generated:
-      1. Converted medication DataFrame with all columns
+      1. limited medication DataFrame with all columns
       2. Summary counts table (via _create_unit_conversion_counts_table)
     - All intermediate and final columns are present
     - Conversion accuracy matches expected values
@@ -336,7 +338,7 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
     - Integration of all conversion steps
     - Preservation of original data columns
     - Addition of all conversion-related columns
-    - Accuracy of final converted values and units
+    - Accuracy of final limited values and units
     
     Notes
     -----
@@ -349,27 +351,63 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
     input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    converted_df, counts_df = standardize_dose_to_limited_units(med_df = input_df)
-    converted_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    limited_df, counts_df = standardize_dose_to_limited_units(med_df = input_df)
+    limited_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
-    assert 'med_dose_unit_normalized' in converted_df.columns
-    assert 'med_dose_converted' in converted_df.columns
-    assert 'med_dose_unit_converted' in converted_df.columns
-    assert 'weight_kg' in converted_df.columns
+    assert 'med_dose_unit_normalized' in limited_df.columns
+    assert 'med_dose_limited' in limited_df.columns
+    assert 'med_dose_unit_limited' in limited_df.columns
+    assert 'weight_kg' in limited_df.columns
 
-    # Verify converted values
+    # Verify limited values
     pd.testing.assert_series_equal(
-        converted_df['med_dose_converted'].reset_index(drop=True), # actual
-        test_df['med_dose_converted'].reset_index(drop=True), # expected
+        limited_df['med_dose_limited'].reset_index(drop=True), # actual
+        test_df['med_dose_limited'].reset_index(drop=True), # expected
         check_names=False,
         #check_dtype=False
     )
 
-    # Verify converted units
+    # Verify limited units
     pd.testing.assert_series_equal(
-        converted_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
-        test_df['med_dose_unit_converted'].fillna('None').reset_index(drop=True),
+        limited_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
+        test_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
+
+def test_convert_limited_units_to_preferred_units(unit_converter_test_data, caplog):
+    """
+    Test the _convert_limited_units_to_preferred_units conversion function.
+    """
+    test_df: pd.DataFrame = unit_converter_test_data.query("case == 'valid'")
+    assert len(test_df) > 0
+    q = """
+    SELECT rn
+        , med_dose
+        , med_dose_unit_limited as med_dose_unit_preferred
+        , weight_kg
+    FROM test_df
+    """
+    input_df = duckdb.sql(q).to_df()
+    
+    preferred_units = {
+        'fentanyl': 'mcg/kg/hr',
+        'propofol': 'mcg/min',
+        'insulin': 'u/hr',
+        'dextrose': 'ml/hr'
+        }
+    result_df = _convert_limited_units_to_preferred_units(med_df = input_df)
+    result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+
+    # Verify columns exist
+    assert 'med_dose_unit_preferred' in result_df.columns
+    assert 'med_dose_preferred' in result_df.columns
+
+    # Verify preferred values
+    pd.testing.assert_series_equal(
+        test_df['med_dose'].reset_index(drop=True), # expected
+        result_df['med_dose_preferred'].reset_index(drop=True), # actual
+        check_names=False,
+        # check_dtype=False
+    )    

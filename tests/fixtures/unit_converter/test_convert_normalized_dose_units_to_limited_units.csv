@@ -1,4 +1,4 @@
-rn,case,med_dose,med_dose_unit_normalized,weight_kg,med_dose_converted,med_dose_unit_converted,note
+rn,case,med_dose,med_dose_unit_normalized,weight_kg,med_dose_limited,med_dose_unit_limited,note
 0,valid,6,mcg/kg/hr,70,7,mcg/min,test variation of the /hr unit
 1,valid,6,mcg/hr,71,0.1,mcg/min,test weight is not used if not required even when present
 2,valid,6,mcg/hr,,0.1,mcg/min,test weight missing is ok if not required
