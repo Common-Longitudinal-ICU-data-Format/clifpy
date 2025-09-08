@@ -17,7 +17,7 @@ UNIT_NAMING_VARIANTS = {
     # volume
     "l": 'l(iters|itres|itre|iter)?'    ,
     # mass
-    'mcg': '^(u|μ)g',
+    'mcg': '^(u|µ|μ)g',
     'g': '^g(rams|ram)?',
 }
 
@@ -769,7 +769,7 @@ def convert_dose_units_by_med_category(
     
     Developer TODOs
     ---------------
-    - TODO: Implement config file parsing for default preferred_units
+    - [] Implement config file parsing for default preferred_units
     """
     try:
         med_df_limited, _ = standardize_dose_to_limited_units(med_df, vitals_df)

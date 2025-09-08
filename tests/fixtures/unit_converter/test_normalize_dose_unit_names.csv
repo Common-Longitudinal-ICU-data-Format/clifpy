@@ -24,7 +24,10 @@ mcg,mcg
 ug,mcg
 ug/kg/m,mcg/kg/min
 µg,mcg
+μg,mcg
 µg/kg/hr,mcg/kg/hr
+µg/m,mcg/min
+μg/m,mcg/min
 mg,mg
 ng,ng
 milli-units/lb/m,mu/lb/min

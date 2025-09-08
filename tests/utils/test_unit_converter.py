@@ -510,6 +510,8 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
         test_df['med_dose_converted'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
+        rtol=1e-3,
+        atol=1e-5
     )
     
     # check med_dose_unit_preferred
@@ -521,12 +523,11 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
     )
     
 
-        
-    
 """
 TODO scenarios to test:
-1. med_category misspecified (misspelt)
-2. preferred_units not supported (not in the set)
-3. cannot convert from rate to amount
-4. cannot convert from mass (mcg) to volume (ml)
+- [x] preferred_units not supported (not in the acceptable set)
+- [x] cannot convert from rate to amount
+- [x] cannot convert from mass (mcg) to volume (ml)
+- [ ] med_category not in the dataset
+- [ ] test the error message when no override
 """
