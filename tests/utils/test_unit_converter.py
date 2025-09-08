@@ -400,27 +400,28 @@ def test__convert_limited_units_to_preferred_units_inverse(unit_converter_test_d
     
     this test assumes the presense of med_dose_unit_normalized column
     """
-    test_df: pd.DataFrame = unit_converter_test_data.query("case == 'valid'")
+    test_df: pd.DataFrame = unit_converter_test_data # .query("case == 'valid'")
     assert len(test_df) > 0
     q = """
     SELECT rn
         , med_dose_limited
+        , med_dose_unit_limited
         , med_dose_unit_normalized as med_dose_unit_preferred
         , weight_kg
     FROM test_df
     """
     input_df = duckdb.sql(q).to_df()
     
-    result_df = _convert_limited_units_to_preferred_units(med_df = input_df)
+    result_df = _convert_limited_units_to_preferred_units(med_df = input_df, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
-    # Verify columns exist
-    # assert 'med_dose_unit_preferred' in result_df.columns
-    assert 'med_dose_preferred' in result_df.columns
+    # Verify output columns exist
+    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'med_dose_converted' in result_df.columns
 
     # Verify preferred values
     pd.testing.assert_series_equal(
-        result_df['med_dose_preferred'].reset_index(drop=True), # actual
+        result_df['med_dose_converted'].reset_index(drop=True), # actual
         test_df['med_dose'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
@@ -437,27 +438,37 @@ def test__convert_limited_units_to_preferred_units_new(convert_dose_units_by_med
     q = """
     SELECT rn
         , med_dose_limited
+        , med_dose_unit_limited
         , med_dose_unit_preferred
         , weight_kg
     FROM test_df
     """
     input_df = duckdb.sql(q).to_df()
     
-    result_df = _convert_limited_units_to_preferred_units(med_df = input_df)
+    result_df = _convert_limited_units_to_preferred_units(med_df = input_df, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
     # Verify columns exist
-    assert 'med_dose_preferred' in result_df.columns
+    assert 'med_dose_unit_converted' in result_df.columns
+    assert 'med_dose_converted' in result_df.columns
 
-    # Verify preferred values
+    # Verify converted dose values
     pd.testing.assert_series_equal(
-        result_df['med_dose_preferred'].reset_index(drop=True), # actual
-        test_df['med_dose_preferred'].reset_index(drop=True), # expected
+        result_df['med_dose_converted'].reset_index(drop=True), # actual
+        test_df['med_dose_converted'].reset_index(drop=True), # expected
         check_names=False,
         check_exact=False,
         rtol=1e-3,
         atol=1e-5
     ) 
+    
+    # Verify converted units
+    pd.testing.assert_series_equal(
+        result_df['med_dose_unit_converted'].reset_index(drop=True), # actual
+        test_df['med_dose_unit_converted'].reset_index(drop=True), # expected
+        check_names=False,
+        check_exact=False
+    )
 
 def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_test_data, caplog):
     '''
@@ -477,27 +488,39 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
         'heparin': 'l/hr',
         'bivalirudin': 'ml/hr',
         'oxytocin': 'mu',
-        'lactated_ringers_solution': 'ml'
+        'lactated_ringers_solution': 'ml',
+        'liothyronine': 'u/hr',
+        'zidovudine': 'iu/hr'
         }
     
-    result_df = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units)
+    result_df = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    
+    # check convert_status
+    pd.testing.assert_series_equal(
+        result_df['convert_status'].reset_index(drop=True), # actual
+        test_df['convert_status'].reset_index(drop=True), # expected
+        check_names=False,
+        # check_dtype=False
+    )
     
     # check med_dose_preferred
     pd.testing.assert_series_equal(
-        result_df['med_dose_preferred'].reset_index(drop=True), # actual
-        test_df['med_dose_preferred'].reset_index(drop=True), # expected
+        result_df['med_dose_converted'].reset_index(drop=True), # actual
+        test_df['med_dose_converted'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
     )
     
     # check med_dose_unit_preferred
     pd.testing.assert_series_equal(
-        result_df['med_dose_unit_preferred'].reset_index(drop=True), # actual
-        test_df['med_dose_unit_preferred'].reset_index(drop=True), # expected
+        result_df['med_dose_unit_converted'].reset_index(drop=True), # actual
+        test_df['med_dose_unit_converted'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
     )
+    
+
         
     
 """
