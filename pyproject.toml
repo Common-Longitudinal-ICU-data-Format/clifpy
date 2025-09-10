@@ -41,7 +41,10 @@ where = ["."]
 include = ["clifpy*"]
 
 [tool.setuptools.package-data]
-pyclif = ["data/clif_demo/*.parquet", "mCIDE/*.json"]
+clifpy = [
+    "data/clif_demo/*.parquet", 
+    "schemas/*.yaml"
+]
 
 [tool.pytest.ini_options]
 markers = [
