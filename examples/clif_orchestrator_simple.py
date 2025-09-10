@@ -25,7 +25,7 @@ def _(mo):
 @app.cell
 def _():
     import os
-    from clifpy.clif_orchestrator import ClifOrchestrator
+    from clifpy import ClifOrchestrator
 
     print("Libraries imported successfully!")
     return (ClifOrchestrator,)
