@@ -12,13 +12,13 @@
         <meta name="author" content="CLIF Consortium">
       
       
-        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/CLIFpy/getting-started/installation/">
+        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/waterfall/">
       
       
-        <link rel="prev" href="../..">
+        <link rel="prev" href="../wide-dataset/">
       
       
-        <link rel="next" href="../quickstart/">
+        <link rel="next" href="../outlier-handling/">
       
       
       <link rel="icon" href="../../images/clif_logo_red_no_text.png">
@@ -26,7 +26,7 @@
     
     
       
-        <title>Installation - CLIFpy Documentation</title>
+        <title>Respiratory Support Waterfall - CLIFpy Documentation</title>
       
     
     
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#installation" class="md-skip">
+        <a href="#respiratory-support-waterfall-processing" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Installation
+              Respiratory Support Waterfall
             
           </span>
         </div>
@@ -249,13 +249,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
           
   
   
@@ -271,11 +269,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../user-guide/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -416,31 +416,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -453,7 +450,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             Getting Started
@@ -464,32 +461,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Installation
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
@@ -500,170 +475,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      Requirements
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#basic-installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Basic Installation
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Basic Installation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#from-pypi-recommended" class="md-nav__link">
-    <span class="md-ellipsis">
-      From PyPI (Recommended)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      From Source
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#optional-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      Optional Dependencies
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Optional Dependencies">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#documentation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Documentation
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verifying-installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Verifying Installation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      Dependencies
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#platform-support" class="md-nav__link">
-    <span class="md-ellipsis">
-      Platform Support
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Troubleshooting
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#import-errors" class="md-nav__link">
-    <span class="md-ellipsis">
-      Import Errors
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#permission-errors" class="md-nav__link">
-    <span class="md-ellipsis">
-      Permission Errors
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dependency-conflicts" class="md-nav__link">
-    <span class="md-ellipsis">
-      Dependency Conflicts
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      Next Steps
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -676,7 +487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -699,7 +510,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../basic-usage/" class="md-nav__link">
+      <a href="../../getting-started/basic-usage/" class="md-nav__link">
         
   
   
@@ -726,28 +537,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -760,7 +574,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             User Guide
@@ -774,7 +588,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -797,7 +611,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/orchestrator/" class="md-nav__link">
+      <a href="../orchestrator/" class="md-nav__link">
         
   
   
@@ -826,10 +640,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -838,7 +655,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
             
   
   
@@ -865,7 +682,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/" class="md-nav__link">
+      <a href="../tables/" class="md-nav__link">
         
   
   
@@ -888,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/patient/" class="md-nav__link">
+      <a href="../tables/patient/" class="md-nav__link">
         
   
   
@@ -911,7 +728,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/adt/" class="md-nav__link">
+      <a href="../tables/adt/" class="md-nav__link">
         
   
   
@@ -934,7 +751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/hospitalization/" class="md-nav__link">
+      <a href="../tables/hospitalization/" class="md-nav__link">
         
   
   
@@ -957,7 +774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/labs/" class="md-nav__link">
+      <a href="../tables/labs/" class="md-nav__link">
         
   
   
@@ -980,7 +797,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/vitals/" class="md-nav__link">
+      <a href="../tables/vitals/" class="md-nav__link">
         
   
   
@@ -1003,7 +820,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/respiratory-support/" class="md-nav__link">
+      <a href="../tables/respiratory-support/" class="md-nav__link">
         
   
   
@@ -1026,7 +843,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/medication-admin/" class="md-nav__link">
+      <a href="../tables/medication-admin/" class="md-nav__link">
         
   
   
@@ -1049,7 +866,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/patient-assessments/" class="md-nav__link">
+      <a href="../tables/patient-assessments/" class="md-nav__link">
         
   
   
@@ -1072,7 +889,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/tables/position/" class="md-nav__link">
+      <a href="../tables/position/" class="md-nav__link">
         
   
   
@@ -1103,7 +920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/validation/" class="md-nav__link">
+      <a href="../validation/" class="md-nav__link">
         
   
   
@@ -1126,7 +943,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/timezones/" class="md-nav__link">
+      <a href="../timezones/" class="md-nav__link">
         
   
   
@@ -1146,28 +963,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
         
           
+          
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
             
   
   
@@ -1180,7 +1000,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             Advanced Features
@@ -1194,7 +1014,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/wide-dataset/" class="md-nav__link">
+      <a href="../wide-dataset/" class="md-nav__link">
         
   
   
@@ -1214,10 +1034,32 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../user-guide/waterfall/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Respiratory Support Waterfall
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1228,6 +1070,206 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Usage
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Advanced Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timezone-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Timezone Handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processing-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Processing Pipeline
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Processing Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-initialize-build-hourly-scaffold" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 0: Initialize &amp; Build Hourly Scaffold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-devicemode-heuristics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 1: Device/Mode Heuristics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-hierarchical-ids" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 2: Hierarchical IDs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-numeric-waterfall" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 3: Numeric Waterfall
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-final-tidy-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 4: Final Tidy-up
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Format
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Output Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#original-columns-cleaned-and-filled" class="md-nav__link">
+    <span class="md-ellipsis">
+      Original Columns (cleaned and filled)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#new-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      New Columns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clinical-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Clinical Considerations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performance Notes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1240,7 +1282,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/outlier-handling/" class="md-nav__link">
+      <a href="../outlier-handling/" class="md-nav__link">
         
   
   
@@ -1631,37 +1673,46 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
+  <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
-      Requirements
+      Overview
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#basic-installation" class="md-nav__link">
+  <a href="#usage" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Installation
+      Usage
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Basic Installation">
+    <nav class="md-nav" aria-label="Usage">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#from-pypi-recommended" class="md-nav__link">
+  <a href="#basic-usage" class="md-nav__link">
     <span class="md-ellipsis">
-      From PyPI (Recommended)
+      Basic Usage
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#from-source" class="md-nav__link">
+  <a href="#advanced-options" class="md-nav__link">
     <span class="md-ellipsis">
-      From Source
+      Advanced Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timezone-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Timezone Handling
     </span>
   </a>
   
@@ -1673,19 +1724,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#optional-dependencies" class="md-nav__link">
+  <a href="#processing-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
-      Optional Dependencies
+      Processing Pipeline
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Optional Dependencies">
+    <nav class="md-nav" aria-label="Processing Pipeline">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#documentation" class="md-nav__link">
+  <a href="#phase-0-initialize-build-hourly-scaffold" class="md-nav__link">
     <span class="md-ellipsis">
-      Documentation
+      Phase 0: Initialize &amp; Build Hourly Scaffold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-devicemode-heuristics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 1: Device/Mode Heuristics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-hierarchical-ids" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 2: Hierarchical IDs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-numeric-waterfall" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 3: Numeric Waterfall
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-final-tidy-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      Phase 4: Final Tidy-up
     </span>
   </a>
   
@@ -1697,64 +1784,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#verifying-installation" class="md-nav__link">
+  <a href="#output-format" class="md-nav__link">
     <span class="md-ellipsis">
-      Verifying Installation
+      Output Format
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      Dependencies
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#platform-support" class="md-nav__link">
-    <span class="md-ellipsis">
-      Platform Support
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Troubleshooting
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting">
+    <nav class="md-nav" aria-label="Output Format">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#import-errors" class="md-nav__link">
+  <a href="#original-columns-cleaned-and-filled" class="md-nav__link">
     <span class="md-ellipsis">
-      Import Errors
+      Original Columns (cleaned and filled)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#permission-errors" class="md-nav__link">
+  <a href="#new-columns" class="md-nav__link">
     <span class="md-ellipsis">
-      Permission Errors
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dependency-conflicts" class="md-nav__link">
-    <span class="md-ellipsis">
-      Dependency Conflicts
+      New Columns
     </span>
   </a>
   
@@ -1766,9 +1817,36 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#example" class="md-nav__link">
     <span class="md-ellipsis">
-      Next Steps
+      Example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clinical-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Clinical Considerations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performance Notes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
     </span>
   </a>
   
@@ -1793,81 +1871,175 @@
   
 
 
-<h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<p>This guide will help you install CLIFpy and its dependencies.</p>
-<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
+<h1 id="respiratory-support-waterfall-processing">Respiratory Support Waterfall Processing<a class="headerlink" href="#respiratory-support-waterfall-processing" title="Permanent link">&para;</a></h1>
+<p>The waterfall method provides a sophisticated data cleaning and imputation pipeline for respiratory support data, ensuring continuous and complete ventilator records for analysis.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The waterfall processing transforms raw, sparse respiratory support data into a dense, analysis-ready dataset by:
+- Creating hourly scaffolds for continuous timelines
+- Inferring missing device and mode information
+- Forward-filling numeric values within ventilation episodes
+- Applying clinical logic and heuristics</p>
+<p><img alt="Waterfall Processing Example" src="../../images/waterfall_example.png" /></p>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
+<h3 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">clifpy.tables.respiratory_support</span> <span class="kn">import</span> <span class="n">RespiratorySupport</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Load your respiratory support data</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">resp_support</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s2">&quot;/path/to/data&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Apply waterfall processing</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">()</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># The result is a new RespiratorySupport instance</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">processed</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>  <span class="c1"># Validate the processed data</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">df</span> <span class="o">=</span> <span class="n">processed</span><span class="o">.</span><span class="n">df</span>     <span class="c1"># Access the DataFrame</span>
+</code></pre></div>
+<h3 id="advanced-options">Advanced Options<a class="headerlink" href="#advanced-options" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Enable backward fill for numeric values</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">bfill</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Use a different ID column for grouping</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">id_col</span><span class="o">=</span><span class="s2">&quot;patient_id&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Get just the DataFrame</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">df</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">return_dataframe</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Silent mode (no progress messages)</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="timezone-handling">Timezone Handling<a class="headerlink" href="#timezone-handling" title="Permanent link">&para;</a></h3>
+<p>The waterfall function expects data in UTC timezone. If your data is in a different timezone, it will be automatically converted:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Your data is in US/Eastern</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Output: &quot;Converting timezone from US/Eastern to UTC for waterfall processing&quot;</span>
+</code></pre></div>
+<h2 id="processing-pipeline">Processing Pipeline<a class="headerlink" href="#processing-pipeline" title="Permanent link">&para;</a></h2>
+<p>The waterfall processing consists of five phases:</p>
+<h3 id="phase-0-initialize-build-hourly-scaffold">Phase 0: Initialize &amp; Build Hourly Scaffold<a class="headerlink" href="#phase-0-initialize-build-hourly-scaffold" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Python 3.9 or higher</li>
-<li>pip (Python package installer)</li>
+<li><strong>Lower-case all text columns</strong> - Standardizes device and mode names for consistent matching</li>
+<li><strong>Coerce numeric setters to floats</strong> - Ensures all numeric columns have proper data types</li>
+<li><strong>Scale FiO₂ if needed</strong> - Corrects common documentation errors (e.g., 40 → 0.40)</li>
+<li><strong>Create hourly scaffold</strong> - Inserts synthetic rows at <strong>HH:59:59</strong> for each hour</li>
+<li>Ensures every patient has a dense, regular timeline</li>
+<li>Vital for plots, per-hour metrics, and length-of-stay calculations</li>
+<li>These scaffold rows serve as "landing spots" for forward-fill operations</li>
 </ul>
-<h2 id="basic-installation">Basic Installation<a class="headerlink" href="#basic-installation" title="Permanent link">&para;</a></h2>
-<h3 id="from-pypi-recommended">From PyPI (Recommended)<a class="headerlink" href="#from-pypi-recommended" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clifpy
-</code></pre></div>
-<h3 id="from-source">From Source<a class="headerlink" href="#from-source" title="Permanent link">&para;</a></h3>
-<p>Clone the repository and install in development mode:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Clone the repository</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy.git
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">cd</span><span class="w"> </span>CLIFpy
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Create a virtual environment (recommended)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: venv\Scripts\activate</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Install in development mode</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</code></pre></div>
-<h2 id="optional-dependencies">Optional Dependencies<a class="headerlink" href="#optional-dependencies" title="Permanent link">&para;</a></h2>
-<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
-<p>To build the documentation locally:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clifpy<span class="o">[</span>docs<span class="o">]</span>
-</code></pre></div>
-<h2 id="verifying-installation">Verifying Installation<a class="headerlink" href="#verifying-installation" title="Permanent link">&para;</a></h2>
-<p>After installation, verify that CLIFpy is properly installed:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span> <span class="nn">clifpy</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">clifpy</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
-</code></pre></div>
-<p>You should see the version number (e.g., <code>0.0.1</code>).</p>
-<h2 id="dependencies">Dependencies<a class="headerlink" href="#dependencies" title="Permanent link">&para;</a></h2>
-<p>CLIFpy automatically installs the following dependencies:</p>
+<h3 id="phase-1-devicemode-heuristics">Phase 1: Device/Mode Heuristics<a class="headerlink" href="#phase-1-devicemode-heuristics" title="Permanent link">&para;</a></h3>
+<p>Applies intelligent rules to repair missing device and mode labels:</p>
 <ul>
-<li><strong>pandas</strong>: Data manipulation and analysis</li>
-<li><strong>duckdb</strong>: SQL analytics engine</li>
-<li><strong>pyarrow</strong>: Parquet file support</li>
-<li><strong>pytz</strong>: Timezone handling</li>
-<li><strong>matplotlib</strong> &amp; <strong>seaborn</strong>: Visualization (for demos)</li>
-<li><strong>pytest</strong>: Testing framework</li>
-<li><strong>tqdm</strong>: Progress bars</li>
-<li><strong>marimo</strong>: Interactive notebooks</li>
+<li><strong>IMV from mode strings</strong> - Infers invasive mechanical ventilation from mode categories</li>
+<li><strong>Look-ahead/behind logic</strong> - Uses surrounding context to fill gaps</li>
+<li><strong>Device-specific repairs</strong>:</li>
+<li>BiPAP device name standardization</li>
+<li>Nasal cannula PEEP guards</li>
+<li>Mode category inference</li>
+<li><strong>Data cleaning</strong>:</li>
+<li>Removes rows with no usable information</li>
+<li>Handles timestamp duplicates</li>
+<li>Prioritizes non-NIPPV entries when duplicates exist</li>
 </ul>
-<h2 id="platform-support">Platform Support<a class="headerlink" href="#platform-support" title="Permanent link">&para;</a></h2>
-<p>CLIFpy is tested on:</p>
+<h3 id="phase-2-hierarchical-ids">Phase 2: Hierarchical IDs<a class="headerlink" href="#phase-2-hierarchical-ids" title="Permanent link">&para;</a></h3>
+<p>Creates four nested run-length identifiers within each encounter:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>device_cat_id → device_id → mode_cat_id → mode_name_id
+</code></pre></div>
 <ul>
-<li>Linux (Ubuntu 20.04+)</li>
-<li>macOS (10.15+)</li>
-<li>Windows (10+)</li>
+<li>Each ID increments when its label or parent ID changes</li>
+<li>Enables tracking of ventilation episodes and mode transitions</li>
+<li>Provides grouping keys for the numeric fill phase</li>
 </ul>
-<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<h3 id="import-errors">Import Errors<a class="headerlink" href="#import-errors" title="Permanent link">&para;</a></h3>
-<p>If you encounter import errors, ensure you're using the correct Python environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>which<span class="w"> </span>python
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>--version
-</code></pre></div>
-<h3 id="permission-errors">Permission Errors<a class="headerlink" href="#permission-errors" title="Permanent link">&para;</a></h3>
-<p>On some systems, you may need to use <code>pip install --user</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>clifpy
-</code></pre></div>
-<h3 id="dependency-conflicts">Dependency Conflicts<a class="headerlink" href="#dependency-conflicts" title="Permanent link">&para;</a></h3>
-<p>If you encounter dependency conflicts, consider using a virtual environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>clifpy-env
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">source</span><span class="w"> </span>clifpy-env/bin/activate<span class="w">  </span><span class="c1"># On Windows: clifpy-env\Scripts\activate</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>pip<span class="w"> </span>install<span class="w"> </span>clifpy
-</code></pre></div>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<p>Example progression:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Time  Device_Category  Device_Cat_ID  Mode_Category  Mode_Cat_ID
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>10:00 IMV             1              AC/VC          1
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>11:00 IMV             1              AC/VC          1
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>12:00 IMV             1              SIMV           2  ← mode change
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>13:00 NIPPV           2              CPAP           3  ← device change
+</code></pre></div></p>
+<h3 id="phase-3-numeric-waterfall">Phase 3: Numeric Waterfall<a class="headerlink" href="#phase-3-numeric-waterfall" title="Permanent link">&para;</a></h3>
+<p>Performs intelligent filling of numeric values within each <code>mode_name_id</code> block:</p>
 <ul>
-<li><a href="../quickstart/">Follow the Quick Start guide</a></li>
-<li><a href="../basic-usage/">Learn about basic usage</a></li>
-<li><a href="../../user-guide/">Explore the User Guide</a></li>
+<li><strong>Forward-fill by default</strong> - Carries last known settings forward</li>
+<li><strong>Optional backward-fill</strong> - When <code>bfill=True</code>, also fills backwards</li>
+<li><strong>Special handling</strong>:</li>
+<li>FiO₂ defaults to 0.21 for room air</li>
+<li>Tidal volume blanked for pressure support modes</li>
+<li>Trach collar acts as a "breaker" for fills</li>
+<li><strong>Preserves clinical logic</strong> - Respects mode transitions and device changes</li>
+</ul>
+<h3 id="phase-4-final-tidy-up">Phase 4: Final Tidy-up<a class="headerlink" href="#phase-4-final-tidy-up" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>De-duplicate rows</strong> - Ensures one row per timestamp</li>
+<li><strong>Sort chronologically</strong> - Orders by encounter and time</li>
+<li><strong>Forward-fill tracheostomy flag</strong> - Carries trach status through entire encounter</li>
+<li><strong>Clean up helper columns</strong> - Removes temporary calculation fields</li>
+<li><strong>Preserve scaffold indicator</strong> - <code>is_scaffold</code> column marks synthetic rows</li>
+</ul>
+<h2 id="output-format">Output Format<a class="headerlink" href="#output-format" title="Permanent link">&para;</a></h2>
+<p>The processed DataFrame includes:</p>
+<h3 id="original-columns-cleaned-and-filled">Original Columns (cleaned and filled)<a class="headerlink" href="#original-columns-cleaned-and-filled" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All original respiratory support columns</li>
+<li>Numeric values filled within appropriate contexts</li>
+<li>Categorical values standardized and inferred</li>
+</ul>
+<h3 id="new-columns">New Columns<a class="headerlink" href="#new-columns" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>device_cat_id</code> - Device category episode ID</li>
+<li><code>device_id</code> - Device instance episode ID  </li>
+<li><code>mode_cat_id</code> - Mode category episode ID</li>
+<li><code>mode_name_id</code> - Mode instance episode ID</li>
+<li><code>is_scaffold</code> - Boolean flag for synthetic hourly rows</li>
+</ul>
+<h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span> <span class="nn">clifpy.tables.respiratory_support</span> <span class="kn">import</span> <span class="n">RespiratorySupport</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Sample data with gaps</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="s1">&#39;hospitalization_id&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;H001&#39;</span><span class="p">,</span> <span class="s1">&#39;H001&#39;</span><span class="p">,</span> <span class="s1">&#39;H001&#39;</span><span class="p">],</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="s1">&#39;recorded_dttm&#39;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">([</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="s1">&#39;2023-01-01 10:30&#39;</span><span class="p">,</span> 
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="s1">&#39;2023-01-01 14:15&#39;</span><span class="p">,</span>  <span class="c1"># 4-hour gap</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="s1">&#39;2023-01-01 15:00&#39;</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="p">])</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="s1">&#39;UTC&#39;</span><span class="p">),</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="s1">&#39;device_category&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;imv&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;imv&#39;</span><span class="p">],</span>  <span class="c1"># Missing value</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="s1">&#39;fio2_set&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">],</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="s1">&#39;peep_set&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="c1"># ... other columns</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="p">})</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="c1"># Create instance and process</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="n">rs</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">rs</span><span class="o">.</span><span class="n">waterfall</span><span class="p">()</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="c1"># Result will have:</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="c1"># - Hourly rows at 11:59:59, 12:59:59, 13:59:59</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="c1"># - Device category filled for 14:15 row</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="c1"># - FiO₂ and PEEP carried forward through gaps</span>
+<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="c1"># - Hierarchical IDs tracking ventilation episodes</span>
+</code></pre></div>
+<h2 id="clinical-considerations">Clinical Considerations<a class="headerlink" href="#clinical-considerations" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Scaffold rows are synthetic</strong> - Filter by <code>is_scaffold == False</code> for actual observations</li>
+<li><strong>Fills respect clinical boundaries</strong> - Values don't cross mode/device transitions</li>
+<li><strong>Room air defaults</strong> - FiO₂ set to 0.21 (21%) for room air observations</li>
+<li><strong>Tracheostomy persistence</strong> - Once documented, carries through admission</li>
+</ol>
+<h2 id="performance-notes">Performance Notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Processing time scales with number of encounters and data density</li>
+<li>Memory usage increases due to hourly scaffold creation</li>
+<li>Consider processing in batches for very large datasets</li>
+</ul>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../tables/respiratory-support/">Respiratory Support Table</a> - Table schema and validation</li>
+<li><a href="../wide-dataset/">Wide Dataset Creation</a> - Creating analysis-ready datasets</li>
+<li><a href="../validation/">Data Validation</a> - Understanding validation errors</li>
+<li><a href="../timezones/">Timezone Handling</a> - Working with different timezones</li>
 </ul>
 
 
