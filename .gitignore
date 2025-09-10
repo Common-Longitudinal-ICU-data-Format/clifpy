@@ -33,3 +33,4 @@ config/
 site/
 .serena/
 .pytest_cache
+env.txt
