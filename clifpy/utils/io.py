@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import duckdb
 import pytz
+from .config import get_config_or_params
 
 # conn = duckdb.connect(database=':memory:')
 
