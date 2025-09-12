@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from pyclif.tables.respiratory_support import respiratory_support
+from clifpy.tables.respiratory_support import RespiratorySupport
 
 # --- Mock Schema ---
 @pytest.fixture
@@ -53,7 +53,7 @@ def patch_rs_schema_path(monkeypatch, mock_rs_model_json):
     """Patches the path for the validator to find the mock schema."""
     # The validator looks for ../mCIDE/<ModelName>.json relative to its own location.
     # We patch the _load_spec function in the validator to use our temp dir.
-    from pyclif.utils import validator
+    from clifpy.utils import validator
     monkeypatch.setattr(validator, '_DEF_SPEC_DIR', str(mock_rs_model_json.parent))
 
 # --- Data Fixtures ---
@@ -62,11 +62,20 @@ def sample_valid_rs_data():
     """Create a valid respiratory_support DataFrame for testing."""
     return pd.DataFrame({
         'hospitalization_id': ['H001', 'H001'], # Ensure string type
-        'recorded_dttm': pd.to_datetime(['2023-01-01 10:00', '2023-01-01 11:00']),
+        'recorded_dttm': pd.to_datetime(['2023-01-01 10:00', '2023-01-01 11:00']).tz_localize('UTC'),
         'device_category': ['imv', 'imv'],
         'device_name': ['ventilator1', 'ventilator1'],
         'mode_category': ['assist control-volume control', 'assist control-volume control'],
-        'fio2_set': [0.5, 0.6]
+        'mode_name': ['AC/VC', 'AC/VC'],  # Added required column
+        'fio2_set': [0.5, 0.6],
+        'lpm_set': [None, None],  # Added optional columns
+        'peep_set': [5.0, 5.0],
+        'tidal_volume_set': [500.0, 500.0],
+        'resp_rate_set': [12.0, 12.0],
+        'resp_rate_obs': [12.0, 13.0],
+        'pressure_support_set': [10.0, 10.0],
+        'peak_inspiratory_pressure_set': [20.0, 22.0],
+        'tracheostomy': [0, 0]
     }).astype({'hospitalization_id': 'str'})
 
 @pytest.fixture
@@ -94,15 +103,17 @@ def mock_rs_file(tmp_path, sample_valid_rs_data):
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_init_with_valid_data(sample_valid_rs_data):
     """Test initialization with valid data."""
-    rs_obj = respiratory_support(sample_valid_rs_data)
+    rs_obj = RespiratorySupport(data=sample_valid_rs_data)
     assert rs_obj.df is not None
+    rs_obj.validate()  # Run validation
     assert rs_obj.isvalid() is True
     assert not rs_obj.errors
 
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_init_with_invalid_schema_data(sample_invalid_rs_data_schema):
     """Test initialization with schema-invalid data."""
-    rs_obj = respiratory_support(sample_invalid_rs_data_schema)
+    rs_obj = RespiratorySupport(data=sample_invalid_rs_data_schema)
+    rs_obj.validate()  # Run validation
     assert rs_obj.isvalid() is False
     assert len(rs_obj.errors) > 0
     error_types = {e['type'] for e in rs_obj.errors}
@@ -113,43 +124,48 @@ def test_rs_init_with_invalid_schema_data(sample_invalid_rs_data_schema):
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_init_without_data():
     """Test initialization without data."""
-    rs_obj = respiratory_support()
+    rs_obj = RespiratorySupport()
     assert rs_obj.df is None
-    assert rs_obj.isvalid() is True # No data, so no errors
+    # No validation needed when no data
+    # isvalid returns False until validation is run
+    assert rs_obj._validated is False
 
 # from_file constructor
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_from_file(mock_rs_file, sample_valid_rs_data):
     """Test loading data from a parquet file."""
-    rs_obj = respiratory_support.from_file(mock_rs_file, table_format_type="parquet")
+    rs_obj = RespiratorySupport.from_file(mock_rs_file, filetype="parquet")
     assert rs_obj.df is not None
     pd.testing.assert_frame_equal(rs_obj.df.reset_index(drop=True), sample_valid_rs_data.reset_index(drop=True), check_dtype=False)
+    rs_obj.validate()  # Run validation
     assert rs_obj.isvalid() is True
 
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_from_file_nonexistent(tmp_path):
     """Test loading from a nonexistent file."""
     with pytest.raises(FileNotFoundError):
-        respiratory_support.from_file(str(tmp_path / "nonexistent.parquet"))
+        RespiratorySupport.from_file(str(tmp_path), filetype="parquet")
 
 # isvalid and validate methods
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_isvalid_and_validate(sample_valid_rs_data, sample_invalid_rs_data_schema, capsys):
     """Test isvalid and validate methods and their output."""
     # Valid
-    valid_obj = respiratory_support(sample_valid_rs_data)
+    valid_obj = RespiratorySupport(data=sample_valid_rs_data)
+    valid_obj.validate()  # Run validation
     captured = capsys.readouterr()
     assert valid_obj.isvalid() is True
     assert "Validation completed successfully." in captured.out
 
     # Invalid
-    invalid_obj = respiratory_support(sample_invalid_rs_data_schema)
+    invalid_obj = RespiratorySupport(data=sample_invalid_rs_data_schema)
+    invalid_obj.validate()  # Run validation
     captured = capsys.readouterr()
     assert invalid_obj.isvalid() is False
     assert "Validation completed with" in captured.out
 
     # No data
-    no_data_obj = respiratory_support()
+    no_data_obj = RespiratorySupport()
     no_data_obj.validate()
     captured = capsys.readouterr()
     assert "No dataframe to validate." in captured.out
@@ -180,8 +196,14 @@ def waterfall_input_data():
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_waterfall_processing(waterfall_input_data):
     """Test the full waterfall processing logic."""
-    rs_obj = respiratory_support(waterfall_input_data)
-    processed_df = rs_obj.waterfall(verbose=False)
+    rs_obj = RespiratorySupport(data=waterfall_input_data)
+    processed = rs_obj.waterfall(verbose=False)
+    
+    # Check that it returns a RespiratorySupport instance
+    assert isinstance(processed, RespiratorySupport)
+    
+    # Get the processed DataFrame
+    processed_df = processed.df
 
     # Check for hourly scaffold rows
     assert 'is_scaffold' in processed_df.columns
@@ -211,10 +233,15 @@ def test_waterfall_processing(waterfall_input_data):
     assert not room_air_row.empty
     # The value should be filled to 0.21
     assert room_air_row['fio2_set'].iloc[0] == 0.21
+    
+    # Test return_dataframe parameter
+    df_result = rs_obj.waterfall(verbose=False, return_dataframe=True)
+    assert isinstance(df_result, pd.DataFrame)
+    pd.testing.assert_frame_equal(df_result, processed_df)
 
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_waterfall_no_data():
     """Test waterfall with no data."""
-    rs_obj = respiratory_support()
+    rs_obj = RespiratorySupport()
     with pytest.raises(ValueError, match="No data available"):
         rs_obj.waterfall()

@@ -30,3 +30,7 @@ context7.json
 output/
 
 config/
+site/
+.serena/
+.pytest_cache
+env.txt
