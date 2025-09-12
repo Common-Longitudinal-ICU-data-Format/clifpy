@@ -145,6 +145,33 @@ def create_wide_dataset(
         # Get ADT with selected columns
         adt_df = clif_instance.adt.df.copy()
         adt_df = adt_df[adt_df['hospitalization_id'].isin(required_ids)]
+        
+        # Apply time filtering to ADT if cohort_df is provided
+        if cohort_df is not None and 'in_dttm' in adt_df.columns:
+            pre_filter_count = len(adt_df)
+            # Merge with cohort_df to get time windows
+            adt_df = pd.merge(
+                adt_df,
+                cohort_df[['hospitalization_id', 'start_time', 'end_time']],
+                on='hospitalization_id',
+                how='inner'
+            )
+            
+            # Ensure in_dttm column is datetime
+            if not pd.api.types.is_datetime64_any_dtype(adt_df['in_dttm']):
+                adt_df['in_dttm'] = pd.to_datetime(adt_df['in_dttm'])
+            
+            # Filter to time window
+            adt_df = adt_df[
+                (adt_df['in_dttm'] >= adt_df['start_time']) &
+                (adt_df['in_dttm'] <= adt_df['end_time'])
+            ].copy()
+            
+            # Drop the time window columns
+            adt_df = adt_df.drop(columns=['start_time', 'end_time'])
+            
+            print(f"  ADT time filtering: {pre_filter_count} → {len(adt_df)} records")
+        
         # Remove duplicate columns and _name columns
         adt_cols = [col for col in adt_df.columns if not col.endswith('_name') and col != 'patient_id']
         adt_df = adt_df[adt_cols]
@@ -765,7 +792,7 @@ def _process_hospitalizations(
             conn, base_cohort, event_time_queries, 
             pivoted_table_names, raw_table_names, 
             tables_to_load, pivot_tables, 
-            category_filters
+            category_filters, cohort_df
         )
         return final_df
     else:
@@ -856,7 +883,8 @@ def _create_wide_dataset(
     raw_table_names: Dict[str, str],
     tables_to_load: List[str],
     pivot_tables: List[str],
-    category_filters: Dict[str, List[str]]
+    category_filters: Dict[str, List[str]],
+    cohort_df: Optional[pd.DataFrame] = None
 ) -> pd.DataFrame:
     """Create the final wide dataset by joining all tables."""
     
@@ -953,6 +981,34 @@ def _create_wide_dataset(
     # Execute query
     print("Executing join query...")
     result_df = conn.execute(query).df()
+    
+    # Apply final time filtering if cohort_df is provided
+    if cohort_df is not None:
+        pre_filter_count = len(result_df)
+        print("Applying cohort time window filtering to final dataset...")
+        
+        # Merge with cohort_df to get time windows
+        result_df = pd.merge(
+            result_df,
+            cohort_df[['hospitalization_id', 'start_time', 'end_time']],
+            on='hospitalization_id',
+            how='inner'
+        )
+        
+        # Ensure event_time column is datetime
+        if not pd.api.types.is_datetime64_any_dtype(result_df['event_time']):
+            result_df['event_time'] = pd.to_datetime(result_df['event_time'])
+        
+        # Filter to time window
+        result_df = result_df[
+            (result_df['event_time'] >= result_df['start_time']) &
+            (result_df['event_time'] <= result_df['end_time'])
+        ].copy()
+        
+        # Drop the time window columns
+        result_df = result_df.drop(columns=['start_time', 'end_time'])
+        
+        print(f"  Final time filtering: {pre_filter_count} → {len(result_df)} records")
     
     # Remove duplicate columns
     result_df = result_df.loc[:, ~result_df.columns.duplicated()]

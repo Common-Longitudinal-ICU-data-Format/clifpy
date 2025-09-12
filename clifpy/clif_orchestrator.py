@@ -19,6 +19,7 @@ from .tables.medication_admin_continuous import MedicationAdminContinuous
 from .tables.patient_assessments import PatientAssessments
 from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
+from .utils.config import get_config_or_params
 
 
 TABLE_CLASSES = {
@@ -59,29 +60,46 @@ class ClifOrchestrator:
     
     def __init__(
         self,
-        data_directory: str,
-        filetype: str = 'csv',
-        timezone: str = 'UTC',
+        config_path: Optional[str] = None,
+        data_directory: Optional[str] = None,
+        filetype: Optional[str] = None,
+        timezone: Optional[str] = None,
         output_directory: Optional[str] = None
     ):
         """
         Initialize the ClifOrchestrator.
         
         Parameters:
-            data_directory (str): Path to the directory containing data files
-            filetype (str): Type of data file (csv, parquet, etc.)
-            timezone (str): Timezone for datetime columns
+            config_path (str, optional): Path to configuration JSON file
+            data_directory (str, optional): Path to the directory containing data files
+            filetype (str, optional): Type of data file (csv, parquet, etc.)
+            timezone (str, optional): Timezone for datetime columns
             output_directory (str, optional): Directory for saving output files and logs.
                 If not provided, creates an 'output' directory in the current working directory.
+                
+        Loading priority:
+            1. If all required params provided → use them
+            2. If config_path provided → load from that path, allow param overrides
+            3. If no params and no config_path → auto-detect clif_config.json
+            4. Parameters override config file values when both are provided
         """
-        self.data_directory = data_directory
-        self.filetype = filetype
-        self.timezone = timezone
+        # Get configuration from config file or parameters
+        config = get_config_or_params(
+            config_path=config_path,
+            data_directory=data_directory,
+            filetype=filetype,
+            timezone=timezone,
+            output_directory=output_directory
+        )
         
-        # Set output directory (same logic as BaseTable)
-        if output_directory is None:
-            output_directory = os.path.join(os.getcwd(), 'output')
-        self.output_directory = output_directory
+        self.data_directory = config['data_directory']
+        self.filetype = config['filetype']
+        self.timezone = config['timezone']
+        
+        # Set output directory
+        self.output_directory = config.get('output_directory')
+        if self.output_directory is None:
+            self.output_directory = os.path.join(os.getcwd(), 'output')
         os.makedirs(self.output_directory, exist_ok=True)
         
         # Initialize all table attributes to None
@@ -96,6 +114,19 @@ class ClifOrchestrator:
         self.position = None
         
         print('ClifOrchestrator initialized.')
+    
+    @classmethod
+    def from_config(cls, config_path: str = "./clif_config.json"):
+        """
+        Create a ClifOrchestrator instance from a configuration file.
+        
+        Parameters:
+            config_path (str): Path to the configuration JSON file
+            
+        Returns:
+            ClifOrchestrator: Configured instance
+        """
+        return cls(config_path=config_path)
     
     def load_table(
         self,

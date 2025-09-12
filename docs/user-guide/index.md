@@ -45,10 +45,13 @@ CLIFpy organizes ICU data into standardized tables, each representing a specific
 ```python
 from clifpy.tables import Patient, Labs, Vitals
 
-# Each table is a self-contained unit
-patient = Patient.from_file('/data', 'parquet')
-labs = Labs.from_file('/data', 'parquet')
-vitals = Vitals.from_file('/data', 'parquet')
+# Method 1: Direct parameters (traditional)
+patient = Patient.from_file('/data', 'parquet', timezone='US/Eastern')
+labs = Labs.from_file('/data', 'parquet', timezone='US/Eastern')
+
+# Method 2: Using configuration file (recommended)
+patient = Patient.from_file(config_path='./clif_config.json')
+labs = Labs.from_file(config_path='./clif_config.json')
 ```
 
 ### Consistent Interface
@@ -80,6 +83,50 @@ table = TableClass.from_file(
 )
 ```
 
+## Configuration Files
+
+CLIFpy supports configuration files for easier data loading and consistent settings across projects. You can use a `clif_config.json` file to centralize your configuration:
+
+### Configuration Structure
+
+Create a `clif_config.json` file with the following structure:
+
+```json
+{
+  "data_directory": "/path/to/data",
+  "filetype": "parquet",
+  "timezone": "US/Eastern", 
+  "output_directory": "/path/to/output"  // optional
+}
+```
+
+### Using Configuration Files
+
+Load tables using the config file:
+
+```python
+from clifpy.tables import Patient, Labs, Vitals
+
+# Using configuration file
+patient = Patient.from_file(config_path='./clif_config.json')
+labs = Labs.from_file(config_path='./clif_config.json')
+
+# Or with the orchestrator
+from clifpy.clif_orchestrator import ClifOrchestrator
+orchestrator = ClifOrchestrator(config_path='./clif_config.json')
+```
+
+You can still override specific parameters when needed:
+
+```python
+# Use config but override timezone and add sampling
+vitals = Vitals.from_file(
+    config_path='./clif_config.json',
+    timezone='UTC',
+    sample_size=1000
+)
+```
+
 ## Common Workflows
 
 ### Loading and Validating Data
@@ -87,8 +134,13 @@ table = TableClass.from_file(
 ```python
 from clifpy.clif_orchestrator import ClifOrchestrator
 
-# Load multiple tables
+# Method 1: Direct parameters
 orchestrator = ClifOrchestrator('/data', 'parquet', 'US/Central')
+
+# Method 2: Using configuration file (recommended)
+orchestrator = ClifOrchestrator(config_path='./clif_config.json')
+
+# Both methods work the same way after initialization
 orchestrator.initialize(tables=['patient', 'labs', 'vitals'])
 
 # Validate all tables
@@ -114,10 +166,11 @@ cohort_vitals = vitals.df[vitals.df['hospitalization_id'].isin(cohort_ids)]
 ## Best Practices
 
 1. **Always validate data** after loading to ensure compliance with CLIF standards
-2. **Use appropriate timezones** for your data source
-3. **Filter early** to reduce memory usage with large datasets
-4. **Review validation errors** to understand data quality issues
-5. **Use the orchestrator** when working with multiple related tables
+2. **Use configuration files** for consistent settings across your project (create `clif_config.json`)
+3. **Use appropriate timezones** for your data source
+4. **Filter early** to reduce memory usage with large datasets
+5. **Review validation errors** to understand data quality issues
+6. **Use the orchestrator** when working with multiple related tables
 
 ## Next Steps
 
