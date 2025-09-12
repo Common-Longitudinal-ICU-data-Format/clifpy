@@ -153,8 +153,7 @@ class BaseTable:
         output_directory: Optional[str] = None,
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None,
-        snake_case: bool = True
+        filters: Optional[Dict[str, Any]] = None
     ):
         """
         Load data from file and create a table instance.
@@ -167,7 +166,6 @@ class BaseTable:
             sample_size (int, optional): Number of rows to load
             columns (List[str], optional): Specific columns to load
             filters (Dict, optional): Filters to apply when loading
-            snake_case (bool, optional): Whether to apply snake_case formatting to categorical columns. Default True.
             
         Returns:
             Instance of the table class with loaded data
@@ -183,8 +181,7 @@ class BaseTable:
             sample_size=sample_size,
             columns=columns,
             filters=filters,
-            site_tz=timezone,
-            snake_case=snake_case
+            site_tz=timezone
         )
         
         # Create instance with loaded data
