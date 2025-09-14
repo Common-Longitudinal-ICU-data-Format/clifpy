@@ -2,6 +2,7 @@
 In general, convert both rate and amount indiscriminately and report them as well as unrecognized units.
 '''
 
+from types import NoneType
 import pandas as pd
 import duckdb
 from typing import Set, Tuple
@@ -596,7 +597,7 @@ def _convert_limited_units_to_preferred_units(
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
     # check user-defined med_dose_unit_preferred are in the set of acceptable units
-    unacceptable_preferred_units = set(med_df['med_dose_unit_preferred']) - ALL_ACCEPTABLE_UNITS
+    unacceptable_preferred_units = set(med_df['med_dose_unit_preferred']) - ALL_ACCEPTABLE_UNITS - {None}
     if unacceptable_preferred_units:
         error_msg = f"Cannot accommodate the conversion to the following preferred units: {unacceptable_preferred_units}. Consult the function documentation for a list of acceptable units."
         if override:
@@ -780,7 +781,7 @@ def convert_dose_units_by_med_category(
         # join the preferred units to the df
         preferred_units_df = pd.DataFrame(preferred_units.items(), columns=['med_category', 'med_dose_unit_preferred'])
         q = """
-        SELECT *
+        SELECT l.*
             -- for unspecified preferred units, use the limited units by default
             , med_dose_unit_preferred: COALESCE(r.med_dose_unit_preferred, l.med_dose_unit_limited)
         FROM med_df_limited l
