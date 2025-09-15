@@ -229,9 +229,28 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
 @pytest.fixture
 def unit_converter_test_data(load_fixture_csv):
     """
-    Load test data for dose unit conversion tests.
+    Load test data for standardize_dose_to_limited_units tests.
     
-    Returns CSV data with columns:
+    Provides comprehensive test data for validating the complete unit
+    standardization pipeline from raw units to limited standard units.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Test data with columns:
+        - rn: Row number for ordering
+        - med_dose: Original dose values
+        - med_dose_unit: Original unit strings (various formats)
+        - med_dose_unit_normalized: Expected normalized unit
+        - unit_class: Expected classification ('rate', 'amount', 'unrecognized')
+        - med_dose_limited: Expected converted dose value
+        - med_dose_unit_limited: Expected limited unit
+        - weight_kg: Patient weight (may be NaN)
+        
+    Notes
+    -----
+    Filters out rows where unit_class is NaN to focus on valid test cases.
+    Replaces empty strings in weight_kg with NaN for proper null handling.
     """
     df = load_fixture_csv('test_unit_converter - standardize_dose_to_limited_units.csv').dropna(subset=['unit_class'])
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
@@ -242,9 +261,42 @@ def unit_converter_test_data(load_fixture_csv):
 @pytest.fixture
 def convert_dose_units_by_med_category_test_data(load_fixture_csv):
     """
-    Load test data for dose unit conversion tests.
+    Load test data for convert_dose_units_by_med_category tests.
     
-    Returns CSV data with columns:
+    Provides test data for validating medication-specific unit conversions
+    including both valid and invalid conversion scenarios.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Test data with columns:
+        - rn: Row number for test ordering
+        - case: 'valid' or 'invalid' test scenario
+        - med_category: Medication category (e.g., 'propofol', 'fentanyl')
+        - med_dose: Original dose value
+        - med_dose_unit: Original unit string
+        - med_dose_unit_normalized: Normalized unit
+        - unit_class: Unit classification
+        - unit_subclass: Unit subclassification ('mass', 'volume', 'unit')
+        - med_dose_limited: Dose in limited units
+        - med_dose_unit_limited: Limited unit string
+        - weight_kg: Patient weight (may be NaN)
+        - med_dose_unit_preferred: Target preferred unit
+        - unit_class_preferred: Preferred unit classification
+        - unit_subclass_preferred: Preferred unit subclassification
+        - med_dose_converted: Expected final dose value
+        - med_dose_unit_converted: Expected final unit
+        - convert_status: Expected conversion status message
+        - note: Test case description
+        
+    Notes
+    -----
+    Includes test cases for:
+    - Successful conversions between compatible units
+    - Failed conversions (cross-class, cross-subclass)
+    - Unrecognized units
+    - Missing/empty units
+    - Weight-based conversions
     """
     df = load_fixture_csv('test_unit_converter - convert_dose_units_by_med_category.csv').dropna(subset=['unit_class'])
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])

@@ -111,11 +111,42 @@ ACCEPTABLE_RATE_UNITS = acceptable_rate_units()
 
 ALL_ACCEPTABLE_UNITS = ACCEPTABLE_RATE_UNITS | ACCEPTABLE_AMOUNT_UNITS
 
-def convert_set_to_str_for_sql(s: Set[str]) -> str:
+def _convert_set_to_str_for_sql(s: Set[str]) -> str:
+    """
+    Convert a set of strings to SQL IN clause format.
+    
+    Transforms a Python set into a comma-separated string suitable for use
+    in SQL IN clauses within DuckDB queries.
+    
+    Parameters
+    ----------
+    s : Set[str]
+        Set of strings to be formatted for SQL.
+        
+    Returns
+    -------
+    str
+        Comma-separated string with items separated by "','".
+        Note: Does not include outer quotes - those are added in SQL query.
+        
+    Examples
+    --------
+    >>> units = {'ml/hr', 'mcg/min', 'u/hr'}
+    >>> convert_set_to_str_for_sql(units)
+    'ml/hr','mcg/min','u/hr'
+    
+    >>> # Usage in SQL:
+    >>> # f"WHERE unit IN ('{convert_set_to_str_for_sql(units)}')"
+    
+    Notes
+    -----
+    This is a helper function for building DuckDB SQL queries that need to check
+    if values are in a set of acceptable units.
+    """
     return "','".join(s)
 
-RATE_UNITS_STR = convert_set_to_str_for_sql(ACCEPTABLE_RATE_UNITS)
-AMOUNT_UNITS_STR = convert_set_to_str_for_sql(ACCEPTABLE_AMOUNT_UNITS)
+RATE_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_RATE_UNITS)
+AMOUNT_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_AMOUNT_UNITS)
 
 def _normalize_dose_unit_formats(s: pd.Series) -> pd.Series:
     """
@@ -248,6 +279,43 @@ def _detect_and_classify_normalized_dose_units(s: pd.Series) -> dict:
     }
 
 def _concat_builders_by_patterns(builder: callable, patterns: list, else_case: str = '1') -> str:
+    """
+    Concatenate multiple SQL CASE WHEN statements from patterns.
+    
+    Helper function that combines multiple regex pattern builders into a single
+    SQL CASE statement for DuckDB queries. Used internally to build conversion
+    factor calculations for different unit components (amount, time, weight).
+    
+    Parameters
+    ----------
+    builder : callable
+        Function that generates CASE WHEN clauses from regex patterns.
+        Should accept a pattern string and return a WHEN...THEN clause.
+        
+    patterns : list
+        List of regex patterns to process with the builder function.
+        
+    else_case : str, default '1'
+        Value to use in the ELSE clause when no patterns match.
+        Default is '1' (no conversion factor).
+        
+    Returns
+    -------
+    str
+        Complete SQL CASE statement with all pattern conditions.
+        
+    Examples
+    --------
+    >>> patterns = ['/hr$', '/min$']
+    >>> builder = lambda p: f"WHEN regexp_matches(col, '{p}') THEN factor"
+    >>> _concat_builders_by_patterns(builder, patterns)
+    'CASE WHEN regexp_matches(col, '/hr$') THEN factor WHEN regexp_matches(col, '/min$') THEN factor ELSE 1 END'
+    
+    Notes
+    -----
+    This function is used internally by conversion functions to build
+    SQL queries that apply different conversion factors based on unit patterns.
+    """
     return "CASE " + " ".join([builder(pattern) for pattern in patterns]) + f" ELSE {else_case} END"
 
 def _pattern_to_factor_builder_for_limited(pattern: str) -> str:
@@ -287,6 +355,47 @@ def _pattern_to_factor_builder_for_limited(pattern: str) -> str:
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
 def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
+    """
+    Build SQL CASE WHEN statement for preferred unit conversion.
+    
+    Generates SQL clauses for converting from limited units back to preferred units
+    by applying the inverse of the original conversion factor. Used when converting
+    from standardized base units to medication-specific preferred units.
+    
+    Parameters
+    ----------
+    pattern : str
+        Regex pattern to match in med_dose_unit_preferred column.
+        Must exist in REGEX_TO_FACTOR_MAPPER dictionary.
+        
+    Returns
+    -------
+    str
+        SQL CASE WHEN clause with inverse conversion factor.
+        
+    Raises
+    ------
+    ValueError
+        If the pattern is not found in REGEX_TO_FACTOR_MAPPER.
+        
+    Examples
+    --------
+    >>> _pattern_to_factor_builder_for_preferred('/hr$')
+    "WHEN regexp_matches(med_dose_unit_preferred, '/hr$') THEN 1/(1/60)"
+    
+    >>> _pattern_to_factor_builder_for_preferred('^mg')
+    "WHEN regexp_matches(med_dose_unit_preferred, '^mg') THEN 1/(1000)"
+    
+    Notes
+    -----
+    This function applies the inverse of the factor used in 
+    _pattern_to_factor_builder_for_limited, allowing bidirectional conversion
+    between unit systems. The inverse is calculated as 1/(original_factor).
+    
+    See Also
+    --------
+    _pattern_to_factor_builder_for_limited : Builds patterns for limited unit conversion
+    """
     if pattern in REGEX_TO_FACTOR_MAPPER:
         return f"WHEN regexp_matches(med_dose_unit_preferred, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
@@ -590,16 +699,64 @@ def _convert_limited_units_to_preferred_units(
     override: bool = False
     ) -> pd.DataFrame:
     """
-    rules:
-    - conversion only within the same unit class (e.g. rate only rate and NOT to amount)
-    - cannot convert from g to ml
+    Convert limited standardized units to user-preferred units.
     
-    e.g. assumes the presense of 
-    - med_dose_limited
-    - med_dose_unit_limited
-    - med_dose_unit_preferred -- already specified
+    Performs the second stage of unit conversion, transforming from standardized
+    base units (mcg/min, ml/min, u/min) to medication-specific preferred units
+    while maintaining unit class consistency.
     
-    Override = ignore the error and convert anyway
+    Parameters
+    ----------
+    med_df : pd.DataFrame
+        DataFrame with required columns from first-stage conversion:
+        - med_dose_limited: Dose values in standardized units
+        - med_dose_unit_limited: Standardized unit strings (may be NULL)
+        - med_dose_unit_preferred: Target unit strings for each medication
+        - weight_kg: Patient weights (optional, used for weight-based conversions)
+        
+    override : bool, default False
+        If True, prints warnings but continues when encountering:
+        - Unacceptable preferred units not in ALL_ACCEPTABLE_UNITS
+        - Cross-class conversions (e.g., rate to amount)
+        - Cross-subclass conversions (e.g., mass to volume)
+        If False, raises ValueError for these conditions.
+        
+    Returns
+    -------
+    pd.DataFrame
+        Original DataFrame with additional columns:
+        - unit_class: Classification of limited unit ('rate', 'amount', 'unrecognized')
+        - unit_subclass: Subclassification ('mass', 'volume', 'unit', 'unrecognized')
+        - unit_class_preferred: Classification of preferred unit
+        - unit_subclass_preferred: Subclassification of preferred unit
+        - convert_status: Success or failure reason message
+        - amount_multiplier_preferred: Conversion factor for amount units
+        - time_multiplier_preferred: Conversion factor for time units
+        - weight_multiplier_preferred: Conversion factor for weight-based units
+        - med_dose_converted: Final converted dose value
+        - med_dose_unit_converted: Final unit string after conversion
+        
+    Raises
+    ------
+    ValueError
+        - If required columns are missing from med_df
+        - If preferred units are not in ALL_ACCEPTABLE_UNITS (when override=False)
+        
+    Notes
+    -----
+    Conversion rules enforced:
+    - Conversions only allowed within same unit class (rate→rate, amount→amount)
+    - Cannot convert between incompatible subclasses (e.g., mass→volume)
+    - When conversion fails, falls back to limited units and dose values
+    - Missing units (NULL) are handled with 'original unit is missing' status
+    
+    The function uses DuckDB SQL for efficient processing and applies regex
+    pattern matching to classify units and calculate conversion factors.
+    
+    See Also
+    --------
+    _convert_normalized_dose_units_to_limited_units : First-stage conversion
+    convert_dose_units_by_med_category : Public API for complete conversion pipeline
     """
     # check presense of all required columns
     required_columns = {'med_dose_limited', 'med_dose_unit_preferred'}
@@ -711,7 +868,15 @@ def convert_dose_units_by_med_category(
         - med_dose: Original dose values (numeric)
         - med_dose_unit: Original dose unit strings (e.g., 'MCG/KG/HR', 'mL/hr')
         - med_category: Medication category identifier (e.g., 'propofol', 'fentanyl')
-        - weight_kg: Patient weight in kg (optional, will be extracted from vitals if missing)
+        - weight_kg: Patient weight in kg (optional, will be extracted from vitals_df if missing)
+        
+    vitals_df : pd.DataFrame, optional
+        Vitals DataFrame for extracting patient weights if not in med_df.
+        Required columns if weight_kg missing from med_df:
+        - hospitalization_id: Patient identifier
+        - recorded_dttm: Timestamp of vital recording
+        - vital_category: Must include 'weight_kg' values
+        - vital_value: Weight values
         
     preferred_units : dict, optional
         Dictionary mapping medication categories to their preferred units.
@@ -723,20 +888,28 @@ def convert_dose_units_by_med_category(
         If False, excludes intermediate calculation columns (multipliers) from output.
         If True, retains all columns including conversion multipliers for debugging.
         
+    override : bool, default False
+        If True, prints warning messages for unacceptable preferred units but continues processing.
+        If False, raises ValueError when encountering unacceptable preferred units.
+        
     Returns
     -------
-    pd.DataFrame
-        Original DataFrame with additional columns:
-        - med_dose_unit_normalized: Standardized unit format
-        - med_dose_unit_limited: Base unit after first conversion
-        - med_dose_limited: Dose value in base units
-        - med_dose_unit_preferred: Target unit for medication category
-        - med_dose_preferred: Final dose value in preferred units
-        - unit_class: Classification ('rate', 'amount', or 'unrecognized')
-        
-        If verbose=True, also includes:
-        - amount_multiplier, time_multiplier, weight_multiplier: Conversion factors
-        - amount_multiplier_preferred, time_multiplier_preferred, weight_multiplier_preferred
+    Tuple[pd.DataFrame, pd.DataFrame]
+        A tuple containing:
+        - [0] Converted medication DataFrame with additional columns:
+            * med_dose_unit_normalized: Standardized unit format
+            * med_dose_unit_limited: Base unit after first conversion
+            * med_dose_limited: Dose value in base units
+            * med_dose_unit_preferred: Target unit for medication category
+            * med_dose_converted: Final dose value in preferred units
+            * med_dose_unit_converted: Final unit string after conversion
+            * unit_class: Classification ('rate', 'amount', or 'unrecognized')
+            * convert_status: Status message indicating success or reason for failure
+            
+            If verbose=True, also includes:
+            * amount_multiplier, time_multiplier, weight_multiplier: Conversion factors
+            * amount_multiplier_preferred, time_multiplier_preferred, weight_multiplier_preferred
+        - [1] Summary counts DataFrame with conversion statistics grouped by medication category
         
     Raises
     ------
@@ -779,7 +952,7 @@ def convert_dose_units_by_med_category(
     
     Unrecognized units are preserved but flagged in the unit_class column.
     
-    Developer TODOs
+    Developer TODO
     ---------------
     - [] Implement config file parsing for default preferred_units
     """
