@@ -198,8 +198,8 @@ def process_resp_support_waterfall(
     mask = (
         rs["device_category"].isna() & rs["device_name"].isna()
         & rs["mode_category"].str.contains(
-            r"(assist control-volume control|simv|pressure control)", na=False
-        )
+            r"(?:assist control-volume control|simv|pressure control)", na=False, regex=True
+            )
     )
     rs.loc[mask, ["device_category", "device_name"]] = ["imv", most_common_imv_name]
 
