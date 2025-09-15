@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from clifpy.tables.microbiology_culture import microbiology_culture
+from clifpy.tables.microbiology_culture import MicrobiologyCulture
 
 # --- Data Fixtures ---
 @pytest.fixture
@@ -178,7 +178,7 @@ def patch_microbiology_schema_path(monkeypatch, mock_microbiology_model_json):
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_init_with_valid_data(sample_valid_microbiology_data, mock_microbiology_schema_content):
     """Test microbiology culture initialization with valid data and mocked schema."""
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
     assert micro_obj.df is not None
     # Validate is called in __init__
     if not micro_obj.isvalid():
@@ -193,7 +193,7 @@ def test_microbiology_culture_init_with_valid_data(sample_valid_microbiology_dat
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_init_with_invalid_schema_data(sample_invalid_microbiology_data_schema):
     """Test microbiology culture initialization with schema-invalid data."""
-    micro_obj = microbiology_culture(data=sample_invalid_microbiology_data_schema)
+    micro_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_schema)
     assert micro_obj.df is not None
     # Validation is called in __init__. 
     assert micro_obj.isvalid() is False
@@ -205,7 +205,7 @@ def test_microbiology_culture_init_with_invalid_schema_data(sample_invalid_micro
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_init_with_invalid_organism_data(sample_invalid_microbiology_data_organisms):
     """Test microbiology culture initialization with unknown organism data."""
-    micro_obj = microbiology_culture(data=sample_invalid_microbiology_data_organisms)
+    micro_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
     assert micro_obj.df is not None
     # Validation is called in __init__ which calls validate_organism_categories.
     assert micro_obj.isvalid() is False
@@ -216,7 +216,7 @@ def test_microbiology_culture_init_with_invalid_organism_data(sample_invalid_mic
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_init_with_group_mismatch(sample_microbiology_data_group_mismatch):
     """Test microbiology culture initialization with organism group mismatch."""
-    micro_obj = microbiology_culture(data=sample_microbiology_data_group_mismatch)
+    micro_obj = MicrobiologyCulture(data=sample_microbiology_data_group_mismatch)
     assert micro_obj.df is not None
     # Validation is called in __init__ which calls validate_organism_categories.
     assert micro_obj.isvalid() is False
@@ -226,7 +226,7 @@ def test_microbiology_culture_init_with_group_mismatch(sample_microbiology_data_
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_init_without_data():
     """Test microbiology culture initialization without data."""
-    micro_obj = microbiology_culture()
+    micro_obj = MicrobiologyCulture()
     assert micro_obj.df is None
     assert micro_obj.isvalid() is True # No data, so no data errors
     assert not micro_obj.errors
@@ -241,7 +241,7 @@ def test_load_microbiology_schema_file_not_found(monkeypatch, capsys):
         return os.path.join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
     
-    micro_obj = microbiology_culture() # Init will call _load_microbiology_schema
+    micro_obj = MicrobiologyCulture() # Init will call _load_microbiology_schema
     assert micro_obj._organism_categories == {}
     assert micro_obj._fluid_categories == {}
     assert micro_obj._method_categories == {}
@@ -253,7 +253,7 @@ def test_load_microbiology_schema_file_not_found(monkeypatch, capsys):
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_from_file(mock_microbiology_file, sample_valid_microbiology_data):
     """Test loading microbiology culture data from a parquet file."""
-    micro_obj = microbiology_culture.from_file(mock_microbiology_file, table_format_type="parquet")
+    micro_obj = MicrobiologyCulture.from_file(mock_microbiology_file, table_format_type="parquet")
     assert micro_obj.df is not None
     # Standardize DataFrames before comparison (e.g. reset index, sort)
     expected_df = sample_valid_microbiology_data.reset_index(drop=True)
@@ -266,16 +266,16 @@ def test_microbiology_culture_from_file_nonexistent(tmp_path):
     """Test loading microbiology culture data from a nonexistent file."""
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        microbiology_culture.from_file(non_existent_path, table_format_type="parquet")
+        MicrobiologyCulture.from_file(non_existent_path, table_format_type="parquet")
 
 # isvalid method
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_isvalid(sample_valid_microbiology_data, sample_invalid_microbiology_data_organisms):
     """Test isvalid method."""
-    valid_micro = microbiology_culture(data=sample_valid_microbiology_data)
+    valid_micro = MicrobiologyCulture(data=sample_valid_microbiology_data)
     assert valid_micro.isvalid() is True
     
-    invalid_micro = microbiology_culture(data=sample_invalid_microbiology_data_organisms)
+    invalid_micro = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
     # isvalid() reflects the state after the last validate() call, which happens at init
     assert invalid_micro.isvalid() is False 
 
@@ -284,18 +284,18 @@ def test_microbiology_culture_isvalid(sample_valid_microbiology_data, sample_inv
 def test_microbiology_culture_validate_output(sample_valid_microbiology_data, sample_invalid_microbiology_data_organisms, capsys):
     """Test validate method output messages."""
     # Valid data - validation runs at init
-    microbiology_culture(data=sample_valid_microbiology_data) 
+    MicrobiologyCulture(data=sample_valid_microbiology_data) 
     captured = capsys.readouterr() 
     assert "Validation completed successfully." in captured.out
 
     # Invalid organism data - validation runs at init
-    microbiology_culture(data=sample_invalid_microbiology_data_organisms) 
+    MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms) 
     captured = capsys.readouterr()
     assert "Validation completed with" in captured.out
     assert "error(s)" in captured.out
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     micro_obj_no_data.validate() # Explicit call as init with no data might not print this
     captured = capsys.readouterr()
     assert "No dataframe to validate." in captured.out
@@ -304,7 +304,7 @@ def test_microbiology_culture_validate_output(sample_valid_microbiology_data, sa
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_microbiology_culture_properties_access(mock_microbiology_schema_content):
     """Test access to organism_categories, fluid_categories, method_categories, and organism_groups properties."""
-    micro_obj = microbiology_culture()
+    micro_obj = MicrobiologyCulture()
     
     # Test organism_categories
     organisms = micro_obj.organism_categories
@@ -330,7 +330,7 @@ def test_microbiology_culture_properties_access(mock_microbiology_schema_content
     assert id(groups) != id(micro_obj._organism_groups) # Ensure it's a copy
 
     # Test properties when schema is not loaded
-    micro_obj_no_schema = microbiology_culture()
+    micro_obj_no_schema = MicrobiologyCulture()
     micro_obj_no_schema._organism_categories = None
     micro_obj_no_schema._fluid_categories = None
     micro_obj_no_schema._method_categories = None
@@ -344,7 +344,7 @@ def test_microbiology_culture_properties_access(mock_microbiology_schema_content
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_validate_organism_categories_valid(sample_valid_microbiology_data):
     """Test validate_organism_categories with valid data."""
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
     # validate_organism_categories is called during init's validate()
     assert not micro_obj.organism_validation_errors
     assert micro_obj.isvalid() is True
@@ -352,7 +352,7 @@ def test_validate_organism_categories_valid(sample_valid_microbiology_data):
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_validate_organism_categories_unknown_organisms(sample_invalid_microbiology_data_organisms):
     """Test validate_organism_categories with unknown organism categories."""
-    micro_obj = microbiology_culture(data=sample_invalid_microbiology_data_organisms)
+    micro_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
     assert len(micro_obj.organism_validation_errors) > 0
     assert any(e['error_type'] == 'unknown_organism_category' for e in micro_obj.organism_validation_errors)
     assert any(e['error_type'] == 'unknown_method_category' for e in micro_obj.organism_validation_errors)
@@ -366,7 +366,7 @@ def test_validate_organism_categories_unknown_organisms(sample_invalid_microbiol
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_validate_organism_categories_group_mismatch(sample_microbiology_data_group_mismatch):
     """Test validate_organism_categories with organism group mismatch."""
-    micro_obj = microbiology_culture(data=sample_microbiology_data_group_mismatch)
+    micro_obj = MicrobiologyCulture(data=sample_microbiology_data_group_mismatch)
     assert len(micro_obj.organism_validation_errors) > 0
     assert any(e['error_type'] == 'organism_group_mismatch' for e in micro_obj.organism_validation_errors)
     
@@ -386,7 +386,7 @@ def test_validate_organism_categories_missing_columns():
         'hospitalization_id': ['HOSP12345'],
         'organism_id': ['ORG001']
     })
-    micro_obj_missing_organism = microbiology_culture(data=data_missing_organism)
+    micro_obj_missing_organism = MicrobiologyCulture(data=data_missing_organism)
     # Schema validation will likely also report missing 'organism_category'
     # Here we explicitly check the organism_validation_errors
     assert any(e['error_type'] == 'missing_columns_for_organism_validation' for e in micro_obj_missing_organism.organism_validation_errors)
@@ -396,17 +396,17 @@ def test_validate_organism_categories_missing_columns():
 def test_validate_organism_categories_no_data_or_schema(capsys):
     """Test validate_organism_categories with no data or no schema."""
     # No DataFrame
-    micro_obj_no_df = microbiology_culture()
+    micro_obj_no_df = MicrobiologyCulture()
     micro_obj_no_df.validate_organism_categories() # Explicitly call
     assert not micro_obj_no_df.organism_validation_errors
 
     # Empty DataFrame
-    micro_obj_empty_df = microbiology_culture(data=pd.DataFrame(columns=['patient_id', 'hospitalization_id', 'organism_category']))
+    micro_obj_empty_df = MicrobiologyCulture(data=pd.DataFrame(columns=['patient_id', 'hospitalization_id', 'organism_category']))
     micro_obj_empty_df.validate_organism_categories()
     assert not micro_obj_empty_df.organism_validation_errors
 
     # No organism_categories in schema
-    micro_obj_no_schema_organisms = microbiology_culture(data=pd.DataFrame({'organism_category': ['test_organism']}))
+    micro_obj_no_schema_organisms = MicrobiologyCulture(data=pd.DataFrame({'organism_category': ['test_organism']}))
     micro_obj_no_schema_organisms._organism_categories = {} # Manually clear categories after init
     micro_obj_no_schema_organisms.validate_organism_categories()
     assert not micro_obj_no_schema_organisms.organism_validation_errors # Should not attempt validation if no categories defined
@@ -416,7 +416,7 @@ def test_validate_organism_categories_no_data_or_schema(capsys):
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_filter_by_organism_category(sample_valid_microbiology_data):
     """Test filter_by_organism_category method."""
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
     
     # Existing organism_category
     filtered_df_acin = micro_obj.filter_by_organism_category('acinetobacter_baumanii')
@@ -428,18 +428,18 @@ def test_filter_by_organism_category(sample_valid_microbiology_data):
     assert filtered_df_unknown.empty
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     assert micro_obj_no_data.filter_by_organism_category('acinetobacter_baumanii').empty
 
     # Data missing organism_category column
     data_no_organism = sample_valid_microbiology_data.drop(columns=['organism_category'])
-    micro_obj_no_organism = microbiology_culture(data=data_no_organism)
+    micro_obj_no_organism = MicrobiologyCulture(data=data_no_organism)
     assert micro_obj_no_organism.filter_by_organism_category('acinetobacter_baumanii').empty
 
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_filter_by_fluid_category(sample_valid_microbiology_data):
     """Test filter_by_fluid_category method."""
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
 
     # Existing fluid_category
     filtered_df_blood = micro_obj.filter_by_fluid_category('Blood/Buffy Coat')
@@ -451,13 +451,13 @@ def test_filter_by_fluid_category(sample_valid_microbiology_data):
     assert filtered_df_unknown.empty
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     assert micro_obj_no_data.filter_by_fluid_category('Blood/Buffy Coat').empty
 
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_filter_by_method_category(sample_valid_microbiology_data):
     """Test filter_by_method_category method."""
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
 
     # Existing method_category
     filtered_df_culture = micro_obj.filter_by_method_category('culture')
@@ -469,13 +469,13 @@ def test_filter_by_method_category(sample_valid_microbiology_data):
     assert filtered_df_unknown.empty
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     assert micro_obj_no_data.filter_by_method_category('culture').empty
 
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_filter_by_organism_group(sample_valid_microbiology_data):
     """Test filter_by_organism_group method."""
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
 
     # Existing organism_group
     filtered_df_candida = micro_obj.filter_by_organism_group('candida albicans')
@@ -487,14 +487,14 @@ def test_filter_by_organism_group(sample_valid_microbiology_data):
     assert filtered_df_unknown.empty
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     assert micro_obj_no_data.filter_by_organism_group('candida albicans').empty
 
 @pytest.mark.usefixtures("patch_microbiology_schema_path")
 def test_get_organism_summary_stats(sample_valid_microbiology_data):
     """Test get_organism_summary_stats method."""
     # With data
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
     stats = micro_obj.get_organism_summary_stats()
     assert not stats.empty
     assert 'unique_patients' in stats.columns
@@ -503,7 +503,7 @@ def test_get_organism_summary_stats(sample_valid_microbiology_data):
     assert stats.loc['acinetobacter_baumanii', 'total_cultures'] == 1
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     stats_no_data = micro_obj_no_data.get_organism_summary_stats()
     assert stats_no_data.empty
 
@@ -511,7 +511,7 @@ def test_get_organism_summary_stats(sample_valid_microbiology_data):
 def test_get_fluid_summary_stats(sample_valid_microbiology_data):
     """Test get_fluid_summary_stats method."""
     # With data
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
     stats = micro_obj.get_fluid_summary_stats()
     assert not stats.empty
     assert 'unique_patients' in stats.columns
@@ -521,7 +521,7 @@ def test_get_fluid_summary_stats(sample_valid_microbiology_data):
     assert stats.loc['Blood/Buffy Coat', 'total_cultures'] == 2
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     stats_no_data = micro_obj_no_data.get_fluid_summary_stats()
     assert stats_no_data.empty
 
@@ -529,7 +529,7 @@ def test_get_fluid_summary_stats(sample_valid_microbiology_data):
 def test_get_time_to_result_stats(sample_valid_microbiology_data):
     """Test get_time_to_result_stats method."""
     # With data
-    micro_obj = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
     stats = micro_obj.get_time_to_result_stats()
     assert not stats.empty
     assert 'mean' in stats.columns
@@ -540,13 +540,13 @@ def test_get_time_to_result_stats(sample_valid_microbiology_data):
     assert all(stats['mean'] < 30)  # Less than 30 hours
 
     # No data
-    micro_obj_no_data = microbiology_culture()
+    micro_obj_no_data = MicrobiologyCulture()
     stats_no_data = micro_obj_no_data.get_time_to_result_stats()
     assert stats_no_data.empty
 
     # Data missing required columns
     data_no_times = sample_valid_microbiology_data.drop(columns=['collect_dttm', 'result_dttm'])
-    micro_obj_no_times = microbiology_culture(data=data_no_times)
+    micro_obj_no_times = MicrobiologyCulture(data=data_no_times)
     stats_no_times = micro_obj_no_times.get_time_to_result_stats()
     assert stats_no_times.empty
 
@@ -554,7 +554,7 @@ def test_get_time_to_result_stats(sample_valid_microbiology_data):
 def test_get_organism_validation_report(sample_invalid_microbiology_data_organisms, sample_valid_microbiology_data):
     """Test get_organism_validation_report method."""
     # With organism errors
-    micro_obj_errors = microbiology_culture(data=sample_invalid_microbiology_data_organisms)
+    micro_obj_errors = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
     report_errors = micro_obj_errors.get_organism_validation_report()
     assert isinstance(report_errors, pd.DataFrame)
     assert not report_errors.empty
@@ -562,7 +562,7 @@ def test_get_organism_validation_report(sample_invalid_microbiology_data_organis
     assert 'unknown_method_category' in report_errors['error_type'].tolist()
 
     # No organism errors
-    micro_obj_no_errors = microbiology_culture(data=sample_valid_microbiology_data)
+    micro_obj_no_errors = MicrobiologyCulture(data=sample_valid_microbiology_data)
     report_no_errors = micro_obj_no_errors.get_organism_validation_report()
     assert isinstance(report_no_errors, pd.DataFrame)
     assert report_no_errors.empty # Should be empty when no errors

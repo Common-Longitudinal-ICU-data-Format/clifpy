@@ -302,7 +302,3 @@ class MicrobiologyCulture(BaseTable):
             return pd.DataFrame(columns=['error_type', 'organism_category', 'affected_rows', 'message'])
         
         return pd.DataFrame(self.organism_validation_errors)
-
-
-# Create alias for backwards compatibility
-microbiology_culture = MicrobiologyCulture
