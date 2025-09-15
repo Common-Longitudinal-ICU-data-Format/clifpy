@@ -29,7 +29,8 @@ dependencies = [
   "pydantic",
   "pytest",
   "pytz",
-  "tqdm"
+  "tqdm",
+  "polars>=1.33.1",
 ]
 
 [tool.setuptools]
