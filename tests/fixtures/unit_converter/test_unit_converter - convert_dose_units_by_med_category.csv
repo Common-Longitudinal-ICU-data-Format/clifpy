@@ -1,4 +1,4 @@
-rn,case,med_category,med_dose,med_dose_unit,med_dose_unit_normalized,unit_class,unit_subclass,med_dose_limited,med_dose_unit_limited,weight_kg,med_dose_unit_preferred,unit_class_preferred,unit_subclass_preferred,med_dose_converted,med_dose_unit_converted,convert_status,note
+rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_unit_class,_unit_subclass,_base_dose,_base_unit,weight_kg,_preferred_unit,_unit_class_preferred,_unit_subclass_preferred,med_dose_converted,med_dose_unit_converted,_convert_status,note
 0,valid,propofol,6,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/min,70,mcg/kg/min,rate,mass,0.1,mcg/kg/min,success,add weight
 1,valid,propofol,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,70,mcg/kg/min,rate,mass,0.2,mcg/kg/min,success,add weight
 2,invalid,propofol,7,MCG,mcg,amount,mass,7,mcg,70,mcg/kg/min,rate,mass,7,mcg,cannot convert amount to rate,can't convert amount to rate

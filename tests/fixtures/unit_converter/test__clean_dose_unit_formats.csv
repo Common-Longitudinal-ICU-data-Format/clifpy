@@ -1,4 +1,4 @@
-case,med_dose_unit,med_dose_unit_format_normalized
+case,med_dose_unit,_clean_format_unit
 valid,ml/h,ml/h
 valid,MCG/KG/MIN,mcg/kg/min
 valid," Mg/Hr ",mg/hr
