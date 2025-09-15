@@ -6,25 +6,26 @@ rn,case,med_category,med_dose,med_dose_unit,med_dose_unit_normalized,unit_class,
 4,invalid,fentanyl,1000,mu/min,mu/min,rate,unit,1,u/min,74,mcg/hr,rate,mass,1,u/min,cannot convert unit to mass,can't convert u to mcg in rate
 5,invalid,fentanyl,2000,mu/min,mu/min,rate,unit,2,u/min,,mcg/hr,rate,mass,2,u/min,cannot convert unit to mass,can't convert u to mcg in rate
 6,invalid,insulin,20,iu,iu,unrecognized,unrecognized,20,iu,,u/hr,rate,unit,20,iu,original unit iu is not recognized,iu as input is not accepted
-7,invalid,zidovudine,20,U,u,unrecognized,unrecognized,20,u,,iu/hr,unrecognized,unrecognized,20,u,user-defined preferred unit iu/hr is not recognized,iu as output is not accepted (yet?)
-8,valid,midazolam,420,MCG/HR,mcg/hr,rate,mass,7,mcg/min,78,mg/hr,rate,mass,0.42,mg/hr,success,mcg to mg and min to hr
-9,valid,midazolam,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,,mg/hr,rate,mass,0.84,mg/hr,success,mcg to mg and min to hr
-10,valid,fentanyl,6,mcg / hr,mcg/hr,rate,mass,0.1,mcg/min,80,mcg/hr,rate,mass,6,mcg/hr,success,min to hr for mass
-11,valid,fentanyl,6,mcg/hr,mcg/hr,rate,mass,0.1,mcg/min,,mcg/hr,rate,mass,6,mcg/hr,success,min to hr for mass w/o weight
-12,valid,insulin,1000,mu/min,mu/min,rate,unit,1,u/min,82,u/hr,rate,unit,60,u/hr,success,min to hr for u
-13,valid,insulin,2000,mu/min,mu/min,rate,unit,2,u/min,,u/hr,rate,unit,120,u/hr,success,min to hr for u
-14,valid,norepinephrine,7.8,mcG / M,mcg/min,rate,mass,7.8,mcg/min,84,ng/kg/min,rate,mass,92.85714286,ng/kg/min,success,mcg to ng and add weight
-15,valid,norepinephrine,15.8,μg/m,mcg/min,rate,mass,15.8,mcg/min,85,ng/kg/min,rate,mass,185.8823529,ng/kg/min,success,mcg to ng and add weight
-16,valid,dextrose,10,   mg ,mg,amount,mass,10000,mcg,86,g,amount,mass,0.01,g,success,mcg to g
-17,valid,dextrose,10,mg  ,mg,amount,mass,10000,mcg,,g,amount,mass,0.01,g,success,mcg to g
-18,valid,heparin,120,mL/h,ml/hr,rate,volume,2,ml/min,88,l/hr,rate,volume,0.12,l/hr,success,min to hr and ml to l
-19,valid,heparin,180,mL/hour,ml/hr,rate,volume,3,ml/min,,l/hr,rate,volume,0.18,l/hr,success,min to hr and ml to l
-20,valid,bivalirudin,0.12,L/hr,l/hr,rate,volume,2,ml/min,90,ml/hr,rate,volume,120,ml/hr,success,min to hr for ml
-21,valid,bivalirudin,0.18,L/h,l/hr,rate,volume,3,ml/min,,ml/hr,rate,volume,180,ml/hr,success,min to hr for ml
-22,valid,oxytocin,3000,mU,u,amount,unit,3,u,92,mu,amount,unit,3000,mu,success,u to mu
-23,valid,oxytocin,4,units,u,amount,unit,4,u,,mu,amount,unit,4000,mu,success,u to mu
-24,valid,lactated_ringers_solution,0.001,L,l,amount,volume,1,ml,94,ml,amount,volume,1,ml,success,ml stays the same
-25,valid,lactated_ringers_solution,2,  mL,ml,amount,volume,2,ml,,ml,amount,volume,2,ml,success,ml stays the same
+7,invalid,insulin,20,,,unrecognized,unrecognized,20,,,u/hr,rate,unit,20,,original unit is not recognized,empty unit is not recognized
+8,invalid,zidovudine,20,U,u,unrecognized,unrecognized,20,u,,iu/hr,unrecognized,unrecognized,20,u,user-defined preferred unit iu/hr is not recognized,iu as output is not accepted (yet?)
+9,valid,midazolam,420,MCG/HR,mcg/hr,rate,mass,7,mcg/min,79,mg/hr,rate,mass,0.42,mg/hr,success,mcg to mg and min to hr
+10,valid,midazolam,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,,mg/hr,rate,mass,0.84,mg/hr,success,mcg to mg and min to hr
+11,valid,fentanyl,6,mcg / hr,mcg/hr,rate,mass,0.1,mcg/min,81,mcg/hr,rate,mass,6,mcg/hr,success,min to hr for mass
+12,valid,fentanyl,6,mcg/hr,mcg/hr,rate,mass,0.1,mcg/min,,mcg/hr,rate,mass,6,mcg/hr,success,min to hr for mass w/o weight
+13,valid,insulin,1000,mu/min,mu/min,rate,unit,1,u/min,83,u/hr,rate,unit,60,u/hr,success,min to hr for u
+14,valid,insulin,2000,mu/min,mu/min,rate,unit,2,u/min,,u/hr,rate,unit,120,u/hr,success,min to hr for u
+15,valid,norepinephrine,7.8,mcG / M,mcg/min,rate,mass,7.8,mcg/min,85,ng/kg/min,rate,mass,91.76470588,ng/kg/min,success,mcg to ng and add weight
+16,valid,norepinephrine,15.8,μg/m,mcg/min,rate,mass,15.8,mcg/min,86,ng/kg/min,rate,mass,183.7209302,ng/kg/min,success,mcg to ng and add weight
+17,valid,dextrose,10,   mg ,mg,amount,mass,10000,mcg,87,g,amount,mass,0.01,g,success,mcg to g
+18,valid,dextrose,10,mg  ,mg,amount,mass,10000,mcg,,g,amount,mass,0.01,g,success,mcg to g
+19,valid,heparin,120,mL/h,ml/hr,rate,volume,2,ml/min,89,l/hr,rate,volume,0.12,l/hr,success,min to hr and ml to l
+20,valid,heparin,180,mL/hour,ml/hr,rate,volume,3,ml/min,,l/hr,rate,volume,0.18,l/hr,success,min to hr and ml to l
+21,valid,bivalirudin,0.12,L/hr,l/hr,rate,volume,2,ml/min,91,ml/hr,rate,volume,120,ml/hr,success,min to hr for ml
+22,valid,bivalirudin,0.18,L/h,l/hr,rate,volume,3,ml/min,,ml/hr,rate,volume,180,ml/hr,success,min to hr for ml
+23,valid,oxytocin,3000,mU,u,amount,unit,3,u,93,mu,amount,unit,3000,mu,success,u to mu
+24,valid,oxytocin,4,units,u,amount,unit,4,u,,mu,amount,unit,4000,mu,success,u to mu
+25,valid,lactated_ringers_solution,0.001,L,l,amount,volume,1,ml,95,ml,amount,volume,1,ml,success,ml stays the same
+26,valid,lactated_ringers_solution,2,  mL,ml,amount,volume,2,ml,,ml,amount,volume,2,ml,success,ml stays the same
 ,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
@@ -50,7 +51,6 @@ rn,case,med_category,med_dose,med_dose_unit,med_dose_unit_normalized,unit_class,
 ,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,
-51,,,,,,,,0,,121,,,,,,,
 52,,,,,,,,0,,122,,,,,,,
 53,,,,,,,,0,,123,,,,,,,
 54,,,,,,,,0,,124,,,,,,,
@@ -989,3 +989,4 @@ rn,case,med_category,med_dose,med_dose_unit,med_dose_unit_normalized,unit_class,
 987,,,,,,,,0,,1057,,,,,,,
 988,,,,,,,,0,,1058,,,,,,,
 989,,,,,,,,0,,1059,,,,,,,
+990,,,,,,,,0,,1060,,,,,,,

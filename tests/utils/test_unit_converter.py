@@ -493,7 +493,7 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
         'zidovudine': 'iu/hr'
         }
     
-    result_df = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units, override=True)
+    result_df, _ = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
     
     # check convert_status

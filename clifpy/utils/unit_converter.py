@@ -5,7 +5,7 @@ In general, convert both rate and amount indiscriminately and report them as wel
 from types import NoneType
 import pandas as pd
 import duckdb
-from typing import Set, Tuple
+from typing import Set, Tuple, List
 
 UNIT_NAMING_VARIANTS = {
     # time
@@ -20,6 +20,8 @@ UNIT_NAMING_VARIANTS = {
     # mass
     'mcg': '^(u|µ|μ)g',
     'g': '^g(rams|ram)?',
+    # dose
+    # 'dose': '^doses?',
 }
 
 AMOUNT_ENDER = "($|/*)"
@@ -68,6 +70,7 @@ ACCEPTABLE_AMOUNT_UNITS = {
     "ml", "l", # volume
     "mu", "u", # unit
     "mcg", "mg", "ng", 'g' # mass
+    # "dose" # dose
     }
 
 def acceptable_rate_units() -> Set[str]:
@@ -388,7 +391,10 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
     """
     return duckdb.sql(q).to_df()
 
-def _create_unit_conversion_counts_table(med_df: pd.DataFrame) -> pd.DataFrame:
+def _create_unit_conversion_counts_table(
+    med_df: pd.DataFrame,
+    group_by: List[str]
+    ) -> pd.DataFrame:
     """
     Create summary table of unit conversion counts.
     
@@ -404,7 +410,8 @@ def _create_unit_conversion_counts_table(med_df: pd.DataFrame) -> pd.DataFrame:
         - med_dose_unit_normalized: Normalized unit string
         - med_dose_unit_limited: limited standard unit
         - unit_class: Classification (rate/amount/unrecognized)
-        
+    group_by : List[str], optional
+        List of columns to group by. If None, all columns will be grouped by.
     Returns
     -------
     pd.DataFrame
@@ -437,23 +444,23 @@ def _create_unit_conversion_counts_table(med_df: pd.DataFrame) -> pd.DataFrame:
     - Understanding the distribution of unit types in your data
     - Quality control and validation of conversions
     """
-    # check presense of all required columns
-    required_columns = {'med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_limited', 'unit_class'}
-    missing_columns = required_columns - set(med_df.columns)
+    # check presense of all the group by columns
+    # required_columns = {'med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_limited', 'unit_class'}
+    missing_columns = set(group_by) - set(med_df.columns)
     if missing_columns:
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
-    q = """
-    SELECT med_dose_unit
-        , med_dose_unit_normalized
-        , med_dose_unit_limited
-        , unit_class
+    # build the string that enumerates the group by columns 
+    # e.g. 'med_dose_unit, med_dose_unit_normalized, unit_class'
+    cols_enum_str = f"{', '.join(group_by)}"
+    order_by_clause = f"med_category, count DESC" if 'med_category' in group_by else "count DESC"
+    
+    q = f"""
+    SELECT {cols_enum_str}   
         , COUNT(*) as count
     FROM med_df
-    GROUP BY med_dose_unit
-        , med_dose_unit_normalized
-        , med_dose_unit_limited
-        , unit_class
+    GROUP BY {cols_enum_str}
+    ORDER BY {order_by_clause}
     """
     return duckdb.sql(q).to_df()
     
@@ -571,8 +578,12 @@ def standardize_dose_to_limited_units(
     )
     
     med_df_limited = _convert_normalized_dose_units_to_limited_units(med_df)
+    convert_counts_df = _create_unit_conversion_counts_table(
+        med_df_limited, 
+        group_by=['med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_limited', 'unit_class']
+        )
     
-    return med_df_limited, _create_unit_conversion_counts_table(med_df_limited)
+    return med_df_limited, convert_counts_df
     
 def _convert_limited_units_to_preferred_units(
     med_df: pd.DataFrame,
@@ -630,7 +641,7 @@ def _convert_limited_units_to_preferred_units(
     """ if 'unit_class' not in med_df.columns else ''
     
     q = f"""
-    SELECT *
+    SELECT l.*
         {unit_class_clause}
         , unit_subclass: CASE 
             WHEN regexp_matches(med_dose_unit_limited, '{MASS_REGEX}') THEN 'mass'
@@ -672,7 +683,6 @@ def _convert_limited_units_to_preferred_units(
             ELSE med_dose_unit_limited
             END
     FROM med_df l
-    -- LEFT JOIN preferred_units_df r USING (med_category)
     """
     return duckdb.sql(q).to_df()
 
@@ -682,7 +692,7 @@ def convert_dose_units_by_med_category(
     preferred_units: dict = None,
     verbose: bool = False,
     override: bool = False
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Convert medication dose units to user-defined preferred units for each med_category.
     
@@ -793,11 +803,19 @@ def convert_dose_units_by_med_category(
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
-    if verbose:
-        return med_df_converted
-    # the default (verbose=False) is to drop multiplier columns which likely are not useful for the user
+    convert_counts_df = _create_unit_conversion_counts_table(
+        med_df_converted, 
+        group_by=[
+            'med_category',
+            'med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_limited', 'unit_class',
+            'med_dose_unit_preferred', 'med_dose_unit_converted', 'convert_status'
+            ]
+        )
     
+    if verbose:
+        return med_df_converted, convert_counts_df
+    # the default (verbose=False) is to drop multiplier columns which likely are not useful for the user
     cols_to_drop = [col for col in med_df_converted.columns if 'multiplier' in col]
-    return med_df_converted.drop(columns=cols_to_drop)
+    return med_df_converted.drop(columns=cols_to_drop), convert_counts_df
     
     
