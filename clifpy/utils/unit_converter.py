@@ -73,7 +73,7 @@ ACCEPTABLE_AMOUNT_UNITS = {
     # "dose" # dose
     }
 
-def acceptable_rate_units() -> Set[str]:
+def _acceptable_rate_units() -> Set[str]:
     """
     Generate all acceptable rate unit combinations.
     
@@ -87,7 +87,7 @@ def acceptable_rate_units() -> Set[str]:
         
     Examples
     --------
-    >>> rate_units = acceptable_rate_units()
+    >>> rate_units = _acceptable_rate_units()
     >>> 'mcg/kg/hr' in rate_units
     True
     >>> 'ml/min' in rate_units
@@ -107,7 +107,7 @@ def acceptable_rate_units() -> Set[str]:
     # find the cartesian product of the three sets
     return {a + b + c for a in ACCEPTABLE_AMOUNT_UNITS for b in acceptable_weight_units for c in acceptable_time_units}
 
-ACCEPTABLE_RATE_UNITS = acceptable_rate_units()
+ACCEPTABLE_RATE_UNITS = _acceptable_rate_units()
 
 ALL_ACCEPTABLE_UNITS = ACCEPTABLE_RATE_UNITS | ACCEPTABLE_AMOUNT_UNITS
 

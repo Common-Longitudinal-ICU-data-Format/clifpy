@@ -92,6 +92,7 @@ nav:
           - Assessments: user-guide/tables/patient-assessments.md
           - Position: user-guide/tables/position.md
       - Data Validation: user-guide/validation.md
+      - Medication Unit Conversion: user-guide/med-unit-conversion.md
       - Working with Timezones: user-guide/timezones.md
   - How-to Guides:
       - Overview: examples/index.md
