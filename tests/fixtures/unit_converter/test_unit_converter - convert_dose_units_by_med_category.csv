@@ -6,8 +6,8 @@ rn,case,med_category,med_dose,med_dose_unit,med_dose_unit_normalized,unit_class,
 4,invalid,fentanyl,1000,mu/min,mu/min,rate,unit,1,u/min,74,mcg/hr,rate,mass,1,u/min,cannot convert unit to mass,can't convert u to mcg in rate
 5,invalid,fentanyl,2000,mu/min,mu/min,rate,unit,2,u/min,,mcg/hr,rate,mass,2,u/min,cannot convert unit to mass,can't convert u to mcg in rate
 6,invalid,insulin,20,iu,iu,unrecognized,unrecognized,20,iu,,u/hr,rate,unit,20,iu,original unit iu is not recognized,iu as input is not accepted
-7,invalid,insulin,20,,,unrecognized,unrecognized,20,,,u/hr,rate,unit,20,,original unit is not recognized,empty unit is not recognized
-8,invalid,zidovudine,20,U,u,unrecognized,unrecognized,20,u,,iu/hr,unrecognized,unrecognized,20,u,user-defined preferred unit iu/hr is not recognized,iu as output is not accepted (yet?)
+7,invalid,insulin,20,,,unrecognized,unrecognized,20,,,u/hr,rate,unit,20,,original unit is missing,empty unit is not recognized
+8,invalid,zidovudine,20,U,u,unrecognized,unrecognized,20,u,,iu/hr,unrecognized,unrecognized,20,u,user-preferred unit iu/hr is not recognized,iu as output is not accepted (yet?)
 9,valid,midazolam,420,MCG/HR,mcg/hr,rate,mass,7,mcg/min,79,mg/hr,rate,mass,0.42,mg/hr,success,mcg to mg and min to hr
 10,valid,midazolam,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,,mg/hr,rate,mass,0.84,mg/hr,success,mcg to mg and min to hr
 11,valid,fentanyl,6,mcg / hr,mcg/hr,rate,mass,0.1,mcg/min,81,mcg/hr,rate,mass,6,mcg/hr,success,min to hr for mass

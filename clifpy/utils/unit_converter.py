@@ -657,10 +657,11 @@ def _convert_limited_units_to_preferred_units(
             WHEN regexp_matches(med_dose_unit_preferred, '{UNIT_REGEX}') THEN 'unit'
             ELSE 'unrecognized' END
         , convert_status: CASE 
+            WHEN med_dose_unit_limited IS NULL THEN 'original unit is missing'
             WHEN unit_class == 'unrecognized' OR unit_subclass == 'unrecognized'
                 THEN 'original unit ' || med_dose_unit_limited || ' is not recognized'
             WHEN unit_class_preferred == 'unrecognized' OR unit_subclass_preferred == 'unrecognized'
-                THEN 'user-defined preferred unit ' || med_dose_unit_preferred || ' is not recognized'
+                THEN 'user-preferred unit ' || med_dose_unit_preferred || ' is not recognized'
             WHEN unit_class != unit_class_preferred 
                 THEN 'cannot convert ' || unit_class || ' to ' || unit_class_preferred
             WHEN unit_subclass != unit_subclass_preferred
