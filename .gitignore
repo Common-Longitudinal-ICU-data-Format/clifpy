@@ -1,6 +1,6 @@
 __pycache__/
 .DS_Store
-/dev
+# /dev
 examples/output/
 dev/readme.md
 dev/requirements.txt
@@ -21,7 +21,8 @@ __pycache__/
 .claude
 todo.md
 
-#dev
+# dev
+.dev/
 
 clif_2.1.0.txt
 context7.json
