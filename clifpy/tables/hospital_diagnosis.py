@@ -40,6 +40,27 @@ class HospitalDiagnosis(BaseTable):
             data=data
         )
 
+        # Auto-load data if not provided
+        if data is None and data_directory is not None and filetype is not None:
+            self.load_table()
+
+    def load_table(self):
+        """Load hospital diagnosis table data from the configured data directory."""
+        from ..utils.io import load_data
+
+        if self.data_directory is None or self.filetype is None:
+            raise ValueError("data_directory and filetype must be set to load data")
+
+        self.df = load_data(
+            self.table_name,
+            self.data_directory,
+            self.filetype,
+            site_tz=self.timezone
+        )
+
+        if self.logger:
+            self.logger.info(f"Loaded {len(self.df)} rows from {self.table_name} table")
+
     def get_diagnosis_summary(self) -> Dict:
         """Return comprehensive summary statistics for hospital diagnosis data."""
         if self.df is None:
