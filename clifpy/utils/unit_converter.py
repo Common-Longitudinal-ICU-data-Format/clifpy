@@ -148,27 +148,27 @@ def _convert_set_to_str_for_sql(s: Set[str]) -> str:
 RATE_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_RATE_UNITS)
 AMOUNT_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_AMOUNT_UNITS)
 
-def _normalize_dose_unit_formats(s: pd.Series) -> pd.Series:
+def _clean_dose_unit_formats(s: pd.Series) -> pd.Series:
     """
-    Normalize dose unit formatting by removing spaces and converting to lowercase.
+    Clean dose unit formatting by removing spaces and converting to lowercase.
     
-    This is the first step in the normalization pipeline. It standardizes
-    the basic formatting of dose units before applying name normalization.
+    This is the first step in the cleaning pipeline. It standardizes
+    the basic formatting of dose units before applying name cleaning.
     
     Parameters
     ----------
     s : pd.Series
-        Series containing dose unit strings to normalize.
+        Series containing dose unit strings to clean.
         
     Returns
     -------
     pd.Series
-        Series with normalized formatting (no spaces, lowercase).
+        Series with cleaned formatting (no spaces, lowercase).
         
     Examples
     --------
     >>> s = pd.Series(['mL / hr', 'MCG/KG/MIN', ' Mg/Hr '])
-    >>> _normalize_dose_unit_formats(s)
+    >>> _clean_dose_unit_formats(s)
     0        ml/hr
     1    mcg/kg/min
     2        mg/hr
@@ -176,14 +176,14 @@ def _normalize_dose_unit_formats(s: pd.Series) -> pd.Series:
     
     Notes
     -----
-    This function is typically used as the first step in the normalization
-    pipeline, followed by _normalize_dose_unit_names().
+    This function is typically used as the first step in the cleaning
+    pipeline, followed by _clean_dose_unit_names().
     """
     return s.str.replace(r'\s+', '', regex=True).str.lower().replace('', None, regex=False)
     
-def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
+def _clean_dose_unit_names(s: pd.Series) -> pd.Series:
     """
-    Normalize dose unit name variants to standard abbreviations.
+    Clean dose unit name variants to standard abbreviations.
     
     Applies regex patterns to convert various unit name variants to their
     standard abbreviated forms (e.g., 'milliliter' -> 'ml', 'hour' -> 'hr').
@@ -192,17 +192,17 @@ def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
     ----------
     s : pd.Series
         Series containing dose unit strings with name variants.
-        Should already be format-normalized (lowercase, no spaces).
+        Should already be format-cleaned (lowercase, no spaces).
         
     Returns
     -------
     pd.Series
-        Series with limited unit names.
+        Series with clean unit names.
         
     Examples
     --------
     >>> s = pd.Series(['milliliter/hour', 'units/minute', 'µg/kg/h'])
-    >>> _normalize_dose_unit_names(s)
+    >>> _clean_dose_unit_names(s)
     0        ml/hr
     1        u/min
     2    mcg/kg/hr
@@ -216,25 +216,25 @@ def _normalize_dose_unit_names(s: pd.Series) -> pd.Series:
     - Units: units/unit -> u, milli-units -> mu
     - Mass: µg/ug -> mcg, gram -> g
     
-    This function should be applied after _normalize_dose_unit_formats().
+    This function should be applied after _clean_dose_unit_formats().
     """
     for repl, pattern in UNIT_NAMING_VARIANTS.items():
         s = s.str.replace(pattern, repl, regex=True)
     return s
 
-def _detect_and_classify_normalized_dose_units(s: pd.Series) -> dict:
+def _detect_and_classify_clean_dose_units(s: pd.Series) -> dict:
     """
-    Classify and count normalized dose units by category.
+    Classify and count clean dose units by category.
     
     [LIKELY DEPRECATED - Consider using _create_unit_conversion_counts_table instead]
     
-    Analyzes a series of normalized dose units and classifies them into
+    Analyzes a series of clean dose units and classifies them into
     rate units, amount units, or unrecognized units, providing counts for each.
     
     Parameters
     ----------
     s : pd.Series
-        Series containing normalized dose unit strings.
+        Series containing clean dose unit strings.
         
     Returns
     -------
@@ -247,7 +247,7 @@ def _detect_and_classify_normalized_dose_units(s: pd.Series) -> dict:
     Examples
     --------
     >>> s = pd.Series(['ml/hr', 'ml/hr', 'mcg', 'unknown_unit', None])
-    >>> result = _detect_and_classify_normalized_dose_units(s)
+    >>> result = _detect_and_classify_clean_dose_units(s)
     >>> result['rate_units']
     {'ml/hr': 2}
     >>> result['amount_units']
@@ -318,7 +318,7 @@ def _concat_builders_by_patterns(builder: callable, patterns: list, else_case: s
     """
     return "CASE " + " ".join([builder(pattern) for pattern in patterns]) + f" ELSE {else_case} END"
 
-def _pattern_to_factor_builder_for_limited(pattern: str) -> str:
+def _pattern_to_factor_builder_for_base(pattern: str) -> str:
     """
     Build SQL CASE WHEN statement for regex pattern matching.
     
@@ -343,29 +343,29 @@ def _pattern_to_factor_builder_for_limited(pattern: str) -> str:
     Examples
     --------
     >>> when_then_regex_builder(HR_REGEX)
-    "WHEN regexp_matches(med_dose_unit_normalized, '/hr$') THEN 0.016666666666666666"
+    "WHEN regexp_matches(_clean_unit, '/hr$') THEN 0.016666666666666666"
     
     Notes
     -----
-    This function is used internally by _convert_normalized_dose_units_to_limited_units
+    This function is used internally by _convert_clean_dose_units_to_base_units
     to build the SQL query for unit conversion.
     """
     if pattern in REGEX_TO_FACTOR_MAPPER:
-        return f"WHEN regexp_matches(med_dose_unit_normalized, '{pattern}') THEN {REGEX_TO_FACTOR_MAPPER.get(pattern)}"
+        return f"WHEN regexp_matches(_clean_unit, '{pattern}') THEN {REGEX_TO_FACTOR_MAPPER.get(pattern)}"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
 def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
     """
     Build SQL CASE WHEN statement for preferred unit conversion.
     
-    Generates SQL clauses for converting from limited units back to preferred units
+    Generates SQL clauses for converting from base units back to preferred units
     by applying the inverse of the original conversion factor. Used when converting
     from standardized base units to medication-specific preferred units.
     
     Parameters
     ----------
     pattern : str
-        Regex pattern to match in med_dose_unit_preferred column.
+        Regex pattern to match in _preferred_unit column.
         Must exist in REGEX_TO_FACTOR_MAPPER dictionary.
         
     Returns
@@ -389,22 +389,22 @@ def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
     Notes
     -----
     This function applies the inverse of the factor used in 
-    _pattern_to_factor_builder_for_limited, allowing bidirectional conversion
+    _pattern_to_factor_builder_for_base, allowing bidirectional conversion
     between unit systems. The inverse is calculated as 1/(original_factor).
     
     See Also
     --------
-    _pattern_to_factor_builder_for_limited : Builds patterns for limited unit conversion
+    _pattern_to_factor_builder_for_base : Builds patterns for base unit conversion
     """
     if pattern in REGEX_TO_FACTOR_MAPPER:
-        return f"WHEN regexp_matches(med_dose_unit_preferred, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
+        return f"WHEN regexp_matches(_preferred_unit, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
-def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.DataFrame:
+def _convert_clean_dose_units_to_base_units(med_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Convert normalized dose units to limited limited units.
+    Convert clean dose units to base units.
     
-    Core conversion function that transforms various dose units into a limited
+    Core conversion function that transforms various dose units into a base
     set of standard units (mcg/min, ml/min, u/min for rates; mcg, ml, u for amounts).
     Uses DuckDB for efficient SQL-based transformations.
     
@@ -412,7 +412,7 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
     ----------
     med_df : pd.DataFrame
         DataFrame containing medication data with required columns:
-        - med_dose_unit_normalized: Normalized unit strings
+        - _clean_unit: Cleaned unit strings
         - med_dose: Original dose values
         - weight_kg: Patient weight (used for /kg and /lb conversions)
         
@@ -420,23 +420,23 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
     -------
     pd.DataFrame
         Original DataFrame with additional columns:
-        - unit_class: 'rate', 'amount', or 'unrecognized'
-        - amount_multiplier: Factor for amount conversion
-        - time_multiplier: Factor for time conversion (hr to min)
-        - weight_multiplier: Factor for weight-based conversion
-        - med_dose_limited: limited dose value
-        - med_dose_unit_limited: limited unit string
+        - _unit_class: 'rate', 'amount', or 'unrecognized'
+        - _amount_multiplier: Factor for amount conversion
+        - _time_multiplier: Factor for time conversion (hr to min)
+        - _weight_multiplier: Factor for weight-based conversion
+        - _base_dose: base dose value
+        - _base_unit: base unit string
         
     Examples
     --------
     >>> df = pd.DataFrame({
     ...     'med_dose': [6, 100],
-    ...     'med_dose_unit_normalized': ['mcg/kg/hr', 'ml/hr'],
+    ...     '_clean_unit': ['mcg/kg/hr', 'ml/hr'],
     ...     'weight_kg': [70, 80]
     ... })
-    >>> result = _convert_normalized_dose_units_to_limited_units(df)
-    >>> result[['med_dose_limited', 'med_dose_unit_limited']]
-       med_dose_limited med_dose_unit_limited
+    >>> result = _convert_clean_dose_units_to_base_units(df)
+    >>> result[['_base_dose', '_base_unit']]
+       _base_dose _base_unit
     0                  7.0                 mcg/min
     1                  1.67                 ml/min
     
@@ -445,26 +445,26 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
     Conversion targets:
     - Rate units: mcg/min, ml/min, u/min
     - Amount units: mcg, ml, u
-    - Unrecognized units: NULL values in limited columns
+    - Unrecognized units: NULL values in base columns
     
     Weight-based conversions use patient weight from weight_kg column.
     Time conversions: /hr -> /min (divide by 60).
     """
     
     amount_clause = _concat_builders_by_patterns(
-        builder=_pattern_to_factor_builder_for_limited,
+        builder=_pattern_to_factor_builder_for_base,
         patterns=[L_REGEX, MU_REGEX, MG_REGEX, NG_REGEX, G_REGEX],
         else_case='1'
         )
 
     time_clause = _concat_builders_by_patterns(
-        builder=_pattern_to_factor_builder_for_limited,
+        builder=_pattern_to_factor_builder_for_base,
         patterns=[HR_REGEX],
         else_case='1'
         )
 
     weight_clause = _concat_builders_by_patterns(
-        builder=_pattern_to_factor_builder_for_limited,
+        builder=_pattern_to_factor_builder_for_base,
         patterns=[KG_REGEX, LB_REGEX],
         else_case='1'
         )
@@ -472,29 +472,29 @@ def _convert_normalized_dose_units_to_limited_units(med_df: pd.DataFrame) -> pd.
     q = f"""
     SELECT *
         -- classify and check acceptability first
-        , unit_class: CASE WHEN med_dose_unit_normalized IN ('{RATE_UNITS_STR}') THEN 'rate' 
-            WHEN med_dose_unit_normalized IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+        , _unit_class: CASE WHEN _clean_unit IN ('{RATE_UNITS_STR}') THEN 'rate' 
+            WHEN _clean_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
             ELSE 'unrecognized' END
         -- parse and generate multipliers
-        , amount_multiplier: CASE WHEN unit_class = 'unrecognized' THEN 1 ELSE (
+        , _amount_multiplier: CASE WHEN _unit_class = 'unrecognized' THEN 1 ELSE (
             {amount_clause}
             ) END 
-        , time_multiplier: CASE WHEN unit_class = 'unrecognized' THEN 1 ELSE (
+        , _time_multiplier: CASE WHEN _unit_class = 'unrecognized' THEN 1 ELSE (
             {time_clause}
             ) END 
-        , weight_multiplier: CASE WHEN unit_class = 'unrecognized' THEN 1 ELSE (
+        , _weight_multiplier: CASE WHEN _unit_class = 'unrecognized' THEN 1 ELSE (
             {weight_clause}
             ) END
-        -- calculate the limited dose
-        , med_dose_limited: med_dose * amount_multiplier * time_multiplier * weight_multiplier 
-        -- id the limited unit
-        , med_dose_unit_limited: CASE WHEN unit_class = 'unrecognized' THEN med_dose_unit_normalized
-            WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{MASS_REGEX}') THEN 'mcg/min'
-            WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{VOLUME_REGEX}') THEN 'ml/min'
-            WHEN unit_class = 'rate' AND regexp_matches(med_dose_unit_normalized, '{UNIT_REGEX}') THEN 'u/min'
-            WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{MASS_REGEX}') THEN 'mcg'
-            WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{VOLUME_REGEX}') THEN 'ml'
-            WHEN unit_class = 'amount' AND regexp_matches(med_dose_unit_normalized, '{UNIT_REGEX}') THEN 'u'
+        -- calculate the base dose
+        , _base_dose: med_dose * _amount_multiplier * _time_multiplier * _weight_multiplier 
+        -- id the base unit
+        , _base_unit: CASE WHEN _unit_class = 'unrecognized' THEN _clean_unit
+            WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg/min'
+            WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml/min'
+            WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u/min'
+            WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg'
+            WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml'
+            WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u'
             END
     FROM med_df 
     """
@@ -516,9 +516,9 @@ def _create_unit_conversion_counts_table(
     med_df : pd.DataFrame
         DataFrame with required columns from conversion process:
         - med_dose_unit: Original unit string
-        - med_dose_unit_normalized: Normalized unit string
-        - med_dose_unit_limited: limited standard unit
-        - unit_class: Classification (rate/amount/unrecognized)
+        - _clean_unit: Cleaned unit string
+        - _base_unit: base standard unit
+        - _unit_class: Classification (rate/amount/unrecognized)
     group_by : List[str], optional
         List of columns to group by. If None, all columns will be grouped by.
     Returns
@@ -526,9 +526,9 @@ def _create_unit_conversion_counts_table(
     pd.DataFrame
         Summary DataFrame with columns:
         - med_dose_unit: Original unit
-        - med_dose_unit_normalized: After normalization
-        - med_dose_unit_limited: After conversion
-        - unit_class: Classification
+        - _clean_unit: After cleaning
+        - _base_unit: After conversion
+        - _unit_class: Classification
         - count: Number of occurrences
         
     Raises
@@ -538,10 +538,10 @@ def _create_unit_conversion_counts_table(
         
     Examples
     --------
-    >>> df_limited = standardize_dose_to_limited_units(med_df)[0]
-    >>> counts = _create_unit_conversion_counts_table(df_limited)
+    >>> df_base = standardize_dose_to_base_units(med_df)[0]
+    >>> counts = _create_unit_conversion_counts_table(df_base)
     >>> counts.head()
-       med_dose_unit med_dose_unit_normalized med_dose_unit_limited unit_class  count
+       med_dose_unit _clean_unit _base_unit _unit_class  count
     0      MCG/KG/HR              mcg/kg/hr                 mcg/min       rate     15
     1         ml/hr                  ml/hr                  ml/min       rate     10
     2            mg                     mg                     mcg     amount      5
@@ -574,16 +574,16 @@ def _create_unit_conversion_counts_table(
     return duckdb.sql(q).to_df()
     
 
-def standardize_dose_to_limited_units(
+def standardize_dose_to_base_units(
     med_df: pd.DataFrame, 
     vitals_df: pd.DataFrame = None
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Standardize medication dose units to a limited set of standard units.
+    Standardize medication dose units to a base set of standard units.
     
     Main public API function that performs complete dose unit standardization
-    pipeline: format normalization, name normalization, and unit conversion.
-    Returns both limited data and a summary table of conversions.
+    pipeline: format cleaning, name cleaning, and unit conversion.
+    Returns both base data and a summary table of conversions.
     
     Parameters
     ----------
@@ -605,11 +605,11 @@ def standardize_dose_to_limited_units(
     Returns
     -------
     Tuple[pd.DataFrame, pd.DataFrame]
-        - [0] limited medication DataFrame with additional columns:
-            * med_dose_unit_normalized: Normalized unit string
-            * unit_class: 'rate', 'amount', or 'unrecognized'
-            * med_dose_limited: limited dose value
-            * med_dose_unit_limited: limited unit
+        - [0] base medication DataFrame with additional columns:
+            * _clean_unit: Cleaned unit string
+            * _unit_class: 'rate', 'amount', or 'unrecognized'
+            * _base_dose: base dose value
+            * _base_unit: base unit
             * amount_multiplier, time_multiplier, weight_multiplier: Conversion factors
         - [1] Summary counts DataFrame showing conversion patterns and frequencies
         
@@ -626,18 +626,18 @@ def standardize_dose_to_limited_units(
     ...     'med_dose_unit': ['MCG/KG/HR', 'mL / hr', 'mg'],
     ...     'weight_kg': [70, 80, 75]
     ... })
-    >>> limited_df, counts_df = standardize_dose_to_limited_units(med_df)
-    >>> limited_df[['med_dose_unit', 'med_dose_limited', 'med_dose_unit_limited']]
-       med_dose_unit  med_dose_limited med_dose_unit_limited
-    0      MCG/KG/HR                 7.0                 mcg/min
-    1        mL / hr                1.67                  ml/min
-    2             mg              500000                     mcg
+    >>> base_df, counts_df = standardize_dose_to_base_units(med_df)
+    >>> base_df[['med_dose_unit', '_base_dose', '_base_unit']]
+       med_dose_unit  _base_dose _base_unit
+    0      MCG/KG/HR        7.0    mcg/min
+    1        mL / hr       1.67     ml/min
+    2             mg     500000        mcg
     
     >>> counts_df
-       med_dose_unit med_dose_unit_normalized med_dose_unit_limited unit_class  count
-    0      MCG/KG/HR              mcg/kg/hr                 mcg/min       rate      1
-    1        mL / hr                  ml/hr                  ml/min       rate      1
-    2             mg                     mg                     mcg     amount      1
+       med_dose_unit _clean_unit _base_unit _unit_class  count
+    0      MCG/KG/HR   mcg/kg/hr    mcg/min        rate      1
+    1        mL / hr       ml/hr     ml/min        rate      1
+    2             mg          mg        mcg      amount      1
     
     Notes
     -----
@@ -681,25 +681,25 @@ def standardize_dose_to_limited_units(
     if missing_columns:
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
-    med_df['med_dose_unit_normalized'] = (
-        med_df['med_dose_unit'].pipe(_normalize_dose_unit_formats)
-        .pipe(_normalize_dose_unit_names)
+    med_df['_clean_unit'] = (
+        med_df['med_dose_unit'].pipe(_clean_dose_unit_formats)
+        .pipe(_clean_dose_unit_names)
     )
     
-    med_df_limited = _convert_normalized_dose_units_to_limited_units(med_df)
+    med_df_base = _convert_clean_dose_units_to_base_units(med_df)
     convert_counts_df = _create_unit_conversion_counts_table(
-        med_df_limited, 
-        group_by=['med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_limited', 'unit_class']
+        med_df_base, 
+        group_by=['med_dose_unit', '_clean_unit', '_base_unit', '_unit_class']
         )
     
-    return med_df_limited, convert_counts_df
+    return med_df_base, convert_counts_df
     
-def _convert_limited_units_to_preferred_units(
+def _convert_base_units_to_preferred_units(
     med_df: pd.DataFrame,
     override: bool = False
     ) -> pd.DataFrame:
     """
-    Convert limited standardized units to user-preferred units.
+    Convert base standardized units to user-preferred units.
     
     Performs the second stage of unit conversion, transforming from standardized
     base units (mcg/min, ml/min, u/min) to medication-specific preferred units
@@ -709,9 +709,9 @@ def _convert_limited_units_to_preferred_units(
     ----------
     med_df : pd.DataFrame
         DataFrame with required columns from first-stage conversion:
-        - med_dose_limited: Dose values in standardized units
-        - med_dose_unit_limited: Standardized unit strings (may be NULL)
-        - med_dose_unit_preferred: Target unit strings for each medication
+        - _base_dose: Dose values in standardized units
+        - _base_unit: Standardized unit strings (may be NULL)
+        - _preferred_unit: Target unit strings for each medication
         - weight_kg: Patient weights (optional, used for weight-based conversions)
         
     override : bool, default False
@@ -725,14 +725,14 @@ def _convert_limited_units_to_preferred_units(
     -------
     pd.DataFrame
         Original DataFrame with additional columns:
-        - unit_class: Classification of limited unit ('rate', 'amount', 'unrecognized')
-        - unit_subclass: Subclassification ('mass', 'volume', 'unit', 'unrecognized')
-        - unit_class_preferred: Classification of preferred unit
-        - unit_subclass_preferred: Subclassification of preferred unit
-        - convert_status: Success or failure reason message
-        - amount_multiplier_preferred: Conversion factor for amount units
-        - time_multiplier_preferred: Conversion factor for time units
-        - weight_multiplier_preferred: Conversion factor for weight-based units
+        - _unit_class: Classification of base unit ('rate', 'amount', 'unrecognized')
+        - _unit_subclass: Subclassification ('mass', 'volume', 'unit', 'unrecognized')
+        - _unit_class_preferred: Classification of preferred unit
+        - _unit_subclass_preferred: Subclassification of preferred unit
+        - _convert_status: Success or failure reason message
+        - _amount_multiplier_preferred: Conversion factor for amount units
+        - _time_multiplier_preferred: Conversion factor for time units
+        - _weight_multiplier_preferred: Conversion factor for weight-based units
         - med_dose_converted: Final converted dose value
         - med_dose_unit_converted: Final unit string after conversion
         
@@ -747,7 +747,7 @@ def _convert_limited_units_to_preferred_units(
     Conversion rules enforced:
     - Conversions only allowed within same unit class (rate→rate, amount→amount)
     - Cannot convert between incompatible subclasses (e.g., mass→volume)
-    - When conversion fails, falls back to limited units and dose values
+    - When conversion fails, falls back to base units and dose values
     - Missing units (NULL) are handled with 'original unit is missing' status
     
     The function uses DuckDB SQL for efficient processing and applies regex
@@ -755,17 +755,17 @@ def _convert_limited_units_to_preferred_units(
     
     See Also
     --------
-    _convert_normalized_dose_units_to_limited_units : First-stage conversion
+    _convert_clean_dose_units_to_base_units : First-stage conversion
     convert_dose_units_by_med_category : Public API for complete conversion pipeline
     """
     # check presense of all required columns
-    required_columns = {'med_dose_limited', 'med_dose_unit_preferred'}
+    required_columns = {'_base_dose', '_preferred_unit'}
     missing_columns = required_columns - set(med_df.columns)
     if missing_columns:
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
-    # check user-defined med_dose_unit_preferred are in the set of acceptable units
-    unacceptable_preferred_units = set(med_df['med_dose_unit_preferred']) - ALL_ACCEPTABLE_UNITS - {None}
+    # check user-defined _preferred_unit are in the set of acceptable units
+    unacceptable_preferred_units = set(med_df['_preferred_unit']) - ALL_ACCEPTABLE_UNITS - {None}
     if unacceptable_preferred_units:
         error_msg = f"Cannot accommodate the conversion to the following preferred units: {unacceptable_preferred_units}. Consult the function documentation for a list of acceptable units."
         if override:
@@ -792,53 +792,53 @@ def _convert_limited_units_to_preferred_units(
         )
     
     unit_class_clause = f"""
-    , unit_class: CASE WHEN med_dose_unit_limited IN ('{RATE_UNITS_STR}') THEN 'rate' 
-            WHEN med_dose_unit_limited IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+    , _unit_class: CASE WHEN _base_unit IN ('{RATE_UNITS_STR}') THEN 'rate' 
+            WHEN _base_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
             ELSE 'unrecognized' END
-    """ if 'unit_class' not in med_df.columns else ''
+    """ if '_unit_class' not in med_df.columns else ''
     
     q = f"""
     SELECT l.*
         {unit_class_clause}
-        , unit_subclass: CASE 
-            WHEN regexp_matches(med_dose_unit_limited, '{MASS_REGEX}') THEN 'mass'
-            WHEN regexp_matches(med_dose_unit_limited, '{VOLUME_REGEX}') THEN 'volume'
-            WHEN regexp_matches(med_dose_unit_limited, '{UNIT_REGEX}') THEN 'unit'
+        , _unit_subclass: CASE 
+            WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass'
+            WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume'
+            WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit'
             ELSE 'unrecognized' END
-        , unit_class_preferred: CASE WHEN med_dose_unit_preferred IN ('{RATE_UNITS_STR}') THEN 'rate' 
-            WHEN med_dose_unit_preferred IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+        , _unit_class_preferred: CASE WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate' 
+            WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
             ELSE 'unrecognized' END
-        , unit_subclass_preferred: CASE 
-            WHEN regexp_matches(med_dose_unit_preferred, '{MASS_REGEX}') THEN 'mass'
-            WHEN regexp_matches(med_dose_unit_preferred, '{VOLUME_REGEX}') THEN 'volume'
-            WHEN regexp_matches(med_dose_unit_preferred, '{UNIT_REGEX}') THEN 'unit'
+        , _unit_subclass_preferred: CASE 
+            WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass'
+            WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume'
+            WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit'
             ELSE 'unrecognized' END
-        , convert_status: CASE 
-            WHEN med_dose_unit_limited IS NULL THEN 'original unit is missing'
-            WHEN unit_class == 'unrecognized' OR unit_subclass == 'unrecognized'
-                THEN 'original unit ' || med_dose_unit_limited || ' is not recognized'
-            WHEN unit_class_preferred == 'unrecognized' OR unit_subclass_preferred == 'unrecognized'
-                THEN 'user-preferred unit ' || med_dose_unit_preferred || ' is not recognized'
-            WHEN unit_class != unit_class_preferred 
-                THEN 'cannot convert ' || unit_class || ' to ' || unit_class_preferred
-            WHEN unit_subclass != unit_subclass_preferred
-                THEN 'cannot convert ' || unit_subclass || ' to ' || unit_subclass_preferred
-            WHEN unit_class == unit_class_preferred AND unit_subclass == unit_subclass_preferred
-                -- AND unit_class != 'unrecognized' AND unit_subclass != 'unrecognized'
+        , _convert_status: CASE 
+            WHEN _base_unit IS NULL THEN 'original unit is missing'
+            WHEN _unit_class == 'unrecognized' OR _unit_subclass == 'unrecognized'
+                THEN 'original unit ' || _base_unit || ' is not recognized'
+            WHEN _unit_class_preferred == 'unrecognized' OR _unit_subclass_preferred == 'unrecognized'
+                THEN 'user-preferred unit ' || _preferred_unit || ' is not recognized'
+            WHEN _unit_class != _unit_class_preferred 
+                THEN 'cannot convert ' || _unit_class || ' to ' || _unit_class_preferred
+            WHEN _unit_subclass != _unit_subclass_preferred
+                THEN 'cannot convert ' || _unit_subclass || ' to ' || _unit_subclass_preferred
+            WHEN _unit_class == _unit_class_preferred AND _unit_subclass == _unit_subclass_preferred
+                -- AND _unit_class != 'unrecognized' AND _unit_subclass != 'unrecognized'
                 THEN 'success'
             ELSE 'other error - please report'
             END
-        , amount_multiplier_preferred: {amount_clause}
-        , time_multiplier_preferred: {time_clause}
-        , weight_multiplier_preferred: {weight_clause}
-        -- fall back to the limited units and dose (i.e. the input) if conversion cannot be accommondated
+        , _amount_multiplier_preferred: {amount_clause}
+        , _time_multiplier_preferred: {time_clause}
+        , _weight_multiplier_preferred: {weight_clause}
+        -- fall back to the base units and dose (i.e. the input) if conversion cannot be accommondated
         , med_dose_converted: CASE
-            WHEN convert_status == 'success' THEN ROUND(med_dose_limited * amount_multiplier_preferred * time_multiplier_preferred * weight_multiplier_preferred, 2)
-            ELSE med_dose_limited
+            WHEN _convert_status == 'success' THEN ROUND(_base_dose * _amount_multiplier_preferred * _time_multiplier_preferred * _weight_multiplier_preferred, 2)
+            ELSE _base_dose
             END
         , med_dose_unit_converted: CASE
-            WHEN convert_status == 'success' THEN med_dose_unit_preferred
-            ELSE med_dose_unit_limited
+            WHEN _convert_status == 'success' THEN _preferred_unit
+            ELSE _base_unit
             END
     FROM med_df l
     """
@@ -855,7 +855,7 @@ def convert_dose_units_by_med_category(
     Convert medication dose units to user-defined preferred units for each med_category.
     
     This function performs a two-step conversion process:
-    1. Standardizes all dose units to a limited set of base units (mcg/min, ml/min, u/min for rates)
+    1. Standardizes all dose units to a base set of standard units (mcg/min, ml/min, u/min for rates)
     2. Converts from base units to medication-specific preferred units if provided
     
     The conversion maintains unit class consistency (rates stay rates, amounts stay amounts)
@@ -882,7 +882,7 @@ def convert_dose_units_by_med_category(
         Dictionary mapping medication categories to their preferred units.
         Keys are medication category names, values are target unit strings.
         Example: {'propofol': 'mcg/kg/min', 'fentanyl': 'mcg/hr', 'insulin': 'u/hr'}
-        If None, uses limited units (mcg/min, ml/min, u/min) as defaults.
+        If None, uses base units (mcg/min, ml/min, u/min) as defaults.
         
     verbose : bool, default False
         If False, excludes intermediate calculation columns (multipliers) from output.
@@ -897,25 +897,25 @@ def convert_dose_units_by_med_category(
     Tuple[pd.DataFrame, pd.DataFrame]
         A tuple containing:
         - [0] Converted medication DataFrame with additional columns:
-            * med_dose_unit_normalized: Standardized unit format
-            * med_dose_unit_limited: Base unit after first conversion
-            * med_dose_limited: Dose value in base units
-            * med_dose_unit_preferred: Target unit for medication category
+            * _clean_unit: Cleaned unit format
+            * _base_unit: Base unit after first conversion
+            * _base_dose: Dose value in base units
+            * _preferred_unit: Target unit for medication category
             * med_dose_converted: Final dose value in preferred units
             * med_dose_unit_converted: Final unit string after conversion
-            * unit_class: Classification ('rate', 'amount', or 'unrecognized')
-            * convert_status: Status message indicating success or reason for failure
+            * _unit_class: Classification ('rate', 'amount', or 'unrecognized')
+            * _convert_status: Status message indicating success or reason for failure
             
             If verbose=True, also includes:
-            * amount_multiplier, time_multiplier, weight_multiplier: Conversion factors
-            * amount_multiplier_preferred, time_multiplier_preferred, weight_multiplier_preferred
+            * _amount_multiplier, _time_multiplier, _weight_multiplier: Conversion factors
+            * _amount_multiplier_preferred, _time_multiplier_preferred, _weight_multiplier_preferred
         - [1] Summary counts DataFrame with conversion statistics grouped by medication category
         
     Raises
     ------
     ValueError
         - If required columns (med_dose_unit, med_dose) are missing from med_df
-        - If standardization to limited units fails
+        - If standardization to base units fails
         - If conversion to preferred units fails
         
     Examples
@@ -950,30 +950,30 @@ def convert_dose_units_by_med_category(
     - Mass conversions: mg, ng, g to mcg
     - Unit conversions: milli-units (mu) to units (u)
     
-    Unrecognized units are preserved but flagged in the unit_class column.
+    Unrecognized units are preserved but flagged in the _unit_class column.
     
     Developer TODO
     ---------------
     - [] Implement config file parsing for default preferred_units
     """
     try:
-        med_df_limited, _ = standardize_dose_to_limited_units(med_df, vitals_df)
+        med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df)
     except ValueError as e:
-        raise ValueError(f"Error standardizing dose units to limited units: {e}")
+        raise ValueError(f"Error standardizing dose units to base units: {e}")
     
     try:
         # join the preferred units to the df
-        preferred_units_df = pd.DataFrame(preferred_units.items(), columns=['med_category', 'med_dose_unit_preferred'])
+        preferred_units_df = pd.DataFrame(preferred_units.items(), columns=['med_category', '_preferred_unit'])
         q = """
         SELECT l.*
-            -- for unspecified preferred units, use the limited units by default
-            , med_dose_unit_preferred: COALESCE(r.med_dose_unit_preferred, l.med_dose_unit_limited)
-        FROM med_df_limited l
+            -- for unspecified preferred units, use the base units by default
+            , _preferred_unit: COALESCE(r._preferred_unit, l._base_unit)
+        FROM med_df_base l
         LEFT JOIN preferred_units_df r USING (med_category)
         """
         med_df_preferred = duckdb.sql(q).to_df()
         
-        med_df_converted = _convert_limited_units_to_preferred_units(med_df_preferred, override=override)
+        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override)
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
@@ -981,8 +981,8 @@ def convert_dose_units_by_med_category(
         med_df_converted, 
         group_by=[
             'med_category',
-            'med_dose_unit', 'med_dose_unit_normalized', 'med_dose_unit_limited', 'unit_class',
-            'med_dose_unit_preferred', 'med_dose_unit_converted', 'convert_status'
+            'med_dose_unit', '_clean_unit', '_base_unit', '_unit_class',
+            '_preferred_unit', 'med_dose_unit_converted', '_convert_status'
             ]
         )
     

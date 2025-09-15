@@ -7,13 +7,13 @@ import numpy as np
 import duckdb
 from pathlib import Path
 from clifpy.utils.unit_converter import (
-    _normalize_dose_unit_formats,
-    _normalize_dose_unit_names,
-    _detect_and_classify_normalized_dose_units,
+    _clean_dose_unit_formats,
+    _clean_dose_unit_names,
+    _detect_and_classify_clean_dose_units,
     ACCEPTABLE_RATE_UNITS,
-    _convert_normalized_dose_units_to_limited_units,
-    standardize_dose_to_limited_units,
-    _convert_limited_units_to_preferred_units,
+    _convert_clean_dose_units_to_base_units,
+    standardize_dose_to_base_units,
+    _convert_base_units_to_preferred_units,
     convert_dose_units_by_med_category
 )
 
@@ -31,45 +31,45 @@ def load_fixture_csv():
 
 # --- Data Fixtures ---
 @pytest.fixture
-def _normalize_dose_unit_names_test_data(load_fixture_csv):
+def _clean_dose_unit_names_test_data(load_fixture_csv):
     """
     Load test data for dose unit name normalization tests.
     
     Returns CSV data with columns:
-    - med_dose_unit_format_normalized: Input dose unit string (already format normalized)
-    - med_dose_unit_name_normalized: Expected normalized result
+    - _clean_format_unit: Input dose unit string (already format cleaned)
+    - _clean_name_unit: Expected cleaned result
     """
-    return load_fixture_csv('test_normalize_dose_unit_names.csv')
+    return load_fixture_csv('test__clean_dose_unit_names.csv')
 
 # ===========================================
-# Tests for `_normalize_dose_unit_formats`
+# Tests for `_clean_dose_unit_formats`
 # ===========================================
 @pytest.fixture
-def normalize_dose_unit_formats_test_data(load_fixture_csv):
+def clean_dose_unit_formats_test_data(load_fixture_csv):
     """
     Load test data for dose unit pattern normalization tests.
     
     Returns CSV data with columns:
     - case: 'valid' or 'invalid' to categorize test scenarios
     - med_dose_unit: Original dose unit string
-    - med_dose_unit_format_normalized: Expected normalized result
+    - _clean_format_unit: Expected cleaned result
     """
-    df: pd.DataFrame =load_fixture_csv('test_normalize_dose_unit_formats.csv')
+    df: pd.DataFrame =load_fixture_csv('test__clean_dose_unit_formats.csv')
     # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
     df.replace(np.nan, None, inplace=True) 
     return df
 
 @pytest.mark.unit_conversion
-def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
+def test_clean_dose_unit_formats(clean_dose_unit_formats_test_data):
     """
-    Test the _normalize_dose_unit_formats function for proper formatting normalization.
+    Test the _clean_dose_unit_formats function for proper formatting cleaning.
     
     Validates that the function correctly:
     1. Removes all whitespace (including internal spaces): 'mL / hr' -> 'ml/hr'
     2. Converts to lowercase: 'MCG/KG/MIN' -> 'mcg/kg/min'
     3. Handles edge cases like leading/trailing spaces: ' Mg/Hr ' -> 'mg/hr'
     
-    Uses comprehensive test data from test_normalize_dose_unit_formats.csv
+    Uses comprehensive test data from test__clean_dose_unit_formats.csv
     covering both valid and invalid unit patterns.
     
     Test Coverage
@@ -79,24 +79,24 @@ def test_normalize_dose_unit_formats(normalize_dose_unit_formats_test_data):
     - Special characters preservation
     - Empty and null handling
     """
-    test_df: pd.DataFrame = normalize_dose_unit_formats_test_data
+    test_df: pd.DataFrame = clean_dose_unit_formats_test_data
     # first check the filtering went right, i.e. test_df is not empty
-    result_series = _normalize_dose_unit_formats(test_df['med_dose_unit'])
+    result_series = _clean_dose_unit_formats(test_df['med_dose_unit'])
     
     pd.testing.assert_series_equal(
         result_series.reset_index(drop=True), # actual
-        test_df['med_dose_unit_format_normalized'].reset_index(drop=True), # expected
+        test_df['_clean_format_unit'].reset_index(drop=True), # expected
         check_names=False
     )
 
 # ===========================================
-# Tests for `_normalize_dose_unit_names`
+# Tests for `_clean_dose_unit_names`
 # ===========================================
-def test_normalize_dose_unit_names(_normalize_dose_unit_names_test_data):
+def test_clean_dose_unit_names(_clean_dose_unit_names_test_data):
     """
-    Test the _normalize_dose_unit_names function for unit name standardization.
+    Test the _clean_dose_unit_names function for unit name standardization.
     
-    Validates comprehensive unit name normalization including:
+    Validates comprehensive unit name cleaning including:
     - Time units: 'hour', 'h' -> '/hr'; 'minute', 'm' -> '/min'
     - Volume units: 'liter', 'liters', 'litre', 'litres' -> 'l'
     - Unit units: 'units', 'unit' -> 'u'
@@ -104,7 +104,7 @@ def test_normalize_dose_unit_names(_normalize_dose_unit_names_test_data):
     - Special characters: 'µg', 'ug' -> 'mcg'
     - Mass units: 'gram' -> 'g'
     
-    Uses comprehensive fixture data from test_normalize_dose_unit_names.csv
+    Uses comprehensive fixture data from test__clean_dose_unit_names.csv
     containing real-world unit variations.
     
     Test Coverage
@@ -114,15 +114,15 @@ def test_normalize_dose_unit_names(_normalize_dose_unit_names_test_data):
     - Handling of compound units
     - Edge cases and malformed inputs
     """
-    test_df = _normalize_dose_unit_names_test_data.dropna()
+    test_df = _clean_dose_unit_names_test_data.dropna()
 
     # Apply the function
-    result_series = _normalize_dose_unit_names(test_df['med_dose_unit_format_normalized'])
+    result_series = _clean_dose_unit_names(test_df['_clean_format_unit'])
     
     # Validate results
     pd.testing.assert_series_equal(
         result_series.reset_index(drop=True),
-        test_df['med_dose_unit_name_normalized'].reset_index(drop=True),
+        test_df['_clean_name_unit'].reset_index(drop=True),
         check_names=False
     )
 
@@ -150,11 +150,11 @@ def test_acceptable_rate_units():
     for unit in negative_cases:
         assert unit not in ACCEPTABLE_RATE_UNITS
  
-def test_detect_and_classify_normalized_dose_units():
+def test_detect_and_classify_clean_dose_units():
     """
-    Test the _detect_and_classify_normalized_dose_units classification function.
+    Test the _detect_and_classify_clean_dose_units classification function.
     
-    Validates that the function correctly categorizes normalized units into:
+    Validates that the function correctly categorizes clean units into:
     - Rate units: recognized rate patterns (e.g., ml/hr, mcg/kg/min)
     - Amount units: recognized amount patterns (e.g., ml, mcg, u)
     - Unrecognized units: anything else including nulls and invalid patterns
@@ -198,16 +198,16 @@ def test_detect_and_classify_normalized_dose_units():
         }
     }
     
-    result_dict = _detect_and_classify_normalized_dose_units(test_series)
+    result_dict = _detect_and_classify_clean_dose_units(test_series)
     
     assert result_dict == expected_dict
     
 
 # ===========================================
-# Tests for `_convert_normalized_dose_units_to_limited_units`
+# Tests for `_convert_clean_dose_units_to_base_units`
 # ===========================================
 @pytest.fixture
-def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
+def convert_clean_dose_units_to_base_units_test_data(load_fixture_csv):
     """
     Load test data for dose unit conversion tests.
     
@@ -215,12 +215,12 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
     - hospitalization_id, admin_dttm: Patient and timing identifiers
     - med_dose, med_dose_unit: Original dose values and units
     - weight_kg: Patient weight (may be empty/NaN)
-    - med_dose_limited, med_dose_unit_limited: Expected conversion results
+    - _base_dose, _base_unit: Expected conversion results
     - case: Test scenario category
     
     Processes admin_dttm to datetime and converts empty weight_kg to NaN.
     """
-    df: pd.DataFrame = load_fixture_csv('test_convert_normalized_dose_units_to_limited_units.csv')
+    df: pd.DataFrame = load_fixture_csv('test__convert_clean_dose_units_to_base_units.csv')
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -229,10 +229,10 @@ def convert_normalized_dose_units_to_limited_units_test_data(load_fixture_csv):
 @pytest.fixture
 def unit_converter_test_data(load_fixture_csv):
     """
-    Load test data for standardize_dose_to_limited_units tests.
+    Load test data for standardize_dose_to_base_units tests.
     
     Provides comprehensive test data for validating the complete unit
-    standardization pipeline from raw units to limited standard units.
+    standardization pipeline from raw units to base standard units.
     
     Returns
     -------
@@ -241,10 +241,10 @@ def unit_converter_test_data(load_fixture_csv):
         - rn: Row number for ordering
         - med_dose: Original dose values
         - med_dose_unit: Original unit strings (various formats)
-        - med_dose_unit_normalized: Expected normalized unit
-        - unit_class: Expected classification ('rate', 'amount', 'unrecognized')
-        - med_dose_limited: Expected converted dose value
-        - med_dose_unit_limited: Expected limited unit
+        - _clean_unit: Expected cleaned unit
+        - _unit_class: Expected classification ('rate', 'amount', 'unrecognized')
+        - _base_dose: Expected converted dose value
+        - _base_unit: Expected base unit
         - weight_kg: Patient weight (may be NaN)
         
     Notes
@@ -252,7 +252,7 @@ def unit_converter_test_data(load_fixture_csv):
     Filters out rows where unit_class is NaN to focus on valid test cases.
     Replaces empty strings in weight_kg with NaN for proper null handling.
     """
-    df = load_fixture_csv('test_unit_converter - standardize_dose_to_limited_units.csv').dropna(subset=['unit_class'])
+    df = load_fixture_csv('test_unit_converter - standardize_dose_to_base_units.csv').dropna(subset=['_unit_class'])
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -275,18 +275,18 @@ def convert_dose_units_by_med_category_test_data(load_fixture_csv):
         - med_category: Medication category (e.g., 'propofol', 'fentanyl')
         - med_dose: Original dose value
         - med_dose_unit: Original unit string
-        - med_dose_unit_normalized: Normalized unit
-        - unit_class: Unit classification
-        - unit_subclass: Unit subclassification ('mass', 'volume', 'unit')
-        - med_dose_limited: Dose in limited units
-        - med_dose_unit_limited: Limited unit string
+        - _clean_unit: Cleaned unit
+        - _unit_class: Unit classification
+        - _unit_subclass: Unit subclassification ('mass', 'volume', 'unit')
+        - _base_dose: Dose in base units
+        - _base_unit: Base unit string
         - weight_kg: Patient weight (may be NaN)
-        - med_dose_unit_preferred: Target preferred unit
-        - unit_class_preferred: Preferred unit classification
-        - unit_subclass_preferred: Preferred unit subclassification
+        - _preferred_unit: Target preferred unit
+        - _unit_class_preferred: Preferred unit classification
+        - _unit_subclass_preferred: Preferred unit subclassification
         - med_dose_converted: Expected final dose value
         - med_dose_unit_converted: Expected final unit
-        - convert_status: Expected conversion status message
+        - _convert_status: Expected conversion status message
         - note: Test case description
         
     Notes
@@ -298,19 +298,19 @@ def convert_dose_units_by_med_category_test_data(load_fixture_csv):
     - Missing/empty units
     - Weight-based conversions
     """
-    df = load_fixture_csv('test_unit_converter - convert_dose_units_by_med_category.csv').dropna(subset=['unit_class'])
+    df = load_fixture_csv('test_unit_converter - convert_dose_units_by_med_category.csv').dropna(subset=['_unit_class'])
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
     return df
 
 @pytest.mark.unit_conversion
-def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data, caplog):
+def test_convert_clean_dose_units_to_base_units(unit_converter_test_data, caplog):
     """
-    Test the core _convert_normalized_dose_units_to_limited_units conversion function.
+    Test the core _convert_clean_dose_units_to_base_units conversion function.
     
     This comprehensive test validates the DuckDB-based conversion logic that
-    transforms normalized units to standard limited units.
+    transforms clean units to standard base units.
     
     Validates
     ---------
@@ -322,7 +322,7 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
     - Volume conversions (L to mL, factor of 1000)
     - Mass conversions (mg to mcg: 1000, ng to mcg: 1/1000, g to mcg: 1000000)
     - Unit conversions (milli-units to units, factor of 1/1000)
-    - Proper handling of unrecognized units (NULL in limited columns)
+    - Proper handling of unrecognized units (NULL in base columns)
     - All required output columns are present
     
     Uses comprehensive test data from test_unit_converter.csv with
@@ -336,75 +336,75 @@ def test_convert_normalized_dose_units_to_limited_units(unit_converter_test_data
     - Unrecognized unit handling
     """
     test_df: pd.DataFrame = unit_converter_test_data 
-    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
+    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test__convert_clean_dose_units_to_base_units.csv')
 
-    input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit_normalized', 'weight_kg'])
+    input_df = test_df.filter(items=['rn','med_dose', '_clean_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    result_df = _convert_normalized_dose_units_to_limited_units(med_df = input_df) \
+    result_df = _convert_clean_dose_units_to_base_units(med_df = input_df) \
         .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
-    assert 'med_dose_limited' in result_df.columns
-    assert 'med_dose_unit_limited' in result_df.columns
+    assert '_base_dose' in result_df.columns
+    assert '_base_unit' in result_df.columns
     assert 'weight_kg' in result_df.columns
     # assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
 
-    # Verify limited values
+    # Verify base values
     pd.testing.assert_series_equal(
-        result_df['med_dose_limited'].reset_index(drop=True), # actual
-        test_df['med_dose_limited'].reset_index(drop=True), # expected
+        result_df['_base_dose'].reset_index(drop=True), # actual
+        test_df['_base_dose'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
     )
 
-    # Verify limited units
+    # Verify base units
     pd.testing.assert_series_equal(
         # TODO: may consider adding a check NA test and avoid using fillna('None') here
-        result_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
-        test_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
+        result_df['_base_unit'].fillna('None').reset_index(drop=True),
+        test_df['_base_unit'].fillna('None').reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
     
     # Verify unit class
     pd.testing.assert_series_equal(
-        result_df['unit_class'].reset_index(drop=True),
-        test_df['unit_class'].reset_index(drop=True),
+        result_df['_unit_class'].reset_index(drop=True),
+        test_df['_unit_class'].reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
 
 @pytest.mark.unit_conversion
-def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
+def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
     """
-    Test the main public API function standardize_dose_to_limited_units.
+    Test the main public API function standardize_dose_to_base_units.
     
     This is the primary integration test for the complete unit standardization
     pipeline, testing the end-to-end conversion process from raw unit strings
-    to standardized limited units.
+    to standardized base units.
     
     Validates
     ---------
     - Complete pipeline execution:
-      1. Format normalization (spaces, case)
-      2. Name normalization (variants to standard)
-      3. Unit conversion (to limited set)
+      1. Format cleaning (spaces, case)
+      2. Name cleaning (variants to standard)
+      3. Unit conversion (to base set)
     - Both output DataFrames are correctly generated:
-      1. limited medication DataFrame with all columns
+      1. base medication DataFrame with all columns
       2. Summary counts table (via _create_unit_conversion_counts_table)
     - All intermediate and final columns are present
     - Conversion accuracy matches expected values
     
-    Uses the same test data as test_convert_normalized_dose_units_to_limited_units
-    but starts with raw, non-normalized unit strings to test the full pipeline.
+    Uses the same test data as test_convert_clean_dose_units_to_base_units
+    but starts with raw, non-cleaned unit strings to test the full pipeline.
     
     Test Coverage
     -------------
     - Integration of all conversion steps
     - Preservation of original data columns
     - Addition of all conversion-related columns
-    - Accuracy of final limited values and units
+    - Accuracy of final base values and units
     
     Notes
     -----
@@ -412,59 +412,59 @@ def test_standardize_dose_to_limited_units(unit_converter_test_data, caplog):
     (not testing vitals join functionality).
     """
     test_df: pd.DataFrame = unit_converter_test_data 
-    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test_convert_normalized_dose_units_to_limited_units.csv')
+    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test__convert_clean_dose_units_to_base_units.csv')
 
     input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    limited_df, counts_df = standardize_dose_to_limited_units(med_df = input_df)
-    limited_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    base_df, counts_df = standardize_dose_to_base_units(med_df = input_df)
+    base_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
-    assert 'med_dose_unit_normalized' in limited_df.columns
-    assert 'med_dose_limited' in limited_df.columns
-    assert 'med_dose_unit_limited' in limited_df.columns
-    assert 'weight_kg' in limited_df.columns
+    assert '_clean_unit' in base_df.columns
+    assert '_base_dose' in base_df.columns
+    assert '_base_unit' in base_df.columns
+    assert 'weight_kg' in base_df.columns
 
-    # Verify limited values
+    # Verify base values
     pd.testing.assert_series_equal(
-        limited_df['med_dose_limited'].reset_index(drop=True), # actual
-        test_df['med_dose_limited'].reset_index(drop=True), # expected
+        base_df['_base_dose'].reset_index(drop=True), # actual
+        test_df['_base_dose'].reset_index(drop=True), # expected
         check_names=False,
         #check_dtype=False
     )
 
-    # Verify limited units
+    # Verify base units
     pd.testing.assert_series_equal(
-        limited_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
-        test_df['med_dose_unit_limited'].fillna('None').reset_index(drop=True),
+        base_df['_base_unit'].fillna('None').reset_index(drop=True),
+        test_df['_base_unit'].fillna('None').reset_index(drop=True),
         check_names=False,
         # check_dtype=False
     )
 
 # @pytest.mark.skip
-def test__convert_limited_units_to_preferred_units_inverse(unit_converter_test_data, caplog):
+def test__convert_base_units_to_preferred_units_inverse(unit_converter_test_data, caplog):
     """
-    Test the _convert_limited_units_to_preferred_units conversion function.
+    Test the _convert_base_units_to_preferred_units conversion function.
     
-    is equivalent to the inverse process of converting from original to limited, i.e. converting from 
-    med_dose_limited and med_dose_unit_limited to med_dose and med_dose_unit_normalized respectively
+    is equivalent to the inverse process of converting from original to base, i.e. converting from 
+    _base_dose and _base_unit to med_dose and _clean_unit respectively
     
-    this test assumes the presense of med_dose_unit_normalized column
+    this test assumes the presense of _clean_unit column
     """
     test_df: pd.DataFrame = unit_converter_test_data # .query("case == 'valid'")
     assert len(test_df) > 0
     q = """
     SELECT rn
-        , med_dose_limited
-        , med_dose_unit_limited
-        , med_dose_unit_normalized as med_dose_unit_preferred
+        , _base_dose
+        , _base_unit
+        , _clean_unit as _preferred_unit
         , weight_kg
     FROM test_df
     """
     input_df = duckdb.sql(q).to_df()
     
-    result_df = _convert_limited_units_to_preferred_units(med_df = input_df, override=True)
+    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
     # Verify output columns exist
@@ -479,25 +479,25 @@ def test__convert_limited_units_to_preferred_units_inverse(unit_converter_test_d
         # check_dtype=False
     ) 
 
-def test__convert_limited_units_to_preferred_units_new(convert_dose_units_by_med_category_test_data, caplog):
+def test__convert_base_units_to_preferred_units_new(convert_dose_units_by_med_category_test_data, caplog):
     """
-    Test the _convert_limited_units_to_preferred_units conversion function.
+    Test the _convert_base_units_to_preferred_units conversion function.
     
-    this test assumes the presense of med_dose_unit_preferred column
+    this test assumes the presense of _preferred_unit column
     """
     test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data.query("case == 'valid'")
     assert len(test_df) > 0
     q = """
     SELECT rn
-        , med_dose_limited
-        , med_dose_unit_limited
-        , med_dose_unit_preferred
+        , _base_dose
+        , _base_unit
+        , _preferred_unit
         , weight_kg
     FROM test_df
     """
     input_df = duckdb.sql(q).to_df()
     
-    result_df = _convert_limited_units_to_preferred_units(med_df = input_df, override=True)
+    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
     # Verify columns exist
@@ -548,10 +548,10 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
     result_df, _ = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units, override=True)
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
     
-    # check convert_status
+    # check _convert_status
     pd.testing.assert_series_equal(
-        result_df['convert_status'].reset_index(drop=True), # actual
-        test_df['convert_status'].reset_index(drop=True), # expected
+        result_df['_convert_status'].reset_index(drop=True), # actual
+        test_df['_convert_status'].reset_index(drop=True), # expected
         check_names=False,
         # check_dtype=False
     )
