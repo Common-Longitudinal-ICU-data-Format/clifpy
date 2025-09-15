@@ -14,7 +14,7 @@ from clifpy.utils.unit_converter import (
     _clean_dose_unit_names,
     _detect_and_classify_clean_dose_units,
     ACCEPTABLE_RATE_UNITS,
-    _convert_clean_dose_units_to_base_units,
+    _convert_clean_units_to_base_units,
     standardize_dose_to_base_units,
     _convert_base_units_to_preferred_units,
     convert_dose_units_by_med_category
@@ -51,13 +51,13 @@ def _clean_dose_unit_names_test_data(load_fixture_csv):
         - _clean_format_unit: Input dose unit string (already format cleaned)
         - _clean_name_unit: Expected cleaned result
     """
-    return load_fixture_csv('test__clean_dose_unit_names.csv')
+    return load_fixture_csv('_clean_dose_unit_names_test_data.csv')
 
 # ===========================================
 # Tests for `_clean_dose_unit_formats`
 # ===========================================
 @pytest.fixture
-def clean_dose_unit_formats_test_data(load_fixture_csv):
+def _clean_dose_unit_formats_test_data(load_fixture_csv):
     """Load test data for dose unit pattern normalization tests.
 
     Returns
@@ -69,13 +69,13 @@ def clean_dose_unit_formats_test_data(load_fixture_csv):
         - med_dose_unit: Original dose unit string
         - _clean_format_unit: Expected cleaned result
     """
-    df: pd.DataFrame = load_fixture_csv('test__clean_dose_unit_formats.csv')
+    df: pd.DataFrame = load_fixture_csv('_clean_dose_unit_formats_test_data.csv')
     # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
     df.replace(np.nan, None, inplace=True)
     return df
 
 @pytest.mark.unit_conversion
-def test_clean_dose_unit_formats(clean_dose_unit_formats_test_data):
+def test__clean_dose_unit_formats(_clean_dose_unit_formats_test_data):
     """Test the _clean_dose_unit_formats function for proper formatting cleaning.
 
     Validates that the function correctly:
@@ -84,7 +84,7 @@ def test_clean_dose_unit_formats(clean_dose_unit_formats_test_data):
     2. Converts to lowercase: 'MCG/KG/MIN' -> 'mcg/kg/min'
     3. Handles edge cases like leading/trailing spaces: ' Mg/Hr ' -> 'mg/hr'
 
-    Uses comprehensive test data from test__clean_dose_unit_formats.csv
+    Uses comprehensive test data from _clean_dose_unit_formats_test_data.csv
     covering both valid and invalid unit patterns.
 
     Parameters
@@ -92,7 +92,7 @@ def test_clean_dose_unit_formats(clean_dose_unit_formats_test_data):
     clean_dose_unit_formats_test_data : pd.DataFrame
         Test fixture containing unit format test cases.
     """
-    test_df: pd.DataFrame = clean_dose_unit_formats_test_data
+    test_df: pd.DataFrame = _clean_dose_unit_formats_test_data
     # first check the filtering went right, i.e. test_df is not empty
     result_series = _clean_dose_unit_formats(test_df['med_dose_unit'])
     
@@ -105,7 +105,7 @@ def test_clean_dose_unit_formats(clean_dose_unit_formats_test_data):
 # ===========================================
 # Tests for `_clean_dose_unit_names`
 # ===========================================
-def test_clean_dose_unit_names(_clean_dose_unit_names_test_data):
+def test__clean_dose_unit_names(_clean_dose_unit_names_test_data):
     """Test the _clean_dose_unit_names function for unit name standardization.
 
     Validates comprehensive unit name cleaning including:
@@ -117,7 +117,7 @@ def test_clean_dose_unit_names(_clean_dose_unit_names_test_data):
     - Special characters: 'µg', 'ug' -> 'mcg'
     - Mass units: 'gram' -> 'g'
 
-    Uses comprehensive fixture data from test__clean_dose_unit_names.csv
+    Uses comprehensive fixture data from _clean_dose_unit_names_test_data.csv
     containing real-world unit variations.
 
     Parameters
@@ -137,7 +137,7 @@ def test_clean_dose_unit_names(_clean_dose_unit_names_test_data):
         check_names=False
     )
 
-def test_acceptable_rate_units():
+def test__acceptable_rate_units():
     """Test the acceptable_rate_units function and ACCEPTABLE_RATE_UNITS constant.
 
     Validates that the function correctly generates all valid combinations
@@ -200,10 +200,10 @@ def test_detect_and_classify_clean_dose_units():
     
 
 # ===========================================
-# Tests for `_convert_clean_dose_units_to_base_units`
+# Tests for `_convert_clean_units_to_base_units`
 # ===========================================
 @pytest.fixture
-def convert_clean_dose_units_to_base_units_test_data(load_fixture_csv):
+def _convert_clean_units_to_base_units_test_data(load_fixture_csv):
     """Load test data for dose unit conversion tests.
 
     Returns
@@ -219,7 +219,7 @@ def convert_clean_dose_units_to_base_units_test_data(load_fixture_csv):
 
         Processes admin_dttm to datetime and converts empty weight_kg to NaN.
     """
-    df: pd.DataFrame = load_fixture_csv('test__convert_clean_dose_units_to_base_units.csv')
+    df: pd.DataFrame = load_fixture_csv('_convert_clean_units_to_base_units_test_data.csv')
     # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
     # Replace empty strings with NaN for weight_kg column
     df['weight_kg'] = df['weight_kg'].replace('', np.nan)
@@ -305,8 +305,8 @@ def convert_dose_units_by_med_category_test_data(load_fixture_csv):
     return df
 
 @pytest.mark.unit_conversion
-def test_convert_clean_dose_units_to_base_units(unit_converter_test_data, caplog):
-    """Test the core _convert_clean_dose_units_to_base_units conversion function.
+def test__convert_clean_units_to_base_units(unit_converter_test_data, caplog):
+    """Test the core _convert_clean_units_to_base_units conversion function.
 
     This comprehensive test validates the DuckDB-based conversion logic that
     transforms clean units to standard base units.
@@ -326,12 +326,11 @@ def test_convert_clean_dose_units_to_base_units(unit_converter_test_data, caplog
         Pytest fixture for capturing log messages.
     """
     test_df: pd.DataFrame = unit_converter_test_data 
-    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test__convert_clean_dose_units_to_base_units.csv')
 
     input_df = test_df.filter(items=['rn','med_dose', '_clean_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    result_df = _convert_clean_dose_units_to_base_units(med_df = input_df) \
+    result_df = _convert_clean_units_to_base_units(med_df = input_df) \
         .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
@@ -377,7 +376,7 @@ def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
     and unit conversion. Ensures both output DataFrames are correctly generated
     and all intermediate and final columns are present.
 
-    Uses the same test data as test_convert_clean_dose_units_to_base_units
+    Uses the same test data as test_convert_clean_units_to_base_units
     but starts with raw, non-cleaned unit strings to test the full pipeline.
 
     Parameters
@@ -393,7 +392,6 @@ def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
     (not testing vitals join functionality).
     """
     test_df: pd.DataFrame = unit_converter_test_data 
-    # test_df = pd.read_csv('../../tests/fixtures/unit_converter/test__convert_clean_dose_units_to_base_units.csv')
 
     input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
     
