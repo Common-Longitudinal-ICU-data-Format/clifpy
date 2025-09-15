@@ -11,6 +11,8 @@ from .tables import (
     PatientAssessments,
     Position,
 )
+# Re-export ClifOrchestrator at package root
+from .clif_orchestrator import ClifOrchestrator
 
 # Version info
 __version__ = "0.0.1"
@@ -27,4 +29,5 @@ __all__ = [
     "MedicationAdminContinuous",
     "PatientAssessments",
     "Position",
+    "ClifOrchestrator",
 ]
