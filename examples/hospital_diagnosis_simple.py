@@ -17,7 +17,8 @@ def _():
         sys.path.insert(0, str(project_root))
 
     from clifpy.tables.hospital_diagnosis import HospitalDiagnosis
-    return (HospitalDiagnosis,)
+    from clifpy.utils import calculate_cci
+    return HospitalDiagnosis, calculate_cci
 
 
 @app.cell
@@ -48,6 +49,33 @@ def _(table):
     # Get diagnosis summary
     summary = table.get_diagnosis_summary()
     summary
+    return
+
+
+@app.cell
+def _(table):
+    table.df.columns
+    return
+
+
+@app.cell
+def _(calculate_cci, table):
+    # Calculate Charlson Comorbidity Index
+    cci_df = calculate_cci(table, hierarchy=True)
+    return (cci_df,)
+
+
+@app.cell
+def _(cci_df):
+    # Show first 10 CCI results
+    cci_df.head(10)
+    return
+
+
+@app.cell
+def _(cci_df):
+    # CCI score statistics
+    cci_df['cci_score'].describe()
     return
 
 
