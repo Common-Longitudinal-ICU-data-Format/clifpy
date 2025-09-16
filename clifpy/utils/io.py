@@ -101,11 +101,6 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
         print(f"Data loaded successfully from {filename}")
         df = _cast_id_cols_to_string(df) # Cast id columns to string
         
-        # Convert categorical columns to lowercase
-        for col in df.columns:
-            if df[col].dtype == 'object' and (col.endswith('_category') or col.endswith('_group')):
-                df[col] = df[col].str.lower()
-        
         # Convert datetime columns to site timezone if specified
         if site_tz:
             df = convert_datetime_columns_to_site_tz(df, site_tz)

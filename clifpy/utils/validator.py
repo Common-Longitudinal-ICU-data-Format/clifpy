@@ -1,7 +1,7 @@
 """Comprehensive validator module for pyCLIF tables.
 
 This module provides validation functions for pyCLIF tables including:
-- Column presence and data type validation
+- Column presence and data type validation with casting capability checks
 - Missing data analysis
 - Categorical value validation
 - Duplicate checking
@@ -9,6 +9,13 @@ This module provides validation functions for pyCLIF tables including:
 - Statistical analysis
 - Unit validation
 - Cohort analysis
+
+Datatype Validation Behavior:
+- The validator first checks if columns match their expected types exactly
+- If not, it checks whether the data can be cast to the correct type
+- Castable mismatches generate warnings (type: "datatype_castable")
+- Non-castable mismatches generate errors (type: "datatype_mismatch")
+- This allows for more flexible data handling while maintaining type safety
 
 All validation functions include proper error handling and return
 structured results for integration with the BaseTable class.
@@ -52,6 +59,76 @@ def _is_float_dtype(series: pd.Series) -> bool:
     """Check if series is float-compatible (includes integers)."""
     return pd.api.types.is_numeric_dtype(series)
 
+def _can_cast_to_varchar(series: pd.Series) -> bool:
+    """Check if series can be cast to VARCHAR (string)."""
+    try:
+        # Almost everything can be converted to string
+        non_null = series.dropna()
+        if len(non_null) == 0:
+            return True
+
+        # Try converting a sample
+        sample_size = min(10, len(non_null))
+        sample = non_null.iloc[:sample_size]
+        sample.astype(str)
+        return True
+    except Exception:
+        return False
+
+def _can_cast_to_datetime(series: pd.Series) -> bool:
+    """Check if series can be cast to DATETIME."""
+    try:
+        non_null = series.dropna()
+        if len(non_null) == 0:
+            return True
+
+        # Try converting a sample
+        sample_size = min(10, len(non_null))
+        sample = non_null.iloc[:sample_size]
+        pd.to_datetime(sample, errors='raise')
+        return True
+    except Exception:
+        return False
+
+def _can_cast_to_integer(series: pd.Series) -> bool:
+    """Check if series can be cast to INTEGER."""
+    try:
+        non_null = series.dropna()
+        if len(non_null) == 0:
+            return True
+
+        # Check if already numeric
+        if pd.api.types.is_numeric_dtype(series):
+            # Check if all values are whole numbers
+            return all(float(x).is_integer() for x in non_null)
+
+        # Try converting string/object to numeric then check if integers
+        sample_size = min(10, len(non_null))
+        sample = non_null.iloc[:sample_size]
+        numeric_sample = pd.to_numeric(sample, errors='raise')
+        return all(float(x).is_integer() for x in numeric_sample)
+    except Exception:
+        return False
+
+def _can_cast_to_float(series: pd.Series) -> bool:
+    """Check if series can be cast to FLOAT."""
+    try:
+        non_null = series.dropna()
+        if len(non_null) == 0:
+            return True
+
+        # Check if already numeric
+        if pd.api.types.is_numeric_dtype(series):
+            return True
+
+        # Try converting string/object to numeric
+        sample_size = min(10, len(non_null))
+        sample = non_null.iloc[:sample_size]
+        pd.to_numeric(sample, errors='raise')
+        return True
+    except Exception:
+        return False
+
 # Map mCIDE "data_type" values to simple pandas dtype checkers.
 # Extend as more types are introduced.
 _DATATYPE_CHECKERS: dict[str, callable[[pd.Series], bool]] = {
@@ -61,6 +138,16 @@ _DATATYPE_CHECKERS: dict[str, callable[[pd.Series], bool]] = {
     "INT": _is_integer_dtype,  # Alternative naming
     "FLOAT": _is_float_dtype,
     "DOUBLE": _is_float_dtype,  # Alternative naming for float
+}
+
+# Map mCIDE "data_type" values to casting checkers.
+_DATATYPE_CAST_CHECKERS: dict[str, callable[[pd.Series], bool]] = {
+    "VARCHAR": _can_cast_to_varchar,
+    "DATETIME": _can_cast_to_datetime,
+    "INTEGER": _can_cast_to_integer,
+    "INT": _can_cast_to_integer,  # Alternative naming
+    "FLOAT": _can_cast_to_float,
+    "DOUBLE": _can_cast_to_float,  # Alternative naming for float
 }
 
 
@@ -102,7 +189,14 @@ def _load_spec(table_name: str, spec_dir: str | None = None) -> dict[str, Any]:
 def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str, Any]]:
     """Validate *df* against *spec*.
 
-    Returns a list of error dictionaries.  An empty list means success.
+    Returns a list of error dictionaries. An empty list means success.
+
+    For datatype validation:
+    - If a column doesn't match the expected type exactly, the validator checks
+      if the data can be cast to the correct type
+    - Castable type mismatches return warnings with type "datatype_castable"
+    - Non-castable type mismatches return errors with type "datatype_mismatch"
+    - Both include descriptive messages about the casting capability
     """
 
     errors: List[dict[str, Any]] = []
@@ -131,15 +225,43 @@ def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str,
         # 2b. Datatype checks -------------------------------------------------
         expected_type = col_spec.get("data_type")
         checker = _DATATYPE_CHECKERS.get(expected_type)
-        if checker and not checker(series):
-            errors.append({"type": "datatype_mismatch", "column": name, "expected": expected_type})
+        cast_checker = _DATATYPE_CAST_CHECKERS.get(expected_type)
 
-        # 2c. Category values -------------------------------------------------
-        if col_spec.get("is_category_column") and col_spec.get("permissible_values"):
-            allowed = set(col_spec["permissible_values"])
-            bad_values = series.dropna()[~series.isin(allowed)].unique().tolist()
-            if bad_values:
-                errors.append({"type": "invalid_category", "column": name, "values": bad_values})
+        if checker and not checker(series):
+            # Check if data can be cast to the correct type
+            if cast_checker and cast_checker(series):
+                # Data can be cast - this is a warning, not an error
+                errors.append({
+                    "type": "datatype_castable",
+                    "column": name,
+                    "expected": expected_type,
+                    "actual": str(series.dtype),
+                    "message": f"Column '{name}' has type {series.dtype} but can be cast to {expected_type}"
+                })
+            else:
+                # Data cannot be cast - this is an error
+                errors.append({
+                    "type": "datatype_mismatch",
+                    "column": name,
+                    "expected": expected_type,
+                    "actual": str(series.dtype),
+                    "message": f"Column '{name}' has type {series.dtype} and cannot be cast to {expected_type}"
+                })
+
+        # # 2c. Category values -------------------------------------------------
+        # if col_spec.get("is_category_column") and col_spec.get("permissible_values"):
+        #     allowed = set(col_spec["permissible_values"])
+        #     actual_values = set(series.dropna().unique())
+
+        #     # Check for missing expected values (permissible values not present in data)
+        #     missing_values = [v for v in allowed if v not in actual_values]
+        #     if missing_values:
+        #         errors.append({
+        #             "type": "missing_category_values",
+        #             "column": name,
+        #             "missing_values": missing_values,
+        #             "message": f"Column '{name}' is missing expected category values: {missing_values}"
+        #         })
 
     return errors
 
@@ -228,15 +350,30 @@ def verify_column_dtypes(df: pd.DataFrame, schema: Dict[str, Any]) -> List[Dict[
             
             series = df[name]
             checker = _DATATYPE_CHECKERS.get(expected_type)
-            
+            cast_checker = _DATATYPE_CAST_CHECKERS.get(expected_type)
+
             if checker and not checker(series):
-                errors.append({
-                    "type": "datatype_verification",
-                    "column": name,
-                    "expected": expected_type,
-                    "actual": str(series.dtype),
-                    "status": "error"
-                })
+                # Check if data can be cast to the correct type
+                if cast_checker and cast_checker(series):
+                    # Data can be cast - this is a warning, not an error
+                    errors.append({
+                        "type": "datatype_verification_castable",
+                        "column": name,
+                        "expected": expected_type,
+                        "actual": str(series.dtype),
+                        "status": "warning",
+                        "message": f"Column '{name}' has type {series.dtype} but can be cast to {expected_type}"
+                    })
+                else:
+                    # Data cannot be cast - this is an error
+                    errors.append({
+                        "type": "datatype_verification",
+                        "column": name,
+                        "expected": expected_type,
+                        "actual": str(series.dtype),
+                        "status": "error",
+                        "message": f"Column '{name}' has type {series.dtype} and cannot be cast to {expected_type}"
+                    })
                 
     except Exception as e:
         errors.append({
@@ -418,25 +555,17 @@ def validate_categorical_values(
                 allowed = set(col_spec["permissible_values"])
                 
                 # Get unique values in the column (excluding NaN)
-                unique_values = df[name].dropna().unique()
-                invalid_values = [v for v in unique_values if v not in allowed]
-                
-                if invalid_values:
-                    # Count occurrences of each invalid value
-                    value_counts = df[name].value_counts()
-                    invalid_counts = {
-                        str(v): int(value_counts.get(v, 0)) 
-                        for v in invalid_values
-                    }
-                    
+                unique_values = set(df[name].dropna().unique())
+                # Check for missing expected values (permissible values not present in data)
+                missing_values = [v for v in allowed if v not in unique_values]
+                if missing_values:
                     errors.append({
-                        "type": "invalid_categorical_values",
-                        "column": name,
-                        "invalid_values": invalid_values[:10],  # Limit to first 10
-                        "invalid_counts": invalid_counts,
-                        "total_invalid": sum(invalid_counts.values()),
-                        "permissible_values": list(allowed)[:10]  # Show first 10 allowed
-                    })
+                                "type": "missing_categorical_values",
+                                "column": name,
+                                "missing_values": missing_values,  
+                                "total_missing": len(missing_values),
+                                "message": f"Column '{name}' is missing {len(missing_values)} expected category values"
+                            })
                     
     except Exception as e:
         errors.append({
