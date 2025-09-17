@@ -25,7 +25,7 @@ def _():
 def _(HospitalDiagnosis):
     # Initialize HospitalDiagnosis table
     table = HospitalDiagnosis(
-        data_directory='/Users/sudo_sage/Documents/WORK/rush_clif/',
+        data_directory='/Users/vaishvik/Downloads/WORK/rush_clif',
         filetype='parquet',
         timezone="UTC"
     )
@@ -69,6 +69,18 @@ def _(calculate_cci, table):
 def _(cci_df):
     # Show first 10 CCI results
     cci_df.head(10)
+    return
+
+
+@app.cell
+def _(cci_df):
+    cci_df.shape
+    return
+
+
+@app.cell
+def _(cci_df):
+    cci_df.dtypes
     return
 
 
