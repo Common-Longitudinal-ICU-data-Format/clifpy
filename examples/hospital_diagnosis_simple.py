@@ -18,7 +18,8 @@ def _():
 
     from clifpy.tables.hospital_diagnosis import HospitalDiagnosis
     from clifpy.utils import calculate_cci
-    return HospitalDiagnosis, calculate_cci
+    from clifpy.utils.comorbidity import calculate_elix
+    return HospitalDiagnosis, calculate_cci, calculate_elix
 
 
 @app.cell
@@ -88,6 +89,51 @@ def _(cci_df):
 def _(cci_df):
     # CCI score statistics
     cci_df['cci_score'].describe()
+    return
+
+
+@app.cell
+def _(calculate_elix, table):
+    # Calculate Elixhauser Comorbidity Index
+    elix_df = calculate_elix(table, hierarchy=True)
+    return (elix_df,)
+
+
+@app.cell
+def _(elix_df):
+    # Show first 10 Elixhauser results
+    elix_df.head(10)
+    return
+
+
+@app.cell
+def _(elix_df):
+    elix_df.shape
+    return
+
+
+@app.cell
+def _(elix_df):
+    # Elixhauser score statistics
+    elix_df['elix_score'].describe()
+    return
+
+
+@app.cell
+def _(elix_df):
+    for x in elix_df.columns:
+        print(x, ' ->',elix_df[x].value_counts())
+    return
+
+
+@app.cell
+def _(table):
+    table.df[table.df['diagnosis_code'].str.contains('E',case=False)]['diagnosis_code'].unique()
+    return
+
+
+@app.cell
+def _():
     return
 
 
