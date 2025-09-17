@@ -109,6 +109,17 @@ def calculate_cci(
     # Calculate CCI score
     df_with_score = _calculate_cci_score(df_grouped, weights)
 
+    # Convert boolean columns to integers for consistency
+    condition_names = list(condition_mappings.keys())
+    cast_exprs = []
+    for col in df_with_score.columns:
+        if col in condition_names:
+            cast_exprs.append(pl.col(col).cast(pl.Int32).alias(col))
+        else:
+            cast_exprs.append(pl.col(col))
+
+    df_with_score = df_with_score.select(cast_exprs)
+
     # Convert to pandas DataFrame before returning
     return df_with_score.to_pandas()
 
@@ -135,7 +146,7 @@ def _apply_hierarchy_logic(df: pl.DataFrame, hierarchies: Dict[str, List[str]]) 
     """
     df_result = df.clone()
 
-    for hierarchy_name, condition_list in hierarchies.items():
+    for _, condition_list in hierarchies.items():
         if len(condition_list) >= 2:
             # First condition is the severe form (takes precedence)
             # Subsequent conditions are mild forms (set to 0 if severe present)
