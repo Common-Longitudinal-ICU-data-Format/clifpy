@@ -14,6 +14,116 @@ from pathlib import Path
 from tqdm import tqdm
 
 
+def calculate_elix(
+    hospital_diagnosis: Union['HospitalDiagnosis', pd.DataFrame, pl.DataFrame],
+    hierarchy: bool = True
+) -> pl.DataFrame:
+    """
+    Calculate Elixhauser Comorbidity Index for hospitalizations.
+
+    This function processes hospital diagnosis data to calculate Elixhauser scores
+    using the Quan (2011) adaptation with ICD-10-CM codes and van Walraven weights.
+
+    Parameters:
+        hospital_diagnosis: HospitalDiagnosis object, pandas DataFrame, or polars DataFrame
+                           containing diagnosis data with columns:
+                           - hospitalization_id
+                           - diagnosis_code
+                           - diagnosis_code_format
+        hierarchy: bool (default=True) - Apply assign0 logic to prevent double counting
+                  of conditions when both mild and severe forms are present
+
+    Returns:
+        pd.DataFrame with columns:
+        - hospitalization_id (index)
+        - 31 binary condition columns (0/1)
+        - elix_score (weighted sum)
+    """
+
+    # Load Elixhauser configuration
+    elix_config = _load_elix_config()
+
+    # Print configuration info as requested
+    print(f"name: \"{elix_config['name']}\"")
+    print(f"version: \"{elix_config['version']}\"")
+    print(f"supported_formats:")
+    for fmt in elix_config['supported_formats']:
+        print(f"  - {fmt}")
+
+    # Convert input to polars DataFrame
+    if hasattr(hospital_diagnosis, 'df'):
+        # HospitalDiagnosis object
+        df = pl.from_pandas(hospital_diagnosis.df)
+    elif isinstance(hospital_diagnosis, pd.DataFrame):
+        df = pl.from_pandas(hospital_diagnosis)
+    elif isinstance(hospital_diagnosis, pl.DataFrame):
+        df = hospital_diagnosis
+    else:
+        raise ValueError("hospital_diagnosis must be HospitalDiagnosis object, pandas DataFrame, or polars DataFrame")
+
+    # Filter to only ICD10CM codes (discard other formats)
+    df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
+
+    # Preprocess diagnosis codes: remove decimal parts (e.g., "I21.45" -> "I21")
+    df_processed = df_filtered.with_columns([
+        pl.col("diagnosis_code").str.split(".").list.get(0).alias("diagnosis_code_clean")
+    ])
+
+    # Map diagnosis codes to Elixhauser conditions
+    condition_mappings = elix_config['diagnosis_code_mappings']['ICD10CM']
+    weights = elix_config['weights']
+
+    # Create condition presence indicators
+    condition_columns = []
+
+    for condition_name, condition_info in tqdm(condition_mappings.items(), desc="Mapping ICD codes to Elixhauser conditions"):
+        condition_codes = condition_info['codes']
+
+        # Create a boolean expression for this condition
+        condition_expr = pl.lit(False)
+        for code in condition_codes:
+            condition_expr = condition_expr | pl.col("diagnosis_code_clean").str.starts_with(code)
+
+        condition_columns.append(condition_expr.alias(f"{condition_name}_present"))
+
+    # Add condition indicators to dataframe
+    df_with_conditions = df_processed.with_columns(condition_columns)
+
+    # Group by hospitalization_id and aggregate condition presence
+    condition_names = list(condition_mappings.keys())
+
+    # Create aggregation expressions
+    agg_exprs = []
+    for condition_name in condition_names:
+        agg_exprs.append(
+            pl.col(f"{condition_name}_present").max().alias(condition_name)
+        )
+
+    # Group by hospitalization and get condition presence
+    df_grouped = df_with_conditions.group_by("hospitalization_id").agg(agg_exprs)
+
+    # Apply hierarchy logic if enabled (assign0)
+    if hierarchy:
+        df_grouped = _apply_hierarchy_logic(df_grouped, elix_config['hierarchies'])
+
+    # Calculate Elixhauser score
+    df_with_score = _calculate_elix_score(df_grouped, weights)
+
+    # Convert boolean columns to integers for consistency
+    condition_names = list(condition_mappings.keys())
+    cast_exprs = []
+    for col in df_with_score.columns:
+        if col in condition_names:
+            cast_exprs.append(pl.col(col).cast(pl.Int32).alias(col))
+        else:
+            cast_exprs.append(pl.col(col))
+
+    df_with_score = df_with_score.select(cast_exprs)
+
+    # Convert to pandas DataFrame before returning
+    return df_with_score.to_pandas()
+
+
 def calculate_cci(
     hospital_diagnosis: Union['HospitalDiagnosis', pd.DataFrame, pl.DataFrame],
     hierarchy: bool = True
@@ -124,6 +234,19 @@ def calculate_cci(
     return df_with_score.to_pandas()
 
 
+def _load_elix_config() -> Dict[str, Any]:
+    """Load Elixhauser configuration from YAML file."""
+    config_path = Path(__file__).parent.parent / "data" / "comorbidity" / "elixhauser.yaml"
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Elixhauser configuration file not found: {config_path}")
+
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
 def _load_cci_config() -> Dict[str, Any]:
     """Load CCI configuration from YAML file."""
     config_path = Path(__file__).parent.parent / "data" / "comorbidity" / "cci.yaml"
@@ -163,6 +286,24 @@ def _apply_hierarchy_logic(df: pl.DataFrame, hierarchies: Dict[str, List[str]]) 
                 ])
 
     return df_result
+
+
+def _calculate_elix_score(df: pl.DataFrame, weights: Dict[str, int]) -> pl.DataFrame:
+    """Calculate the weighted Elixhauser score for each hospitalization."""
+
+    # Create score calculation expression
+    score_expr = pl.lit(0)
+
+    for condition_name, weight in weights.items():
+        if condition_name in df.columns:
+            score_expr = score_expr + (pl.col(condition_name) * weight)
+
+    # Add the score column
+    df_with_score = df.with_columns([
+        score_expr.alias("elix_score")
+    ])
+
+    return df_with_score
 
 
 def _calculate_cci_score(df: pl.DataFrame, weights: Dict[str, int]) -> pl.DataFrame:
