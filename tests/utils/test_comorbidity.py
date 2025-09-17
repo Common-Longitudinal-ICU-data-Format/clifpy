@@ -16,7 +16,7 @@ import numpy as np
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from clifpy.utils.comorbidity import calculate_cci, _load_cci_config, _apply_hierarchy_logic, _calculate_cci_score
+from clifpy.utils.comorbidity import calculate_cci, _load_cci_config, _apply_hierarchy_logic, _calculate_cci_score, calculate_elix, _load_elix_config, _calculate_elix_score
 
 
 class TestCalculateCCI:
@@ -527,3 +527,382 @@ class TestHelperFunctions:
         assert result.iloc[0]['moderate_severe_liver_disease'] == 1
         assert result.iloc[0]['congestive_heart_failure'] == 1
         assert result.iloc[0]['dementia'] == 1
+
+
+class TestCalculateElix:
+    """Test class for calculate_elix function."""
+
+    @pytest.fixture
+    def sample_elix_diagnosis_df(self):
+        """Create a sample hospital diagnosis DataFrame for Elixhauser testing."""
+        return pd.DataFrame({
+            'hospitalization_id': ['HOSP_001', 'HOSP_001', 'HOSP_002', 'HOSP_003', 'HOSP_003'],
+            'diagnosis_code': ['I50.9', 'E10.1', 'C78.5', 'I11.0', 'F32.1'],
+            'diagnosis_code_format': ['ICD10CM', 'ICD10CM', 'ICD10CM', 'ICD10CM', 'ICD10CM']
+        })
+
+    @pytest.fixture
+    def all_elix_conditions_df(self):
+        """
+        Create a DataFrame with ICD codes representing all 31 Elixhauser conditions.
+        Based on the actual codes from elixhauser.yaml.
+        Uses separate hospitalizations for hierarchical conditions to avoid conflicts.
+        """
+        data = []
+
+        # Non-hierarchical conditions - all in one hospitalization
+        non_hierarchical = [
+            ('I50', 'congestive_heart_failure'),
+            ('I48', 'cardiac_arrhythmias'),
+            ('I34', 'valvular_disease'),
+            ('I26', 'pulmonary_circulation_disorders'),
+            ('I70', 'peripheral_vascular_disorders'),
+            ('G81', 'paralysis'),
+            ('G20', 'other_neurological_disorders'),
+            ('J44', 'chronic_pulmonary_disease'),
+            ('E00', 'hypothyroidism'),
+            ('N18', 'renal_failure'),
+            ('B18', 'liver_disease'),
+            ('K257', 'peptic_ulcer_disease_excluding_bleeding'),
+            ('B20', 'aids_hiv'),
+            ('C81', 'lymphoma'),
+            ('M05', 'rheumatoid_arthritis_collagen_vascular_disease'),
+            ('D65', 'coagulopathy'),
+            ('E66', 'obesity'),
+            ('E40', 'weight_loss'),
+            ('E86', 'fluid_and_electrolyte_disorders'),
+            ('D500', 'blood_loss_anemia'),
+            ('D51', 'deficiency_anemia'),
+            ('F10', 'alcohol_abuse'),
+            ('F11', 'drug_abuse'),
+            ('F20', 'psychoses'),
+            ('F32', 'depression')
+        ]
+
+        for code, condition in non_hierarchical:
+            data.append({
+                'hospitalization_id': 'HOSP_NON_HIER',
+                'diagnosis_code': code,
+                'diagnosis_code_format': 'ICD10CM'
+            })
+
+        # Hierarchical conditions - separate hospitalizations to test each independently
+        hierarchical = [
+            ('I10', 'hypertension_uncomplicated', 'HOSP_HTN_UNCOMP'),
+            ('I11', 'hypertension_complicated', 'HOSP_HTN_COMP'),
+            ('E100', 'diabetes_uncomplicated', 'HOSP_DM_UNCOMP'),
+            ('E102', 'diabetes_complicated', 'HOSP_DM_COMP'),
+            ('C50', 'solid_tumor_without_metastasis', 'HOSP_SOLID_TUMOR'),
+            ('C78', 'metastatic_cancer', 'HOSP_METASTATIC')
+        ]
+
+        for code, condition, hosp_id in hierarchical:
+            data.append({
+                'hospitalization_id': hosp_id,
+                'diagnosis_code': code,
+                'diagnosis_code_format': 'ICD10CM'
+            })
+
+        return pd.DataFrame(data)
+
+    @pytest.fixture
+    def elix_hierarchy_test_df(self):
+        """Create DataFrame to test Elixhauser hierarchy logic (assign0)."""
+        return pd.DataFrame({
+            'hospitalization_id': ['HOSP_H1', 'HOSP_H1', 'HOSP_H2', 'HOSP_H2', 'HOSP_H3', 'HOSP_H3'],
+            'diagnosis_code': [
+                'I11',    # hypertension_complicated
+                'I10',    # hypertension_uncomplicated (should be 0 due to hierarchy)
+                'E102',   # diabetes_complicated
+                'E100',   # diabetes_uncomplicated (should be 0 due to hierarchy)
+                'C78',    # metastatic_cancer
+                'C20'     # solid_tumor_without_metastasis (should be 0 due to hierarchy)
+            ],
+            'diagnosis_code_format': ['ICD10CM'] * 6
+        })
+
+    def test_calculate_elix_with_pandas_dataframe(self, sample_elix_diagnosis_df):
+        """Test calculate_elix with pandas DataFrame input."""
+        result = calculate_elix(sample_elix_diagnosis_df)
+
+        # Verify result structure
+        assert isinstance(result, pd.DataFrame)
+        assert 'hospitalization_id' in result.columns
+        assert 'elix_score' in result.columns
+
+        # Verify data types - all should be integers
+        for col in result.columns:
+            if col != 'hospitalization_id':
+                assert result[col].dtype in [np.int32, np.int64], f"Column {col} should be integer, got {result[col].dtype}"
+
+    def test_calculate_elix_with_polars_dataframe(self, sample_elix_diagnosis_df):
+        """Test calculate_elix with polars DataFrame input."""
+        pl_df = pl.from_pandas(sample_elix_diagnosis_df)
+        result = calculate_elix(pl_df)
+
+        # Verify result structure
+        assert isinstance(result, pd.DataFrame)
+        assert 'hospitalization_id' in result.columns
+        assert 'elix_score' in result.columns
+
+    def test_calculate_elix_invalid_input_type(self):
+        """Test calculate_elix with invalid input type raises ValueError."""
+        with pytest.raises(ValueError, match="hospital_diagnosis must be"):
+            calculate_elix("invalid_input")
+
+    def test_calculate_elix_all_conditions_present(self, all_elix_conditions_df):
+        """Test calculate_elix with all 31 Elixhauser conditions present."""
+        result = calculate_elix(all_elix_conditions_df, hierarchy=False)
+
+        # Should have all 31 condition columns plus hospitalization_id and elix_score
+        expected_columns = {
+            'hospitalization_id', 'elix_score',
+            'congestive_heart_failure', 'cardiac_arrhythmias', 'valvular_disease',
+            'pulmonary_circulation_disorders', 'peripheral_vascular_disorders',
+            'hypertension_uncomplicated', 'hypertension_complicated', 'paralysis',
+            'other_neurological_disorders', 'chronic_pulmonary_disease',
+            'diabetes_uncomplicated', 'diabetes_complicated', 'hypothyroidism',
+            'renal_failure', 'liver_disease', 'peptic_ulcer_disease_excluding_bleeding',
+            'aids_hiv', 'lymphoma', 'metastatic_cancer', 'solid_tumor_without_metastasis',
+            'rheumatoid_arthritis_collagen_vascular_disease', 'coagulopathy',
+            'obesity', 'weight_loss', 'fluid_and_electrolyte_disorders',
+            'blood_loss_anemia', 'deficiency_anemia', 'alcohol_abuse',
+            'drug_abuse', 'psychoses', 'depression'
+        }
+
+        assert set(result.columns) == expected_columns
+
+        # Verify all conditions are detected across all hospitalizations
+        condition_checks = {
+            'HOSP_NON_HIER': ['congestive_heart_failure', 'cardiac_arrhythmias', 'valvular_disease',
+                             'pulmonary_circulation_disorders', 'peripheral_vascular_disorders',
+                             'paralysis', 'other_neurological_disorders', 'chronic_pulmonary_disease',
+                             'hypothyroidism', 'renal_failure', 'liver_disease',
+                             'peptic_ulcer_disease_excluding_bleeding', 'aids_hiv', 'lymphoma',
+                             'rheumatoid_arthritis_collagen_vascular_disease', 'coagulopathy',
+                             'obesity', 'weight_loss', 'fluid_and_electrolyte_disorders',
+                             'blood_loss_anemia', 'deficiency_anemia', 'alcohol_abuse',
+                             'drug_abuse', 'psychoses', 'depression'],
+            'HOSP_HTN_UNCOMP': ['hypertension_uncomplicated'],
+            'HOSP_HTN_COMP': ['hypertension_complicated'],
+            'HOSP_DM_UNCOMP': ['diabetes_uncomplicated'],
+            'HOSP_DM_COMP': ['diabetes_complicated'],
+            'HOSP_SOLID_TUMOR': ['solid_tumor_without_metastasis'],
+            'HOSP_METASTATIC': ['metastatic_cancer']
+        }
+
+        for hosp_id, conditions in condition_checks.items():
+            hosp_row = result[result['hospitalization_id'] == hosp_id].iloc[0]
+            for condition in conditions:
+                assert hosp_row[condition] == 1, f"Condition {condition} should be 1 in {hosp_id}, got {hosp_row[condition]}"
+
+    def test_calculate_elix_score_calculation(self):
+        """Test Elixhauser score calculation with known conditions and weights."""
+        # Create test data with specific conditions and known weights
+        test_df = pd.DataFrame({
+            'hospitalization_id': ['HOSP_TEST'],
+            'diagnosis_code': ['I50'],  # CHF (weight=7)
+            'diagnosis_code_format': ['ICD10CM']
+        })
+
+        result = calculate_elix(test_df)
+
+        # CHF has weight 7, so Elixhauser score should be 7
+        assert result.iloc[0]['elix_score'] == 7
+        assert result.iloc[0]['congestive_heart_failure'] == 1
+
+    def test_elix_hierarchy_logic_hypertension(self, elix_hierarchy_test_df):
+        """Test hierarchy logic for hypertension conditions."""
+        result = calculate_elix(elix_hierarchy_test_df, hierarchy=True)
+
+        # HOSP_H1 has both hypertension conditions - uncomplicated should be 0
+        h1_row = result[result['hospitalization_id'] == 'HOSP_H1'].iloc[0]
+        assert h1_row['hypertension_complicated'] == 1
+        assert h1_row['hypertension_uncomplicated'] == 0  # Should be 0 due to hierarchy
+
+    def test_elix_hierarchy_logic_diabetes(self, elix_hierarchy_test_df):
+        """Test hierarchy logic for diabetes conditions."""
+        result = calculate_elix(elix_hierarchy_test_df, hierarchy=True)
+
+        # HOSP_H2 has both diabetes conditions - uncomplicated should be 0
+        h2_row = result[result['hospitalization_id'] == 'HOSP_H2'].iloc[0]
+        assert h2_row['diabetes_complicated'] == 1
+        assert h2_row['diabetes_uncomplicated'] == 0  # Should be 0 due to hierarchy
+
+    def test_elix_hierarchy_logic_cancer(self, elix_hierarchy_test_df):
+        """Test hierarchy logic for cancer conditions."""
+        result = calculate_elix(elix_hierarchy_test_df, hierarchy=True)
+
+        # HOSP_H3 has both cancer conditions - solid tumor should be 0
+        h3_row = result[result['hospitalization_id'] == 'HOSP_H3'].iloc[0]
+        assert h3_row['metastatic_cancer'] == 1
+        assert h3_row['solid_tumor_without_metastasis'] == 0  # Should be 0 due to hierarchy
+
+    def test_elix_hierarchy_disabled(self, elix_hierarchy_test_df):
+        """Test that hierarchy logic can be disabled."""
+        result = calculate_elix(elix_hierarchy_test_df, hierarchy=False)
+
+        # With hierarchy=False, both conditions in each pair should be 1
+        h1_row = result[result['hospitalization_id'] == 'HOSP_H1'].iloc[0]
+        assert h1_row['hypertension_complicated'] == 1
+        assert h1_row['hypertension_uncomplicated'] == 1  # Should be 1 when hierarchy disabled
+
+    def test_elix_van_walraven_weights(self):
+        """Test van Walraven weights calculation."""
+        # Test with conditions having specific van Walraven weights
+        test_df = pd.DataFrame({
+            'hospitalization_id': ['HOSP_VW_TEST', 'HOSP_VW_TEST', 'HOSP_VW_TEST'],
+            'diagnosis_code': ['C78', 'I50', 'E66'],  # Metastatic(12) + CHF(7) + Obesity(-4) = 15
+            'diagnosis_code_format': ['ICD10CM', 'ICD10CM', 'ICD10CM']
+        })
+
+        result = calculate_elix(test_df)
+
+        # Expected score: Metastatic(12) + CHF(7) + Obesity(-4) = 15
+        assert result.iloc[0]['elix_score'] == 15
+        assert result.iloc[0]['metastatic_cancer'] == 1
+        assert result.iloc[0]['congestive_heart_failure'] == 1
+        assert result.iloc[0]['obesity'] == 1
+
+    def test_elix_specific_icd_codes_from_yaml(self):
+        """Test specific ICD codes from each condition category in elixhauser.yaml."""
+        test_cases = [
+            ('I099', 'congestive_heart_failure', 'Rheumatic heart failure'),
+            ('I441', 'cardiac_arrhythmias', 'Atrioventricular block'),
+            ('A520', 'valvular_disease', 'Syphilitic aortic valve disease'),
+            ('I26', 'pulmonary_circulation_disorders', 'Pulmonary embolism'),
+            ('I731', 'peripheral_vascular_disorders', 'Thromboangiitis obliterans'),
+            ('I10', 'hypertension_uncomplicated', 'Essential hypertension'),
+            ('I11', 'hypertension_complicated', 'Hypertensive heart disease'),
+            ('G041', 'paralysis', 'Acute flaccid myelitis'),
+            ('G10', 'other_neurological_disorders', 'Huntington disease'),
+            ('J40', 'chronic_pulmonary_disease', 'Bronchitis'),
+            ('E100', 'diabetes_uncomplicated', 'Type 1 diabetes mellitus'),
+            ('E102', 'diabetes_complicated', 'Type 1 diabetes with kidney complications'),
+            ('E00', 'hypothyroidism', 'Congenital iodine-deficiency syndrome'),
+            ('I120', 'renal_failure', 'Hypertensive chronic kidney disease'),
+            ('B18', 'liver_disease', 'Chronic viral hepatitis'),
+            ('K257', 'peptic_ulcer_disease_excluding_bleeding', 'Gastric ulcer'),
+            ('B20', 'aids_hiv', 'HIV disease resulting in infective parasitic diseases'),
+            ('C81', 'lymphoma', 'Hodgkin lymphoma'),
+            ('C78', 'metastatic_cancer', 'Secondary neoplasm of respiratory organs'),
+            ('C25', 'solid_tumor_without_metastasis', 'Malignant neoplasm of pancreas'),
+            ('M05', 'rheumatoid_arthritis_collagen_vascular_disease', 'Rheumatoid arthritis with rheumatoid factor'),
+            ('D65', 'coagulopathy', 'Disseminated intravascular coagulation'),
+            ('E66', 'obesity', 'Overweight and obesity'),
+            ('E40', 'weight_loss', 'Kwashiorkor'),
+            ('E86', 'fluid_and_electrolyte_disorders', 'Volume depletion'),
+            ('D500', 'blood_loss_anemia', 'Iron deficiency anemia secondary to blood loss'),
+            ('D51', 'deficiency_anemia', 'Vitamin B12 deficiency anemia'),
+            ('F10', 'alcohol_abuse', 'Mental and behavioural disorders due to use of alcohol'),
+            ('F11', 'drug_abuse', 'Mental and behavioural disorders due to use of opioids'),
+            ('F20', 'psychoses', 'Schizophrenia'),
+            ('F32', 'depression', 'Depressive episode')
+        ]
+
+        for icd_code, expected_condition, description in test_cases:
+            test_df = pd.DataFrame({
+                'hospitalization_id': ['TEST_HOSP'],
+                'diagnosis_code': [icd_code],
+                'diagnosis_code_format': ['ICD10CM']
+            })
+
+            result = calculate_elix(test_df)
+
+            assert result.iloc[0][expected_condition] == 1, \
+                f"ICD code {icd_code} ({description}) should map to {expected_condition}"
+
+    def test_elix_data_types_consistency(self, all_elix_conditions_df):
+        """Test that all columns (except hospitalization_id) are integers."""
+        result = calculate_elix(all_elix_conditions_df)
+
+        for col in result.columns:
+            if col == 'hospitalization_id':
+                continue  # Skip ID column
+
+            # All condition and score columns should be integer types
+            assert result[col].dtype in [np.int32, np.int64], \
+                f"Column {col} should be integer type, got {result[col].dtype}"
+
+            # Values should be 0 or 1 for conditions, or integer for elix_score
+            if col == 'elix_score':
+                assert all(isinstance(val, (int, np.integer)) for val in result[col]), \
+                    f"Elixhauser score should be integer"
+            else:
+                assert result[col].isin([0, 1]).all(), f"Condition {col} should be 0 or 1"
+
+    def test_elix_empty_dataframe(self):
+        """Test calculate_elix with empty DataFrame."""
+        empty_df = pd.DataFrame(columns=['hospitalization_id', 'diagnosis_code', 'diagnosis_code_format'])
+
+        result = calculate_elix(empty_df)
+
+        # Should return empty DataFrame with correct columns
+        assert len(result) == 0
+        assert 'hospitalization_id' in result.columns
+        assert 'elix_score' in result.columns
+
+    def test_elix_complex_hierarchy_scenario(self):
+        """Test complex hierarchy scenario with multiple overlapping conditions."""
+        test_df = pd.DataFrame({
+            'hospitalization_id': ['COMPLEX_HIER'] * 6,
+            'diagnosis_code': ['I10', 'I11', 'E100', 'E102', 'C50', 'C78'],
+            'diagnosis_code_format': ['ICD10CM'] * 6
+        })
+
+        result = calculate_elix(test_df, hierarchy=True)
+
+        hosp_row = result.iloc[0]
+
+        # Hypertension: only complicated should be counted
+        assert hosp_row['hypertension_complicated'] == 1
+        assert hosp_row['hypertension_uncomplicated'] == 0
+
+        # Diabetes: only complicated should be counted
+        assert hosp_row['diabetes_complicated'] == 1
+        assert hosp_row['diabetes_uncomplicated'] == 0
+
+        # Cancer: only metastatic should be counted
+        assert hosp_row['metastatic_cancer'] == 1
+        assert hosp_row['solid_tumor_without_metastasis'] == 0
+
+        # Expected score: hypertension_comp(0) + diabetes_comp(0) + metastatic(12) = 12
+        assert hosp_row['elix_score'] == 12
+
+    def test_load_elix_config(self):
+        """Test _load_elix_config function loads real config."""
+        config = _load_elix_config()
+
+        # Verify config structure
+        assert 'name' in config
+        assert 'weights' in config
+        assert 'diagnosis_code_mappings' in config
+        assert 'hierarchies' in config
+        assert 'ICD10CM' in config['diagnosis_code_mappings']
+
+        # Verify all 31 conditions are present
+        conditions = list(config['diagnosis_code_mappings']['ICD10CM'].keys())
+        assert len(conditions) == 31
+
+        # Verify weights for all conditions
+        assert len(config['weights']) == 31
+
+    def test_elix_maximum_realistic_score(self):
+        """Test maximum realistic Elixhauser score with highest-weight conditions."""
+        # Conditions with highest van Walraven weights (avoiding hierarchy conflicts)
+        max_weight_df = pd.DataFrame({
+            'hospitalization_id': ['MAX_ELIX_SCORE'] * 6,
+            'diagnosis_code': ['C78', 'B18', 'C81', 'I50', 'G81', 'G20'],  # Metastatic(12) + Liver(11) + Lymphoma(9) + CHF(7) + Paralysis(7) + Neuro(6) = 52
+            'diagnosis_code_format': ['ICD10CM'] * 6
+        })
+
+        result = calculate_elix(max_weight_df)
+
+        # Expected high score
+        assert result.iloc[0]['elix_score'] == 52
+        assert result.iloc[0]['metastatic_cancer'] == 1
+        assert result.iloc[0]['liver_disease'] == 1
+        assert result.iloc[0]['lymphoma'] == 1
+        assert result.iloc[0]['congestive_heart_failure'] == 1
+        assert result.iloc[0]['paralysis'] == 1
+        assert result.iloc[0]['other_neurological_disorders'] == 1
