@@ -4,9 +4,9 @@
 
 name: "Elixhauser Comorbidity Index"
 description: "Configuration for calculating Elixhauser Comorbidity Index scores from hospital diagnosis codes"
-version: "quan"
+version: "Quan icd10 mapping & van Walraven weights"
 source_of_index: 'https://github.com/ellessenne/comorbidity/blob/master/data-raw/make-mapping.R'
-source_of_weight: 'van Walraven weights'
+source_of_weight: 'https://github.com/ellessenne/comorbidity/blob/master/data-raw/make-weights.R#L44'
 
 # Supported diagnosis code formats
 supported_formats:
