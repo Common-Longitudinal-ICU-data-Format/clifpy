@@ -335,17 +335,20 @@ class ClifOrchestrator:
         """
         # Import the utility function
         from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
+        filters = None
+        if hospitalization_ids:
+            filters = {'hospitalization_id': hospitalization_ids}
         
         # Auto-load base tables if not loaded
         if self.patient is None:
             print("Loading patient table...")
-            self.load_table('patient')
+            self.load_table('patient')  # Patient doesn't need filters
         if self.hospitalization is None:
             print("Loading hospitalization table...")
-            self.load_table('hospitalization')
+            self.load_table('hospitalization', filters=filters)
         if self.adt is None:
             print("Loading adt table...")
-            self.load_table('adt')
+            self.load_table('adt', filters=filters)
         
         # Load optional tables only if not already loaded
         if tables_to_load:
