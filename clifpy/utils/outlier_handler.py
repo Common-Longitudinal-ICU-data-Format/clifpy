@@ -9,6 +9,7 @@ are converted to NaN.
 import os
 import yaml
 import pandas as pd
+import polars as pl
 from typing import Optional, Dict, Any, Tuple
 from pathlib import Path
 
@@ -91,23 +92,31 @@ def _load_outlier_config(config_path: Optional[str] = None) -> Optional[Dict[str
 
 
 def _get_category_statistics_pandas(df: pd.DataFrame, column_name: str, category_col: str) -> Dict[str, Dict[str, int]]:
-    """Get per-category statistics for non-null values using pandas."""
+    """Get per-category statistics for non-null values using polars for optimization."""
     try:
-        # Filter out rows where category column is null
-        valid_data = df[df[category_col].notna()]
-        
-        # Group by category and calculate statistics
+        # Convert to Polars for faster processing
+        df_pl = pl.from_pandas(df)
+
+        # Single group_by operation to get statistics for all categories
+        stats_df = (
+            df_pl
+            .filter(pl.col(category_col).is_not_null())
+            .group_by(category_col)
+            .agg([
+                pl.col(column_name).is_not_null().sum().alias('non_null_count'),
+                pl.len().alias('total_count')
+            ])
+        )
+
+        # Convert back to the expected dictionary format
         stats = {}
-        for category in valid_data[category_col].unique():
-            category_data = valid_data[valid_data[category_col] == category]
-            non_null_count = category_data[column_name].notna().sum()
-            total_count = len(category_data)
-            
+        for row in stats_df.to_dicts():
+            category = row[category_col]
             stats[category] = {
-                'non_null_count': non_null_count,
-                'total_count': total_count
+                'non_null_count': row['non_null_count'],
+                'total_count': row['total_count']
             }
-        
+
         return stats
     except Exception as e:
         print(f"Warning: Could not get category statistics: {str(e)}")
@@ -115,24 +124,36 @@ def _get_category_statistics_pandas(df: pd.DataFrame, column_name: str, category
 
 
 def _get_medication_statistics_pandas(df: pd.DataFrame) -> Dict[str, Dict[str, int]]:
-    """Get per-medication-unit statistics for non-null values using pandas."""
+    """Get per-medication-unit statistics for non-null values using polars for optimization."""
     try:
-        # Filter out rows where category or unit columns are null
-        valid_data = df[(df['med_category'].notna()) & (df['med_dose_unit'].notna())]
-        
+        # Convert to Polars for faster processing
+        df_pl = pl.from_pandas(df)
+
+        # Single group_by operation to get statistics for all medication/unit combinations
+        stats_df = (
+            df_pl
+            .filter(
+                pl.col('med_category').is_not_null() &
+                pl.col('med_dose_unit').is_not_null()
+            )
+            .group_by(['med_category', 'med_dose_unit'])
+            .agg([
+                pl.col('med_dose').is_not_null().sum().alias('non_null_count'),
+                pl.len().alias('total_count')
+            ])
+        )
+
+        # Convert back to the expected dictionary format
         stats = {}
-        for (med_category, unit) in valid_data[['med_category', 'med_dose_unit']].drop_duplicates().values:
-            mask = (valid_data['med_category'] == med_category) & (valid_data['med_dose_unit'] == unit)
-            category_data = valid_data[mask]
-            non_null_count = category_data['med_dose'].notna().sum()
-            total_count = len(category_data)
-            
+        for row in stats_df.to_dicts():
+            med_category = row['med_category']
+            unit = row['med_dose_unit']
             key = f"{med_category} ({unit})"
             stats[key] = {
-                'non_null_count': non_null_count,
-                'total_count': total_count
+                'non_null_count': row['non_null_count'],
+                'total_count': row['total_count']
             }
-        
+
         return stats
     except Exception as e:
         print(f"Warning: Could not get medication statistics: {str(e)}")
@@ -140,7 +161,7 @@ def _get_medication_statistics_pandas(df: pd.DataFrame) -> Dict[str, Dict[str, i
 
 
 def _process_category_dependent_column_pandas(table_obj, column_name: str, column_config: Dict[str, Any]) -> None:
-    """Process columns where ranges depend on category values using pandas."""
+    """Process columns where ranges depend on category values using polars for optimization."""
     # Determine the category column name and table display name
     if table_obj.table_name == 'vitals':
         category_col = 'vital_category'
@@ -153,39 +174,45 @@ def _process_category_dependent_column_pandas(table_obj, column_name: str, colum
         table_display_name = "Patient Assessments"
     else:
         return
-    
+
     # Get before statistics
     before_stats = _get_category_statistics_pandas(table_obj.df, column_name, category_col)
-    
-    # Apply outlier filtering for each category
+
+    # Convert to Polars for faster processing
+    df_pl = pl.from_pandas(table_obj.df)
+
+    # Build single expression chain for all categories
+    expr = pl.col(column_name)
     for category, range_config in column_config.items():
         if isinstance(range_config, dict) and 'min' in range_config and 'max' in range_config:
             min_val = range_config['min']
             max_val = range_config['max']
-            
-            # Create mask for this category (case-insensitive)
-            category_mask = (table_obj.df[category_col].astype(str).str.lower() == category.lower())
-            
-            # Create mask for values outside range
-            outlier_mask = (
-                (table_obj.df[column_name] < min_val) | 
-                (table_obj.df[column_name] > max_val)
+
+            # Create condition for this category and outlier values
+            condition = (
+                (pl.col(category_col).str.to_lowercase() == category.lower()) &
+                ((pl.col(column_name) < min_val) | (pl.col(column_name) > max_val))
             )
-            
-            # Combine masks and set outliers to NaN
-            combined_mask = category_mask & outlier_mask
-            table_obj.df.loc[combined_mask, column_name] = pd.NA
-    
+
+            # Chain the when-then-otherwise for outlier nullification
+            expr = pl.when(condition).then(None).otherwise(expr)
+
+    # Apply all transformations in single operation
+    df_pl = df_pl.with_columns(expr.alias(column_name))
+
+    # Convert back to pandas and update the original dataframe
+    table_obj.df = df_pl.to_pandas()
+
     # Get after statistics
     after_stats = _get_category_statistics_pandas(table_obj.df, column_name, category_col)
-    
+
     # Print detailed category statistics
     print(f"\n{table_display_name} Table - Category Statistics:")
     for category in sorted(set(before_stats.keys()) | set(after_stats.keys())):
         before_count = before_stats.get(category, {}).get('non_null_count', 0)
         after_count = after_stats.get(category, {}).get('non_null_count', 0)
         nullified = before_count - after_count
-        
+
         if before_count > 0:
             percentage = (nullified / before_count) * 100
             print(f"  {category:<20}: {before_count:>6} values → {nullified:>6} nullified ({percentage:>5.1f}%)")
@@ -194,42 +221,49 @@ def _process_category_dependent_column_pandas(table_obj, column_name: str, colum
 
 
 def _process_medication_column_pandas(table_obj, column_config: Dict[str, Any]) -> None:
-    """Process medication dose column with unit-dependent ranges using pandas."""
-    
+    """Process medication dose column with unit-dependent ranges using polars for optimization."""
+
     # Get before statistics
     before_stats = _get_medication_statistics_pandas(table_obj.df)
-    
-    # Apply outlier filtering for each medication/unit combination
+
+    # Convert to Polars for faster processing
+    df_pl = pl.from_pandas(table_obj.df)
+
+    # Build single expression chain for all medication/unit combinations
+    expr = pl.col('med_dose')
     for med_category, unit_configs in column_config.items():
         if isinstance(unit_configs, dict):
             for unit, range_config in unit_configs.items():
                 if isinstance(range_config, dict) and 'min' in range_config and 'max' in range_config:
                     min_val = range_config['min']
                     max_val = range_config['max']
-                    
-                    # Create mask for this medication category and unit (case-insensitive)
-                    med_mask = (table_obj.df['med_category'].astype(str).str.lower() == med_category.lower()) & (table_obj.df['med_dose_unit'].astype(str).str.lower() == unit.lower())
-                    
-                    # Create mask for values outside range
-                    outlier_mask = (
-                        (table_obj.df['med_dose'] < min_val) | 
-                        (table_obj.df['med_dose'] > max_val)
+
+                    # Create condition for this medication category/unit and outlier values
+                    condition = (
+                        (pl.col('med_category').str.to_lowercase() == med_category.lower()) &
+                        (pl.col('med_dose_unit').str.to_lowercase() == unit.lower()) &
+                        ((pl.col('med_dose') < min_val) | (pl.col('med_dose') > max_val))
                     )
-                    
-                    # Combine masks and set outliers to NaN
-                    combined_mask = med_mask & outlier_mask
-                    table_obj.df.loc[combined_mask, 'med_dose'] = pd.NA
-    
+
+                    # Chain the when-then-otherwise for outlier nullification
+                    expr = pl.when(condition).then(None).otherwise(expr)
+
+    # Apply all transformations in single operation
+    df_pl = df_pl.with_columns(expr.alias('med_dose'))
+
+    # Convert back to pandas and update the original dataframe
+    table_obj.df = df_pl.to_pandas()
+
     # Get after statistics
     after_stats = _get_medication_statistics_pandas(table_obj.df)
-    
+
     # Print detailed medication statistics
     print(f"\nMedication Table - Category/Unit Statistics:")
     for med_unit in sorted(set(before_stats.keys()) | set(after_stats.keys())):
         before_count = before_stats.get(med_unit, {}).get('non_null_count', 0)
         after_count = after_stats.get(med_unit, {}).get('non_null_count', 0)
         nullified = before_count - after_count
-        
+
         if before_count > 0:
             percentage = (nullified / before_count) * 100
             print(f"  {med_unit:<30}: {before_count:>6} values → {nullified:>6} nullified ({percentage:>5.1f}%)")
@@ -238,27 +272,31 @@ def _process_medication_column_pandas(table_obj, column_config: Dict[str, Any]) 
 
 
 def _process_simple_range_column_pandas(table_obj, column_name: str, column_config: Dict[str, Any]) -> None:
-    """Process columns with simple min/max ranges using pandas."""
+    """Process columns with simple min/max ranges using polars for optimization."""
     if isinstance(column_config, dict) and 'min' in column_config and 'max' in column_config:
         min_val = column_config['min']
         max_val = column_config['max']
-        
-        # Get before count
+
+        # Get before count using pandas before conversion
         before_count = table_obj.df[column_name].notna().sum()
-        
-        # Create mask for values outside range
-        outlier_mask = (
-            (table_obj.df[column_name] < min_val) | 
-            (table_obj.df[column_name] > max_val)
-        )
-        
-        # Set outliers to NaN
-        table_obj.df.loc[outlier_mask, column_name] = pd.NA
-        
+
+        # Convert to Polars for faster processing
+        df_pl = pl.from_pandas(table_obj.df)
+
+        # Apply outlier filtering in single vectorized operation
+        expr = pl.when(
+            (pl.col(column_name) < min_val) | (pl.col(column_name) > max_val)
+        ).then(None).otherwise(pl.col(column_name))
+
+        df_pl = df_pl.with_columns(expr.alias(column_name))
+
+        # Convert back to pandas and update the original dataframe
+        table_obj.df = df_pl.to_pandas()
+
         # Get after count and print statistics
         after_count = table_obj.df[column_name].notna().sum()
         nullified = before_count - after_count
-        
+
         if before_count > 0:
             percentage = (nullified / before_count) * 100
             print(f"{column_name:<30}: {before_count:>6} values → {nullified:>6} nullified ({percentage:>5.1f}%)")

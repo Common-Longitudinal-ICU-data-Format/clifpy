@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.17"
+__generated_with = "0.16.0"
 app = marimo.App(width="medium")
 
 
@@ -39,7 +39,6 @@ def _():
     FILETYPE = "parquet"  # Edit this: "csv", "parquet", etc.
     TIMEZONE = "US/Eastern"  # Edit this: "UTC", "US/Eastern", "US/Pacific", etc.
     SAMPLE_SIZE = 1000000  # Edit this: None for all data, or integer for sample
-
     return DATA_DIR, FILETYPE, TIMEZONE
 
 
@@ -59,8 +58,25 @@ def _(DATA_DIR, FILETYPE, TIMEZONE):
     print(f"- {len(vitals_table.df)} vital sign measurements")
     print(f"- {vitals_table.df['hospitalization_id'].nunique()} unique hospitalizations")
     print(f"- {vitals_table.df['vital_category'].nunique()} different vital signs")
-
     return (vitals_table,)
+
+
+@app.cell
+def _(DATA_DIR, FILETYPE, TIMEZONE):
+    from clifpy import Labs
+
+    # Load vitals data using from_file method
+    Labs_table = Labs.from_file(
+        data_directory=DATA_DIR,
+        filetype=FILETYPE,
+        timezone=TIMEZONE
+    )
+
+    print(f"Loaded Labs data:")
+    print(f"- {len(Labs.df)} Labs sign measurements")
+    print(f"- {Labs.df['hospitalization_id'].nunique()} unique hospitalizations")
+    print(f"- {Labs.df['Labs_category'].nunique()} different Labs signs")
+    return
 
 
 @app.cell
