@@ -20,6 +20,7 @@ from .tables.patient_assessments import PatientAssessments
 from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
 from .utils.config import get_config_or_params
+from .utils.stitching_encounters import stitch_encounters
 
 
 TABLE_CLASSES = {
@@ -43,10 +44,14 @@ class ClifOrchestrator:
     and validating multiple CLIF tables with consistent configuration.
     
     Attributes:
+        config_path (str, optional): Path to configuration JSON file
         data_directory (str): Path to the directory containing data files
         filetype (str): Type of data file (csv, parquet, etc.)
         timezone (str): Timezone for datetime columns
         output_directory (str): Directory for saving output files and logs
+        stitch_encounter (bool): Whether to stitch encounters within time interval
+        stitch_time_interval (int): Hours between discharge and next admission to consider encounters linked
+        encounter_mapping (pd.DataFrame): Mapping of hospitalization_id to encounter_block (after stitching)
         patient (Patient): Patient table object
         hospitalization (Hospitalization): Hospitalization table object
         adt (Adt): ADT table object
@@ -64,7 +69,9 @@ class ClifOrchestrator:
         data_directory: Optional[str] = None,
         filetype: Optional[str] = None,
         timezone: Optional[str] = None,
-        output_directory: Optional[str] = None
+        output_directory: Optional[str] = None,
+        stitch_encounter: bool = False,
+        stitch_time_interval: int = 6
     ):
         """
         Initialize the ClifOrchestrator.
@@ -76,11 +83,14 @@ class ClifOrchestrator:
             timezone (str, optional): Timezone for datetime columns
             output_directory (str, optional): Directory for saving output files and logs.
                 If not provided, creates an 'output' directory in the current working directory.
+            stitch_encounter (bool, optional): Whether to stitch encounters within time interval. Default False.
+            stitch_time_interval (int, optional): Hours between discharge and next admission to consider 
+                encounters linked. Default 6 hours.
                 
         Loading priority:
             1. If all required params provided → use them
             2. If config_path provided → load from that path, allow param overrides
-            3. If no params and no config_path → auto-detect clif_config.json
+            3. If no params and no config_path → auto-detect config.json
             4. Parameters override config file values when both are provided
         """
         # Get configuration from config file or parameters
@@ -102,6 +112,11 @@ class ClifOrchestrator:
             self.output_directory = os.path.join(os.getcwd(), 'output')
         os.makedirs(self.output_directory, exist_ok=True)
         
+        # Set stitching parameters
+        self.stitch_encounter = stitch_encounter
+        self.stitch_time_interval = stitch_time_interval
+        self.encounter_mapping = None
+        
         # Initialize all table attributes to None
         self.patient = None
         self.hospitalization = None
@@ -116,7 +131,7 @@ class ClifOrchestrator:
         print('ClifOrchestrator initialized.')
     
     @classmethod
-    def from_config(cls, config_path: str = "./clif_config.json"):
+    def from_config(cls, config_path: str = "./config.json"):
         """
         Create a ClifOrchestrator instance from a configuration file.
         
@@ -191,6 +206,29 @@ class ClifOrchestrator:
                 self.load_table(table, sample_size, table_columns, table_filters)
             except ValueError as e:
                 print(f"Warning: {e}")
+        
+        # Perform encounter stitching if enabled
+        if self.stitch_encounter:
+            if self.hospitalization is None or self.adt is None:
+                print("Warning: Encounter stitching requires both hospitalization and ADT tables to be loaded. Skipping stitching.")
+            else:
+                print(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours...")
+                try:
+                    hospitalization_stitched, adt_stitched, encounter_mapping = stitch_encounters(
+                        self.hospitalization.df,
+                        self.adt.df,
+                        time_interval=self.stitch_time_interval
+                    )
+                    
+                    # Update the dataframes in place
+                    self.hospitalization.df = hospitalization_stitched
+                    self.adt.df = adt_stitched
+                    self.encounter_mapping = encounter_mapping
+                    
+                    print("Encounter stitching completed successfully.")
+                except Exception as e:
+                    print(f"Error during encounter stitching: {e}")
+                    self.encounter_mapping = None
     
     def get_loaded_tables(self) -> List[str]:
         """
@@ -222,6 +260,16 @@ class ClifOrchestrator:
             if table_obj is not None:
                 table_objects.append(table_obj)
         return table_objects
+    
+    def get_encounter_mapping(self) -> Optional[pd.DataFrame]:
+        """
+        Return the encounter mapping DataFrame if encounter stitching was performed.
+        
+        Returns:
+            pd.DataFrame: Mapping of hospitalization_id to encounter_block if stitching was performed.
+            None: If stitching was not performed or failed.
+        """
+        return self.encounter_mapping
     
     def validate_all(self):
         """
