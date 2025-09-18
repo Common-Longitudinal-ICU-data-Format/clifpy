@@ -108,7 +108,10 @@ def stitch_encounters(
     )
 
     # Step 3: Create linked column based on time_interval
-    hospital_block["linked6hrs"] = hospital_block["discharge_to_next_admission_hrs"] < time_interval
+    eps = 1e-6  # tiny tolerance for float rounding
+    hospital_block["linked_hrs"] = (
+        hospital_block["discharge_to_next_admission_hrs"].le(time_interval + eps).fillna(False)
+    )
 
     # Sort values to ensure correct order
     hospital_block = hospital_block.sort_values(by=["patient_id", "admission_dttm"]).reset_index(drop=True)
@@ -118,11 +121,12 @@ def stitch_encounters(
 
     # Iteratively propagate the encounter_block values
     while True:
-        shifted = hospital_block['encounter_block'].shift(-1)
-        mask = hospital_block['linked6hrs'] & (hospital_block['patient_id'] == hospital_block['patient_id'].shift(-1))
-        hospital_block.loc[mask, 'encounter_block'] = shifted[mask]
-        if hospital_block['encounter_block'].equals(hospital_block['encounter_block'].bfill()):
-            break
+      shifted = hospital_block['encounter_block'].shift(-1)
+      mask = hospital_block['linked_hrs'] & (hospital_block['patient_id'] == hospital_block['patient_id'].shift(-1))
+      old_values = hospital_block['encounter_block'].copy()
+      hospital_block.loc[mask, 'encounter_block'] = shifted[mask]
+      if hospital_block['encounter_block'].equals(old_values):
+          break
 
     hospital_block['encounter_block'] = hospital_block['encounter_block'].bfill().astype('int32')
     hospital_block = pd.merge(hospital_block,hospital_cat,how="left",on="hospitalization_id")
