@@ -310,28 +310,60 @@ class ClifOrchestrator:
         """
         Create wide time-series dataset using DuckDB for high performance.
         
-        Parameters:
-            tables_to_load: List of tables to include (e.g., ['vitals', 'labs'])
-            category_filters: Dict of categories to pivot for each table
-                Example: {
-                    'vitals': ['heart_rate', 'sbp', 'spo2'],
-                    'labs': ['hemoglobin', 'sodium'],
-                    'respiratory_support': ['device_category']
-                }
-            sample: If True, use 20 random hospitalizations
-            hospitalization_ids: Specific hospitalization IDs to include
-            cohort_df: DataFrame with time windows for filtering
-            output_format: 'dataframe', 'csv', or 'parquet'
-            save_to_data_location: Save output to data directory
-            output_filename: Custom filename for output
-            return_dataframe: Return DataFrame even when saving
-            batch_size: Number of hospitalizations per batch
-            memory_limit: DuckDB memory limit (e.g., '8GB')
-            threads: Number of threads for DuckDB
-            show_progress: Show progress bars
+        Parameters
+        ----------
+        tables_to_load : List[str], optional
+            List of table names to include in the wide dataset (e.g., ['vitals', 'labs', 'respiratory_support']).
+            If None, only base tables (patient, hospitalization, adt) are loaded.
+        category_filters : Dict[str, List[str]], optional
+            Dictionary mapping table names to lists of categories to pivot into columns.
+            Example: {
+                'vitals': ['heart_rate', 'sbp', 'spo2'],
+                'labs': ['hemoglobin', 'sodium'],
+                'respiratory_support': ['device_category']
+            }
+        sample : bool, default=False
+            If True, randomly sample 20 hospitalizations for testing purposes.
+        hospitalization_ids : List[str], optional
+            List of specific hospitalization IDs to include. When provided, only data for these
+            hospitalizations will be loaded, improving performance for large datasets.
+        cohort_df : pd.DataFrame, optional
+            DataFrame containing cohort definitions with columns:
+            - 'patient_id': Patient identifier
+            - 'start_time': Start of time window (datetime)
+            - 'end_time': End of time window (datetime)
+            Used to filter data to specific time windows per patient.
+        output_format : str, default='dataframe'
+            Format for output data. Options: 'dataframe', 'csv', 'parquet'.
+        save_to_data_location : bool, default=False
+            If True, save output file to the data directory specified in orchestrator config.
+        output_filename : str, optional
+            Custom filename for saved output. If None, auto-generates filename with timestamp.
+        return_dataframe : bool, default=True
+            If True, return DataFrame even when saving to file. If False and saving,
+            returns None to save memory.
+        batch_size : int, default=1000
+            Number of hospitalizations to process per batch. Lower values use less memory.
+        memory_limit : str, optional
+            DuckDB memory limit (e.g., '8GB', '16GB'). If None, uses DuckDB default.
+        threads : int, optional
+            Number of threads for DuckDB to use. If None, uses all available cores.
+        show_progress : bool, default=True
+            If True, display progress bars during processing.
             
-        Returns:
-            Wide dataset as DataFrame or None
+        Returns
+        -------
+        pd.DataFrame or None
+            Wide dataset with time-series data pivoted by categories. Returns None if
+            return_dataframe=False and saving to file.
+            
+        Notes
+        -----
+        - When hospitalization_ids is provided, the function efficiently loads only the
+          specified hospitalizations from all tables, significantly reducing memory usage
+          and processing time for targeted analyses.
+        - The wide dataset will have one row per hospitalization per time point, with
+          columns for each category value specified in category_filters.
         """
         # Import the utility function
         from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
