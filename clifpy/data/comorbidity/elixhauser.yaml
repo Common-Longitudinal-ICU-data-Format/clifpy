@@ -1,0 +1,204 @@
+# Elixhauser Comorbidity Index Configuration
+# Based on Quan et al. adaptation for ICD-10-CM
+# Version 2 with mapping from Quan and weights from van Walraven
+
+name: "Elixhauser Comorbidity Index"
+description: "Configuration for calculating Elixhauser Comorbidity Index scores from hospital diagnosis codes"
+version: "Quan icd10 mapping & van Walraven weights"
+source_of_index: 'https://github.com/ellessenne/comorbidity/blob/master/data-raw/make-mapping.R'
+source_of_weight: 'https://github.com/ellessenne/comorbidity/blob/master/data-raw/make-weights.R#L44'
+
+# Supported diagnosis code formats
+supported_formats:
+  - ICD10CM
+
+# ICD-10-CM condition mappings for Elixhauser Comorbidity Index
+# Using prefix matching - e.g., "I099" matches "I099.0", "I099.1", etc.
+diagnosis_code_mappings:
+  ICD10CM:
+    congestive_heart_failure:
+      codes: ["I099", "I110", "I130", "I132", "I255", "I420", "I425", "I426", "I427", "I428", "I429", "I43", "I50", "P290"]
+      description: "Congestive heart failure"
+
+    cardiac_arrhythmias:
+      codes: ["I441", "I442", "I443", "I456", "I459", "I47", "I48", "I49", "R000", "R001", "R008", "T821", "Z450", "Z950"]
+      description: "Cardiac arrhythmias"
+
+    valvular_disease:
+      codes: ["A520", "I05", "I06", "I07", "I08", "I091", "I098", "I34", "I35", "I36", "I37", "I38", "I39", "Q230", "Q231", "Q232", "Q233", "Z952", "Z953", "Z954"]
+      description: "Valvular disease"
+
+    pulmonary_circulation_disorders:
+      codes: ["I26", "I27", "I280", "I288", "I289"]
+      description: "Pulmonary circulation disorders"
+
+    peripheral_vascular_disorders:
+      codes: ["I70", "I71", "I731", "I738", "I739", "I771", "I790", "I792", "K551", "K558", "K559", "Z958", "Z959"]
+      description: "Peripheral vascular disorders"
+
+    hypertension_uncomplicated:
+      codes: ["I10"]
+      description: "Hypertension, uncomplicated"
+
+    hypertension_complicated:
+      codes: ["I11", "I12", "I13", "I15"]
+      description: "Hypertension, complicated"
+
+    paralysis:
+      codes: ["G041", "G114", "G801", "G802", "G81", "G82", "G830", "G831", "G832", "G833", "G834", "G839"]
+      description: "Paralysis"
+
+    other_neurological_disorders:
+      codes: ["G10", "G11", "G12", "G13", "G20", "G21", "G22", "G254", "G255", "G312", "G318", "G319", "G32", "G35", "G36", "G37", "G40", "G41", "G931", "G934", "R470", "R56"]
+      description: "Other neurological disorders"
+
+    chronic_pulmonary_disease:
+      codes: ["I278", "I279", "J40", "J41", "J42", "J43", "J44", "J45", "J46", "J47", "J60", "J61", "J62", "J63", "J64", "J65", "J66", "J67", "J684", "J701", "J703"]
+      description: "Chronic pulmonary disease"
+
+    diabetes_uncomplicated:
+      codes: ["E100", "E101", "E109", "E110", "E111", "E119", "E120", "E121", "E129", "E130", "E131", "E139", "E140", "E141", "E149"]
+      description: "Diabetes, uncomplicated"
+
+    diabetes_complicated:
+      codes: ["E102", "E103", "E104", "E105", "E106", "E107", "E108", "E112", "E113", "E114", "E115", "E116", "E117", "E118", "E122", "E123", "E124", "E125", "E126", "E127", "E128", "E132", "E133", "E134", "E135", "E136", "E137", "E138", "E142", "E143", "E144", "E145", "E146", "E147", "E148"]
+      description: "Diabetes, complicated"
+
+    hypothyroidism:
+      codes: ["E00", "E01", "E02", "E03", "E890"]
+      description: "Hypothyroidism"
+
+    renal_failure:
+      codes: ["I120", "I131", "N18", "N19", "N250", "Z490", "Z491", "Z492", "Z940", "Z992"]
+      description: "Renal failure"
+
+    liver_disease:
+      codes: ["B18", "I85", "I864", "I982", "K70", "K711", "K713", "K714", "K715", "K717", "K72", "K73", "K74", "K760", "K762", "K763", "K764", "K765", "K766", "K767", "K768", "K769", "Z944"]
+      description: "Liver disease"
+
+    peptic_ulcer_disease_excluding_bleeding:
+      codes: ["K257", "K259", "K267", "K269", "K277", "K279", "K287", "K289"]
+      description: "Peptic ulcer disease, excluding bleeding"
+
+    aids_hiv:
+      codes: ["B20", "B21", "B22", "B24"]
+      description: "AIDS/HIV"
+
+    lymphoma:
+      codes: ["C81", "C82", "C83", "C84", "C85", "C88", "C96", "C900", "C902"]
+      description: "Lymphoma"
+
+    metastatic_cancer:
+      codes: ["C77", "C78", "C79", "C80"]
+      description: "Metastatic cancer"
+
+    solid_tumor_without_metastasis:
+      codes: ["C00", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26", "C30", "C31", "C32", "C33", "C34", "C37", "C38", "C39", "C40", "C41", "C43", "C45", "C46", "C47", "C48", "C49", "C50", "C51", "C52", "C53", "C54", "C55", "C56", "C57", "C58", "C60", "C61", "C62", "C63", "C64", "C65", "C66", "C67", "C68", "C69", "C70", "C71", "C72", "C73", "C74", "C75", "C76", "C97"]
+      description: "Solid tumor, without metastasis"
+
+    rheumatoid_arthritis_collagen_vascular_disease:
+      codes: ["L940", "L941", "L943", "M05", "M06", "M08", "M120", "M123", "M30", "M310", "M311", "M312", "M313", "M32", "M33", "M34", "M35", "M45", "M461", "M468", "M469"]
+      description: "Rheumatoid arthritis/collagen vascular disease"
+
+    coagulopathy:
+      codes: ["D65", "D66", "D67", "D68", "D691", "D693", "D694", "D695", "D696"]
+      description: "Coagulopathy"
+
+    obesity:
+      codes: ["E66"]
+      description: "Obesity"
+
+    weight_loss:
+      codes: ["E40", "E41", "E42", "E43", "E44", "E45", "E46", "R634", "R64"]
+      description: "Weight loss"
+
+    fluid_and_electrolyte_disorders:
+      codes: ["E222", "E86", "E87"]
+      description: "Fluid and electrolyte disorders"
+
+    blood_loss_anemia:
+      codes: ["D500"]
+      description: "Blood loss anemia"
+
+    deficiency_anemia:
+      codes: ["D508", "D509", "D51", "D52", "D53"]
+      description: "Deficiency anemia"
+
+    alcohol_abuse:
+      codes: ["F10", "E52", "G621", "I426", "K292", "K700", "K703", "K709", "T51", "Z502", "Z714", "Z721"]
+      description: "Alcohol abuse"
+
+    drug_abuse:
+      codes: ["F11", "F12", "F13", "F14", "F15", "F16", "F18", "F19", "Z715", "Z722"]
+      description: "Drug abuse"
+
+    psychoses:
+      codes: ["F20", "F22", "F23", "F24", "F25", "F28", "F29", "F302", "F312", "F315"]
+      description: "Psychoses"
+
+    depression:
+      codes: ["F204", "F313", "F314", "F315", "F32", "F33", "F341", "F412", "F432"]
+      description: "Depression"
+
+# Elixhauser van Walraven weights
+weights:
+  congestive_heart_failure: 7
+  cardiac_arrhythmias: 5
+  valvular_disease: -1
+  pulmonary_circulation_disorders: 4
+  peripheral_vascular_disorders: 2
+  hypertension_uncomplicated: 0
+  hypertension_complicated: 0
+  paralysis: 7
+  other_neurological_disorders: 6
+  chronic_pulmonary_disease: 3
+  diabetes_uncomplicated: 0
+  diabetes_complicated: 0
+  hypothyroidism: 0
+  renal_failure: 5
+  liver_disease: 11
+  peptic_ulcer_disease_excluding_bleeding: 0
+  aids_hiv: 0
+  lymphoma: 9
+  metastatic_cancer: 12
+  solid_tumor_without_metastasis: 4
+  rheumatoid_arthritis_collagen_vascular_disease: 0
+  coagulopathy: 3
+  obesity: -4
+  weight_loss: 6
+  fluid_and_electrolyte_disorders: 5
+  blood_loss_anemia: -2
+  deficiency_anemia: -2
+  alcohol_abuse: 0
+  drug_abuse: -7
+  psychoses: 0
+  depression: -3
+
+# Condition hierarchies - higher priority conditions override lower ones
+# Used when assign0 = TRUE to avoid double counting
+hierarchies:
+  hypertension:
+    - hypertension_complicated     # Takes precedence (weight: 0)
+    - hypertension_uncomplicated   # Assigned 0 if complicated present
+
+  diabetes:
+    - diabetes_complicated         # Takes precedence (weight: 0)
+    - diabetes_uncomplicated       # Assigned 0 if complicated present
+
+  tumor:
+    - metastatic_cancer           # Takes precedence (weight: 12)
+    - solid_tumor_without_metastasis  # Assigned 0 if metastatic present
+
+# assign0 configuration
+# Based on Quan et al. (2011) methodology
+assign0:
+  description: |
+    When true, applies a hierarchy of comorbidities: if a comorbidity is present
+    with different degrees of severity, the milder form will be assigned a value
+    of 0 when calculating the score. This ensures a type of comorbidity is not
+    counted more than once in each patient.
+  default: true
+  affected_conditions:
+    - description: "Hypertension, uncomplicated (weight: 0) superseded by Hypertension, complicated (weight: 0)"
+    - description: "Diabetes, uncomplicated (weight: 0) superseded by Diabetes, complicated (weight: 0)"
+    - description: "Solid tumor, without metastasis (weight: 4) superseded by Metastatic cancer (weight: 12)"

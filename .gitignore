@@ -35,3 +35,12 @@ site/
 .serena/
 .pytest_cache
 env.txt
+
+#AI dev files
+marimo.md
+claude.md
+gemini.md
+codex.md
+cline.md
+rules.md
+kilo.md
