@@ -245,6 +245,7 @@ class BaseTable:
         Run comprehensive validation on the data.
         
         This method runs all validation checks including:
+        
         - Schema validation (required columns, data types, categories)
         - Missing data analysis
         - Duplicate checking
