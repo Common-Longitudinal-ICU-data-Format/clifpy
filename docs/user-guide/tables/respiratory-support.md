@@ -214,4 +214,4 @@ See the [Respiratory Support Waterfall](../waterfall.md) guide for detailed info
 
 ## API Reference
 
-For detailed API documentation, see [RespiratorySupport API](../../api/tables.md#respiratorysupport)
+For detailed API documentation, see [RespiratorySupport API](../../api/tables.md#clifpy.tables.respiratory_support.RespiratorySupport)

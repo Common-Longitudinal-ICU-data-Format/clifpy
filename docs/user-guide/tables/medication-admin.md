@@ -220,4 +220,4 @@ for patient_id in vasopressor_patients[:10]:  # Check first 10 patients
 
 ## API Reference
 
-For detailed API documentation, see [MedicationAdminContinuous API](../../api/tables.md#medicationadmincontinuous)
+For detailed API documentation, see [MedicationAdminContinuous API](../../api/tables.md#clifpy.tables.medication_admin_continuous.MedicationAdminContinuous)

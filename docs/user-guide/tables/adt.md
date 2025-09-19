@@ -103,4 +103,4 @@ if overlaps:
 
 ## API Reference
 
-For detailed API documentation, see [Adt API](../../api/tables.md#adt)
+For detailed API documentation, see [Adt API](../../api/tables.md#clifpy.tables.adt.Adt)

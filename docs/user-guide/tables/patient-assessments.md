@@ -285,4 +285,4 @@ for assess_name, (min_val, max_val) in range_checks.items():
 
 ## API Reference
 
-For detailed API documentation, see [PatientAssessments API](../../api/tables.md#patientassessments)
+For detailed API documentation, see [PatientAssessments API](../../api/tables.md#clifpy.tables.patient_assessments.PatientAssessments)
