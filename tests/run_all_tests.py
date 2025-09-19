@@ -14,9 +14,11 @@ def run_tests(category=None):
     """
     Run tests based on the specified category.
     
-    Args:
-        category (str, optional): Test category to run. Options: 'tables', 'utils', 'all'.
-            If None, runs all tests.
+    Parameters
+    ----------
+    category : str, optional
+        Test category to run. Options: 'tables', 'utils', 'all'.
+        If None, runs all tests.
     """
     if category == 'tables':
         test_path = os.path.join(os.path.dirname(__file__), 'tables')
