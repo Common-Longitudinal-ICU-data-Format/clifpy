@@ -47,7 +47,7 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
     Load data from a file in the specified directory with the option to select specific columns and apply filters.
 
     Parameters:
-        table (str): The name of the table to load.
+        table_name (str): The name of the table to load.
         sample_size (int, optional): Number of rows to load.
         columns (list of str, optional): List of column names to load.
         filters (dict, optional): Dictionary of filters to apply.
