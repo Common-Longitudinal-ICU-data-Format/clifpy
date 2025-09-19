@@ -291,13 +291,19 @@ def check_required_columns(
     """
     Validate that required columns are present in the dataframe.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        column_names (List[str]): List of required column names
-        table_name (str): Name of the table being validated
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    column_names : List[str]
+        List of required column names
+    table_name : str
+        Name of the table being validated
         
-    Returns:
-        dict: Dictionary with validation results including missing columns
+    Returns
+    -------
+    dict
+        Dictionary with validation results including missing columns
     """
     try:
         missing_columns = [col for col in column_names if col not in df.columns]
@@ -329,12 +335,17 @@ def verify_column_dtypes(df: pd.DataFrame, schema: Dict[str, Any]) -> List[Dict[
     """
     Ensure columns have correct data types per schema.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        schema (dict): Schema containing column definitions
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    schema : dict
+        Schema containing column definitions
         
-    Returns:
-        List[dict]: List of datatype mismatch errors
+    Returns
+    -------
+    List[dict]
+        List of datatype mismatch errors
     """
     errors = []
     
@@ -392,12 +403,17 @@ def validate_datetime_timezone(
     """
     Validate that all datetime columns are in UTC format.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        datetime_columns (List[str]): List of datetime column names
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    datetime_columns : List[str]
+        List of datetime column names
         
-    Returns:
-        List[dict]: List of timezone validation results
+    Returns
+    -------
+    List[dict]
+        List of timezone validation results
     """
     results = []
     
@@ -445,12 +461,17 @@ def calculate_missing_stats(
     """
     Report count and percentage of missing values.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to analyze
-        format (str): Output format ('long' or 'wide')
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to analyze
+    format : str
+        Output format ('long' or 'wide')
         
-    Returns:
-        pd.DataFrame: Missing data statistics
+    Returns
+    -------
+    pd.DataFrame
+        Missing data statistics
     """
     try:
         missing_count = df.isnull().sum()
@@ -482,11 +503,15 @@ def report_missing_data_summary(df: pd.DataFrame) -> Dict[str, Any]:
     """
     Generate comprehensive missing data report.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to analyze
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to analyze
         
-    Returns:
-        dict: Comprehensive missing data summary
+    Returns
+    -------
+    dict
+        Comprehensive missing data summary
     """
     try:
         total_cells = df.shape[0] * df.shape[1]
@@ -533,12 +558,17 @@ def validate_categorical_values(
     """
     Check values against permitted categories.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        schema (dict): Schema containing category definitions
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    schema : dict
+        Schema containing category definitions
         
-    Returns:
-        List[dict]: List of invalid category value errors
+    Returns
+    -------
+    List[dict]
+        List of invalid category value errors
     """
     errors = []
     
@@ -584,12 +614,17 @@ def check_for_duplicates(
     """
     Validate uniqueness constraints on composite keys.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        composite_keys (List[str]): List of columns forming the composite key
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    composite_keys : List[str]
+        List of columns forming the composite key
         
-    Returns:
-        dict: Duplicate checking results
+    Returns
+    -------
+    dict
+        Duplicate checking results
     """
     try:
         # Filter to only keys that exist in the dataframe
@@ -648,14 +683,21 @@ def generate_summary_statistics(
     """
     Calculate Q1, Q3, median for numeric columns.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to analyze
-        numeric_columns (List[str]): List of numeric column names
-        output_path (str, optional): Path to save the statistics CSV
-        table_name (str, optional): Table name for file naming
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to analyze
+    numeric_columns : List[str]
+        List of numeric column names
+    output_path : str, optional
+        Path to save the statistics CSV
+    table_name : str, optional
+        Table name for file naming
         
-    Returns:
-        pd.DataFrame: Summary statistics
+    Returns
+    -------
+    pd.DataFrame
+        Summary statistics
     """
     try:
         # Filter to existing numeric columns
@@ -690,13 +732,19 @@ def analyze_skewed_distributions(
     """
     Identify and report skewed variables.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to analyze
-        output_path (str, optional): Path to save the analysis CSV
-        table_name (str, optional): Table name for file naming
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to analyze
+    output_path : str, optional
+        Path to save the analysis CSV
+    table_name : str, optional
+        Table name for file naming
         
-    Returns:
-        pd.DataFrame: Skewness analysis results
+    Returns
+    -------
+    pd.DataFrame
+        Skewness analysis results
     """
     try:
         numeric_df = df.select_dtypes(include=['number'])
@@ -744,13 +792,19 @@ def validate_units(
     """
     Verify units match schema (critical for labs and vitals).
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        unit_mappings (dict): Expected units for each category
-        table_name (str): Name of the table being validated
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    unit_mappings : dict
+        Expected units for each category
+    table_name : str
+        Name of the table being validated
         
-    Returns:
-        List[dict]: List of unit validation results
+    Returns
+    -------
+    List[dict]
+        List of unit validation results
     """
     results = []
     
@@ -808,12 +862,17 @@ def calculate_cohort_sizes(
     """
     Calculate distinct counts of ID columns.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to analyze
-        id_columns (List[str]): List of ID column names
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to analyze
+    id_columns : List[str]
+        List of ID column names
         
-    Returns:
-        dict: Distinct counts for each ID column
+    Returns
+    -------
+    dict
+        Distinct counts for each ID column
     """
     try:
         cohort_sizes = {}
@@ -839,12 +898,17 @@ def get_distinct_counts(
     """
     General distinct count function.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to analyze
-        columns (List[str]): List of column names
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to analyze
+    columns : List[str]
+        List of column names
         
-    Returns:
-        dict: Distinct counts for each column
+    Returns
+    -------
+    dict
+        Distinct counts for each column
     """
     try:
         distinct_counts = {}
@@ -876,13 +940,19 @@ def validate_numeric_ranges(
     """
     Validate that numeric values fall within expected ranges.
     
-    Parameters:
-        df (pd.DataFrame): The dataframe to validate
-        ranges (dict): Dictionary mapping column/category names to min/max ranges
-        table_name (str): Name of the table being validated
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to validate
+    ranges : dict
+        Dictionary mapping column/category names to min/max ranges
+    table_name : str
+        Name of the table being validated
         
-    Returns:
-        List[dict]: List of range validation results
+    Returns
+    -------
+    List[dict]
+        List of range validation results
     """
     results = []
     
