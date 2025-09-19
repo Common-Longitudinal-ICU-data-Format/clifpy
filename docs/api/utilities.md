@@ -13,7 +13,6 @@ This section documents the utility functions available in CLIFpy for data proces
 ## Data I/O Utilities
 
 ::: clifpy.utils.io.load_data
-::: clifpy.utils.io.create_clif_sample
 
 ## Configuration Management
 
