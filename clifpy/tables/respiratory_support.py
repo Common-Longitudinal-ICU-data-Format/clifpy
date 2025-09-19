@@ -23,12 +23,18 @@ class RespiratorySupport(BaseTable):
         """
         Initialize the respiratory_support table.
         
-        Parameters:
-            data_directory (str): Path to the directory containing data files
-            filetype (str): Type of data file (csv, parquet, etc.)
-            timezone (str): Timezone for datetime columns
-            output_directory (str, optional): Directory for saving output files and logs
-            data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
+        Parameters
+        ----------
+        data_directory : str
+            Path to the directory containing data files
+        filetype : str
+            Type of data file (csv, parquet, etc.)
+        timezone : str
+            Timezone for datetime columns
+        output_directory : str, optional
+            Directory for saving output files and logs
+        data : pd.DataFrame, optional
+            Pre-loaded data to use instead of loading from file
         """
         
         super().__init__(
@@ -50,19 +56,27 @@ class RespiratorySupport(BaseTable):
         """
         Clean + waterfall-fill the respiratory_support table.
 
-        Parameters:
-            id_col (str): Encounter-level identifier column (default: hospitalization_id)
-            bfill (bool): If True, numeric setters are back-filled after forward-fill
-            verbose (bool): Print progress messages
-            return_dataframe (bool): If True, returns DataFrame instead of RespiratorySupport instance
+        Parameters
+        ----------
+        id_col : str
+            Encounter-level identifier column (default: hospitalization_id)
+        bfill : bool
+            If True, numeric setters are back-filled after forward-fill
+        verbose : bool
+            Print progress messages
+        return_dataframe : bool
+            If True, returns DataFrame instead of RespiratorySupport instance
 
-        Returns:
-            RespiratorySupport: New instance with processed data (or DataFrame if return_dataframe=True)
+        Returns
+        -------
+        RespiratorySupport
+            New instance with processed data (or DataFrame if return_dataframe=True)
 
-        Note:
-            The waterfall function expects data in UTC timezone. If your data is in a
-            different timezone, it will be converted to UTC for processing, then converted
-            back to the original timezone on return. The original object is not modified.
+        Notes
+        -----
+        The waterfall function expects data in UTC timezone. If your data is in a
+        different timezone, it will be converted to UTC for processing, then converted
+        back to the original timezone on return. The original object is not modified.
         """
         if self.df is None or self.df.empty:
             raise ValueError("No data available to process. Load data first.")
