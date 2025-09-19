@@ -15,17 +15,25 @@ def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Load CLIF configuration from JSON file.
     
-    Parameters:
-        config_path (str, optional): Path to the configuration file.
-            If None, looks for 'clif_config.json' in current directory.
+    Parameters
+    ----------
+    config_path : str, optional
+        Path to the configuration file.
+        If None, looks for 'clif_config.json' in current directory.
     
-    Returns:
-        dict: Configuration dictionary with required fields validated
+    Returns
+    -------
+    dict
+        Configuration dictionary with required fields validated
         
-    Raises:
-        FileNotFoundError: If config file doesn't exist
-        ValueError: If required fields are missing or invalid
-        json.JSONDecodeError: If config file is not valid JSON
+    Raises
+    ------
+    FileNotFoundError
+        If config file doesn't exist
+    ValueError
+        If required fields are missing or invalid
+    json.JSONDecodeError
+        If config file is not valid JSON
     """
     # Determine config file path
     if config_path is None:
@@ -97,18 +105,28 @@ def get_config_or_params(
     3. If no params and no config_path → auto-detect clif_config.json
     4. Parameters override config file values when both are provided
     
-    Parameters:
-        config_path (str, optional): Path to configuration file
-        data_directory (str, optional): Direct parameter
-        filetype (str, optional): Direct parameter  
-        timezone (str, optional): Direct parameter
-        output_directory (str, optional): Direct parameter
+    Parameters
+    ----------
+    config_path : str, optional
+        Path to configuration file
+    data_directory : str, optional
+        Direct parameter
+    filetype : str, optional
+        Direct parameter  
+    timezone : str, optional
+        Direct parameter
+    output_directory : str, optional
+        Direct parameter
         
-    Returns:
-        dict: Final configuration dictionary
+    Returns
+    -------
+    dict
+        Final configuration dictionary
         
-    Raises:
-        ValueError: If neither config nor required params are provided
+    Raises
+    ------
+    ValueError
+        If neither config nor required params are provided
     """
     # Check if all required params are provided directly
     required_params = [data_directory, filetype, timezone]
@@ -179,12 +197,18 @@ def create_example_config(
     """
     Create an example configuration file.
     
-    Parameters:
-        data_directory (str): Path to data directory
-        filetype (str): File type (csv or parquet)
-        timezone (str): Timezone string
-        output_directory (str): Output directory path
-        config_path (str): Where to save the config file
+    Parameters
+    ----------
+    data_directory : str
+        Path to data directory
+    filetype : str
+        File type (csv or parquet)
+    timezone : str
+        Timezone string
+    output_directory : str
+        Output directory path
+    config_path : str
+        Where to save the config file
     """
     config = {
         "data_directory": data_directory,
