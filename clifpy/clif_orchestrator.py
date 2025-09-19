@@ -131,7 +131,7 @@ class ClifOrchestrator:
         print('ClifOrchestrator initialized.')
     
     @classmethod
-    def from_config(cls, config_path: str = "./config.json"):
+    def from_config(cls, config_path: str = "./config.json") -> 'ClifOrchestrator':
         """
         Create a ClifOrchestrator instance from a configuration file.
         
