@@ -16,6 +16,7 @@ from .tables.adt import Adt
 from .tables.labs import Labs
 from .tables.vitals import Vitals
 from .tables.medication_admin_continuous import MedicationAdminContinuous
+from .tables.medication_admin_intermittent import MedicationAdminIntermittent
 from .tables.patient_assessments import PatientAssessments
 from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
@@ -29,6 +30,7 @@ TABLE_CLASSES = {
     'labs': Labs,
     'vitals': Vitals,
     'medication_admin_continuous': MedicationAdminContinuous,
+    'medication_admin_intermittent': MedicationAdminIntermittent,
     'patient_assessments': PatientAssessments,
     'respiratory_support': RespiratorySupport,
     'position': Position
@@ -52,7 +54,8 @@ class ClifOrchestrator:
         adt (Adt): ADT table object
         labs (Labs): Labs table object
         vitals (Vitals): Vitals table object
-        medication_admin_continuous (MedicationAdminContinuous): Medication administration table object
+        medication_admin_continuous (MedicationAdminContinuous): Medication administration continuous table object
+        medication_admin_intermittent (MedicationAdminIntermittent): Medication administration intermittent table object
         patient_assessments (PatientAssessments): Patient assessments table object
         respiratory_support (RespiratorySupport): Respiratory support table object
         position (Position): Position table object
@@ -103,15 +106,16 @@ class ClifOrchestrator:
         os.makedirs(self.output_directory, exist_ok=True)
         
         # Initialize all table attributes to None
-        self.patient = None
-        self.hospitalization = None
-        self.adt = None
-        self.labs = None
-        self.vitals = None
-        self.medication_admin_continuous = None
-        self.patient_assessments = None
-        self.respiratory_support = None
-        self.position = None
+        self.patient: Patient = None
+        self.hospitalization: Hospitalization = None
+        self.adt: Adt = None
+        self.labs: Labs = None
+        self.vitals: Vitals = None
+        self.medication_admin_continuous: MedicationAdminContinuous = None
+        self.medication_admin_intermittent: MedicationAdminIntermittent = None
+        self.patient_assessments: PatientAssessments = None
+        self.respiratory_support: RespiratorySupport = None
+        self.position: Position = None
         
         print('ClifOrchestrator initialized.')
     
@@ -201,8 +205,8 @@ class ClifOrchestrator:
         """
         loaded = []
         for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
-                          'medication_admin_continuous', 'patient_assessments',
-                          'respiratory_support', 'position']:
+                          'medication_admin_continuous', 'medication_admin_intermittent',
+                          'patient_assessments', 'respiratory_support', 'position']:
             if getattr(self, table_name) is not None:
                 loaded.append(table_name)
         return loaded
@@ -216,8 +220,8 @@ class ClifOrchestrator:
         """
         table_objects = []
         for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
-                          'medication_admin_continuous', 'patient_assessments',
-                          'respiratory_support', 'position']:
+                          'medication_admin_continuous', 'medication_admin_intermittent',
+                          'patient_assessments', 'respiratory_support', 'position']:
             table_obj = getattr(self, table_name)
             if table_obj is not None:
                 table_objects.append(table_obj)
@@ -439,3 +443,101 @@ class ClifOrchestrator:
             print("=" * 50)
         
         return resource_info
+
+    def convert_dose_units_for_continuous_meds(
+        self,
+        preferred_units: Dict[str, str],
+        vitals_df: pd.DataFrame = None,
+        verbose: bool = False,
+        override: bool = False,
+        overwrite_raw_df: bool = True
+    ):
+        """
+        Convert dose units for continuous medication data.
+
+        Parameters:
+            preferred_units: Dict of preferred units for each medication category
+            vitals_df: Vitals DataFrame for extracting patient weights (optional)
+            verbose: If True, includes intermediate calculation columns in output
+            override: If True, continues processing with warnings for unacceptable units
+            overwrite_raw_df: If True, overwrites the table's df with the converted DataFrame.
+                This is equivalent to an append operation as all original columns
+                are preserved and new columns for converted doses and units are added.
+                The conversion_counts DataFrame is also stored as a table property.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame]: (converted_df, counts_df)
+        """
+        from .utils.unit_converter import convert_dose_units_by_med_category
+
+        # use the vitals df loaded to the table instance if no stand-alone vitals_df is provided
+        if vitals_df is None:
+            if (self.vitals is None) or (self.vitals.df is None):
+                print("Loading vitals table...")
+                self.load_table('vitals')
+            vitals_df = self.vitals.df
+        
+        if self.medication_admin_continuous is None:
+            print("Loading medication_admin_continuous table...")
+            self.load_table('medication_admin_continuous')
+
+        # Call the conversion function with all parameters
+        converted_df, counts_df = convert_dose_units_by_med_category(
+            self.medication_admin_continuous.df,
+            vitals_df=vitals_df,
+            preferred_units=preferred_units,
+            detailed_output=verbose,
+            override=override
+        )
+
+        # If overwrite_raw_df is True, update the table's df and store conversion_counts
+        if overwrite_raw_df:
+            self.medication_admin_continuous.df = converted_df
+        self.medication_admin_continuous.conversion_counts = counts_df
+        return converted_df, counts_df
+        
+    def convert_dose_units_for_intermittent_meds(
+        self,
+        preferred_units: Dict[str, str],
+        vitals_df: pd.DataFrame = None,
+        verbose: bool = False,
+        override: bool = False,
+        overwrite_raw_df: bool = True
+    ):
+        """
+        Convert dose units for intermittent medication data.
+
+        Parameters:
+            preferred_units: Dict of preferred units for each medication category
+            vitals_df: Vitals DataFrame for extracting patient weights (optional)
+            verbose: If True, includes intermediate calculation columns in output
+            override: If True, continues processing with warnings for unacceptable units
+            overwrite_raw_df: If True, overwrites the table's df with the converted DataFrame.
+                This is equivalent to an append operation as all original columns
+                are preserved and new columns for converted doses and units are added.
+                The conversion_counts DataFrame is also stored as a table property.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame]: (converted_df, counts_df)
+        """
+        from .utils.unit_converter import convert_dose_units_by_med_category
+
+        if self.medication_admin_intermittent is None:
+            print("Loading medication_admin_intermittent table...")
+            self.load_table('medication_admin_intermittent')
+
+        # Call the conversion function with all parameters
+        converted_df, counts_df = convert_dose_units_by_med_category(
+            self.medication_admin_intermittent.df,
+            vitals_df=vitals_df,
+            preferred_units=preferred_units,
+            detailed_output=verbose,
+            override=override
+        )
+
+        # If overwrite_raw_df is True, update the table's df and store conversion_counts
+        if overwrite_raw_df:
+            self.medication_admin_intermittent.df = converted_df
+            self.medication_admin_intermittent.conversion_counts = counts_df
+
+        return converted_df, counts_df
