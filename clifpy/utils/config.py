@@ -100,6 +100,7 @@ def get_config_or_params(
     Get configuration from either config file or direct parameters.
     
     Loading priority:
+    
     1. If all required params provided directly → use them
     2. If config_path provided → load from that path, allow param overrides
     3. If no params and no config_path → auto-detect clif_config.json
