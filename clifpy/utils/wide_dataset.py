@@ -40,29 +40,47 @@ def create_wide_dataset(
     """
     Create a wide dataset by joining multiple CLIF tables with pivoting support.
     
-    Parameters:
-        clif_instance: CLIF object with loaded data
-        optional_tables: DEPRECATED - use category_filters to specify tables
-        category_filters: Dict specifying which categories to include for each table
-                         Keys are table names, values are lists of categories to filter
-                         Table presence in this dict determines if it will be loaded
-        sample: Boolean - if True, randomly select 20 hospitalizations
-        hospitalization_ids: List of specific hospitalization IDs to filter
-        cohort_df: Optional DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
-                   If provided, data will be filtered to only include events within the specified
-                   time windows for each hospitalization
-        output_format: 'dataframe', 'csv', or 'parquet'
-        save_to_data_location: Boolean - save output to data directory
-        output_filename: Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
-        return_dataframe: Boolean - return DataFrame even when saving to file (default=True)
-        base_table_columns: DEPRECATED - columns are selected automatically
-        batch_size: Number of hospitalizations to process in each batch (default=1000)
-        memory_limit: DuckDB memory limit (e.g., '8GB')
-        threads: Number of threads for DuckDB to use
-        show_progress: Show progress bars for long operations
+    Parameters
+    ----------
+    clif_instance
+        CLIF object with loaded data
+    optional_tables : List[str], optional
+        DEPRECATED - use category_filters to specify tables
+    category_filters : Dict[str, List[str]], optional
+        Dict specifying which categories to include for each table
+        Keys are table names, values are lists of categories to filter
+        Table presence in this dict determines if it will be loaded
+    sample : bool, default=False
+        if True, randomly select 20 hospitalizations
+    hospitalization_ids : List[str], optional
+        List of specific hospitalization IDs to filter
+    cohort_df : pd.DataFrame, optional
+        DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
+        If provided, data will be filtered to only include events within the specified
+        time windows for each hospitalization
+    output_format : str, default='dataframe'
+        'dataframe', 'csv', or 'parquet'
+    save_to_data_location : bool, default=False
+        save output to data directory
+    output_filename : str, optional
+        Custom filename (default: 'wide_dataset_YYYYMMDD_HHMMSS')
+    return_dataframe : bool, default=True
+        return DataFrame even when saving to file
+    base_table_columns : Dict[str, List[str]], optional
+        DEPRECATED - columns are selected automatically
+    batch_size : int, default=1000
+        Number of hospitalizations to process in each batch
+    memory_limit : str, optional
+        DuckDB memory limit (e.g., '8GB')
+    threads : int, optional
+        Number of threads for DuckDB to use
+    show_progress : bool, default=True
+        Show progress bars for long operations
     
-    Returns:
-        pd.DataFrame or None (if return_dataframe=False)
+    Returns
+    -------
+    pd.DataFrame or None
+        DataFrame if return_dataframe=True, None otherwise
     """
     
     print("Starting wide dataset creation...")
@@ -208,25 +226,33 @@ def convert_wide_to_hourly(
     
     This function uses DuckDB for high-performance aggregation.
     
-    Parameters:
-        wide_df: Wide dataset DataFrame from create_wide_dataset()
-        aggregation_config: Dict mapping aggregation methods to list of columns
-            Example: {
-                'max': ['map', 'temp_c', 'sbp'],
-                'mean': ['heart_rate', 'respiratory_rate'],
-                'min': ['spo2'],
-                'median': ['glucose'],
-                'first': ['gcs_total', 'rass'],
-                'last': ['assessment_value'],
-                'boolean': ['norepinephrine', 'propofol'],
-                'one_hot_encode': ['medication_name', 'assessment_category']
-            }
-        memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
-        temp_directory: Directory for temporary files (default: system temp)
-        batch_size: Process in batches if dataset is large (auto-determined if None)
+    Parameters
+    ----------
+    wide_df : pd.DataFrame
+        Wide dataset DataFrame from create_wide_dataset()
+    aggregation_config : Dict[str, List[str]]
+        Dict mapping aggregation methods to list of columns
+        Example: {
+            'max': ['map', 'temp_c', 'sbp'],
+            'mean': ['heart_rate', 'respiratory_rate'],
+            'min': ['spo2'],
+            'median': ['glucose'],
+            'first': ['gcs_total', 'rass'],
+            'last': ['assessment_value'],
+            'boolean': ['norepinephrine', 'propofol'],
+            'one_hot_encode': ['medication_name', 'assessment_category']
+        }
+    memory_limit : str, default='4GB'
+        DuckDB memory limit (e.g., '4GB', '8GB')
+    temp_directory : str, optional
+        Directory for temporary files (default: system temp)
+    batch_size : int, optional
+        Process in batches if dataset is large (auto-determined if None)
     
-    Returns:
-        pd.DataFrame: Hourly aggregated wide dataset with nth_hour column
+    Returns
+    -------
+    pd.DataFrame
+        Hourly aggregated wide dataset with nth_hour column
     """
     
     print("Starting optimized hourly aggregation using DuckDB...")
