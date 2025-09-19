@@ -1,4 +1,5 @@
-## `medication_admin_continuous`
+# `utils`
+## `unit_converter`
 Implement the following tests in tests/tables/test_medication_admin_continuous.py following instructions in their docstrings:
 - test_acceptable_dose_unit_patterns
 - test_standardize_dose_unit_pattern
@@ -35,3 +36,16 @@ Based on these two files: @tests/tables/test_medication_admin_continuous.py     
 @clifpy/tables/medication_admin_continuous.py
 1. Add a test(s) for when no med_df was ever provided (self.df was not even populated), triggering the ValueError("No data provided")
 2. Flesh out the doc strings for all functions
+
+1. can you make the file called med-unit-conversion.md to avoid confusion\
+2. can you create a table for all the acceptable units? the columns would be: unit class; unit subclass;
+_clean_unit; acceptable variations;_base_unit. and explain where you see fit what they mean, i.e. unit
+class = rate or amount; unit subclass = mass, volume, unit; _clean_unit = the format in which user need to
+write their preferred units; acceptable variations = all of 'mL/m' 'ml/min' 'milli-liter/minute' would be
+converted to the 'ml/min'. finally mention that the unit class and subclass are used to track if units
+are conversion to one each other. 
+3. introduce how the _convert_status column should be used and how any failure in conversion would result
+in the original dose and _clean_unit being the *_converted output columns and the override = True option
+can be used to bypass detection of unacceptable conversion\
+4. highlight both the public functions give two outputs: a df with converted dose and units and a df that
+lists the conversion status and count by med_category, med_unit, _base_unit, etc etc.

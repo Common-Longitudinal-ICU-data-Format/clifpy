@@ -1,55 +1,109 @@
 """
 Configuration loading utilities for CLIF data processing.
 
-This module provides functions to load configuration from JSON files
+This module provides functions to load configuration from JSON or YAML files
 for consistent data loading across CLIF tables and orchestrator.
 """
 
 import os
 import json
+import yaml
 from typing import Dict, Any, Optional
 from pathlib import Path
 
 
-def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+def _load_config_file(config_path: str) -> Dict[str, Any]:
     """
-    Load CLIF configuration from JSON file.
-    
+    Load configuration from either JSON or YAML file with field mapping.
+
     Parameters:
-        config_path (str, optional): Path to the configuration file.
-            If None, looks for 'clif_config.json' in current directory.
-    
+        config_path (str): Path to the configuration file
+
     Returns:
-        dict: Configuration dictionary with required fields validated
-        
+        dict: Configuration dictionary with normalized field names
+
     Raises:
-        FileNotFoundError: If config file doesn't exist
-        ValueError: If required fields are missing or invalid
-        json.JSONDecodeError: If config file is not valid JSON
+        json.JSONDecodeError: If JSON file is invalid
+        yaml.YAMLError: If YAML file is invalid
+        ValueError: If file format is unsupported
     """
-    # Determine config file path
-    if config_path is None:
-        config_path = os.path.join(os.getcwd(), 'clif_config.json')
-    
-    # Check if config file exists
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(
-            f"Configuration file not found: {config_path}\n"
-            "Please either:\n"
-            "  1. Create a clif_config.json file in the current directory\n"
-            "  2. Provide config_path parameter pointing to your config file\n"
-            "  3. Provide data_directory, filetype, and timezone parameters directly"
-        )
-    
-    # Load configuration
+    file_ext = Path(config_path).suffix.lower()
+
     try:
         with open(config_path, 'r') as f:
-            config = json.load(f)
+            if file_ext == '.json':
+                config = json.load(f)
+            elif file_ext in ['.yaml', '.yml']:
+                config = yaml.safe_load(f)
+                # Map YAML field names to expected JSON field names
+                if 'tables_path' in config:
+                    config['data_directory'] = config.pop('tables_path')
+            else:
+                raise ValueError(
+                    f"Unsupported config file format: {file_ext}\n"
+                    "Supported formats are: .json, .yaml, .yml"
+                )
     except json.JSONDecodeError as e:
         raise json.JSONDecodeError(
             f"Invalid JSON in configuration file {config_path}: {str(e)}",
             e.doc, e.pos
         )
+    except yaml.YAMLError as e:
+        raise yaml.YAMLError(
+            f"Invalid YAML in configuration file {config_path}: {str(e)}"
+        )
+
+    return config
+
+
+def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load CLIF configuration from JSON or YAML file.
+
+    Parameters:
+        config_path (str, optional): Path to the configuration file.
+            If None, looks for 'clif_config.json' or 'clif_config.yaml' in current directory.
+
+    Returns:
+        dict: Configuration dictionary with required fields validated
+
+    Raises:
+        FileNotFoundError: If config file doesn't exist
+        ValueError: If required fields are missing or invalid
+        json.JSONDecodeError: If JSON config file is not valid
+        yaml.YAMLError: If YAML config file is not valid
+    """
+    # Determine config file path
+    if config_path is None:
+        # Look for config files in order of preference: JSON, YAML, YML
+        cwd = os.getcwd()
+        for filename in ['clif_config.json', 'clif_config.yaml', 'clif_config.yml']:
+            potential_path = os.path.join(cwd, filename)
+            if os.path.exists(potential_path):
+                config_path = potential_path
+                break
+
+        if config_path is None:
+            raise FileNotFoundError(
+                f"Configuration file not found in {cwd}\n"
+                "Please either:\n"
+                "  1. Create a clif_config.json or clif_config.yaml file in the current directory\n"
+                "  2. Provide config_path parameter pointing to your config file\n"
+                "  3. Provide data_directory, filetype, and timezone parameters directly"
+            )
+
+    # Check if config file exists
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_path}\n"
+            "Please either:\n"
+            "  1. Create a clif_config.json or clif_config.yaml file in the current directory\n"
+            "  2. Provide config_path parameter pointing to your config file\n"
+            "  3. Provide data_directory, filetype, and timezone parameters directly"
+        )
+
+    # Load configuration using helper function
+    config = _load_config_file(config_path)
     
     # Validate required fields
     required_fields = ['data_directory', 'filetype', 'timezone']
@@ -94,7 +148,7 @@ def get_config_or_params(
     Loading priority:
     1. If all required params provided directly → use them
     2. If config_path provided → load from that path, allow param overrides
-    3. If no params and no config_path → auto-detect clif_config.json
+    3. If no params and no config_path → auto-detect clif_config.json/yaml/yml
     4. Parameters override config file values when both are provided
     
     Parameters:
@@ -142,7 +196,7 @@ def get_config_or_params(
                 f"Incomplete parameters provided. Missing: {missing}\n"
                 "Please either:\n"
                 "  1. Provide all required parameters (data_directory, filetype, timezone)\n"
-                "  2. Create a clif_config.json file\n"
+                "  2. Create a clif_config.json or clif_config.yaml file\n"
                 "  3. Provide a config_path parameter"
             )
         else:
@@ -171,29 +225,52 @@ def get_config_or_params(
 
 def create_example_config(
     data_directory: str = "./data",
-    filetype: str = "parquet", 
+    filetype: str = "parquet",
     timezone: str = "UTC",
     output_directory: str = "./output",
-    config_path: str = "./clif_config.json"
+    config_path: str = "./clif_config.json",
+    format: str = "json"
 ) -> None:
     """
-    Create an example configuration file.
-    
+    Create an example configuration file in JSON or YAML format.
+
     Parameters:
         data_directory (str): Path to data directory
         filetype (str): File type (csv or parquet)
         timezone (str): Timezone string
         output_directory (str): Output directory path
         config_path (str): Where to save the config file
+        format (str): Output format ("json" or "yaml")
     """
-    config = {
-        "data_directory": data_directory,
-        "filetype": filetype,
-        "timezone": timezone,
-        "output_directory": output_directory
-    }
-    
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=2)
-    
-    print(f"Example configuration file created at: {config_path}")
+    # Determine format from file extension if not explicitly specified
+    file_ext = Path(config_path).suffix.lower()
+    if file_ext in ['.yaml', '.yml']:
+        format = "yaml"
+    elif file_ext == '.json':
+        format = "json"
+
+    if format.lower() == "yaml":
+        # Use YAML field names for YAML format
+        config = {
+            "site": "EXAMPLE_SITE",
+            "tables_path": data_directory,
+            "filetype": filetype,
+            "timezone": timezone,
+            "output_directory": output_directory
+        }
+
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, indent=2)
+    else:
+        # Use JSON field names for JSON format
+        config = {
+            "data_directory": data_directory,
+            "filetype": filetype,
+            "timezone": timezone,
+            "output_directory": output_directory
+        }
+
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+
+    print(f"Example {format.upper()} configuration file created at: {config_path}")
