@@ -6,6 +6,7 @@ all CLIF table objects with consistent configuration.
 """
 
 import os
+import logging
 import pandas as pd
 import psutil
 from typing import Optional, List, Dict, Any
@@ -104,7 +105,10 @@ class ClifOrchestrator:
         if self.output_directory is None:
             self.output_directory = os.path.join(os.getcwd(), 'output')
         os.makedirs(self.output_directory, exist_ok=True)
-        
+
+        # Initialize logger
+        self.logger = logging.getLogger('pyclif.ClifOrchestrator')
+
         # Initialize all table attributes to None
         self.patient: Patient = None
         self.hospitalization: Hospitalization = None
@@ -448,9 +452,9 @@ class ClifOrchestrator:
         self,
         preferred_units: Dict[str, str],
         vitals_df: pd.DataFrame = None,
-        verbose: bool = False,
+        show_intermediate: bool = False,
         override: bool = False,
-        overwrite_raw_df: bool = True
+        save_to_table: bool = True
     ):
         """
         Convert dose units for continuous medication data.
@@ -458,7 +462,7 @@ class ClifOrchestrator:
         Parameters:
             preferred_units: Dict of preferred units for each medication category
             vitals_df: Vitals DataFrame for extracting patient weights (optional)
-            verbose: If True, includes intermediate calculation columns in output
+            detailed_output: If True, includes intermediate calculation columns in output
             override: If True, continues processing with warnings for unacceptable units
             overwrite_raw_df: If True, overwrites the table's df with the converted DataFrame.
                 This is equivalent to an append operation as all original columns
@@ -470,37 +474,58 @@ class ClifOrchestrator:
         """
         from .utils.unit_converter import convert_dose_units_by_med_category
 
+        # Log function entry with parameters
+        self.logger.info(f"Starting dose unit conversion for continuous medications with parameters: "
+                        f"preferred_units={preferred_units}, show_intermediate={show_intermediate}, "
+                        f"override={override}, overwrite_table_df={save_to_table}")
+
         # use the vitals df loaded to the table instance if no stand-alone vitals_df is provided
         if vitals_df is None:
+            self.logger.debug("No vitals_df provided, checking existing vitals table")
             if (self.vitals is None) or (self.vitals.df is None):
-                print("Loading vitals table...")
+                self.logger.info("Loading vitals table...")
                 self.load_table('vitals')
             vitals_df = self.vitals.df
+            self.logger.debug(f"Using vitals data with shape: {vitals_df.shape}")
+        else:
+            self.logger.debug(f"Using provided vitals_df with shape: {vitals_df.shape}")
         
         if self.medication_admin_continuous is None:
-            print("Loading medication_admin_continuous table...")
+            self.logger.info("Loading medication_admin_continuous table...")
             self.load_table('medication_admin_continuous')
+            self.logger.debug("medication_admin_continuous table loaded successfully")
 
         # Call the conversion function with all parameters
+        self.logger.info("Starting dose unit conversion")
+        self.logger.debug(f"Input DataFrame shape: {self.medication_admin_continuous.df.shape}")
+
         converted_df, counts_df = convert_dose_units_by_med_category(
             self.medication_admin_continuous.df,
             vitals_df=vitals_df,
             preferred_units=preferred_units,
-            detailed_output=verbose,
+            show_intermediate=show_intermediate,
             override=override
         )
 
+        self.logger.info("Dose unit conversion completed")
+        self.logger.debug(f"Output DataFrame shape: {converted_df.shape}")
+        self.logger.debug(f"Conversion counts summary: {len(counts_df)} conversions tracked")
+
         # If overwrite_raw_df is True, update the table's df and store conversion_counts
-        if overwrite_raw_df:
-            self.medication_admin_continuous.df = converted_df
-        self.medication_admin_continuous.conversion_counts = counts_df
-        return converted_df, counts_df
+        if save_to_table:
+            self.logger.info("Updating medication_admin_continuous table with converted data")
+            self.medication_admin_continuous.df_converted = converted_df
+            self.medication_admin_continuous.conversion_counts = counts_df
+            self.logger.debug("Conversion counts stored as table property")
+        else:
+            self.logger.info("Returning converted data without updating table")
+            return converted_df, counts_df
         
     def convert_dose_units_for_intermittent_meds(
         self,
         preferred_units: Dict[str, str],
         vitals_df: pd.DataFrame = None,
-        verbose: bool = False,
+        detailed_output: bool = False,
         override: bool = False,
         overwrite_raw_df: bool = True
     ):
@@ -510,7 +535,7 @@ class ClifOrchestrator:
         Parameters:
             preferred_units: Dict of preferred units for each medication category
             vitals_df: Vitals DataFrame for extracting patient weights (optional)
-            verbose: If True, includes intermediate calculation columns in output
+            detailed_output: If True, includes intermediate calculation columns in output
             override: If True, continues processing with warnings for unacceptable units
             overwrite_raw_df: If True, overwrites the table's df with the converted DataFrame.
                 This is equivalent to an append operation as all original columns
@@ -523,7 +548,7 @@ class ClifOrchestrator:
         from .utils.unit_converter import convert_dose_units_by_med_category
 
         if self.medication_admin_intermittent is None:
-            print("Loading medication_admin_intermittent table...")
+            self.logger.info("Loading medication_admin_intermittent table...")
             self.load_table('medication_admin_intermittent')
 
         # Call the conversion function with all parameters
@@ -531,7 +556,7 @@ class ClifOrchestrator:
             self.medication_admin_intermittent.df,
             vitals_df=vitals_df,
             preferred_units=preferred_units,
-            detailed_output=verbose,
+            show_intermediate=detailed_output,
             override=override
         )
 
