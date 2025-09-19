@@ -88,11 +88,11 @@ if temp['vital_value_unit'].iloc[0] == 'F':
 else:
     temp['temp_celsius'] = temp['vital_value']
 
-# Find fever (temp > 38°C)
+# Find fever (temp > 38Â°C)
 fever = temp[temp['temp_celsius'] > 38]
 print(f"Fever episodes: {len(fever)}")
 
-# Find hypothermia (temp < 35°C)
+# Find hypothermia (temp < 35Â°C)
 hypothermia = temp[temp['temp_celsius'] < 35]
 print(f"Hypothermia episodes: {len(hypothermia)}")
 ```
