@@ -671,19 +671,19 @@ def standardize_dose_to_base_units(
         query = """
         SELECT m.*
             , v.vital_value as weight_kg
-            , v.recorded_dttm as weight_recorded_dttm
+            , v.recorded_dttm as _weight_recorded_dttm
             , ROW_NUMBER() OVER (
                 PARTITION BY m.hospitalization_id, m.admin_dttm, m.med_category
                 ORDER BY v.recorded_dttm DESC
-                ) as rn
+                ) as _rn
         FROM med_df m
         LEFT JOIN vitals_df v 
             ON m.hospitalization_id = v.hospitalization_id 
             AND v.vital_category = 'weight_kg' AND v.vital_value IS NOT NULL
             AND v.recorded_dttm <= m.admin_dttm  -- only past weights
         -- rn = 1 for the weight w/ the latest recorded_dttm (and thus most recent)
-        QUALIFY (rn = 1) 
-        ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category, rn
+        QUALIFY (_rn = 1 OR _rn IS NULL) 
+        ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category, _rn
         """
         med_df = duckdb.sql(query).to_df()
     
@@ -818,6 +818,9 @@ def _convert_base_units_to_preferred_units(
         WHEN regexp_matches(_clean_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
     """ if '_weighted' not in med_df.columns else ''
     
+    dose_converted_name = "med_dose" if "med_dose" in med_df.columns else "_base_dose"
+    unit_converted_name = "_clean_unit" if "_clean_unit" in med_df.columns else "_base_unit"
+    
     q = f"""
     SELECT l.*
         {unit_class_clause}
@@ -859,12 +862,12 @@ def _convert_base_units_to_preferred_units(
         , _weight_multiplier_preferred: {weight_clause}
         -- fall back to the base units and dose (i.e. the input) if conversion cannot be accommondated
         , med_dose_converted: CASE
-            WHEN _convert_status == 'success' THEN ROUND(_base_dose * _amount_multiplier_preferred * _time_multiplier_preferred * _weight_multiplier_preferred, 2)
-            ELSE _base_dose
+            WHEN _convert_status == 'success' THEN _base_dose * _amount_multiplier_preferred * _time_multiplier_preferred * _weight_multiplier_preferred
+            ELSE {dose_converted_name}
             END
         , med_dose_unit_converted: CASE
             WHEN _convert_status == 'success' THEN _preferred_unit
-            ELSE _base_unit
+            ELSE {unit_converted_name}
             END
     FROM med_df l
     """
@@ -874,7 +877,7 @@ def convert_dose_units_by_med_category(
     med_df: pd.DataFrame,
     vitals_df: pd.DataFrame = None,
     preferred_units: dict = None,
-    verbose: bool = False,
+    show_intermediate: bool = False,
     override: bool = False
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Convert medication dose units to user-defined preferred units for each med_category.
@@ -909,7 +912,7 @@ def convert_dose_units_by_med_category(
         Keys are medication category names, values are target unit strings.
         Example: {'propofol': 'mcg/kg/min', 'fentanyl': 'mcg/hr', 'insulin': 'u/hr'}
         If None, uses base units (mcg/min, ml/min, u/min) as defaults.
-    verbose : bool, default False
+    detailed_output : bool, default False
         If False, excludes intermediate calculation columns (multipliers) from output.
         If True, retains all columns including conversion multipliers for debugging.
     override : bool, default False
@@ -932,7 +935,7 @@ def convert_dose_units_by_med_category(
             * _unit_class: Classification ('rate', 'amount', or 'unrecognized')
             * _convert_status: Status message indicating success or reason for failure
 
-            If verbose=True, also includes conversion multipliers.
+            If detailed_output=True, also includes conversion multipliers.
 
         - [1] Summary counts DataFrame with conversion statistics grouped by medication category
 
@@ -957,10 +960,6 @@ def convert_dose_units_by_med_category(
     ...     'insulin': 'u/hr'
     ... }
     >>> result_df, counts_df = convert_dose_units_by_med_category(med_df, preferred_units=preferred)
-    >>> 'med_dose_converted' in result_df.columns
-    True
-    >>> 'count' in counts_df.columns
-    True
 
     Notes
     -----
@@ -983,6 +982,16 @@ def convert_dose_units_by_med_category(
     except ValueError as e:
         raise ValueError(f"Error standardizing dose units to base units: {e}")
     
+    # check if the requested med_categories are in the input med_df
+    requested_med_categories = set(preferred_units.keys())
+    extra_med_categories = requested_med_categories - set(med_df_base['med_category'])
+    if extra_med_categories:
+        error_msg = f"The following med_categories are given a preferred unit but not found in the input med_df: {extra_med_categories}"
+        if override:
+            print(error_msg)
+        else:
+            raise ValueError(error_msg)
+    
     try:
         # join the preferred units to the df
         preferred_units_df = pd.DataFrame(preferred_units.items(), columns=['med_category', '_preferred_unit'])
@@ -999,19 +1008,35 @@ def convert_dose_units_by_med_category(
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
-    convert_counts_df = _create_unit_conversion_counts_table(
-        med_df_converted, 
-        group_by=[
-            'med_category',
-            'med_dose_unit', '_clean_unit', '_base_unit', '_unit_class',
-            '_preferred_unit', 'med_dose_unit_converted', '_convert_status'
-            ]
-        )
+    try:
+        convert_counts_df = _create_unit_conversion_counts_table(
+            med_df_converted, 
+            group_by=[
+                'med_category',
+                'med_dose_unit', '_clean_unit', '_base_unit', '_unit_class',
+                '_preferred_unit', 'med_dose_unit_converted', '_convert_status'
+                ]
+            )
+    except ValueError as e:
+        raise ValueError(f"Error creating unit conversion counts table: {e}")
     
-    if verbose:
+    if show_intermediate:
         return med_df_converted, convert_counts_df
-    # the default (verbose=False) is to drop multiplier columns which likely are not useful for the user
-    cols_to_drop = [col for col in med_df_converted.columns if 'multiplier' in col]
-    return med_df_converted.drop(columns=cols_to_drop), convert_counts_df
+    else:
+        # the default (detailed_output=False) is to drop multiplier columns which likely are not useful for the user
+        multiplier_cols = [col for col in med_df_converted.columns if 'multiplier' in col]
+        qa_cols = [
+            '_rn',
+            '_weight_recorded_dttm',
+            '_weighted', '_weighted_preferred',
+            '_base_dose', '_base_unit',
+            '_preferred_unit',
+            '_unit_class_preferred',
+            '_unit_subclass', '_unit_subclass_preferred'
+            ]
+        
+        cols_to_drop = [c for c in multiplier_cols + qa_cols if c in med_df_converted.columns]
+        
+        return med_df_converted.drop(columns=cols_to_drop), convert_counts_df
     
     

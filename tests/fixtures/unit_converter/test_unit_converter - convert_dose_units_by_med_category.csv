@@ -1,11 +1,11 @@
 rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_unit_class,_unit_subclass,_base_dose,_base_unit,weight_kg,_preferred_unit,_unit_class_preferred,_unit_subclass_preferred,_weighted_preferred,med_dose_converted,med_dose_unit_converted,_convert_status,note
 0,valid,propofol,6,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/min,70,mcg/kg/min,rate,mass,1,0.1,mcg/kg/min,success,add weight
 1,valid,propofol,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,70,mcg/kg/min,rate,mass,1,0.2,mcg/kg/min,success,add weight
-2,invalid,propofol,7,MCG,mcg,amount,mass,7,mcg,70,mcg/kg/min,rate,mass,1,7,mcg,cannot convert amount to rate,can't convert amount to rate
+2,invalid,propofol,0.007,MG,mg,amount,mass,7,mcg,70,mcg/kg/min,rate,mass,1,0.007,mg,cannot convert amount to rate,can't convert amount to rate
 3,invalid,propofol,14, mcg ,mcg,amount,mass,14,mcg,70,mcg/kg/min,rate,mass,1,14,mcg,cannot convert amount to rate,can't convert amount to rate
-4,invalid,propofol,14,mcg/m,mcg/min,rate,mass,14,mcg/min,,mcg/kg/min,rate,mass,1,14,mcg/min,cannot convert to a weighted unit if weight_kg is missing,cannot convert to a weighted unit if weight_kg is missing
-5,invalid,fentanyl,1000,mu/min,mu/min,rate,unit,1,u/min,75,mcg/hr,rate,mass,0,1,u/min,cannot convert unit to mass,can't convert u to mcg in rate
-6,invalid,fentanyl,2000,mu/min,mu/min,rate,unit,2,u/min,,mcg/hr,rate,mass,0,2,u/min,cannot convert unit to mass,can't convert u to mcg in rate
+4,invalid,propofol,840,mcg/h,mcg/hr,rate,mass,14,mcg/min,,mcg/kg/min,rate,mass,1,840,mcg/hr,cannot convert to a weighted unit if weight_kg is missing,cannot convert to a weighted unit if weight_kg is missing
+5,invalid,fentanyl,1000,mu/min,mu/min,rate,unit,1,u/min,75,mcg/hr,rate,mass,0,1000,mu/min,cannot convert unit to mass,can't convert u to mcg in rate
+6,invalid,fentanyl,2000,mu/min,mu/min,rate,unit,2,u/min,,mcg/hr,rate,mass,0,2000,mu/min,cannot convert unit to mass,can't convert u to mcg in rate
 7,invalid,insulin,20,iu,iu,unrecognized,unrecognized,20,iu,,u/hr,rate,unit,0,20,iu,original unit iu is not recognized,iu as input is not accepted
 8,invalid,insulin,20,,,unrecognized,unrecognized,20,,,u/hr,rate,unit,0,20,,original unit is missing,empty unit is not recognized
 9,invalid,zidovudine,20,U,u,unrecognized,unrecognized,20,u,,iu/hr,unrecognized,unrecognized,0,20,u,user-preferred unit iu/hr is not recognized,iu as output is not accepted (yet?)
