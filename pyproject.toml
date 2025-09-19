@@ -31,6 +31,8 @@ dependencies = [
   "pytz",
   "tqdm",
   "polars>=1.33.1",
+  "pyyaml>=6.0.2",
+  "psutil>=7.1.0",
 ]
 
 [tool.setuptools]
