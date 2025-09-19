@@ -221,7 +221,7 @@ if patient_summary:
         print(f"\n{assess}:")
         print(f"  Assessments: {stats['count']}")
         print(f"  Range: {stats['min']}-{stats['max']}")
-        print(f"  First’Last: {stats['first']}’{stats['last']}")
+        print(f"  FirstÂ’Last: {stats['first']}Â’{stats['last']}")
 ```
 
 ## Data Quality Considerations
