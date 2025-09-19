@@ -28,7 +28,7 @@ co = ClifOrchestrator(
 )
 
 # Create wide dataset with sample data
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
         'vitals': ['heart_rate', 'sbp', 'spo2'],
@@ -36,6 +36,37 @@ wide_df = co.create_wide_dataset(
     },
     sample=True  # Use 20 random hospitalizations for testing
 )
+
+# Access the created wide dataset
+wide_df = co.wide_df
+```
+
+## Accessing Wide Dataset Results
+
+The `create_wide_dataset()` method stores the resulting DataFrame in the orchestrator's `wide_df` property rather than returning it directly. This approach provides several benefits:
+
+- **Persistent storage**: The wide dataset remains accessible throughout your session
+- **Memory management**: Avoids creating multiple copies of large DataFrames
+- **Consistent access pattern**: Aligns with other orchestrator table properties
+
+```python
+# Create the wide dataset (no return value)
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs'],
+    category_filters={'vitals': ['heart_rate'], 'labs': ['hemoglobin']}
+)
+
+# Access the result via the property
+wide_df = co.wide_df
+
+# Check if wide dataset exists
+if co.wide_df is not None:
+    print(f"Wide dataset shape: {co.wide_df.shape}")
+else:
+    print("No wide dataset has been created yet")
+
+# Direct access to the DataFrame
+print(f"Hospitalizations: {co.wide_df['hospitalization_id'].nunique()}")
 ```
 
 ## Function Parameters
@@ -52,7 +83,7 @@ The `create_wide_dataset()` method accepts the following parameters:
 | `output_format` | str | 'dataframe' | Output format: 'dataframe', 'csv', or 'parquet' |
 | `save_to_data_location` | bool | False | Save output to data directory |
 | `output_filename` | str | None | Custom filename (auto-generated if None) |
-| `return_dataframe` | bool | True | Return DataFrame even when saving to file |
+| `return_dataframe` | bool | True | Store DataFrame in `wide_df` property even when saving to file |
 | `batch_size` | int | 1000 | Number of hospitalizations per batch (use -1 to disable batching) |
 | `memory_limit` | str | None | DuckDB memory limit (e.g., '8GB', '16GB') |
 | `threads` | int | None | Number of threads for DuckDB processing |
@@ -73,7 +104,7 @@ memory_limit = f"{int(resources['memory_available_gb'] * 0.7)}GB"  # Use 70% of 
 threads = resources['max_recommended_threads']
 
 # Create wide dataset with optimized settings
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
         'vitals': ['heart_rate', 'sbp', 'spo2'],
@@ -83,6 +114,9 @@ wide_df = co.create_wide_dataset(
     threads=threads,
     batch_size=1000  # Adjust based on dataset size
 )
+
+# Access the created dataset
+wide_df = co.wide_df
 ```
 
 ## Usage Examples
@@ -93,7 +127,7 @@ Use sampling for initial development and testing:
 
 ```python
 # Sample mode for development
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
         'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'respiratory_rate'],
@@ -103,6 +137,8 @@ wide_df = co.create_wide_dataset(
     show_progress=True
 )
 
+# Access the created dataset
+wide_df = co.wide_df
 print(f"Sample dataset shape: {wide_df.shape}")
 print(f"Unique hospitalizations: {wide_df['hospitalization_id'].nunique()}")
 ```
@@ -116,7 +152,7 @@ For production use with large datasets:
 resources = co.get_sys_resource_info(print_summary=False)
 
 # Production settings
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs', 'medication_admin_continuous'],
     category_filters={
         'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'temp_c'],
@@ -130,6 +166,9 @@ wide_df = co.create_wide_dataset(
     output_format='parquet',
     output_filename='wide_dataset_production'
 )
+
+# Access the created dataset
+wide_df = co.wide_df
 ```
 
 ### Example 3: Targeted Analysis with Specific IDs
@@ -140,7 +179,7 @@ Process specific hospitalizations:
 # Analyze specific patient cohort
 target_ids = ['12345', '67890', '11111', '22222']
 
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     hospitalization_ids=target_ids,
     tables_to_load=['vitals', 'labs', 'patient_assessments'],
     category_filters={
@@ -150,6 +189,8 @@ wide_df = co.create_wide_dataset(
     }
 )
 
+# Access the created dataset
+wide_df = co.wide_df
 print(f"Analyzed {len(target_ids)} specific hospitalizations")
 ```
 
@@ -172,7 +213,7 @@ cohort_df['start_time'] = pd.to_datetime(cohort_df['start_time'])
 cohort_df['end_time'] = pd.to_datetime(cohort_df['end_time'])
 
 # Create wide dataset with time filtering
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
         'vitals': ['heart_rate', 'sbp'],
@@ -180,6 +221,9 @@ wide_df = co.create_wide_dataset(
     },
     cohort_df=cohort_df  # Only include data within specified time windows
 )
+
+# Access the created dataset
+wide_df = co.wide_df
 ```
 
 ### Example 5: No Batch Processing for Small Datasets
@@ -188,7 +232,7 @@ Disable batching for small datasets:
 
 ```python
 # Small dataset - process all at once
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     hospitalization_ids=small_id_list,  # < 100 hospitalizations
     tables_to_load=['vitals', 'labs'],
     category_filters={
@@ -197,6 +241,9 @@ wide_df = co.create_wide_dataset(
     },
     batch_size=-1  # Disable batching
 )
+
+# Access the created dataset
+wide_df = co.wide_df
 ```
 
 
@@ -208,19 +255,21 @@ Batch processing divides hospitalizations into smaller groups to prevent memory 
 
 ```python
 # Large dataset - use batching
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={...},
     batch_size=1000,  # Process 1000 hospitalizations at a time
     memory_limit="8GB"
 )
+wide_df = co.wide_df
 
 # Small dataset - disable batching for better performance
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={...},
     batch_size=-1  # Process all at once
 )
+wide_df = co.wide_df
 ```
 
 ### Memory Optimization Guidelines
@@ -247,9 +296,9 @@ aggregation_config = {
     'boolean': ['norepinephrine', 'propofol'],  # 1 if present, 0 if absent
 }
 
-# Convert to hourly
+# Convert to hourly (use the wide_df property)
 hourly_df = co.convert_wide_to_hourly(
-    wide_df,
+    co.wide_df,
     aggregation_config=aggregation_config,
     memory_limit='8GB'
 )
@@ -288,11 +337,12 @@ The wide dataset includes:
 **Memory Errors**
 ```python
 # Solution: Reduce batch size and set memory limit
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     batch_size=250,  # Smaller batches
     memory_limit="4GB",  # Conservative limit
     sample=True  # Test with sample first
 )
+wide_df = co.wide_df
 ```
 
 **System Crashes**
@@ -317,13 +367,14 @@ if hasattr(co, 'vitals') and co.vitals is not None:
 **Slow Performance**
 ```python
 # Use optimize settings
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals'],  # Start with one table
     category_filters={
         'vitals': ['heart_rate', 'sbp']  # Limit categories
     },
     threads=co.get_sys_resource_info(print_summary=False)['max_recommended_threads']
 )
+wide_df = co.wide_df
 ```
 
 ### Error Messages
@@ -344,7 +395,7 @@ co = ClifOrchestrator('/path/to/data', 'parquet', 'UTC')
 co.initialize(['patient', 'hospitalization', 'adt', 'vitals', 'labs'])
 
 # Enhanced with wide dataset
-wide_df = co.create_wide_dataset(
+co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
         'vitals': ['heart_rate', 'sbp'],
@@ -354,7 +405,7 @@ wide_df = co.create_wide_dataset(
 
 # Continue with validation and analysis
 co.validate_all()
-analysis_results = your_analysis_function(wide_df)
+analysis_results = your_analysis_function(co.wide_df)
 ```
 
 ## Next Steps
