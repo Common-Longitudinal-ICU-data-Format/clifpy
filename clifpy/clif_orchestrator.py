@@ -98,10 +98,11 @@ class ClifOrchestrator:
         Notes
         -----
         Loading priority:
-            1. If all required params provided → use them
-            2. If config_path provided → load from that path, allow param overrides
-            3. If no params and no config_path → auto-detect config.json
-            4. Parameters override config file values when both are provided
+        
+        1. If all required params provided → use them
+        2. If config_path provided → load from that path, allow param overrides
+        3. If no params and no config_path → auto-detect config.json
+        4. Parameters override config file values when both are provided
         """
         # Get configuration from config file or parameters
         config = get_config_or_params(
@@ -355,9 +356,11 @@ class ClifOrchestrator:
             hospitalizations will be loaded, improving performance for large datasets.
         cohort_df : pd.DataFrame, optional
             DataFrame containing cohort definitions with columns:
+            
             - 'patient_id': Patient identifier
             - 'start_time': Start of time window (datetime)
             - 'end_time': End of time window (datetime)
+            
             Used to filter data to specific time windows per patient.
         output_format : str, default='dataframe'
             Format for output data. Options: 'dataframe', 'csv', 'parquet'.
@@ -498,6 +501,7 @@ class ClifOrchestrator:
         -------
         Dict[str, Any]
             Dictionary containing system resource information:
+            
             - cpu_count_physical: Number of physical CPU cores
             - cpu_count_logical: Number of logical CPU cores
             - cpu_usage_percent: Current CPU usage percentage
