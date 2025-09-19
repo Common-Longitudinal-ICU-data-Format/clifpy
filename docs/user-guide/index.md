@@ -17,6 +17,9 @@ Create comprehensive time-series datasets by joining multiple CLIF tables with a
 ### [Outlier Handling](outlier-handling.md)
 Detect and remove physiologically implausible values using configurable ranges and category-specific validation.
 
+### [Comorbidity Index Computation](comorbidity-index.md)
+Calculate Charlson and Elixhauser comorbidity indices from hospital diagnosis data for risk stratification and outcomes research.
+
 ### [Tables](tables/index.md)
 Detailed guides for each CLIF table type: 
 
@@ -175,6 +178,7 @@ cohort_vitals = vitals.df[vitals.df['hospitalization_id'].isin(cohort_ids)]
 ## Next Steps
 
 - Explore specific [table guides](tables/index.md)
+- Calculate [comorbidity indices](comorbidity-index.md) for risk stratification
 - Learn about [data validation](validation.md)
 - See [practical examples](../examples/index.md)
 - Review the [API reference](../api/index.md)

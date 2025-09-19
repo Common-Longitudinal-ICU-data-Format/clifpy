@@ -97,6 +97,7 @@ nav:
       - Advanced Features:
           - Wide Dataset Creation: user-guide/wide-dataset.md
           - Respiratory Support Waterfall: user-guide/waterfall.md
+          - Encounter Stitching: user-guide/encounter-stitching.md
           - Outlier Handling: user-guide/outlier-handling.md
   - How-to Guides:
       - Overview: examples/index.md

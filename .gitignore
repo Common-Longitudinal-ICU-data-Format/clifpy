@@ -23,6 +23,7 @@ todo.md
 
 # dev
 .dev/
+graphs/
 
 clif_2.1.0.txt
 context7.json
@@ -37,3 +38,11 @@ site/
 env.txt
 
 */__marimo__
+#AI dev files
+marimo.md
+claude.md
+gemini.md
+codex.md
+cline.md
+rules.md
+kilo.md

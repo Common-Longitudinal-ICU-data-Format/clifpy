@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.17"
+__generated_with = "0.16.0"
 app = marimo.App(width="medium")
 
 
@@ -35,11 +35,10 @@ def _():
 @app.cell
 def _():
     # Configuration - Edit these parameters for your data
-    DATA_DIR = "/Users/sudo_sage/Documents/work/clif_mimic"  # Edit this path
+    DATA_DIR = "/Users/sudo_sage/Documents/work/rush_clif/"  # Edit this path
     FILETYPE = "parquet"  # Edit this: "csv", "parquet", etc.
     TIMEZONE = "US/Eastern"  # Edit this: "UTC", "US/Eastern", "US/Pacific", etc.
     SAMPLE_SIZE = 1000000  # Edit this: None for all data, or integer for sample
-
     return DATA_DIR, FILETYPE, TIMEZONE
 
 
@@ -59,7 +58,6 @@ def _(DATA_DIR, FILETYPE, TIMEZONE):
     print(f"- {len(vitals_table.df)} vital sign measurements")
     print(f"- {vitals_table.df['hospitalization_id'].nunique()} unique hospitalizations")
     print(f"- {vitals_table.df['vital_category'].nunique()} different vital signs")
-
     return (vitals_table,)
 
 
@@ -77,6 +75,32 @@ def _(vitals_table):
     apply_outlier_handling(vitals_table)
 
     print("\nOutlier handling completed!")
+    return (apply_outlier_handling,)
+
+
+@app.cell
+def _(DATA_DIR, FILETYPE, TIMEZONE):
+    from clifpy import Labs
+
+    # Load vitals data using from_file method
+    Labs_table = Labs.from_file(
+        data_directory=DATA_DIR,
+        filetype=FILETYPE,
+        timezone=TIMEZONE
+    )
+
+    return (Labs_table,)
+
+
+@app.cell
+def _(Labs_table, apply_outlier_handling):
+    apply_outlier_handling(Labs_table)
+    return
+
+
+@app.cell
+def _(Labs_table):
+    Labs_table.df.lab_category.value_counts()
     return
 
 
