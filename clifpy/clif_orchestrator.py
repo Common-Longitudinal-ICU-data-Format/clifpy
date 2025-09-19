@@ -8,7 +8,7 @@ all CLIF table objects with consistent configuration.
 import os
 import pandas as pd
 import psutil
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 from .tables.patient import Patient
 from .tables.hospitalization import Hospitalization
@@ -149,7 +149,7 @@ class ClifOrchestrator:
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
-    ):
+    ) -> Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, PatientAssessments, RespiratorySupport, Position]:
         """
         Load table data and create table object.
         
