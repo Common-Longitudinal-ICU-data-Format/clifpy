@@ -9,7 +9,7 @@ import os
 import logging
 import pandas as pd
 import psutil
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from .tables.patient import Patient
 from .tables.hospitalization import Hospitalization
@@ -140,7 +140,7 @@ class ClifOrchestrator:
         print('ClifOrchestrator initialized.')
     
     @classmethod
-    def from_config(cls, config_path: str = "./config.json"):
+    def from_config(cls, config_path: str = "./config.json") -> 'ClifOrchestrator':
         """
         Create a ClifOrchestrator instance from a configuration file.
         
@@ -158,7 +158,7 @@ class ClifOrchestrator:
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
-    ):
+    ) -> Any:
         """
         Load table data and create table object.
         
@@ -539,7 +539,7 @@ class ClifOrchestrator:
         show_intermediate: bool = False,
         override: bool = False,
         save_to_table: bool = True
-    ):
+    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
         """
         Convert dose units for continuous medication data.
 
@@ -611,7 +611,7 @@ class ClifOrchestrator:
         show_intermediate: bool = False,
         override: bool = False,
         save_to_table: bool = True
-    ):
+    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
         """
         Convert dose units for intermittent medication data.
 
