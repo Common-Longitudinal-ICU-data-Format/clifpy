@@ -19,6 +19,8 @@ from .tables.medication_admin_continuous import MedicationAdminContinuous
 from .tables.patient_assessments import PatientAssessments
 from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
+from .utils.config import get_config_or_params
+from .utils.stitching_encounters import stitch_encounters
 
 
 TABLE_CLASSES = {
@@ -42,10 +44,14 @@ class ClifOrchestrator:
     and validating multiple CLIF tables with consistent configuration.
     
     Attributes:
+        config_path (str, optional): Path to configuration JSON file
         data_directory (str): Path to the directory containing data files
         filetype (str): Type of data file (csv, parquet, etc.)
         timezone (str): Timezone for datetime columns
         output_directory (str): Directory for saving output files and logs
+        stitch_encounter (bool): Whether to stitch encounters within time interval
+        stitch_time_interval (int): Hours between discharge and next admission to consider encounters linked
+        encounter_mapping (pd.DataFrame): Mapping of hospitalization_id to encounter_block (after stitching)
         patient (Patient): Patient table object
         hospitalization (Hospitalization): Hospitalization table object
         adt (Adt): ADT table object
@@ -59,33 +65,57 @@ class ClifOrchestrator:
     
     def __init__(
         self,
-        data_directory: str,
-        filetype: str = 'csv',
-        timezone: str = 'UTC',
+        config_path: Optional[str] = None,
+        data_directory: Optional[str] = None,
+        filetype: Optional[str] = None,
+        timezone: Optional[str] = None,
         output_directory: Optional[str] = None,
-        snake_case: bool = True
+        stitch_encounter: bool = False,
+        stitch_time_interval: int = 6
     ):
         """
         Initialize the ClifOrchestrator.
         
         Parameters:
-            data_directory (str): Path to the directory containing data files
-            filetype (str): Type of data file (csv, parquet, etc.)
-            timezone (str): Timezone for datetime columns
+            config_path (str, optional): Path to configuration JSON file
+            data_directory (str, optional): Path to the directory containing data files
+            filetype (str, optional): Type of data file (csv, parquet, etc.)
+            timezone (str, optional): Timezone for datetime columns
             output_directory (str, optional): Directory for saving output files and logs.
                 If not provided, creates an 'output' directory in the current working directory.
-            snake_case (bool, optional): Whether to apply snake_case formatting to categorical columns. Default True.
+            stitch_encounter (bool, optional): Whether to stitch encounters within time interval. Default False.
+            stitch_time_interval (int, optional): Hours between discharge and next admission to consider 
+                encounters linked. Default 6 hours.
+                
+        Loading priority:
+            1. If all required params provided → use them
+            2. If config_path provided → load from that path, allow param overrides
+            3. If no params and no config_path → auto-detect config.json
+            4. Parameters override config file values when both are provided
         """
-        self.data_directory = data_directory
-        self.filetype = filetype
-        self.timezone = timezone
-        self.snake_case = snake_case
+        # Get configuration from config file or parameters
+        config = get_config_or_params(
+            config_path=config_path,
+            data_directory=data_directory,
+            filetype=filetype,
+            timezone=timezone,
+            output_directory=output_directory
+        )
         
-        # Set output directory (same logic as BaseTable)
-        if output_directory is None:
-            output_directory = os.path.join(os.getcwd(), 'output')
-        self.output_directory = output_directory
+        self.data_directory = config['data_directory']
+        self.filetype = config['filetype']
+        self.timezone = config['timezone']
+        
+        # Set output directory
+        self.output_directory = config.get('output_directory')
+        if self.output_directory is None:
+            self.output_directory = os.path.join(os.getcwd(), 'output')
         os.makedirs(self.output_directory, exist_ok=True)
+        
+        # Set stitching parameters
+        self.stitch_encounter = stitch_encounter
+        self.stitch_time_interval = stitch_time_interval
+        self.encounter_mapping = None
         
         # Initialize all table attributes to None
         self.patient = None
@@ -100,13 +130,25 @@ class ClifOrchestrator:
         
         print('ClifOrchestrator initialized.')
     
+    @classmethod
+    def from_config(cls, config_path: str = "./config.json"):
+        """
+        Create a ClifOrchestrator instance from a configuration file.
+        
+        Parameters:
+            config_path (str): Path to the configuration JSON file
+            
+        Returns:
+            ClifOrchestrator: Configured instance
+        """
+        return cls(config_path=config_path)
+    
     def load_table(
         self,
         table_name: str,
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None,
-        snake_case: Optional[bool] = None
+        filters: Optional[Dict[str, Any]] = None
     ):
         """
         Load table data and create table object.
@@ -116,8 +158,6 @@ class ClifOrchestrator:
             sample_size (int, optional): Number of rows to load
             columns (List[str], optional): Specific columns to load
             filters (Dict, optional): Filters to apply when loading
-            snake_case (bool, optional): Whether to apply snake_case formatting to categorical columns.
-                If None, uses the orchestrator's default setting.
             
         Returns:
             The loaded table object
@@ -133,8 +173,7 @@ class ClifOrchestrator:
             output_directory=self.output_directory,
             sample_size=sample_size,
             columns=columns,
-            filters=filters,
-            snake_case=snake_case if snake_case is not None else self.snake_case
+            filters=filters
         )
         setattr(self, table_name, table_object)
         return table_object
@@ -167,6 +206,29 @@ class ClifOrchestrator:
                 self.load_table(table, sample_size, table_columns, table_filters)
             except ValueError as e:
                 print(f"Warning: {e}")
+        
+        # Perform encounter stitching if enabled
+        if self.stitch_encounter:
+            if self.hospitalization is None or self.adt is None:
+                print("Warning: Encounter stitching requires both hospitalization and ADT tables to be loaded. Skipping stitching.")
+            else:
+                print(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours...")
+                try:
+                    hospitalization_stitched, adt_stitched, encounter_mapping = stitch_encounters(
+                        self.hospitalization.df,
+                        self.adt.df,
+                        time_interval=self.stitch_time_interval
+                    )
+                    
+                    # Update the dataframes in place
+                    self.hospitalization.df = hospitalization_stitched
+                    self.adt.df = adt_stitched
+                    self.encounter_mapping = encounter_mapping
+                    
+                    print("Encounter stitching completed successfully.")
+                except Exception as e:
+                    print(f"Error during encounter stitching: {e}")
+                    self.encounter_mapping = None
     
     def get_loaded_tables(self) -> List[str]:
         """
@@ -198,6 +260,16 @@ class ClifOrchestrator:
             if table_obj is not None:
                 table_objects.append(table_obj)
         return table_objects
+    
+    def get_encounter_mapping(self) -> Optional[pd.DataFrame]:
+        """
+        Return the encounter mapping DataFrame if encounter stitching was performed.
+        
+        Returns:
+            pd.DataFrame: Mapping of hospitalization_id to encounter_block if stitching was performed.
+            None: If stitching was not performed or failed.
+        """
+        return self.encounter_mapping
     
     def validate_all(self):
         """
@@ -238,42 +310,77 @@ class ClifOrchestrator:
         """
         Create wide time-series dataset using DuckDB for high performance.
         
-        Parameters:
-            tables_to_load: List of tables to include (e.g., ['vitals', 'labs'])
-            category_filters: Dict of categories to pivot for each table
-                Example: {
-                    'vitals': ['heart_rate', 'sbp', 'spo2'],
-                    'labs': ['hemoglobin', 'sodium'],
-                    'respiratory_support': ['device_category']
-                }
-            sample: If True, use 20 random hospitalizations
-            hospitalization_ids: Specific hospitalization IDs to include
-            cohort_df: DataFrame with time windows for filtering
-            output_format: 'dataframe', 'csv', or 'parquet'
-            save_to_data_location: Save output to data directory
-            output_filename: Custom filename for output
-            return_dataframe: Return DataFrame even when saving
-            batch_size: Number of hospitalizations per batch
-            memory_limit: DuckDB memory limit (e.g., '8GB')
-            threads: Number of threads for DuckDB
-            show_progress: Show progress bars
+        Parameters
+        ----------
+        tables_to_load : List[str], optional
+            List of table names to include in the wide dataset (e.g., ['vitals', 'labs', 'respiratory_support']).
+            If None, only base tables (patient, hospitalization, adt) are loaded.
+        category_filters : Dict[str, List[str]], optional
+            Dictionary mapping table names to lists of categories to pivot into columns.
+            Example: {
+                'vitals': ['heart_rate', 'sbp', 'spo2'],
+                'labs': ['hemoglobin', 'sodium'],
+                'respiratory_support': ['device_category']
+            }
+        sample : bool, default=False
+            If True, randomly sample 20 hospitalizations for testing purposes.
+        hospitalization_ids : List[str], optional
+            List of specific hospitalization IDs to include. When provided, only data for these
+            hospitalizations will be loaded, improving performance for large datasets.
+        cohort_df : pd.DataFrame, optional
+            DataFrame containing cohort definitions with columns:
+            - 'patient_id': Patient identifier
+            - 'start_time': Start of time window (datetime)
+            - 'end_time': End of time window (datetime)
+            Used to filter data to specific time windows per patient.
+        output_format : str, default='dataframe'
+            Format for output data. Options: 'dataframe', 'csv', 'parquet'.
+        save_to_data_location : bool, default=False
+            If True, save output file to the data directory specified in orchestrator config.
+        output_filename : str, optional
+            Custom filename for saved output. If None, auto-generates filename with timestamp.
+        return_dataframe : bool, default=True
+            If True, return DataFrame even when saving to file. If False and saving,
+            returns None to save memory.
+        batch_size : int, default=1000
+            Number of hospitalizations to process per batch. Lower values use less memory.
+        memory_limit : str, optional
+            DuckDB memory limit (e.g., '8GB', '16GB'). If None, uses DuckDB default.
+        threads : int, optional
+            Number of threads for DuckDB to use. If None, uses all available cores.
+        show_progress : bool, default=True
+            If True, display progress bars during processing.
             
-        Returns:
-            Wide dataset as DataFrame or None
+        Returns
+        -------
+        pd.DataFrame or None
+            Wide dataset with time-series data pivoted by categories. Returns None if
+            return_dataframe=False and saving to file.
+            
+        Notes
+        -----
+        - When hospitalization_ids is provided, the function efficiently loads only the
+          specified hospitalizations from all tables, significantly reducing memory usage
+          and processing time for targeted analyses.
+        - The wide dataset will have one row per hospitalization per time point, with
+          columns for each category value specified in category_filters.
         """
         # Import the utility function
         from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
+        filters = None
+        if hospitalization_ids:
+            filters = {'hospitalization_id': hospitalization_ids}
         
         # Auto-load base tables if not loaded
         if self.patient is None:
             print("Loading patient table...")
-            self.load_table('patient')
+            self.load_table('patient')  # Patient doesn't need filters
         if self.hospitalization is None:
             print("Loading hospitalization table...")
-            self.load_table('hospitalization')
+            self.load_table('hospitalization', filters=filters)
         if self.adt is None:
             print("Loading adt table...")
-            self.load_table('adt')
+            self.load_table('adt', filters=filters)
         
         # Load optional tables only if not already loaded
         if tables_to_load:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clifpy"  
-version = "0.0.3"
+version = "0.0.4"
 description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -29,7 +29,10 @@ dependencies = [
   "pydantic",
   "pytest",
   "pytz",
-  "tqdm"
+  "tqdm",
+  "polars>=1.33.1",
+  "pyyaml>=6.0.2",
+  "psutil>=7.1.0",
 ]
 
 [tool.setuptools]
@@ -41,7 +44,10 @@ where = ["."]
 include = ["clifpy*"]
 
 [tool.setuptools.package-data]
-pyclif = ["data/clif_demo/*.parquet", "mCIDE/*.json"]
+clifpy = [
+    "data/clif_demo/*.parquet", 
+    "schemas/*.yaml"
+]
 
 [tool.pytest.ini_options]
 markers = [

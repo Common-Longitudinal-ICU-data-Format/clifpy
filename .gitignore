@@ -21,7 +21,9 @@ __pycache__/
 .claude
 todo.md
 
-#dev
+# dev
+.dev/
+graphs/
 
 clif_2.1.0.txt
 context7.json
@@ -30,3 +32,16 @@ context7.json
 output/
 
 config/
+site/
+.serena/
+.pytest_cache
+env.txt
+
+#AI dev files
+marimo.md
+claude.md
+gemini.md
+codex.md
+cline.md
+rules.md
+kilo.md

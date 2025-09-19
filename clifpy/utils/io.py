@@ -5,6 +5,7 @@ import duckdb
 import pytz
 from typing import Dict
 import yaml
+from .config import get_config_or_params
 
 # conn = duckdb.connect(database=':memory:')
 
@@ -50,7 +51,7 @@ def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None
     df = _cast_id_cols_to_string(df)         # cast id columns to string
     return df
 
-def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None, snake_case=True):
+def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None):
     """
     Load data from a file in the specified directory with the option to select specific columns and apply filters.
 
@@ -60,7 +61,6 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
         columns (list of str, optional): List of column names to load.
         filters (dict, optional): Dictionary of filters to apply.
         site_tz (str, optional): Timezone string for datetime conversion, e.g., "America/New_York".
-        snake_case (bool, optional): Whether to apply snake_case formatting to categorical columns. Default True.
 
     Returns:
         pd.DataFrame: DataFrame containing the requested data.
@@ -109,16 +109,6 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
         filename = os.path.basename(file_path)
         print(f"Data loaded successfully from {filename}")
         df = _cast_id_cols_to_string(df) # Cast id columns to string
-        
-        # Convert categorical columns to snake_case if requested
-        if snake_case:
-            for col in df.columns:
-                if df[col].dtype == 'object' and (col.endswith('_category') or col.endswith('_group')):
-                    df[col] = (df[col]
-                              .str.lower()
-                              .str.replace(' ', '_', regex=False)
-                              .str.replace(r'_{2,}', '_', regex=True)  # Replace multiple underscores with single
-                              .str.strip('_'))  # Remove ALL leading and trailing underscores
         
         # Convert datetime columns to site timezone if specified
         if site_tz:
