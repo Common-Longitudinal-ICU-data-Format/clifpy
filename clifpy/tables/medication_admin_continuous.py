@@ -126,6 +126,7 @@ class MedicationAdminContinuous(BaseTable):
         Set[str]
             A set containing all acceptable dose unit patterns. Patterns are formed
             by combining:
+            
             - Amount units: ml, l, milli-units, units, mcg, mg, ng
             - Weight qualifiers: /kg or none
             - Time units: /h, /hr, /hour, /m, /min, /minute
@@ -226,25 +227,31 @@ class MedicationAdminContinuous(BaseTable):
         ----------
         vitals_df : pd.DataFrame
             DataFrame containing patient vital signs, must include:
+            
             - hospitalization_id: Patient identifier
             - recorded_dttm: Timestamp of vital recording
             - vital_category: Type of vital (looks for 'weight_kg')
             - vital_value: Numeric value of the vital
+            
         med_df : pd.DataFrame, optional
             DataFrame containing medication administration data. If None, uses self.df.
             Required columns:
+            
             - hospitalization_id: Patient identifier
             - admin_dttm: Medication administration timestamp
             - med_dose_unit: Original dose unit (case-insensitive)
             - med_dose: Original dose value
             - med_category: Medication category (used for SQL query)
+            
             Optional columns:
+            
             - weight_kg: Patient weight; if absent, pulled from vitals_df
         
         Returns
         -------
         pd.DataFrame
             Original med_df with additional columns:
+            
             - med_dose_unit_clean: Standardized unit pattern
             - weight_kg: Patient weight used for conversion (if applicable)
             - med_dose_converted: Dose value in standardized units
@@ -262,6 +269,7 @@ class MedicationAdminContinuous(BaseTable):
         
         Notes
         -----
+        
         - Weight-based dosing (/kg) uses the most recent weight prior to administration
         - Unrecognized dose units result in NULL converted values
         - The conversion preserves the original columns and adds new ones
