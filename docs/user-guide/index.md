@@ -159,7 +159,7 @@ for table_name in orchestrator.get_loaded_tables():
 
 ```python
 # Category-based filtering
-icu_stays = adt.filter_by_location_category('icu')
+icu_stays = adt.df[adt.df['location_category'] == 'icu']
 
 # Patient cohort analysis 
 cohort_ids = ['P001', 'P002', 'P003']
