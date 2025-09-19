@@ -30,6 +30,7 @@ dependencies = [
   "pytest",
   "pytz",
   "tqdm",
+  "sqlglot>=27.16.3",
   "polars>=1.33.1",
   "pyyaml>=6.0.2",
   "psutil>=7.1.0",
@@ -52,4 +53,13 @@ clifpy = [
 [tool.pytest.ini_options]
 markers = [
   "unit_conversion: marks tests related to unit conversion",
+]
+
+[dependency-groups]
+dev = [
+    "marimo>=0.15.5",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.20",
+    "mkdocstrings[python]>=0.30.0",
+    "nbformat>=5.10.4",
 ]
