@@ -1,6 +1,7 @@
-"""Comprehensive validator module for pyCLIF tables.
+"""Comprehensive validator module for CLIFpy tables.
 
-This module provides validation functions for pyCLIF tables including:
+This module provides validation functions for CLIFpy tables including:
+
 - Column presence and data type validation with casting capability checks
 - Missing data analysis
 - Categorical value validation
@@ -11,6 +12,7 @@ This module provides validation functions for pyCLIF tables including:
 - Cohort analysis
 
 Datatype Validation Behavior:
+
 - The validator first checks if columns match their expected types exactly
 - If not, it checks whether the data can be cast to the correct type
 - Castable mismatches generate warnings (type: "datatype_castable")
@@ -192,6 +194,7 @@ def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str,
     Returns a list of error dictionaries. An empty list means success.
 
     For datatype validation:
+    
     - If a column doesn't match the expected type exactly, the validator checks
       if the data can be cast to the correct type
     - Castable type mismatches return warnings with type "datatype_castable"
