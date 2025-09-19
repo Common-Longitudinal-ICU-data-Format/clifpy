@@ -25,16 +25,26 @@ class BaseTable:
     Provides common functionality for loading data, running validations,
     and generating reports. All table-specific classes should inherit from this.
     
-    Attributes:
-        data_directory (str): Path to the directory containing data files
-        filetype (str): Type of data file (csv, parquet, etc.)
-        timezone (str): Timezone for datetime columns
-        output_directory (str): Directory for saving output files and logs
-        table_name (str): Name of the table (from class name)
-        df (pd.DataFrame): The loaded data
-        schema (dict): The YAML schema for this table
-        errors (List[dict]): Validation errors from last validation run
-        logger (logging.Logger): Logger for this table
+    Attributes
+    ----------
+    data_directory : str
+        Path to the directory containing data files
+    filetype : str
+        Type of data file (csv, parquet, etc.)
+    timezone : str
+        Timezone for datetime columns
+    output_directory : str
+        Directory for saving output files and logs
+    table_name : str
+        Name of the table (from class name)
+    df : pd.DataFrame
+        The loaded data
+    schema : dict
+        The YAML schema for this table
+    errors : List[dict]
+        Validation errors from last validation run
+    logger : logging.Logger
+        Logger for this table
     """
     
     def __init__(
@@ -48,13 +58,19 @@ class BaseTable:
         """
         Initialize the BaseTable.
         
-        Parameters:
-            data_directory (str): Path to the directory containing data files
-            filetype (str): Type of data file (csv, parquet, etc.)
-            timezone (str): Timezone for datetime columns
-            output_directory (str, optional): Directory for saving output files and logs.
-                If not provided, creates an 'output' directory in the current working directory.
-            data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
+        Parameters
+        ----------
+        data_directory : str
+            Path to the directory containing data files
+        filetype : str
+            Type of data file (csv, parquet, etc.)
+        timezone : str
+            Timezone for datetime columns
+        output_directory : str, optional
+            Directory for saving output files and logs.
+            If not provided, creates an 'output' directory in the current working directory.
+        data : pd.DataFrame, optional
+            Pre-loaded data to use instead of loading from file
         """
         # Store configuration
         self.data_directory = data_directory
@@ -160,23 +176,36 @@ class BaseTable:
         """
         Load data from file and create a table instance.
         
-        Parameters:
-            data_directory (str, optional): Path to the directory containing data files
-            filetype (str, optional): Type of data file (csv, parquet, etc.)
-            timezone (str, optional): Timezone for datetime columns
-            config_path (str, optional): Path to configuration JSON file
-            output_directory (str, optional): Directory for saving output files and logs
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
+        Parameters
+        ----------
+        data_directory : str, optional
+            Path to the directory containing data files
+        filetype : str, optional
+            Type of data file (csv, parquet, etc.)
+        timezone : str, optional
+            Timezone for datetime columns
+        config_path : str, optional
+            Path to configuration JSON file
+        output_directory : str, optional
+            Directory for saving output files and logs
+        sample_size : int, optional
+            Number of rows to load
+        columns : List[str], optional
+            Specific columns to load
+        filters : Dict, optional
+            Filters to apply when loading
             
+        Notes
+        -----
         Loading priority:
             1. If all required params provided → use them
             2. If config_path provided → load from that path, allow param overrides
             3. If no params and no config_path → auto-detect clif_config.json
             4. Parameters override config file values when both are provided
             
-        Returns:
+        Returns
+        -------
+        BaseTable
             Instance of the table class with loaded data
         """
         # Get configuration from config file or parameters
