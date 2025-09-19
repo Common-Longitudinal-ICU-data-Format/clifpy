@@ -65,6 +65,7 @@ class ClifOrchestrator:
         patient_assessments (PatientAssessments): Patient assessments table object
         respiratory_support (RespiratorySupport): Respiratory support table object
         position (Position): Position table object
+        wide_df (pd.DataFrame): Wide dataset with time-series data (populated by create_wide_dataset)
     """
     
     def __init__(
@@ -136,6 +137,9 @@ class ClifOrchestrator:
         self.patient_assessments: PatientAssessments = None
         self.respiratory_support: RespiratorySupport = None
         self.position: Position = None
+
+        # Initialize wide dataset property
+        self.wide_df: Optional[pd.DataFrame] = None
         
         print('ClifOrchestrator initialized.')
     
@@ -315,7 +319,7 @@ class ClifOrchestrator:
         memory_limit: Optional[str] = None,
         threads: Optional[int] = None,
         show_progress: bool = True
-    ) -> Optional[pd.DataFrame]:
+    ) -> None:
         """
         Create wide time-series dataset using DuckDB for high performance.
         
@@ -362,9 +366,9 @@ class ClifOrchestrator:
             
         Returns
         -------
-        pd.DataFrame or None
-            Wide dataset with time-series data pivoted by categories. Returns None if
-            return_dataframe=False and saving to file.
+        None
+            The wide dataset is stored in the `wide_df` property of the orchestrator instance.
+            Access the result via `orchestrator.wide_df` after calling this method.
             
         Notes
         -----
@@ -401,8 +405,8 @@ class ClifOrchestrator:
                     except Exception as e:
                         print(f"Warning: Could not load {table_name}: {e}")
         
-        # Call utility function with self as clif_instance
-        return _create_wide(
+        # Call utility function with self as clif_instance and store result in wide_df property
+        self.wide_df = _create_wide(
             clif_instance=self,
             optional_tables=tables_to_load,
             category_filters=category_filters,
