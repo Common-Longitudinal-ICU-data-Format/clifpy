@@ -42,12 +42,14 @@ def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None
     df = _cast_id_cols_to_string(df)         # cast id columns to string
     return df
 
-def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None):
+def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None) -> pd.DataFrame:
     """
     Load data from a file in the specified directory with the option to select specific columns and apply filters.
 
     Parameters:
         table_name (str): The name of the table to load.
+        table_path (str): Path to the directory containing the data file.
+        table_format_type (str): Format of the data file (e.g., 'csv', 'parquet').
         sample_size (int, optional): Number of rows to load.
         columns (list of str, optional): List of column names to load.
         filters (dict, optional): Dictionary of filters to apply.
@@ -55,9 +57,6 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
 
     Returns:
         pd.DataFrame: DataFrame containing the requested data.
-
-    Usage:
-        
     """
     # Determine the file path based on the directory and filetype
   
