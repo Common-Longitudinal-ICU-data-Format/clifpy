@@ -24,12 +24,18 @@ class Vitals(BaseTable):
         """
         Initialize the vitals table.
         
-        Parameters:
-            data_directory (str): Path to the directory containing data files
-            filetype (str): Type of data file (csv, parquet, etc.)
-            timezone (str): Timezone for datetime columns
-            output_directory (str, optional): Directory for saving output files and logs
-            data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
+        Parameters
+        ----------
+        data_directory : str
+            Path to the directory containing data files
+        filetype : str
+            Type of data file (csv, parquet, etc.)
+        timezone : str
+            Timezone for datetime columns
+        output_directory : str, optional
+            Directory for saving output files and logs
+        data : pd.DataFrame, optional
+            Pre-loaded data to use instead of loading from file
         """
         # Initialize range validation errors list
         self.range_validation_errors: List[dict] = []
