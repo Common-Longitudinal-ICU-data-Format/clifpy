@@ -425,8 +425,8 @@ class ClifOrchestrator:
     
     def convert_wide_to_hourly(
         self,
-        wide_df: Optional[pd.DataFrame] = None,
         aggregation_config: Dict[str, List[str]],
+        wide_df: Optional[pd.DataFrame] = None,
         memory_limit: str = '4GB',
         temp_directory: Optional[str] = None,
         batch_size: Optional[int] = None
