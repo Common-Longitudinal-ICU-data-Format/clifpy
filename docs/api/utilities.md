@@ -56,7 +56,7 @@ The following functions are used internally by the main conversion functions. Th
 
 ### Conversion Functions
 
-::: clifpy.utils.unit_converter._convert_clean_dose_units_to_base_units
+::: clifpy.utils.unit_converter._convert_clean_units_to_base_units
 
 ::: clifpy.utils.unit_converter._convert_base_units_to_preferred_units
 

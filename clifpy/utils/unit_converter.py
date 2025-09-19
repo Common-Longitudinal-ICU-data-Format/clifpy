@@ -912,7 +912,7 @@ def convert_dose_units_by_med_category(
         Keys are medication category names, values are target unit strings.
         Example: {'propofol': 'mcg/kg/min', 'fentanyl': 'mcg/hr', 'insulin': 'u/hr'}
         If None, uses base units (mcg/min, ml/min, u/min) as defaults.
-    detailed_output : bool, default False
+    show_intermediate : bool, default False
         If False, excludes intermediate calculation columns (multipliers) from output.
         If True, retains all columns including conversion multipliers for debugging.
     override : bool, default False
@@ -935,7 +935,7 @@ def convert_dose_units_by_med_category(
             * _unit_class: Classification ('rate', 'amount', or 'unrecognized')
             * _convert_status: Status message indicating success or reason for failure
 
-            If detailed_output=True, also includes conversion multipliers.
+            If show_intermediate=True, also includes conversion multipliers.
 
         - [1] Summary counts DataFrame with conversion statistics grouped by medication category
 
