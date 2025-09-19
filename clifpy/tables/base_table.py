@@ -156,7 +156,7 @@ class BaseTable:
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
-    ):
+    ) -> 'BaseTable':
         """
         Load data from file and create a table instance.
         
