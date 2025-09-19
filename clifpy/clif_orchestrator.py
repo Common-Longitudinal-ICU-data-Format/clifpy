@@ -43,24 +43,24 @@ class ClifOrchestrator:
     This class provides a centralized interface for loading, managing,
     and validating multiple CLIF tables with consistent configuration.
     
-    Attributes:
-        config_path (str, optional): Path to configuration JSON file
-        data_directory (str): Path to the directory containing data files
-        filetype (str): Type of data file (csv, parquet, etc.)
-        timezone (str): Timezone for datetime columns
-        output_directory (str): Directory for saving output files and logs
-        stitch_encounter (bool): Whether to stitch encounters within time interval
-        stitch_time_interval (int): Hours between discharge and next admission to consider encounters linked
-        encounter_mapping (pd.DataFrame): Mapping of hospitalization_id to encounter_block (after stitching)
-        patient (Patient): Patient table object
-        hospitalization (Hospitalization): Hospitalization table object
-        adt (Adt): ADT table object
-        labs (Labs): Labs table object
-        vitals (Vitals): Vitals table object
-        medication_admin_continuous (MedicationAdminContinuous): Medication administration table object
-        patient_assessments (PatientAssessments): Patient assessments table object
-        respiratory_support (RespiratorySupport): Respiratory support table object
-        position (Position): Position table object
+    Attributes
+    ----------
+    config_path : str, optional
+        Path to configuration JSON file
+    data_directory : str
+        Path to the directory containing data files
+    filetype : str
+        Type of data file (csv, parquet, etc.)
+    timezone : str
+        Timezone for datetime columns
+    output_directory : str
+        Directory for saving output files and logs
+    stitch_encounter : bool
+        Whether to stitch encounters within time interval
+    stitch_time_interval : int
+        Hours between discharge and next admission to consider encounters linked
+    encounter_mapping : pd.DataFrame
+        Mapping of hospitalization_id to encounter_block (after stitching)
     """
     
     def __init__(
@@ -76,17 +76,27 @@ class ClifOrchestrator:
         """
         Initialize the ClifOrchestrator.
         
-        Parameters:
-            config_path (str, optional): Path to configuration JSON file
-            data_directory (str, optional): Path to the directory containing data files
-            filetype (str, optional): Type of data file (csv, parquet, etc.)
-            timezone (str, optional): Timezone for datetime columns
-            output_directory (str, optional): Directory for saving output files and logs.
-                If not provided, creates an 'output' directory in the current working directory.
-            stitch_encounter (bool, optional): Whether to stitch encounters within time interval. Default False.
-            stitch_time_interval (int, optional): Hours between discharge and next admission to consider 
-                encounters linked. Default 6 hours.
+        Parameters
+        ----------
+        config_path : str, optional
+            Path to configuration JSON file
+        data_directory : str, optional
+            Path to the directory containing data files
+        filetype : str, optional
+            Type of data file (csv, parquet, etc.)
+        timezone : str, optional
+            Timezone for datetime columns
+        output_directory : str, optional
+            Directory for saving output files and logs.
+            If not provided, creates an 'output' directory in the current working directory.
+        stitch_encounter : bool, optional
+            Whether to stitch encounters within time interval. Default False.
+        stitch_time_interval : int, optional
+            Hours between discharge and next admission to consider 
+            encounters linked. Default 6 hours.
                 
+        Notes
+        -----
         Loading priority:
             1. If all required params provided → use them
             2. If config_path provided → load from that path, allow param overrides
@@ -135,11 +145,15 @@ class ClifOrchestrator:
         """
         Create a ClifOrchestrator instance from a configuration file.
         
-        Parameters:
-            config_path (str): Path to the configuration JSON file
+        Parameters
+        ----------
+        config_path : str
+            Path to the configuration JSON file
             
-        Returns:
-            ClifOrchestrator: Configured instance
+        Returns
+        -------
+        ClifOrchestrator
+            Configured instance
         """
         return cls(config_path=config_path)
     
@@ -153,13 +167,20 @@ class ClifOrchestrator:
         """
         Load table data and create table object.
         
-        Parameters:
-            table_name (str): Name of the table to load
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to load
+        sample_size : int, optional
+            Number of rows to load
+        columns : List[str], optional
+            Specific columns to load
+        filters : Dict, optional
+            Filters to apply when loading
             
-        Returns:
+        Returns
+        -------
+        Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, PatientAssessments, RespiratorySupport, Position]
             The loaded table object
         """
         if table_name not in TABLE_CLASSES:
@@ -188,11 +209,16 @@ class ClifOrchestrator:
         """
         Initialize specified tables with optional filtering and column selection.
         
-        Parameters:
-            tables (List[str], optional): List of table names to load. Defaults to ['patient'].
-            sample_size (int, optional): Number of rows to load for each table.
-            columns (Dict[str, List[str]], optional): Dictionary mapping table names to lists of columns to load.
-            filters (Dict[str, Dict], optional): Dictionary mapping table names to filter dictionaries.
+        Parameters
+        ----------
+        tables : List[str], optional
+            List of table names to load. Defaults to ['patient'].
+        sample_size : int, optional
+            Number of rows to load for each table.
+        columns : Dict[str, List[str]], optional
+            Dictionary mapping table names to lists of columns to load.
+        filters : Dict[str, Dict], optional
+            Dictionary mapping table names to filter dictionaries.
         """
         if tables is None:
             tables = ['patient']
@@ -421,24 +447,32 @@ class ClifOrchestrator:
         """
         Convert wide dataset to hourly aggregation using DuckDB.
         
-        Parameters:
-            wide_df: Wide dataset from create_wide_dataset()
-            aggregation_config: Dict mapping aggregation methods to columns
-                Example: {
-                    'mean': ['heart_rate', 'sbp'],
-                    'max': ['spo2'],
-                    'min': ['map'],
-                    'median': ['glucose'],
-                    'first': ['gcs_total'],
-                    'last': ['assessment_value'],
-                    'boolean': ['norepinephrine'],
-                    'one_hot_encode': ['device_category']
-                }
-            memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
-            temp_directory: Directory for DuckDB temp files
-            batch_size: Process in batches if specified
+        Parameters
+        ----------
+        wide_df : pd.DataFrame
+            Wide dataset from create_wide_dataset()
+        aggregation_config : Dict[str, List[str]]
+            Dict mapping aggregation methods to columns
+            Example: {
+                'mean': ['heart_rate', 'sbp'],
+                'max': ['spo2'],
+                'min': ['map'],
+                'median': ['glucose'],
+                'first': ['gcs_total'],
+                'last': ['assessment_value'],
+                'boolean': ['norepinephrine'],
+                'one_hot_encode': ['device_category']
+            }
+        memory_limit : str, default='4GB'
+            DuckDB memory limit (e.g., '4GB', '8GB')
+        temp_directory : str, optional
+            Directory for DuckDB temp files
+        batch_size : int, optional
+            Process in batches if specified
             
-        Returns:
+        Returns
+        -------
+        pd.DataFrame
             Hourly aggregated DataFrame with nth_hour column
         """
         from clifpy.utils.wide_dataset import convert_wide_to_hourly
@@ -455,11 +489,15 @@ class ClifOrchestrator:
         """
         Get system resource information including CPU, memory, and practical thread limits.
         
-        Parameters:
-            print_summary (bool): Whether to print a formatted summary
+        Parameters
+        ----------
+        print_summary : bool, default=True
+            Whether to print a formatted summary
             
-        Returns:
-            Dict containing system resource information:
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing system resource information:
             - cpu_count_physical: Number of physical CPU cores
             - cpu_count_logical: Number of logical CPU cores
             - cpu_usage_percent: Current CPU usage percentage
