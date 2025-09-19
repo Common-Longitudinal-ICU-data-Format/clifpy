@@ -425,7 +425,7 @@ class ClifOrchestrator:
     
     def convert_wide_to_hourly(
         self,
-        wide_df: pd.DataFrame,
+        wide_df: Optional[pd.DataFrame] = None,
         aggregation_config: Dict[str, List[str]],
         memory_limit: str = '4GB',
         temp_directory: Optional[str] = None,
@@ -435,7 +435,7 @@ class ClifOrchestrator:
         Convert wide dataset to hourly aggregation using DuckDB.
         
         Parameters:
-            wide_df: Wide dataset from create_wide_dataset()
+            wide_df: Wide dataset DataFrame. If None, uses the stored wide_df from create_wide_dataset()
             aggregation_config: Dict mapping aggregation methods to columns
                 Example: {
                     'mean': ['heart_rate', 'sbp'],
@@ -453,9 +453,27 @@ class ClifOrchestrator:
             
         Returns:
             Hourly aggregated DataFrame with nth_hour column
+
+        Examples:
+            # Using stored wide_df (after create_wide_dataset())
+            co.create_wide_dataset(...)
+            hourly_df = co.convert_wide_to_hourly(aggregation_config=config)
+
+            # Using explicit wide_df parameter
+            hourly_df = co.convert_wide_to_hourly(wide_df=my_df, aggregation_config=config)
         """
         from clifpy.utils.wide_dataset import convert_wide_to_hourly
-        
+
+        # Use provided wide_df or fall back to stored one
+        if wide_df is None:
+            if self.wide_df is None:
+                raise ValueError(
+                    "No wide dataset found. Please either:\n"
+                    "1. Run create_wide_dataset() first, OR\n"
+                    "2. Provide a wide_df parameter"
+                )
+            wide_df = self.wide_df
+
         return convert_wide_to_hourly(
             wide_df=wide_df,
             aggregation_config=aggregation_config,
