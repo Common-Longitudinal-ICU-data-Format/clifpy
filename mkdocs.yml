@@ -98,6 +98,7 @@ nav:
           - Respiratory Support Waterfall: user-guide/waterfall.md
           - Encounter Stitching: user-guide/encounter-stitching.md
           - Outlier Handling: user-guide/outlier-handling.md
+          - Comorbidity Index: user-guide/comorbidity-index.md
   - How-to Guides:
       - Overview: examples/index.md
       - Loading Data: examples/loading-data.md
