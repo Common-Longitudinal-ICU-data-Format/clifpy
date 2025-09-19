@@ -35,3 +35,5 @@ site/
 .serena/
 .pytest_cache
 env.txt
+
+*/__marimo__
