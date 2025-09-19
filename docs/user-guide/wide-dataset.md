@@ -282,7 +282,7 @@ wide_df = co.wide_df
 
 ## Hourly Aggregation
 
-Convert the wide dataset to hourly aggregation:
+Convert the wide dataset to hourly aggregation. The `convert_wide_to_hourly` method automatically uses the stored wide dataset from `create_wide_dataset()`:
 
 ```python
 # Create aggregation configuration
@@ -296,15 +296,21 @@ aggregation_config = {
     'boolean': ['norepinephrine', 'propofol'],  # 1 if present, 0 if absent
 }
 
-# Convert to hourly (use the wide_df property)
+# Convert to hourly (automatically uses stored wide_df)
 hourly_df = co.convert_wide_to_hourly(
-    co.wide_df,
     aggregation_config=aggregation_config,
     memory_limit='8GB'
 )
 
 print(f"Hourly dataset: {hourly_df.shape}")
 print(f"Hour range: {hourly_df['nth_hour'].min()} to {hourly_df['nth_hour'].max()}")
+
+# Alternative: Explicitly provide wide_df (useful for custom datasets)
+# hourly_df = co.convert_wide_to_hourly(
+#     wide_df=custom_wide_df,
+#     aggregation_config=aggregation_config,
+#     memory_limit='8GB'
+# )
 ```
 
 ## Output Structure
