@@ -147,7 +147,7 @@ for patient_id in prone_patients[:20]:  # Sample
     if compliant_days:
         compliant_patients += 1
 
-print(f"\nProne positioning compliance (e16 hrs/day): {compliant_patients}/20 patients")
+print(f"\nProne positioning compliance (>=16 hrs/day): {compliant_patients}/20 patients")
 ```
 
 ### Mobility Assessment
@@ -286,7 +286,7 @@ if doc_frequencies:
         print(f"Patients with documentation gaps >12 hours: {len(large_gaps)}")
 
 # Check for impossible position sequences
-# (e.g., ambulating ’ prone without intermediate position)
+# (e.g., ambulating -> prone without intermediate position)
 sequence_issues = []
 for patient_id in patient_sample:
     patient_pos = position.df[
