@@ -25,13 +25,18 @@ def apply_outlier_handling(table_obj, outlier_config_path: Optional[str] = None)
 
     Uses ultra-fast Polars implementation with progress tracking.
 
-    Parameters:
-        table_obj: A pyCLIF table object with .df (DataFrame) and .table_name attributes
-        outlier_config_path (str, optional): Path to custom outlier configuration YAML.
-                                           If None, uses internal CLIF standard config.
+    Parameters
+    ----------
+    table_obj
+        A pyCLIF table object with .df (DataFrame) and .table_name attributes
+    outlier_config_path : str, optional
+        Path to custom outlier configuration YAML.
+        If None, uses internal CLIF standard config.
 
-    Returns:
-        None (modifies table_obj.df in-place)
+    Returns
+    -------
+    None
+        modifies table_obj.df in-place
     """
     if table_obj.df is None or table_obj.df.empty:
         print("No data to process for outlier handling.")
@@ -575,12 +580,17 @@ def get_outlier_summary(table_obj, outlier_config_path: Optional[str] = None) ->
     """
     Get a summary of potential outliers without modifying the data.
     
-    Parameters:
-        table_obj: A pyCLIF table object with .df and .table_name attributes
-        outlier_config_path (str, optional): Path to custom outlier configuration
+    Parameters
+    ----------
+    table_obj
+        A pyCLIF table object with .df and .table_name attributes
+    outlier_config_path : str, optional
+        Path to custom outlier configuration
         
-    Returns:
-        dict: Summary of outliers by column and category
+    Returns
+    -------
+    dict
+        Summary of outliers by column and category
     """
     if table_obj.df is None or table_obj.df.empty:
         return {"status": "No data to analyze"}
