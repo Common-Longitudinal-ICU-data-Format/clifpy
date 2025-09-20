@@ -46,7 +46,7 @@ def _(cohort_df, sofa):
         category_filters=sofa.REQUIRED_SOFA_CATEGORIES_BY_TABLE, 
         cohort_df=cohort_df
     )
-    return (wide_df,)
+    return co, wide_df
 
 
 @app.cell
@@ -66,17 +66,44 @@ def _():
 
 @app.cell
 def _(sofa, wide_df):
-    sofa.agg_extremal_values_by_id(
+    worst = sofa.agg_extremal_values_by_id(
         wide_df=wide_df,
-        extremal_type='latest',
+        extremal_type='worst',
+        id_name = 'hospitalization_id'
+    )
+    return (worst,)
+
+
+@app.cell
+def _(sofa, worst):
+    sofa.compute_sofa_from_extremal_values(
+        extremal_df=worst,
         id_name = 'hospitalization_id'
     )
     return
 
 
 @app.cell
-def _(wide_df):
-    wide_df
+def _(co):
+    co.encounter_mapping
+    return
+
+
+@app.cell
+def _(co):
+    co.wide_df
+    return
+
+
+@app.cell
+def _(co):
+    co.compute_sofa_scores(id_name='hospitalization_id')
+    return
+
+
+@app.cell
+def _(co):
+    co.sofa_df
     return
 
 

@@ -39,8 +39,6 @@ DEVICE_RANK_MAPPING = pd.DataFrame({
     'device_rank': DEVICE_RANK_DICT.values()
 })
 
-# required_sofa_categories = [item for sublist in required_sofa_categories_by_table.values() for item in sublist]
-
 def agg_extremal_values_by_id(
     wide_df: pd.DataFrame,
     extremal_type: str,  
@@ -63,17 +61,18 @@ def agg_extremal_values_by_id(
         """
         return duckdb.sql(q).df()
     elif extremal_type == 'latest':
+        raise NotImplementedError("this is a future feature and currently available")
         # TODO: Future feature - implement latest value extraction
-        # q = f"""
-        # FROM wide_df
-        # LEFT JOIN DEVICE_RANK_MAPPING USING (device_category)
-        # SELECT {id_name}
-        #     , any_value(COLUMNS({MAX_ITEMS + MIN_ITEMS}) ORDER BY event_time DESC)
-        #     , device_rank_min: MIN(device_rank)
-        # GROUP BY {id_name}
-        # """
-        # return duckdb.sql(q).df()
-        raise NotImplementedError("'latest' extremal_type is a future feature and currently a placeholder")
+        q = f"""
+        FROM wide_df
+        LEFT JOIN DEVICE_RANK_MAPPING USING (device_category)
+        SELECT {id_name}
+            , any_value(COLUMNS({MAX_ITEMS + MIN_ITEMS}) ORDER BY event_time DESC)
+            , device_rank_min: MIN(device_rank)
+        GROUP BY {id_name}
+        """
+        return duckdb.sql(q).df()
+        
     else:
         raise ValueError(f"Invalid extremal type: {extremal_type}")
 
@@ -124,7 +123,7 @@ def compute_sofa(
     wide_df: pd.DataFrame,
     cohort_df: Optional[pd.DataFrame] = None,
     extremal_type: str = 'worst',
-    id_name: str = 'hospitalization_id'
+    id_name: str = 'encounter_block'
 ) -> pd.DataFrame:
     """
     Compute SOFA scores from a wide dataset.
@@ -146,34 +145,25 @@ def compute_sofa(
     if id_name not in wide_df.columns:
         raise ValueError(f"id_name '{id_name}' not found in wide_df columns")
 
-    # Start with a copy of the wide dataset
-    df = wide_df.copy()
-
     # Apply cohort time filtering if provided
     if cohort_df is not None:
-        required_cols = ['hospitalization_id', 'start_time', 'end_time']
+        required_cols = [id_name, 'start_time', 'end_time']
         missing_cols = [col for col in required_cols if col not in cohort_df.columns]
         if missing_cols:
             raise ValueError(f"cohort_df must contain columns: {required_cols}. Missing: {missing_cols}")
 
-        # Merge with cohort_df to get time windows
-        if 'event_time' in df.columns:
-            df = pd.merge(
-                df,
-                cohort_df[['hospitalization_id', 'start_time', 'end_time']],
-                on='hospitalization_id',
-                how='inner'
-            )
-            # Filter to time windows
-            df = df[
-                (df['event_time'] >= df['start_time']) &
-                (df['event_time'] <= df['end_time'])
-            ]
-            # Remove the temporary columns
-            df = df.drop(columns=['start_time', 'end_time'])
-
+        q = f"""
+        FROM wide_df w
+        INNER JOIN cohort_df c
+            ON w.{id_name} = c.{id_name}
+            AND c.start_time <= w.event_time
+            AND c.end_time >= w.event_time
+        SELECT w.*
+        """
+        wide_df = duckdb.sql(q).df()
+        
     # Aggregate extremal values by ID
-    extremal_df = agg_extremal_values_by_id(df, extremal_type, id_name)
+    extremal_df = agg_extremal_values_by_id(wide_df, extremal_type, id_name)
 
     # Compute SOFA scores from extremal values
     sofa_scores = compute_sofa_from_extremal_values(extremal_df, id_name)
