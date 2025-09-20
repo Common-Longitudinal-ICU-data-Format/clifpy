@@ -218,8 +218,13 @@ class ClifOrchestrator:
         
         # Perform encounter stitching if enabled
         if self.stitch_encounter:
-            if self.hospitalization is None or self.adt is None:
-                print("Warning: Encounter stitching requires both hospitalization and ADT tables to be loaded. Skipping stitching.")
+            self.run_stitch_encounters()
+    
+    def run_stitch_encounters(self):
+        if (self.hospitalization is None) or (self.adt is None):
+            # automatically load hospitalization and adt
+            self.load_table('hospitalization')
+            self.load_table('adt')
             else:
                 print(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours...")
                 try:
@@ -278,6 +283,8 @@ class ClifOrchestrator:
             pd.DataFrame: Mapping of hospitalization_id to encounter_block if stitching was performed.
             None: If stitching was not performed or failed.
         """
+        if self.encounter_mapping is None:
+            self.run_stitch_encounters()
         return self.encounter_mapping
     
     def validate_all(self):
