@@ -675,3 +675,76 @@ class ClifOrchestrator:
         else:
             self.logger.info("Returning converted data without updating table")
             return converted_df, counts_df
+
+    def compute_sofa_scores(
+        self,
+        wide_df: Optional[pd.DataFrame] = None,
+        cohort_df: Optional[pd.DataFrame] = None,
+        extremal_type: str = 'worst',
+        id_name: str = 'hospitalization_id'
+    ) -> pd.DataFrame:
+        """
+        Compute SOFA (Sequential Organ Failure Assessment) scores.
+
+        Parameters:
+            wide_df: Optional wide dataset. If not provided, uses self.wide_df or creates one
+            cohort_df: Optional DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
+                      to further filter observations by time windows
+            extremal_type: 'worst' or 'latest' (currently only 'worst' is implemented)
+            id_name: Column name for grouping (e.g., 'hospitalization_id', 'patient_id', 'encounter_block')
+
+        Returns:
+            DataFrame with SOFA component scores and total score for each ID
+        """
+        from .utils.sofa import compute_sofa
+
+        self.logger.info(f"Computing SOFA scores with extremal_type='{extremal_type}', id_name='{id_name}'")
+
+        # Determine which wide_df to use
+        if wide_df is not None:
+            self.logger.debug("Using provided wide_df")
+            df_to_use = wide_df
+        elif hasattr(self, 'wide_df') and self.wide_df is not None:
+            self.logger.debug("Using existing self.wide_df")
+            df_to_use = self.wide_df
+        else:
+            self.logger.info("No wide dataset available, creating one...")
+            # Create wide dataset with required categories for SOFA
+            sofa_category_filters = {
+                'labs': ['creatinine', 'platelet_count', 'po2_arterial', 'bilirubin_total'],
+                'vitals': ['map', 'spo2', 'weight_kg'],
+                'patient_assessments': ['gcs_total'],
+                'medication_admin_continuous': [
+                    'norepinephrine', 'epinephrine', 'phenylephrine', 'vasopressin',
+                    'dopamine', 'angiotensin', 'dobutamine', 'milrinone'
+                ],
+                'respiratory_support': [
+                    'device_category', 'device_name', 'mode_name', 'mode_category',
+                    'peep_set', 'fio2_set', 'lpm_set', 'resp_rate_set', 'tracheostomy',
+                    'resp_rate_obs', 'tidal_volume_set'
+                ]
+            }
+
+            df_to_use = self.create_wide_dataset(
+                tables_to_load=list(sofa_category_filters.keys()),
+                category_filters=sofa_category_filters,
+                cohort_df=cohort_df
+            )
+            # Store the created wide dataset
+            self.wide_df = df_to_use
+            self.logger.debug(f"Created wide dataset with shape: {df_to_use.shape}")
+
+        # Compute SOFA scores
+        self.logger.info("Calling compute_sofa function")
+        sofa_scores = compute_sofa(
+            wide_df=df_to_use,
+            cohort_df=cohort_df,
+            extremal_type=extremal_type,
+            id_name=id_name
+        )
+
+        # Store results in orchestrator
+        self.sofa_df = sofa_scores
+        self.logger.info(f"SOFA computation completed. Results stored in self.sofa_df with shape: {sofa_scores.shape}")
+
+        return sofa_scores

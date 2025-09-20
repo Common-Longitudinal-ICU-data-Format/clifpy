@@ -1,8 +1,6 @@
-from .query import lookup_extremal_values_in_long_table
 import pandas as pd
-from typing import Dict, List
+from typing import Dict, List, Optional
 import duckdb
-
 
 REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
     'labs': ['creatinine','platelet_count','po2_arterial','bilirubin_total'],
@@ -23,7 +21,7 @@ MAX_ITEMS = REQUIRED_SOFA_CATEGORIES_BY_TABLE['medication_admin_continuous'] \
 
 MIN_ITEMS = ['map', 'spo2', 'po2_arterial', 'platelet_count', 'gcs_total']
 
-device_rank_dict = {
+DEVICE_RANK_DICT = {
     'IMV': 1,
     'NIPPV': 2,
     'CPAP': 3,
@@ -36,46 +34,57 @@ device_rank_dict = {
 }
 
 # create a mappping df
-device_rank_mapping = pd.DataFrame({
-    'device_category': device_rank_dict.keys(),
-    'device_rank': device_rank_dict.values()
+DEVICE_RANK_MAPPING = pd.DataFrame({
+    'device_category': DEVICE_RANK_DICT.keys(),
+    'device_rank': DEVICE_RANK_DICT.values()
 })
 
-def generate_extremal_values_by_id(
+# required_sofa_categories = [item for sublist in required_sofa_categories_by_table.values() for item in sublist]
+
+def agg_extremal_values_by_id(
     wide_df: pd.DataFrame,
-    extremal_type: str # worst or latest
+    extremal_type: str,  
+    id_name: str
 ) -> pd.DataFrame:
+    '''
+    extremal_type: 'worst' or 'latest'
+    id_name: 'hospitalization_id', 'patient_id', 'encounter_block'
+    
+    '''
     if extremal_type == 'worst':
         q = f"""
         FROM wide_df
-        LEFT JOIN device_rank_mapping USING (device_category)
-        SELECT hospitalization_id
+        LEFT JOIN DEVICE_RANK_MAPPING USING (device_category)
+        SELECT {id_name}
             , MAX(COLUMNS({MAX_ITEMS}))
             , MIN(COLUMNS({MIN_ITEMS}))
             , device_rank_min: MIN(device_rank)
-        GROUP BY hospitalization_id
+        GROUP BY {id_name}
         """
         return duckdb.sql(q).df()
     elif extremal_type == 'latest':
-        q = f"""
-        FROM wide_df
-        LEFT JOIN device_rank_mapping USING (device_category)
-        SELECT hospitalization_id
-            , any_value(COLUMNS({REQUIRED_SOFA_CATEGORIES_BY_TABLE}) ORDER BY event_time DESC)
-            , device_rank_min: MIN(device_rank)
-        GROUP BY hospitalization_id
-        """
-        return duckdb.sql(q).df()
+        # TODO: Future feature - implement latest value extraction
+        # q = f"""
+        # FROM wide_df
+        # LEFT JOIN DEVICE_RANK_MAPPING USING (device_category)
+        # SELECT {id_name}
+        #     , any_value(COLUMNS({MAX_ITEMS + MIN_ITEMS}) ORDER BY event_time DESC)
+        #     , device_rank_min: MIN(device_rank)
+        # GROUP BY {id_name}
+        # """
+        # return duckdb.sql(q).df()
+        raise NotImplementedError("'latest' extremal_type is a future feature and currently a placeholder")
     else:
         raise ValueError(f"Invalid extremal type: {extremal_type}")
 
 def compute_sofa_from_extremal_values(
-    extremal_df: pd.DataFrame
+    extremal_df: pd.DataFrame,
+    id_name: str
 ):
     q = f"""
     FROM extremal_df df
-    LEFT JOIN device_rank_mapping m on df.device_rank_min = m.device_rank
-    SELECT hospitalization_id
+    LEFT JOIN DEVICE_RANK_MAPPING m on df.device_rank_min = m.device_rank
+    SELECT {id_name}
         , p_f: po2_arterial / fio2_set
         , sofa_cv_97: CASE WHEN dopamine > 15 OR epinephrine > 0.1 OR norepinephrine > 0.1 THEN 4
             WHEN dopamine > 5 OR epinephrine <= 0.1 OR norepinephrine <= 0.1 THEN 3
@@ -110,4 +119,63 @@ def compute_sofa_from_extremal_values(
         , sofa_total: sofa_cv_97 + sofa_coag + sofa_liver + sofa_resp + sofa_renal + sofa_cns
     """
     return duckdb.sql(q).df()
-    
+
+def compute_sofa(
+    wide_df: pd.DataFrame,
+    cohort_df: Optional[pd.DataFrame] = None,
+    extremal_type: str = 'worst',
+    id_name: str = 'hospitalization_id'
+) -> pd.DataFrame:
+    """
+    Compute SOFA scores from a wide dataset.
+
+    Parameters:
+        wide_df: Wide dataset containing all required SOFA variables
+        cohort_df: Optional DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
+                  to further filter observations by time windows
+        extremal_type: 'worst' or 'latest' (currently only 'worst' is implemented)
+        id_name: Column name for grouping (e.g., 'hospitalization_id', 'patient_id', 'encounter_block')
+
+    Returns:
+        DataFrame with SOFA component scores and total score for each ID
+    """
+    # Validate inputs
+    if extremal_type not in ['worst', 'latest']:
+        raise ValueError(f"extremal_type must be 'worst' or 'latest', got '{extremal_type}'")
+
+    if id_name not in wide_df.columns:
+        raise ValueError(f"id_name '{id_name}' not found in wide_df columns")
+
+    # Start with a copy of the wide dataset
+    df = wide_df.copy()
+
+    # Apply cohort time filtering if provided
+    if cohort_df is not None:
+        required_cols = ['hospitalization_id', 'start_time', 'end_time']
+        missing_cols = [col for col in required_cols if col not in cohort_df.columns]
+        if missing_cols:
+            raise ValueError(f"cohort_df must contain columns: {required_cols}. Missing: {missing_cols}")
+
+        # Merge with cohort_df to get time windows
+        if 'event_time' in df.columns:
+            df = pd.merge(
+                df,
+                cohort_df[['hospitalization_id', 'start_time', 'end_time']],
+                on='hospitalization_id',
+                how='inner'
+            )
+            # Filter to time windows
+            df = df[
+                (df['event_time'] >= df['start_time']) &
+                (df['event_time'] <= df['end_time'])
+            ]
+            # Remove the temporary columns
+            df = df.drop(columns=['start_time', 'end_time'])
+
+    # Aggregate extremal values by ID
+    extremal_df = agg_extremal_values_by_id(df, extremal_type, id_name)
+
+    # Compute SOFA scores from extremal values
+    sofa_scores = compute_sofa_from_extremal_values(extremal_df, id_name)
+
+    return sofa_scores
