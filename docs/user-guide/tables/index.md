@@ -62,6 +62,9 @@ Hospital admission and discharge information, including admission source, discha
 #### [Labs](labs.md)
 Laboratory test results with standardized categories (chemistry, hematology, etc.) and reference ranges.
 
+#### [Microbiology Culture](microbiology-culture.md)
+Microbiology Culture data includes order and result times of microbiology culture tests, the type of fluid collected, the component of the test, and the organism identified.
+
 #### [Vitals](vitals.md)
 Vital signs measurements including temperature, heart rate, blood pressure, respiratory rate, and oxygen saturation.
 

@@ -1,5 +1,6 @@
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional, Literal, Union
 import pandas as pd
+import numpy as np
 import json
 import os
 from .base_table import BaseTable
@@ -31,14 +32,8 @@ class MicrobiologyCulture(BaseTable):
             output_directory (str, optional): Directory for saving output files and logs
             data (pd.DataFrame, optional): Pre-loaded data to use instead of loading from file
         """
-        # Initialize organism validation errors list
-        self.organism_validation_errors: List[dict] = []
-        
-        # Load organism categories and fluid categories from schema
-        self._organism_categories = None
-        self._fluid_categories = None
-        self._method_categories = None
-        self._organism_groups = None
+        # Initialize time order validation errors list
+        self.time_order_validation_errors: List[dict] = []
         
         super().__init__(
             data_directory=data_directory,
@@ -47,258 +42,230 @@ class MicrobiologyCulture(BaseTable):
             output_directory=output_directory,
             data=data
         )
-        
-        # Load microbiology-specific schema data
-        self._load_microbiology_schema_data()
-
-    def _load_microbiology_schema_data(self):
-        """Load organism categories, fluid categories, and method categories from the YAML schema."""
-        if self.schema:
-            self._organism_categories = self.schema.get('organism_categories', {})
-            self._fluid_categories = self.schema.get('fluid_categories', {})
-            self._method_categories = self.schema.get('method_categories', {})
-            self._organism_groups = self.schema.get('organism_groups', {})
-
-    @property
-    def organism_categories(self) -> Dict[str, str]:
-        """Get the organism categories mapping from the schema."""
-        return self._organism_categories.copy() if self._organism_categories else {}
-
-    @property
-    def fluid_categories(self) -> Dict[str, str]:
-        """Get the fluid categories mapping from the schema."""
-        return self._fluid_categories.copy() if self._fluid_categories else {}
-
-    @property
-    def method_categories(self) -> Dict[str, str]:
-        """Get the method categories mapping from the schema."""
-        return self._method_categories.copy() if self._method_categories else {}
-
-    @property
-    def organism_groups(self) -> Dict[str, str]:
-        """Get the organism groups mapping from the schema."""
-        return self._organism_groups.copy() if self._organism_groups else {}
 
     def isvalid(self) -> bool:
         """Return ``True`` if the last validation finished without errors."""
-        return not self.errors and not self.organism_validation_errors
+        return not self.errors and not self.time_order_validation_errors
 
     def _run_table_specific_validations(self):
         """
-        Run microbiology culture-specific validations including organism validation.
+        Run microbiology culture-specific validations.
         
-        This overrides the base class method to add microbiology-specific validation.
+        This overrides the base class method to add microbiology-specific validation
+        for all columns that have permissible values defined in the schema.
         """
-        # Run organism category validation
-        self.validate_organism_categories()
-
-    def validate_organism_categories(self):
-        """Validate organism categories against known organism categories using grouped data for efficiency."""
-        self.organism_validation_errors = []
+        self.validate_timestamp_order()
         
-        if self.df is None or not self._organism_categories:
-            return
-        
-        required_columns = ['organism_category', 'organism_group', 'method_category', 'fluid_category']
-        required_columns_for_df = [col for col in required_columns if col in self.df.columns]
-        
-        if not all(col in self.df.columns for col in ['organism_category']):
-            self.organism_validation_errors.append({
-                "error_type": "missing_columns_for_organism_validation",
-                "columns": [col for col in ['organism_category'] if col not in self.df.columns],
-                "message": "organism_category column missing, cannot perform organism validation."
-            })
-            return
-
-        # Work on a copy for analysis
-        df_for_validation = self.df[required_columns_for_df].copy()
-
-        # Group by organism_category to get counts and check validity
-        organism_stats = (df_for_validation
-                         .groupby('organism_category')
-                         .agg({
-                             'organism_category': 'count',
-                             'organism_group': lambda x: x.iloc[0] if 'organism_group' in df_for_validation.columns else None,
-                             'method_category': lambda x: x.iloc[0] if 'method_category' in df_for_validation.columns else None,
-                             'fluid_category': lambda x: x.iloc[0] if 'fluid_category' in df_for_validation.columns else None
-                         })
-                         .rename(columns={'organism_category': 'count'})
-                         .reset_index())
-        
-        if organism_stats.empty:
-            return
-        
-        # Check each organism category
-        for _, row in organism_stats.iterrows():
-            organism_category = row['organism_category']
-            count = row['count']
-            
-            # Check if organism category is recognized
-            if organism_category not in self._organism_categories:
-                self.organism_validation_errors.append({
-                    'error_type': 'unknown_organism_category',
-                    'organism_category': organism_category,
-                    'affected_rows': count,
-                    'message': f"Unknown organism category '{organism_category}' found in data."
-                })
-                continue
-            
-            # Check organism group mapping if available
-            if 'organism_group' in df_for_validation.columns and self._organism_groups:
-                expected_group = self._organism_groups.get(organism_category)
-                actual_group = row.get('organism_group')
-                if expected_group and actual_group and expected_group != actual_group:
-                    self.organism_validation_errors.append({
-                        'error_type': 'organism_group_mismatch',
-                        'organism_category': organism_category,
-                        'expected_group': expected_group,
-                        'actual_group': actual_group,
-                        'affected_rows': count,
-                        'message': f"Organism group mismatch for {organism_category}: expected '{expected_group}', found '{actual_group}'"
-                    })
-        
-        # Validate method categories
-        if 'method_category' in df_for_validation.columns and self._method_categories:
-            invalid_methods = df_for_validation[
-                ~df_for_validation['method_category'].isin(self._method_categories.keys())
-            ]['method_category'].unique()
-            
-            for invalid_method in invalid_methods:
-                count = df_for_validation[df_for_validation['method_category'] == invalid_method].shape[0]
-                self.organism_validation_errors.append({
-                    'error_type': 'unknown_method_category',
-                    'method_category': invalid_method,
-                    'affected_rows': count,
-                    'message': f"Unknown method category '{invalid_method}' found in data."
-                })
-        
-        # Validate fluid categories
-        if 'fluid_category' in df_for_validation.columns and self._fluid_categories:
-            invalid_fluids = df_for_validation[
-                ~df_for_validation['fluid_category'].isin(self._fluid_categories.keys())
-            ]['fluid_category'].unique()
-            
-            for invalid_fluid in invalid_fluids:
-                count = df_for_validation[df_for_validation['fluid_category'] == invalid_fluid].shape[0]
-                self.organism_validation_errors.append({
-                    'error_type': 'unknown_fluid_category',
-                    'fluid_category': invalid_fluid,
-                    'affected_rows': count,
-                    'message': f"Unknown fluid category '{invalid_fluid}' found in data."
-                })
-        
-        # Add organism validation errors to main errors list
-        if self.organism_validation_errors:
-            self.errors.extend(self.organism_validation_errors)
-            self.logger.warning(f"Found {len(self.organism_validation_errors)} organism validation errors")
-
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # Microbiology Culture Specific Methods
-    # ------------------------------------------------------------------
-    def filter_by_organism_category(self, organism_category: str) -> pd.DataFrame:
-        """Return all records for a specific organism category (e.g., 'acinetobacter_baumanii', 'candida_albicans')."""
-        if self.df is None or 'organism_category' not in self.df.columns:
-            return pd.DataFrame()
-        
-        return self.df[self.df['organism_category'] == organism_category].copy()
+    # -------------------------------------------------------------------
+    
+    def validate_timestamp_order(self):
+        """
+        Check that order_dttm ≤ collect_dttm ≤ result_dttm.
+        - Resets self.time_order_validation_errors
+        - Adds one entry per violated rule
+        - Extends self.errors and logs: 'Found {len(self.time_order_validation_errors)} time order validation errors'
+        Returns a dataframe of all violating rows (union of both rules) or None if OK.
+        """
+        # Reset time order validation bucket
+        self.time_order_validation_errors = []
 
-    def filter_by_fluid_category(self, fluid_category: str) -> pd.DataFrame:
-        """Return all records for a specific fluid category (e.g., 'Blood/Buffy Coat', 'Brain')."""
-        if self.df is None or 'fluid_category' not in self.df.columns:
-            return pd.DataFrame()
-        
-        return self.df[self.df['fluid_category'] == fluid_category].copy()
+        df = self.df
+        key_cols = self.schema['composite_keys']
 
-    def filter_by_method_category(self, method_category: str) -> pd.DataFrame:
-        """Return all records for a specific method category (e.g., 'culture', 'gram stain')."""
-        if self.df is None or 'method_category' not in self.df.columns:
-            return pd.DataFrame()
-        
-        return self.df[self.df['method_category'] == method_category].copy()
+        grace = pd.Timedelta(minutes=1)
 
-    def filter_by_organism_group(self, organism_group: str) -> pd.DataFrame:
-        """Return all records for a specific organism group."""
-        if self.df is None or 'organism_group' not in self.df.columns:
-            return pd.DataFrame()
-        
-        return self.df[self.df['organism_group'] == organism_group].copy()
+        # Flag if order is ≥ 1 minute after collect (allow small jitter where collect ≥ order within 1 min)
+        m_order_ge_collect  = (df["order_dttm"]   - df["collect_dttm"]) >= grace
 
-    def get_organism_summary_stats(self) -> pd.DataFrame:
-        """Return summary statistics for each organism category."""
-        if self.df is None or 'organism_category' not in self.df.columns:
-            return pd.DataFrame()
-        
-        # Group by organism category and calculate stats
-        stats = self.df.groupby('organism_category').agg({
-            'patient_id': 'nunique',
-            'hospitalization_id': 'nunique',
-            'organism_id': 'count'
-        }).rename(columns={
-            'patient_id': 'unique_patients',
-            'hospitalization_id': 'unique_hospitalizations',
-            'organism_id': 'total_cultures'
-        })
-        
-        return stats
+        # Flag if collect is ≥ 1 minute after result (allow small jitter where result ≥ collect within 1 min)
+        m_collect_ge_result = (df["collect_dttm"] - df["result_dttm"]) >= grace
 
-    def get_fluid_summary_stats(self) -> pd.DataFrame:
-        """Return summary statistics for each fluid category."""
-        if self.df is None or 'fluid_category' not in self.df.columns:
-            return pd.DataFrame()
-        
-        # Group by fluid category and calculate stats
-        stats = self.df.groupby('fluid_category').agg({
-            'patient_id': 'nunique',
-            'hospitalization_id': 'nunique',
-            'organism_id': 'count',
-            'organism_category': 'nunique'
-        }).rename(columns={
-            'patient_id': 'unique_patients',
-            'hospitalization_id': 'unique_hospitalizations',
-            'organism_id': 'total_cultures',
-            'organism_category': 'unique_organisms'
-        })
-        
-        return stats
+        n1 = int(m_order_ge_collect.sum())
+        n2 = int(m_collect_ge_result.sum())
 
-    def get_time_to_result_stats(self) -> pd.DataFrame:
-        """Calculate time between collection and result for cultures."""
-        if self.df is None:
-            return pd.DataFrame()
-        
-        required_cols = ['collect_dttm', 'result_dttm']
-        if not all(col in self.df.columns for col in required_cols):
-            return pd.DataFrame()
-        
-        # Calculate time to result
-        df_copy = self.df.copy()
-        df_copy['collect_dttm'] = pd.to_datetime(df_copy['collect_dttm'])
-        df_copy['result_dttm'] = pd.to_datetime(df_copy['result_dttm'])
-        df_copy['time_to_result_hours'] = (
-            df_copy['result_dttm'] - df_copy['collect_dttm']
-        ).dt.total_seconds() / 3600
-        
-        # Calculate stats by organism category if available
-        if 'organism_category' in df_copy.columns:
-            stats = df_copy.groupby('organism_category')['time_to_result_hours'].agg([
-                'count', 'mean', 'std', 'min', 'max',
-                ('q1', lambda x: x.quantile(0.25)),
-                ('median', lambda x: x.quantile(0.5)),
-                ('q3', lambda x: x.quantile(0.75))
-            ]).round(2)
+        if n1 > 0:
+            self.time_order_validation_errors.append({
+                "type": "time_order_validation",
+                "rule": "order_dttm <= collect_dttm, grace 1 min",
+                "message": f"{n1} rows have order_dttm > collect_dttm",
+                "rows": n1,
+                "table": getattr(self, "table_name", "unknown"),
+            })
+        if n2 > 0:
+            self.time_order_validation_errors.append({
+                "type": "time_order_validation",
+                "rule": "collect_dttm <= result_dttm, grace 1 min",
+                "message": f"{n2} rows have collect_dttm > result_dttm",
+                "rows": n2,
+                "table": getattr(self, "table_name", "unknown"),
+            })
+
+        # Add range validation errors to main errors list (exact logging style)
+        if self.time_order_validation_errors:
+            if hasattr(self, "errors"):
+                self.errors.extend(self.time_order_validation_errors)
+            self.logger.warning(f"Found {len(self.time_order_validation_errors)} range validation errors")
+
+        # Return violating rows (union), showing keys + timestamps
+        any_bad = m_order_ge_collect | m_collect_ge_result
+        if any_bad.any():
+            show_cols = [*key_cols, "order_dttm", "collect_dttm", "result_dttm"]
+            return df.loc[any_bad, [c for c in show_cols if c in df.columns]].copy()
+
+        # Nothing to report
+        self.logger.info("validate_timestamp_order: passed (no violations)")
+        return None
+
+    @staticmethod
+    def cat_vs_name_map(
+        df: pd.DataFrame,
+        category_col: str,
+        name_col: str,
+        *,
+        group_col: Optional[str] = None,                 # ← if provided, returns {group: {cat: [names...]}}
+        dropna: bool = True,
+        sort: Literal["freq_then_alpha", "alpha"] = "freq_then_alpha",
+        max_names_per_cat: Optional[int] = None,
+        include_counts: bool = False,                    # if True → lists of {"name":..., "n":...}
+    ) -> Union[Dict[str, List[str]], Dict[str, Dict[str, List[str]]],
+            Dict[str, Dict[str, List[Dict[str, int]]]], Dict[str, List[Dict[str, int]]]]:
+        """
+        Build mappings from category→names (2-level) or group→category→names (3-level).
+
+        Returns:
+        - if group_col is None:
+                { category: [names...] }  or  { category: [{"name":..., "n":...}, ...] }
+        - if group_col is provided:
+                { group: { category: [names...] } }  or
+                { group: { category: [{"name":..., "n":...}, ...] } }
+
+        Notes
+        - Names are unique per (category[, group]) and sorted by:
+            freq desc, then alpha  (default), or alpha only if sort="alpha"
+        - Set include_counts=True to return [{"name":..., "n":...}] instead of plain strings.
+        - Set max_names_per_cat to truncate long lists per category.
+        """
+        if df is None:
+            return {}
+
+        required = [category_col, name_col] + ([group_col] if group_col else [])
+        if any(col not in df.columns for col in required):
+            return {}
+
+        sub = df[required].copy()
+        if dropna:
+            sub = sub.dropna(subset=required)
+
+        # frequency at the most granular level available
+        group_by_cols = ([group_col] if group_col else []) + [category_col, name_col]
+        counts = (
+            sub.groupby(group_by_cols)
+            .size()
+            .reset_index(name="n")
+        )
+
+        def _sort_block(block: pd.DataFrame) -> pd.DataFrame:
+            if sort == "alpha":
+                return block.sort_values([name_col], ascending=[True], kind="mergesort")
+            # default: freq desc then alpha
+            return block.sort_values(["n", name_col], ascending=[False, True], kind="mergesort")
+
+        def _emit_names(block: pd.DataFrame):
+            if include_counts:
+                out = [{"name": str(r[name_col]), "n": int(r["n"])} for _, r in block.iterrows()]
+            else:
+                out = block[name_col].astype(str).tolist()
+            if max_names_per_cat is not None:
+                out = out[:max_names_per_cat]
+            return out
+
+        if group_col:
+            # 3-level: group → category → [names or {"name","n"}]
+            result: Dict[str, Dict[str, List[Union[str, Dict[str, int]]]]] = {}
+            for grp_val, grp_block in counts.groupby(group_col, sort=False):
+                cat_map: Dict[str, List[Union[str, Dict[str, int]]]] = {}
+                for cat_val, cat_block in grp_block.groupby(category_col, sort=False):
+                    sorted_block = _sort_block(cat_block)
+                    cat_map[str(cat_val)] = _emit_names(sorted_block)
+                result[str(grp_val)] = cat_map
+            return result
         else:
-            stats = df_copy['time_to_result_hours'].agg([
-                'count', 'mean', 'std', 'min', 'max',
-                ('q1', lambda x: x.quantile(0.25)),
-                ('median', lambda x: x.quantile(0.5)),
-                ('q3', lambda x: x.quantile(0.75))
-            ]).round(2)
-        
-        return pd.DataFrame(stats).T if isinstance(stats, pd.Series) else stats
+            # 2-level: category → [names or {"name","n"}]
+            result2: Dict[str, List[Union[str, Dict[str, int]]]] = {}
+            for cat_val, cat_block in counts.groupby(category_col, sort=False):
+                sorted_block = _sort_block(cat_block)
+                result2[str(cat_val)] = _emit_names(sorted_block)
+            return result2
 
-    def get_organism_validation_report(self) -> pd.DataFrame:
-        """Return a DataFrame containing organism validation errors."""
-        if not self.organism_validation_errors:
-            return pd.DataFrame(columns=['error_type', 'organism_category', 'affected_rows', 'message'])
-        
-        return pd.DataFrame(self.organism_validation_errors)
+    # Wrapper methods for common category-vs-name maps
+    def organism_group_cat_name_map(self, include_counts: bool = False, **kwargs):
+        # {organism_group: {organism_category: [organism_name,...]}}
+        return MicrobiologyCulture.cat_vs_name_map(
+            self.df,
+            category_col="organism_category",
+            name_col="organism_name",
+            group_col="organism_group",
+            include_counts=include_counts,
+            **kwargs,
+        )
+
+    def organism_cat_name_map(self, include_counts: bool = False, **kwargs):
+        # {organism_category: [organism_name,...]}
+        return MicrobiologyCulture.cat_vs_name_map(
+            self.df,
+            category_col="organism_category",
+            name_col="organism_name",
+            include_counts=include_counts,
+            **kwargs,
+        )
+
+    def fluid_cat_name_map(self, include_counts: bool = False, **kwargs):
+        # {fluid_category: [fluid_name,...]}
+        return MicrobiologyCulture.cat_vs_name_map(
+            self.df,
+            category_col="fluid_category",
+            name_col="fluid_name",
+            include_counts=include_counts,
+            **kwargs,
+        )
+
+    def top_fluid_org_outliers(
+        self,
+        level: Literal["organism_group", "organism_category"] = "organism_group",
+        min_count: int = 0,
+        top_k: int = 10,
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Identify top positive and negative outliers in fluid_category vs organism_group or organism_category.
+
+        Parameters:
+            level (str): "organism_group" or "organism_category" (non-standard)
+            min_count (int): Minimum observed count to consider
+            top_k (int): Number of top positive and negative outliers to return
+
+        Returns:
+            Dict with keys "top_positive" and "top_negative", each containing a DataFrame of outliers.
+        """
+        tbl = pd.crosstab(self.df["fluid_category"], self.df[level])
+        if tbl.empty:
+            return {"top_positive": pd.DataFrame(), "top_negative": pd.DataFrame()}
+
+        total = tbl.values.sum()
+        exp = (tbl.sum(1).values.reshape(-1,1) @ tbl.sum(0).values.reshape(1,-1)) / total
+        with np.errstate(divide="ignore", invalid="ignore"):
+            z = (tbl.values - exp) / np.sqrt(exp)
+
+        long = pd.DataFrame({
+            "fluid_category": np.repeat(tbl.index.values, tbl.shape[1]),
+            level: np.tile(tbl.columns.values, tbl.shape[0]),
+            "observed": tbl.values.ravel().astype(float),
+            "expected": exp.ravel().astype(float),
+            "std_resid": z.ravel().astype(float),
+        }).dropna()
+
+        long = long[long["observed"] >= min_count]
+        top_pos = long.sort_values("std_resid", ascending=False).head(top_k).reset_index(drop=True)
+        top_neg = long.sort_values("std_resid", ascending=True).head(top_k).reset_index(drop=True)
+        return {"top_positive": top_pos, "top_negative": top_neg}

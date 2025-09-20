@@ -117,37 +117,121 @@ columns:
     required: true
     is_category_column: true
     is_group_column: false
-    permissible_values:
-      - acinetobacter_baumanii
-      - candida_albicans
-      - aspergillus_fumigatus
-      - escherichia_coli
-      - staphylococcus_aureus
-      - staphylococcus_epidermidis
-      - enterococcus_faecalis
-      - enterococcus_faecium
-      - pseudomonas_aeruginosa
-      - klebsiella_pneumoniae
-      - streptococcus_pneumoniae
-      - enterobacter_cloacae
-      - citrobacter_freundii
-      - proteus_mirabilis
-      - serratia_marcescens
-      - candida_glabrata
-      - candida_tropicalis
-      - candida_parapsilosis
-      - aspergillus_niger
-      - aspergillus_terreus
-      - cryptococcus_neoformans
-      - pneumocystis_jirovecii
-      - no_growth
-      - mixed_flora
-      - normal_flora
+
   - name: organism_group
     data_type: VARCHAR
     required: false
     is_category_column: false
     is_group_column: true
+    permissible_values:
+      - acinetobacter
+      - adenovirus
+      - agrobacterium_radiobacter
+      - alcaligenes_xylosoxidans
+      - amebiasis
+      - anaerobes_wo_bacteroides_clostridium
+      - aspergillus_nos
+      - aspergillus_flavus
+      - aspergillus_fumigatus
+      - aspergillus_niger
+      - bacillus
+      - bacteria_other
+      - bacteroides
+      - borrelia
+      - branhamelia_moraxella_catarrhalis
+      - campylobacter
+      - candida_albicans
+      - candida_krusei
+      - candida_nos
+      - candida_parapsilosis
+      - candida_tropicalis
+      - chlamydia
+      - citrobacter
+      - clostridium_difficile
+      - clostridium_wo_difficile
+      - corynebacterium
+      - coxiella
+      - cryptococcus
+      - cryptosporidium
+      - cytomegalovirus
+      - echinoco_ocalcyst
+      - enterobacter
+      - enterococcus
+      - enterovirus
+      - epstein_barr_virus
+      - escherichia
+      - flavimonas_oryzihabitans
+      - flavobacterium
+      - fungus_other
+      - fusarium
+      - fusobacterium_nucleatum
+      - giardia
+      - gram_negative_diplococci
+      - gram_negative_rod
+      - gram_positive_cocci
+      - gram_positive_rod
+      - haemophilus
+      - helicobacter_pylori
+      - hepatitis_a
+      - hepatitis_b
+      - hepatitis_c
+      - herpes_simplex
+      - herpes_zoster
+      - hhv_6
+      - hiv_htlv
+      - influenza
+      - klebsiella
+      - lactobacillus
+      - legionella
+      - leptospira
+      - leptotrichia_buccalis
+      - leuconostoc
+      - listeria
+      - measles
+      - methylobacterium
+      - micrococcus
+      - mucormycosis_zygomycetes_rhizopus
+      - mumps
+      - mycobacteria_avium_bovium_haemophilum_intercelluare
+      - mycobacterium_other
+      - mycoplasma
+      - neisseria
+      - nocardia
+      - no_growth
+      - other_organism
+      - papovavirus
+      - parainfluenza
+      - pharyngeal_respiratory_flora
+      - pneumocystis
+      - polyomavirus
+      - propionbacterium
+      - protozoal_other
+      - pseudomonas_burkholderia_cepacia
+      - pseudomonas_stenotrophomonas_xanthomonas_maltophilia
+      - pseudomonas_wo_cepacia_maltophilia
+      - respiratory_syncytial_virus
+      - rhinovirus
+      - rhodococcus
+      - rickettsia
+      - rotavirus
+      - rubella
+      - salmonella
+      - serratia_marcescens
+      - shigella
+      - staphylococcus_coag_neg
+      - staphylococcus_coag_pos
+      - staphylococcus_nos
+      - stomatococcus_mucilaginosis
+      - streptococcus
+      - torulopsis_galbrata
+      - toxoplasma
+      - treponema
+      - trichomonas
+      - tuberculosis
+      - tuberculosis_nos_afb_kochbacillus
+      - vibrio
+      - viral_other
+      - yeast
   - name: lab_loinc_code
     data_type: VARCHAR
     required: false
@@ -155,15 +239,12 @@ columns:
     is_group_column: false
 
 required_columns:
-  - patient_id
   - hospitalization_id
   - organism_id
-  - order_dttm
-  - collect_dttm
-  - result_dttm
   - fluid_category
   - method_category
   - organism_category
+  - result_dttm
 
 category_columns:
   - fluid_category

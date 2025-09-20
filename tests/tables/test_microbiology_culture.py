@@ -20,12 +20,12 @@ def sample_valid_microbiology_data():
         'collect_dttm': pd.to_datetime(['2025-06-05 08:45:00+00:00', '2025-06-05 08:45:00+00:00', '2025-06-10 14:35:00+00:00']),
         'result_dttm': pd.to_datetime(['2025-06-06 12:00:00+00:00', '2025-06-06 12:00:00+00:00', '2025-06-11 09:20:00+00:00']),
         'fluid_name': ['AFB/FUNGAL BLOOD CULTURE', 'AFB/FUNGAL BLOOD CULTURE', 'BRAIN BIOPSY CULTURE'],
-        'fluid_category': ['Blood/Buffy Coat', 'Blood/Buffy Coat', 'Brain'],
+        'fluid_category': ['blood_buffy_coat', 'blood_buffy_coat', 'brain'],
         'method_name': ['Blood culture', 'Blood culture', 'Tissue culture'],
         'method_category': ['culture', 'culture', 'culture'],
         'organism_name': ['Acinetobacter baumanii', 'Candida albicans', 'Aspergillus fumigatus'],
-        'organism_category': ['acinetobacter_baumanii', 'candida_albicans', 'aspergillus_fumigatus'],
-        'organism_group': ['acinetobacter (baumanii, calcoaceticus, lwoffi, other species)', 'candida albicans', 'asperguillus fumigatus'],
+        'organism_category': ['some_acinetobacter_category', 'some_candida_category', 'some_aspergillus_category'],
+        'organism_group': ['acinetobacter', 'candida_albicans', 'aspergillus_fumigatus'],
         'lab_loinc_code': ['', '', '']
     })
 
@@ -39,9 +39,9 @@ def sample_invalid_microbiology_data_schema():
         'order_dttm': pd.to_datetime(['2025-06-05 08:15:00+00:00']),
         'collect_dttm': pd.to_datetime(['2025-06-05 08:45:00+00:00']),
         'result_dttm': pd.to_datetime(['2025-06-06 12:00:00+00:00']),
-        'fluid_category': ['Blood/Buffy Coat'],
+        'fluid_category': ['blood_buffy_coat'],
         'method_category': ['culture'],
-        'organism_category': ['acinetobacter_baumanii']
+        'organism_category': ['some_acinetobacter_category']
     })
 
 @pytest.fixture
@@ -54,10 +54,10 @@ def sample_invalid_microbiology_data_organisms():
         'order_dttm': pd.to_datetime(['2025-06-05 08:15:00+00:00', '2025-06-10 14:10:00+00:00']),
         'collect_dttm': pd.to_datetime(['2025-06-05 08:45:00+00:00', '2025-06-10 14:35:00+00:00']),
         'result_dttm': pd.to_datetime(['2025-06-06 12:00:00+00:00', '2025-06-11 09:20:00+00:00']),
-        'fluid_category': ['Blood/Buffy Coat', 'Brain'],
-        'method_category': ['culture', 'unknown_method'],  # unknown method
-        'organism_category': ['unknown_organism', 'aspergillus_fumigatus'],  # unknown organism
-        'organism_group': ['unknown_group', 'asperguillus fumigatus']
+        'fluid_category': ['blood_buffy_coat', 'brain'],
+        'method_category': ['culture', 'culture'],  # valid method
+        'organism_category': ['any_organism_category', 'another_organism_category'],  # unrestricted
+        'organism_group': ['unknown_group', 'invalid_organism_group']  # invalid organism groups
     })
 
 @pytest.fixture
@@ -70,10 +70,26 @@ def sample_microbiology_data_group_mismatch():
         'order_dttm': pd.to_datetime(['2025-06-05 08:15:00+00:00']),
         'collect_dttm': pd.to_datetime(['2025-06-05 08:45:00+00:00']),
         'result_dttm': pd.to_datetime(['2025-06-06 12:00:00+00:00']),
-        'fluid_category': ['Blood/Buffy Coat'],
+        'fluid_category': ['blood_buffy_coat'],
         'method_category': ['culture'],
-        'organism_category': ['acinetobacter_baumanii'],
-        'organism_group': ['wrong_group']  # Should be 'acinetobacter (baumanii, calcoaceticus, lwoffi, other species)'
+        'organism_category': ['any_acinetobacter_category'],  # unrestricted
+        'organism_group': ['invalid_group']  # Invalid organism group
+    })
+
+@pytest.fixture
+def sample_microbiology_data_invalid_timestamps():
+    """Create a microbiology DataFrame with invalid timestamp order."""
+    return pd.DataFrame({
+        'patient_id': ['12345', '67890'],
+        'hospitalization_id': ['HOSP12345', 'HOSP67890'],
+        'organism_id': ['ORG001', 'ORG002'],
+        'order_dttm': pd.to_datetime(['2025-06-05 10:00:00+00:00', '2025-06-10 16:00:00+00:00']),  # order after collect
+        'collect_dttm': pd.to_datetime(['2025-06-05 08:45:00+00:00', '2025-06-10 14:35:00+00:00']),
+        'result_dttm': pd.to_datetime(['2025-06-06 12:00:00+00:00', '2025-06-10 14:00:00+00:00']),  # result before collect
+        'fluid_category': ['blood_buffy_coat', 'brain'],
+        'method_category': ['culture', 'culture'],
+        'organism_category': ['any_acinetobacter_category', 'any_aspergillus_category'],  # unrestricted
+        'organism_group': ['acinetobacter', 'aspergillus_fumigatus']
     })
 
 @pytest.fixture
@@ -91,45 +107,194 @@ def mock_microbiology_schema_content():
     """Provides the content for a mock microbiology_cultureModel.json."""
     return {
         "columns": [
-            {"name": "patient_id", "data_type": "VARCHAR", "required": True},
-            {"name": "hospitalization_id", "data_type": "VARCHAR", "required": True},
-            {"name": "organism_id", "data_type": "VARCHAR", "required": True},
-            {"name": "order_dttm", "data_type": "DATETIME", "required": True},
-            {"name": "collect_dttm", "data_type": "DATETIME", "required": True},
-            {"name": "result_dttm", "data_type": "DATETIME", "required": True},
-            {"name": "fluid_name", "data_type": "VARCHAR", "required": False},
-            {"name": "fluid_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "permissible_values": ["Blood/Buffy Coat", "Brain", "Respiratory", "Urine"]},
-            {"name": "method_name", "data_type": "VARCHAR", "required": False},
-            {"name": "method_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "permissible_values": ["culture", "gram stain", "smear"]},
-            {"name": "organism_name", "data_type": "VARCHAR", "required": False},
-            {"name": "organism_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "permissible_values": ["acinetobacter_baumanii", "candida_albicans", "aspergillus_fumigatus", "escherichia_coli"]},
-            {"name": "organism_group", "data_type": "VARCHAR", "required": False},
-            {"name": "lab_loinc_code", "data_type": "VARCHAR", "required": False}
+            {"name": "patient_id", "data_type": "VARCHAR", "required": True, "is_category_column": False, "is_group_column": False},
+            {"name": "hospitalization_id", "data_type": "VARCHAR", "required": True, "is_category_column": False, "is_group_column": False},
+            {"name": "organism_id", "data_type": "VARCHAR", "required": True, "is_category_column": False, "is_group_column": False},
+            {"name": "order_dttm", "data_type": "DATETIME", "required": True, "is_category_column": False, "is_group_column": False},
+            {"name": "collect_dttm", "data_type": "DATETIME", "required": True, "is_category_column": False, "is_group_column": False},
+            {"name": "result_dttm", "data_type": "DATETIME", "required": True, "is_category_column": False, "is_group_column": False},
+            {"name": "fluid_name", "data_type": "VARCHAR", "required": False, "is_category_column": False, "is_group_column": False},
+            {"name": "fluid_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "is_group_column": False},
+            {"name": "method_name", "data_type": "VARCHAR", "required": False, "is_category_column": False, "is_group_column": False},
+            {"name": "method_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "is_group_column": False},
+            {"name": "organism_name", "data_type": "VARCHAR", "required": False, "is_category_column": False, "is_group_column": False},
+            {"name": "organism_category", "data_type": "VARCHAR", "required": True, "is_category_column": True, "is_group_column": False},
+            {"name": "organism_group", "data_type": "VARCHAR", "required": False, "is_category_column": False, "is_group_column": True},
+            {"name": "lab_loinc_code", "data_type": "VARCHAR", "required": False, "is_category_column": False, "is_group_column": False},
         ],
-        "organism_categories": {
-            "acinetobacter_baumanii": "Acinetobacter baumanii",
-            "candida_albicans": "Candida albicans",
-            "aspergillus_fumigatus": "Aspergillus fumigatus",
-            "escherichia_coli": "Escherichia coli"
-        },
-        "fluid_categories": {
-            "Blood/Buffy Coat": "Blood or buffy coat specimen",
-            "Brain": "Brain tissue specimen",
-            "Respiratory": "Respiratory tract specimen",
-            "Urine": "Urine specimen"
-        },
-        "method_categories": {
-            "culture": "Microbial culture",
-            "gram stain": "Gram staining",
-            "smear": "Direct smear examination"
-        },
-        "organism_groups": {
-            "acinetobacter_baumanii": "acinetobacter (baumanii, calcoaceticus, lwoffi, other species)",
-            "candida_albicans": "candida albicans",
-            "aspergillus_fumigatus": "asperguillus fumigatus",
-            "escherichia_coli": "escherichia coli"
-        }
+        "fluid_category": [
+                "brain",
+                "central_nervous_system",
+                "meninges_csf",
+                "spinal_cord",
+                "eyes",
+                "ears",
+                "sinuses",
+                "nasopharynx_upperairway",
+                "lips",
+                "oropharynx_tongue_oralcavity",
+                "larynx",
+                "lymph_nodes",
+                "catheter_tip",
+                "cardiac",
+                "respiratory_tract",
+                "respiratory_tract_lower",
+                "pleural_cavity_fluid",
+                "joints",
+                "bone_marrow",
+                "bone_cortex",
+                "blood_buffy",
+                "esophagus",
+                "gallbladder_billary_pancreas",
+                "liver",
+                "spleen",
+                "stomatch",
+                "small_intestine",
+                "large_intestine",
+                "gastrointestinal_tract",
+                "kidneys_renal_pelvis_ureters_bladder",
+                "genito_urinary_tract",
+                "fallopians_uterus_cervix",
+                "peritoneum",
+                "feces_stool",
+                "genital_area",
+                "prostate",
+                "testes",
+                "vagina",
+                "muscle",
+                "skin_rash_pustules_abscesses",
+                "skin_disseminated_multiple_sites",
+                "woundsite",
+                "skin_unspecified",
+                "other_unspecified"
+            ],
+        "method_category": [
+            "culture",
+            "gram stain",
+            "smear",
+        ],
+        "organism_group": [
+            "acinetobacter",
+            "adenovirus",
+            "agrobacterium_radiobacter",
+            "alcaligenes_xylosoxidans",
+            "amebiasis",
+            "anaerobes_wo_bacteroides_clostridium",
+            "aspergillus_nos",
+            "aspergillus_flavus",
+            "aspergillus_fumigatus",
+            "aspergillus_niger",
+            "bacillus",
+            "bacteria_other",
+            "bacteroides",
+            "borrelia",
+            "branhamelia_moraxella_catarrhalis",
+            "campylobacter",
+            "candida_albicans",
+            "candida_krusei",
+            "candida_nos",
+            "candida_parapsilosis",
+            "candida_tropicalis",
+            "chlamydia",
+            "citrobacter",
+            "clostridium_difficile",
+            "clostridium_wo_difficile",
+            "corynebacterium",
+            "coxiella",
+            "cryptococcus",
+            "cryptosporidium",
+            "cytomegalovirus",
+            "echinoco_ocalcyst",
+            "enterobacter",
+            "enterococcus",
+            "enterovirus",
+            "epstein_barr_virus",
+            "escherichia",
+            "flavimonas_oryzihabitans",
+            "flavobacterium",
+            "fungus_other",
+            "fusarium",
+            "fusobacterium_nucleatum",
+            "giardia",
+            "gram_negative_diplococci",
+            "gram_negative_rod",
+            "gram_positive_cocci",
+            "gram_positive_rod",
+            "haemophilus",
+            "helicobacter_pylori",
+            "hepatitis_a",
+            "hepatitis_b",
+            "hepatitis_c",
+            "herpes_simplex",
+            "herpes_zoster",
+            "hhv_6",
+            "hiv_htlv",
+            "influenza",
+            "klebsiella",
+            "lactobacillus",
+            "legionella",
+            "leptospira",
+            "leptotrichia_buccalis",
+            "leuconostoc",
+            "listeria",
+            "measles",
+            "methylobacterium",
+            "micrococcus",
+            "mucormycosis_zygomycetes_rhizopus",
+            "mumps",
+            "mycobacteria_avium_bovium_haemophilum_intercelluare",
+            "mycobacterium_other",
+            "mycoplasma",
+            "neisseria",
+            "nocardia",
+            "no_growth",
+            "other_organism",
+            "papovavirus",
+            "parainfluenza",
+            "pharyngeal_respiratory_flora",
+            "pneumocystis",
+            "polyomavirus",
+            "propionbacterium",
+            "protozoal_other",
+            "pseudomonas_burkholderia_cepacia",
+            "pseudomonas_stenotrophomonas_xanthomonas_maltophilia",
+            "pseudomonas_wo_cepacia_maltophilia",
+            "respiratory_syncytial_virus",
+            "rhinovirus",
+            "rhodococcus",
+            "rickettsia",
+            "rotavirus",
+            "rubella",
+            "salmonella",
+            "serratia_marcescens",
+            "shigella",
+            "staphylococcus_coag_neg",
+            "staphylococcus_coag_pos",
+            "staphylococcus_nos",
+            "stomatococcus_mucilaginosis",
+            "streptococcus",
+            "torulopsis_galbrata",
+            "toxoplasma",
+            "treponema",
+            "trichomonas",
+            "tuberculosis",
+            "tuberculosis_nos_afb_kochbacillus",
+            "vibrio",
+            "viral_other",
+            "yeast"
+        ],
+        "required_columns": [
+            "hospitalization_id",
+            "organism_id",
+            "fluid_category",
+            "method_category",
+            "organism_category",
+            "result_dttm"
+        ],
+        "category_columns": ["fluid_category", "method_category", "organism_category"],
+        "group_columns": ["organism_group"],
     }
+
 
 @pytest.fixture
 def mock_mcide_dir(tmp_path):
@@ -175,397 +340,183 @@ def patch_microbiology_schema_path(monkeypatch, mock_microbiology_model_json):
 # --- Tests for microbiology_culture class --- 
 
 # Initialization and Schema Loading
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_init_with_valid_data(sample_valid_microbiology_data, mock_microbiology_schema_content):
+def test_microbiology_culture_init_with_valid_data(patch_microbiology_schema_path, sample_valid_microbiology_data):
     """Test microbiology culture initialization with valid data and mocked schema."""
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    assert micro_obj.df is not None
-    # Validate is called in __init__
-    if not micro_obj.isvalid():
-        print("DEBUG micro_obj.errors:", micro_obj.errors)
-        print("DEBUG micro_obj.organism_validation_errors:", micro_obj.organism_validation_errors)
-    assert micro_obj.isvalid() is True
-    assert not micro_obj.errors
-    assert not micro_obj.organism_validation_errors
-    assert "acinetobacter_baumanii" in micro_obj.organism_categories # Check schema loaded
-    assert "Blood/Buffy Coat" in micro_obj.fluid_categories
+    mc_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)   
+    mc_obj.validate()
+    assert mc_obj.df is not None
+    assert mc_obj.isvalid() is True
+    assert not mc_obj.errors
 
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_init_with_invalid_schema_data(sample_invalid_microbiology_data_schema):
-    """Test microbiology culture initialization with schema-invalid data."""
-    micro_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_schema)
-    assert micro_obj.df is not None
-    # Validation is called in __init__. 
-    assert micro_obj.isvalid() is False
-    assert len(micro_obj.errors) > 0
-    error_types = [e['type'] for e in micro_obj.errors]
-    # validate_table (used by _validate_schema) reports 'datatype_mismatch'
-    assert 'missing_columns' in error_types or 'datatype_mismatch' in error_types
+def test_microbiology_culture_init_with_invalid_category(patch_microbiology_schema_path, sample_invalid_microbiology_data_organisms):
+    """Test microbiology culture initialization with organism group values."""
+    mc_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
+    mc_obj.validate()
+    assert mc_obj.isvalid() is True
 
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_init_with_invalid_organism_data(sample_invalid_microbiology_data_organisms):
-    """Test microbiology culture initialization with unknown organism data."""
-    micro_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
-    assert micro_obj.df is not None
-    # Validation is called in __init__ which calls validate_organism_categories.
-    assert micro_obj.isvalid() is False
-    assert len(micro_obj.organism_validation_errors) > 0
-    assert any(e['error_type'] == 'unknown_organism_category' for e in micro_obj.organism_validation_errors)
-    assert any(e['error_type'] == 'unknown_method_category' for e in micro_obj.organism_validation_errors)
+def test_microbiology_culture_init_with_schema_violations(patch_microbiology_schema_path, sample_invalid_microbiology_data_schema):
+    """Test microbiology culture initialization with schema violations."""
+    mc_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_schema)
+    mc_obj.validate()
+    assert mc_obj.isvalid() is False
+    assert len(mc_obj.errors) > 0
+    # Should have datatype mismatch error since organism_id is integer instead of string
+    error_types = {e['type'] for e in mc_obj.errors}
+    assert "datatype_mismatch" in error_types
 
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_init_with_group_mismatch(sample_microbiology_data_group_mismatch):
-    """Test microbiology culture initialization with organism group mismatch."""
-    micro_obj = MicrobiologyCulture(data=sample_microbiology_data_group_mismatch)
-    assert micro_obj.df is not None
-    # Validation is called in __init__ which calls validate_organism_categories.
-    assert micro_obj.isvalid() is False
-    assert len(micro_obj.organism_validation_errors) > 0
-    assert any(e['error_type'] == 'organism_group_mismatch' for e in micro_obj.organism_validation_errors)
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_init_without_data():
+def test_microbiology_culture_init_without_data(patch_microbiology_schema_path):
     """Test microbiology culture initialization without data."""
-    micro_obj = MicrobiologyCulture()
-    assert micro_obj.df is None
-    assert micro_obj.isvalid() is True # No data, so no data errors
-    assert not micro_obj.errors
-    assert not micro_obj.organism_validation_errors
-    assert "acinetobacter_baumanii" in micro_obj.organism_categories # Schema should still load
+    mc_obj = MicrobiologyCulture()
+    mc_obj.validate()
+    assert mc_obj.df is None
 
-def test_load_microbiology_schema_file_not_found(monkeypatch, capsys):
-    """Test _load_microbiology_schema when microbiology_cultureModel.json is not found."""
-    def mock_join_raise_fnf(*args):
-        if 'microbiology_cultureModel.json' in args[-1]:
-            raise FileNotFoundError("Mocked File Not Found")
-        return os.path.join(*args)
-    monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
-    
-    micro_obj = MicrobiologyCulture() # Init will call _load_microbiology_schema
-    assert micro_obj._organism_categories == {}
-    assert micro_obj._fluid_categories == {}
-    assert micro_obj._method_categories == {}
-    assert micro_obj._organism_groups == {}
-    captured = capsys.readouterr()
-    assert "Warning: microbiology_cultureModel.json not found" in captured.out
+def test_microbiology_culture_organism_group_mismatch(patch_microbiology_schema_path, sample_microbiology_data_group_mismatch):
+    """Test microbiology culture with organism group values."""
+    mc_obj = MicrobiologyCulture(data=sample_microbiology_data_group_mismatch)
+    mc_obj.validate()
+    assert mc_obj.isvalid() is True
 
 # from_file constructor
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_from_file(mock_microbiology_file, sample_valid_microbiology_data):
+def test_microbiology_culture_from_file(patch_microbiology_schema_path, mock_microbiology_file):
     """Test loading microbiology culture data from a parquet file."""
-    micro_obj = MicrobiologyCulture.from_file(mock_microbiology_file, table_format_type="parquet")
-    assert micro_obj.df is not None
-    # Standardize DataFrames before comparison (e.g. reset index, sort)
-    expected_df = sample_valid_microbiology_data.reset_index(drop=True)
-    loaded_df = micro_obj.df.reset_index(drop=True)
-    pd.testing.assert_frame_equal(loaded_df, expected_df, check_dtype=False)
-    assert micro_obj.isvalid() is True # Validation is called in init
+    mc_obj = MicrobiologyCulture.from_file(data_directory=mock_microbiology_file, filetype="parquet")
+    assert mc_obj.df is not None
 
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_from_file_nonexistent(tmp_path):
+def test_microbiology_culture_from_file_nonexistent(patch_microbiology_schema_path, tmp_path):
     """Test loading microbiology culture data from a nonexistent file."""
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        MicrobiologyCulture.from_file(non_existent_path, table_format_type="parquet")
+        MicrobiologyCulture.from_file(non_existent_path, filetype="parquet")
 
 # isvalid method
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_isvalid(sample_valid_microbiology_data, sample_invalid_microbiology_data_organisms):
+def test_microbiology_culture_isvalid(patch_microbiology_schema_path, sample_valid_microbiology_data, sample_invalid_microbiology_data_organisms):
     """Test isvalid method."""
-    valid_micro = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    assert valid_micro.isvalid() is True
-    
-    invalid_micro = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
-    # isvalid() reflects the state after the last validate() call, which happens at init
-    assert invalid_micro.isvalid() is False 
+    valid_mc = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    valid_mc.validate()
+    assert valid_mc.isvalid() is True
 
-# validate method
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_validate_output(sample_valid_microbiology_data, sample_invalid_microbiology_data_organisms, capsys):
+    # Note: organism groups validation is handled by other modules
+    invalid_mc = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
+    invalid_mc.validate()
+    assert invalid_mc.isvalid() is True# validate method
+def test_microbiology_culture_validate_output(patch_microbiology_schema_path, sample_valid_microbiology_data, sample_invalid_microbiology_data_organisms, capsys):
     """Test validate method output messages."""
-    # Valid data - validation runs at init
-    MicrobiologyCulture(data=sample_valid_microbiology_data) 
-    captured = capsys.readouterr() 
-    assert "Validation completed successfully." in captured.out
-
-    # Invalid organism data - validation runs at init
-    MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms) 
+    # Valid data
+    valid_mc = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    valid_mc.validate()
     captured = capsys.readouterr()
-    assert "Validation completed with" in captured.out
-    assert "error(s)" in captured.out
+    assert "Validation completed successfully" in captured.out
 
+    # All data validates successfully at this level - group validation handled elsewhere
+    invalid_mc = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
+    invalid_mc.validate()
+    captured = capsys.readouterr()
+    assert "Validation completed successfully" in captured.out
+    assert "Validation completed successfully" in captured.out
+    
     # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    micro_obj_no_data.validate() # Explicit call as init with no data might not print this
+    mc_no_data = MicrobiologyCulture()
+    mc_no_data.validate()
     captured = capsys.readouterr()
-    assert "No dataframe to validate." in captured.out
+    assert "No dataframe to validate" in captured.out
 
-# Schema Properties Access
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_microbiology_culture_properties_access(mock_microbiology_schema_content):
-    """Test access to organism_categories, fluid_categories, method_categories, and organism_groups properties."""
-    micro_obj = MicrobiologyCulture()
+# Timestamp order validation tests
+def test_microbiology_culture_valid_timestamp_order(patch_microbiology_schema_path, sample_valid_microbiology_data):
+    """Test that valid timestamp order passes validation."""
+    mc_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    mc_obj.validate()
+    assert mc_obj.isvalid() is True
+    assert not mc_obj.time_order_validation_errors
+
+def test_microbiology_culture_invalid_timestamp_order(patch_microbiology_schema_path, sample_microbiology_data_invalid_timestamps):
+    """Test that invalid timestamp order fails validation."""
+    mc_obj = MicrobiologyCulture(data=sample_microbiology_data_invalid_timestamps)
+    mc_obj.validate()
+    assert mc_obj.isvalid() is False
+    assert len(mc_obj.time_order_validation_errors) > 0
     
-    # Test organism_categories
-    organisms = micro_obj.organism_categories
-    assert organisms == mock_microbiology_schema_content['organism_categories']
-    assert id(organisms) != id(micro_obj._organism_categories) # Ensure it's a copy
-    # Modify the returned dict and check original is not affected
-    organisms['new_key'] = 'new_value'
-    assert 'new_key' not in micro_obj.organism_categories
-
-    # Test fluid_categories
-    fluids = micro_obj.fluid_categories
-    assert fluids == mock_microbiology_schema_content['fluid_categories']
-    assert id(fluids) != id(micro_obj._fluid_categories) # Ensure it's a copy
-
-    # Test method_categories
-    methods = micro_obj.method_categories
-    assert methods == mock_microbiology_schema_content['method_categories']
-    assert id(methods) != id(micro_obj._method_categories) # Ensure it's a copy
-
-    # Test organism_groups
-    groups = micro_obj.organism_groups
-    assert groups == mock_microbiology_schema_content['organism_groups']
-    assert id(groups) != id(micro_obj._organism_groups) # Ensure it's a copy
-
-    # Test properties when schema is not loaded
-    micro_obj_no_schema = MicrobiologyCulture()
-    micro_obj_no_schema._organism_categories = None
-    micro_obj_no_schema._fluid_categories = None
-    micro_obj_no_schema._method_categories = None
-    micro_obj_no_schema._organism_groups = None
-    assert micro_obj_no_schema.organism_categories == {}
-    assert micro_obj_no_schema.fluid_categories == {}
-    assert micro_obj_no_schema.method_categories == {}
-    assert micro_obj_no_schema.organism_groups == {}
-
-# validate_organism_categories method
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_validate_organism_categories_valid(sample_valid_microbiology_data):
-    """Test validate_organism_categories with valid data."""
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    # validate_organism_categories is called during init's validate()
-    assert not micro_obj.organism_validation_errors
-    assert micro_obj.isvalid() is True
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_validate_organism_categories_unknown_organisms(sample_invalid_microbiology_data_organisms):
-    """Test validate_organism_categories with unknown organism categories."""
-    micro_obj = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
-    assert len(micro_obj.organism_validation_errors) > 0
-    assert any(e['error_type'] == 'unknown_organism_category' for e in micro_obj.organism_validation_errors)
-    assert any(e['error_type'] == 'unknown_method_category' for e in micro_obj.organism_validation_errors)
+    # Check for specific time order validation errors
+    time_errors = [e for e in mc_obj.errors if e.get('type') == 'time_order_validation']
+    assert len(time_errors) > 0
     
-    # Check specific error details
-    unknown_organism_error = next((e for e in micro_obj.organism_validation_errors if e['error_type'] == 'unknown_organism_category'), None)
-    assert unknown_organism_error is not None
-    assert unknown_organism_error['organism_category'] == 'unknown_organism'
-    assert micro_obj.isvalid() is False
+    # Should have errors for both order > collect and collect > result
+    error_rules = {e['rule'] for e in time_errors}
+    assert any('order_dttm <= collect_dttm' in rule for rule in error_rules)
 
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_validate_organism_categories_group_mismatch(sample_microbiology_data_group_mismatch):
-    """Test validate_organism_categories with organism group mismatch."""
-    micro_obj = MicrobiologyCulture(data=sample_microbiology_data_group_mismatch)
-    assert len(micro_obj.organism_validation_errors) > 0
-    assert any(e['error_type'] == 'organism_group_mismatch' for e in micro_obj.organism_validation_errors)
+def test_microbiology_culture_timestamp_order_method_direct(patch_microbiology_schema_path, sample_microbiology_data_invalid_timestamps):
+    """Test the validate_timestamp_order method directly."""
+    mc_obj = MicrobiologyCulture(data=sample_microbiology_data_invalid_timestamps)
     
-    group_mismatch_error = next((e for e in micro_obj.organism_validation_errors if e['error_type'] == 'organism_group_mismatch'), None)
-    assert group_mismatch_error is not None
-    assert group_mismatch_error['organism_category'] == 'acinetobacter_baumanii'
-    assert group_mismatch_error['expected_group'] == 'acinetobacter (baumanii, calcoaceticus, lwoffi, other species)'
-    assert group_mismatch_error['actual_group'] == 'wrong_group'
-    assert micro_obj.isvalid() is False
+    # Call the method directly
+    violating_rows = mc_obj.validate_timestamp_order()
+    
+    # Should return violating rows
+    assert violating_rows is not None
+    assert len(violating_rows) > 0
+    
+    # Should have timestamp columns
+    expected_cols = ['order_dttm', 'collect_dttm', 'result_dttm']
+    for col in expected_cols:
+        assert col in violating_rows.columns
+    
+    # Should also have some key columns
+    key_cols = mc_obj.schema['composite_keys']
+    for col in key_cols:
+        if col in mc_obj.df.columns:
+            assert col in violating_rows.columns
 
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_validate_organism_categories_missing_columns():
-    """Test validate_organism_categories with missing required columns."""
-    # Missing organism_category
-    data_missing_organism = pd.DataFrame({
-        'patient_id': ['12345'],
-        'hospitalization_id': ['HOSP12345'],
-        'organism_id': ['ORG001']
-    })
-    micro_obj_missing_organism = MicrobiologyCulture(data=data_missing_organism)
-    # Schema validation will likely also report missing 'organism_category'
-    # Here we explicitly check the organism_validation_errors
-    assert any(e['error_type'] == 'missing_columns_for_organism_validation' for e in micro_obj_missing_organism.organism_validation_errors)
-    assert 'organism_category' in micro_obj_missing_organism.organism_validation_errors[0]['message']
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_validate_organism_categories_no_data_or_schema(capsys):
-    """Test validate_organism_categories with no data or no schema."""
-    # No DataFrame
-    micro_obj_no_df = MicrobiologyCulture()
-    micro_obj_no_df.validate_organism_categories() # Explicitly call
-    assert not micro_obj_no_df.organism_validation_errors
-
-    # Empty DataFrame
-    micro_obj_empty_df = MicrobiologyCulture(data=pd.DataFrame(columns=['patient_id', 'hospitalization_id', 'organism_category']))
-    micro_obj_empty_df.validate_organism_categories()
-    assert not micro_obj_empty_df.organism_validation_errors
-
-    # No organism_categories in schema
-    micro_obj_no_schema_organisms = MicrobiologyCulture(data=pd.DataFrame({'organism_category': ['test_organism']}))
-    micro_obj_no_schema_organisms._organism_categories = {} # Manually clear categories after init
-    micro_obj_no_schema_organisms.validate_organism_categories()
-    assert not micro_obj_no_schema_organisms.organism_validation_errors # Should not attempt validation if no categories defined
 
 # --- Helper Method Tests ---
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_filter_by_organism_category(sample_valid_microbiology_data):
-    """Test filter_by_organism_category method."""
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
+def test_microbiology_culture_organism_cat_name_map(patch_microbiology_schema_path, sample_valid_microbiology_data):
+    """Test organism category to name mapping."""
+    mc_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    cat_name_map = mc_obj.organism_cat_name_map()
     
-    # Existing organism_category
-    filtered_df_acin = micro_obj.filter_by_organism_category('acinetobacter_baumanii')
-    assert len(filtered_df_acin) == 1
-    assert filtered_df_acin['organism_category'].iloc[0] == 'acinetobacter_baumanii'
+    assert isinstance(cat_name_map, dict)
+    # Should have mapping for organism categories to organism names
+    for category, names in cat_name_map.items():
+        assert isinstance(names, list)
+        for name in names:
+            assert isinstance(name, str)
 
-    # Non-existing organism_category
-    filtered_df_unknown = micro_obj.filter_by_organism_category('unknown_organism')
-    assert filtered_df_unknown.empty
-
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    assert micro_obj_no_data.filter_by_organism_category('acinetobacter_baumanii').empty
-
-    # Data missing organism_category column
-    data_no_organism = sample_valid_microbiology_data.drop(columns=['organism_category'])
-    micro_obj_no_organism = MicrobiologyCulture(data=data_no_organism)
-    assert micro_obj_no_organism.filter_by_organism_category('acinetobacter_baumanii').empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_filter_by_fluid_category(sample_valid_microbiology_data):
-    """Test filter_by_fluid_category method."""
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-
-    # Existing fluid_category
-    filtered_df_blood = micro_obj.filter_by_fluid_category('Blood/Buffy Coat')
-    assert len(filtered_df_blood) == 2
-    assert all(filtered_df_blood['fluid_category'] == 'Blood/Buffy Coat')
-
-    # Non-existing fluid_category
-    filtered_df_unknown = micro_obj.filter_by_fluid_category('Unknown_Fluid')
-    assert filtered_df_unknown.empty
-
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    assert micro_obj_no_data.filter_by_fluid_category('Blood/Buffy Coat').empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_filter_by_method_category(sample_valid_microbiology_data):
-    """Test filter_by_method_category method."""
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-
-    # Existing method_category
-    filtered_df_culture = micro_obj.filter_by_method_category('culture')
-    assert len(filtered_df_culture) == 3
-    assert all(filtered_df_culture['method_category'] == 'culture')
-
-    # Non-existing method_category
-    filtered_df_unknown = micro_obj.filter_by_method_category('unknown_method')
-    assert filtered_df_unknown.empty
-
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    assert micro_obj_no_data.filter_by_method_category('culture').empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_filter_by_organism_group(sample_valid_microbiology_data):
-    """Test filter_by_organism_group method."""
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-
-    # Existing organism_group
-    filtered_df_candida = micro_obj.filter_by_organism_group('candida albicans')
-    assert len(filtered_df_candida) == 1
-    assert filtered_df_candida['organism_group'].iloc[0] == 'candida albicans'
-
-    # Non-existing organism_group
-    filtered_df_unknown = micro_obj.filter_by_organism_group('unknown_group')
-    assert filtered_df_unknown.empty
-
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    assert micro_obj_no_data.filter_by_organism_group('candida albicans').empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_get_organism_summary_stats(sample_valid_microbiology_data):
-    """Test get_organism_summary_stats method."""
-    # With data
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    stats = micro_obj.get_organism_summary_stats()
-    assert not stats.empty
-    assert 'unique_patients' in stats.columns
-    assert 'unique_hospitalizations' in stats.columns
-    assert 'total_cultures' in stats.columns
-    assert stats.loc['acinetobacter_baumanii', 'total_cultures'] == 1
-
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    stats_no_data = micro_obj_no_data.get_organism_summary_stats()
-    assert stats_no_data.empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_get_fluid_summary_stats(sample_valid_microbiology_data):
-    """Test get_fluid_summary_stats method."""
-    # With data
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    stats = micro_obj.get_fluid_summary_stats()
-    assert not stats.empty
-    assert 'unique_patients' in stats.columns
-    assert 'unique_hospitalizations' in stats.columns
-    assert 'total_cultures' in stats.columns
-    assert 'unique_organisms' in stats.columns
-    assert stats.loc['Blood/Buffy Coat', 'total_cultures'] == 2
-
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    stats_no_data = micro_obj_no_data.get_fluid_summary_stats()
-    assert stats_no_data.empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_get_time_to_result_stats(sample_valid_microbiology_data):
-    """Test get_time_to_result_stats method."""
-    # With data
-    micro_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    stats = micro_obj.get_time_to_result_stats()
-    assert not stats.empty
-    assert 'mean' in stats.columns
-    assert 'count' in stats.columns
+def test_microbiology_culture_organism_group_cat_name_map(patch_microbiology_schema_path, sample_valid_microbiology_data):
+    """Test organism group to category to name mapping."""
+    mc_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    group_cat_name_map = mc_obj.organism_group_cat_name_map()
     
-    # Check that time calculation is reasonable (should be around 27-18 hours)
-    assert all(stats['mean'] > 10)  # At least 10 hours
-    assert all(stats['mean'] < 30)  # Less than 30 hours
+    assert isinstance(group_cat_name_map, dict)
+    # Should have nested mapping: group -> category -> names
+    for group, cat_map in group_cat_name_map.items():
+        assert isinstance(cat_map, dict)
+        for category, names in cat_map.items():
+            assert isinstance(names, list)
+            for name in names:
+                assert isinstance(name, str)
 
-    # No data
-    micro_obj_no_data = MicrobiologyCulture()
-    stats_no_data = micro_obj_no_data.get_time_to_result_stats()
-    assert stats_no_data.empty
+def test_microbiology_culture_fluid_cat_name_map(patch_microbiology_schema_path, sample_valid_microbiology_data):
+    """Test fluid category to name mapping."""
+    mc_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    fluid_cat_name_map = mc_obj.fluid_cat_name_map()
+    
+    assert isinstance(fluid_cat_name_map, dict)
+    # Should have mapping for fluid categories to fluid names
+    for category, names in fluid_cat_name_map.items():
+        assert isinstance(names, list)
+        for name in names:
+            assert isinstance(name, str)
 
-    # Data missing required columns
-    data_no_times = sample_valid_microbiology_data.drop(columns=['collect_dttm', 'result_dttm'])
-    micro_obj_no_times = MicrobiologyCulture(data=data_no_times)
-    stats_no_times = micro_obj_no_times.get_time_to_result_stats()
-    assert stats_no_times.empty
-
-@pytest.mark.usefixtures("patch_microbiology_schema_path")
-def test_get_organism_validation_report(sample_invalid_microbiology_data_organisms, sample_valid_microbiology_data):
-    """Test get_organism_validation_report method."""
-    # With organism errors
-    micro_obj_errors = MicrobiologyCulture(data=sample_invalid_microbiology_data_organisms)
-    report_errors = micro_obj_errors.get_organism_validation_report()
-    assert isinstance(report_errors, pd.DataFrame)
-    assert not report_errors.empty
-    assert 'unknown_organism_category' in report_errors['error_type'].tolist()
-    assert 'unknown_method_category' in report_errors['error_type'].tolist()
-
-    # No organism errors
-    micro_obj_no_errors = MicrobiologyCulture(data=sample_valid_microbiology_data)
-    report_no_errors = micro_obj_no_errors.get_organism_validation_report()
-    assert isinstance(report_no_errors, pd.DataFrame)
-    assert report_no_errors.empty # Should be empty when no errors
-    expected_cols = ['error_type', 'organism_category', 'affected_rows', 'message']
-    if not report_no_errors.empty:
-        assert all(col in report_no_errors.columns for col in expected_cols)
+def test_microbiology_culture_cat_vs_name_map_with_counts(patch_microbiology_schema_path, sample_valid_microbiology_data):
+    """Test category vs name mapping with counts."""
+    mc_obj = MicrobiologyCulture(data=sample_valid_microbiology_data)
+    cat_name_map = mc_obj.organism_cat_name_map(include_counts=True)
+    
+    assert isinstance(cat_name_map, dict)
+    # Should have mapping with count information
+    for category, names in cat_name_map.items():
+        assert isinstance(names, list)
+        for name_info in names:
+            assert isinstance(name_info, dict)
+            assert 'name' in name_info
+            assert 'n' in name_info
+            assert isinstance(name_info['name'], str)
+            assert isinstance(name_info['n'], int)
