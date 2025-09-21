@@ -479,16 +479,19 @@ class ClifOrchestrator:
             show_progress=show_progress
         )
 
-        # Add encounter_block column if encounter mapping exists
+        # Add encounter_block column if encounter mapping exists and not already present
         if self.encounter_mapping is not None and self.wide_df is not None:
-            print("Adding encounter_block column from encounter mapping...")
-            self.wide_df = pd.merge(
-                self.wide_df,
-                self.encounter_mapping[['hospitalization_id', 'encounter_block']],
-                on='hospitalization_id',
-                how='left'
-            )
-            print(f"Added encounter_block column - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
+            if 'encounter_block' not in self.wide_df.columns:
+                print("Adding encounter_block column from encounter mapping...")
+                self.wide_df = pd.merge(
+                    self.wide_df,
+                    self.encounter_mapping[['hospitalization_id', 'encounter_block']],
+                    on='hospitalization_id',
+                    how='left'
+                )
+                print(f"Added encounter_block column - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
+            else:
+                print(f"Encounter_block column already present - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
     
     def convert_wide_to_hourly(
         self,
