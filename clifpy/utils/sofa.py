@@ -12,7 +12,7 @@ REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
         ],
     'respiratory_support': [
         'device_category','device_name','mode_name','mode_category','peep_set','fio2_set','lpm_set',
-        'resp_rate_set','tracheostomy', 'resp_rate_obs','tidal_volume_set'
+        # 'resp_rate_set', 'tracheostomy', 'resp_rate_obs','tidal_volume_set'
     ] 
 }
 
@@ -39,7 +39,7 @@ DEVICE_RANK_MAPPING = pd.DataFrame({
     'device_rank': DEVICE_RANK_DICT.values()
 })
 
-def agg_extremal_values_by_id(
+def _agg_extremal_values_by_id(
     wide_df: pd.DataFrame,
     extremal_type: str,  
     id_name: str
@@ -76,7 +76,7 @@ def agg_extremal_values_by_id(
     else:
         raise ValueError(f"Invalid extremal type: {extremal_type}")
 
-def compute_sofa_from_extremal_values(
+def _compute_sofa_from_extremal_values(
     extremal_df: pd.DataFrame,
     id_name: str
 ):
@@ -100,8 +100,8 @@ def compute_sofa_from_extremal_values(
             WHEN bilirubin_total < 6 AND bilirubin_total >= 2 THEN 2
             WHEN bilirubin_total < 2 AND bilirubin_total >= 1.2 THEN 1
             WHEN bilirubin_total < 1.2 THEN 0 END
-        , sofa_resp: CASE WHEN p_f < 100 AND m.device_category IN ('imv', 'nippv', 'cpap') THEN 4 
-            WHEN p_f >= 100 and p_f < 200 AND m.device_category IN ('imv', 'nippv', 'cpap') THEN 3
+        , sofa_resp: CASE WHEN p_f < 100 AND m.device_category IN ('IMV', 'NIPPV', 'CPAP') THEN 4 
+            WHEN p_f >= 100 and p_f < 200 AND m.device_category IN ('IMV', 'NIPPV', 'CPAP') THEN 3
             WHEN p_f >= 200 AND p_f < 300 THEN 2
             WHEN p_f >= 300 AND p_f < 400 THEN 1
             WHEN p_f >= 400 THEN 0 END
@@ -119,11 +119,23 @@ def compute_sofa_from_extremal_values(
     """
     return duckdb.sql(q).df()
 
+def _fill_na_scores(
+    sofa_df: pd.DataFrame
+) -> pd.DataFrame:
+    # compute the total score ignoring NAs
+    subscore_columns = ['sofa_cv_97', 'sofa_coag', 'sofa_renal', 'sofa_liver', 'sofa_resp', 'sofa_cns']
+    sofa_df['sofa_total'] = sofa_df[subscore_columns].sum(axis=1, skipna=True)
+    
+    # fill all the NAs in the subscore columns with 0
+    sofa_df[subscore_columns] = sofa_df[subscore_columns].fillna(0)
+    return sofa_df
+
 def compute_sofa(
     wide_df: pd.DataFrame,
     cohort_df: Optional[pd.DataFrame] = None,
     extremal_type: str = 'worst',
-    id_name: str = 'encounter_block'
+    id_name: str = 'encounter_block',
+    fill_na_scores_with_zero: bool = True
 ) -> pd.DataFrame:
     """
     Compute SOFA scores from a wide dataset.
@@ -162,10 +174,12 @@ def compute_sofa(
         """
         wide_df = duckdb.sql(q).df()
         
-    # Aggregate extremal values by ID
-    extremal_df = agg_extremal_values_by_id(wide_df, extremal_type, id_name)
+    sofa_scores = (
+        _agg_extremal_values_by_id(wide_df, extremal_type, id_name)
+        .pipe(_compute_sofa_from_extremal_values, id_name)
+    )
 
-    # Compute SOFA scores from extremal values
-    sofa_scores = compute_sofa_from_extremal_values(extremal_df, id_name)
+    if fill_na_scores_with_zero:
+        sofa_scores = _fill_na_scores(sofa_scores)
 
     return sofa_scores

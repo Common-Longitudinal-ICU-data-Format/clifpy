@@ -688,7 +688,8 @@ class ClifOrchestrator:
         wide_df: Optional[pd.DataFrame] = None,
         cohort_df: Optional[pd.DataFrame] = None,
         extremal_type: str = 'worst',
-        id_name: str = 'encounter_block'
+        id_name: str = 'encounter_block',
+        fill_na_scores_with_zero: bool = True
     ) -> pd.DataFrame:
         """
         Compute SOFA (Sequential Organ Failure Assessment) scores.
@@ -747,7 +748,8 @@ class ClifOrchestrator:
             wide_df=df,
             cohort_df=cohort_df,
             extremal_type=extremal_type,
-            id_name=id_name
+            id_name=id_name,
+            fill_na_scores_with_zero=fill_na_scores_with_zero
         )
 
         # Store results in orchestrator

@@ -13,7 +13,7 @@ from .validator import (
 
 from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
-from .sofa import compute_sofa, compute_sofa_from_extremal_values, agg_extremal_values_by_id
+from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
 
 __all__ = [
       # io
@@ -37,8 +37,8 @@ __all__ = [
       'stitch_encounters',
       # sofa
       'compute_sofa',
-      'compute_sofa_from_extremal_values',
-      'agg_extremal_values_by_id',
+      '_compute_sofa_from_extremal_values',
+      '_agg_extremal_values_by_id',
       # validator (add main functions)
       'validate_dataframe',
       'validate_table',
