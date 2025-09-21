@@ -310,6 +310,7 @@ class ClifOrchestrator:
         category_filters: Optional[Dict[str, List[str]]] = None,
         sample: bool = False,
         hospitalization_ids: Optional[List[str]] = None,
+        encounter_blocks: Optional[List[int]] = None,
         cohort_df: Optional[pd.DataFrame] = None,
         output_format: str = 'dataframe',
         save_to_data_location: bool = False,
@@ -340,11 +341,16 @@ class ClifOrchestrator:
         hospitalization_ids : List[str], optional
             List of specific hospitalization IDs to include. When provided, only data for these
             hospitalizations will be loaded, improving performance for large datasets.
+        encounter_blocks : List[int], optional
+            List of encounter block IDs to include when encounter stitching has been performed.
+            Automatically converts encounter blocks to their corresponding hospitalization IDs.
+            Only used when encounter stitching is enabled and encounter mapping exists.
         cohort_df : pd.DataFrame, optional
             DataFrame containing cohort definitions with columns:
             - 'patient_id': Patient identifier
             - 'start_time': Start of time window (datetime)
             - 'end_time': End of time window (datetime)
+            When encounter stitching is enabled, can also include 'encounter_block' column.
             Used to filter data to specific time windows per patient.
         output_format : str, default='dataframe'
             Format for output data. Options: 'dataframe', 'csv', 'parquet'.
@@ -380,10 +386,60 @@ class ClifOrchestrator:
         """
         # Import the utility function
         from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
+
+        # Handle encounter stitching scenarios
+        if self.encounter_mapping is not None:
+            # Handle cohort_df with encounter_block column
+            if cohort_df is not None:
+                if 'encounter_block' in cohort_df.columns:
+                    print("Detected encounter_block column in cohort_df. Mapping encounter blocks to hospitalization IDs...")
+                    # Merge cohort_df with encounter_mapping to get hospitalization_ids
+                    cohort_df = pd.merge(
+                        cohort_df,
+                        self.encounter_mapping[['hospitalization_id', 'encounter_block']],
+                        on='encounter_block',
+                        how='inner',
+                        suffixes=('_orig', '')
+                    )
+                    # If hospitalization_id_orig exists (cohort had both), use the mapping version
+                    if 'hospitalization_id_orig' in cohort_df.columns:
+                        cohort_df = cohort_df.drop(columns=['hospitalization_id_orig'])
+                    print(f"Processing {cohort_df['encounter_block'].nunique()} encounter blocks from cohort_df")
+                elif 'hospitalization_id' in cohort_df.columns:
+                    print("Info: Encounter stitching has been performed. Your cohort_df uses hospitalization_id. " +
+                          "Consider using 'encounter_block' column instead for cleaner encounter-level filtering.")
+                else:
+                    print("Warning: cohort_df must contain either 'hospitalization_id' or 'encounter_block' column.")
+
+            # Handle encounter_blocks parameter
+            if encounter_blocks is not None:
+                if len(encounter_blocks) == 0:
+                    print("Warning: Empty encounter_blocks list provided. Processing all encounter blocks.")
+                    encounter_blocks = None
+                else:
+                    # Validate that provided encounter_blocks exist in mapping
+                    invalid_blocks = [b for b in encounter_blocks if b not in self.encounter_mapping['encounter_block'].values]
+                    if invalid_blocks:
+                        print(f"Warning: Invalid encounter blocks found: {invalid_blocks}")
+                        encounter_blocks = [b for b in encounter_blocks if b in self.encounter_mapping['encounter_block'].values]
+
+                    if encounter_blocks:  # Only if valid blocks remain
+                        hospitalization_ids = self.encounter_mapping[
+                            self.encounter_mapping['encounter_block'].isin(encounter_blocks)
+                        ]['hospitalization_id'].tolist()
+                        print(f"Processing {len(encounter_blocks)} encounter blocks")
+                    else:
+                        print("No valid encounter blocks found. Processing all data.")
+                        encounter_blocks = None
+
+            # If no filters provided after stitching
+            elif hospitalization_ids is None and cohort_df is None:
+                print("Encounter stitching has been performed. No encounter_blocks provided - processing all encounter blocks.")
+
         filters = None
         if hospitalization_ids:
             filters = {'hospitalization_id': hospitalization_ids}
-        
+
         # Auto-load base tables if not loaded
         if self.patient is None:
             print("Loading patient table...")
@@ -422,6 +478,17 @@ class ClifOrchestrator:
             threads=threads,
             show_progress=show_progress
         )
+
+        # Add encounter_block column if encounter mapping exists
+        if self.encounter_mapping is not None and self.wide_df is not None:
+            print("Adding encounter_block column from encounter mapping...")
+            self.wide_df = pd.merge(
+                self.wide_df,
+                self.encounter_mapping[['hospitalization_id', 'encounter_block']],
+                on='hospitalization_id',
+                how='left'
+            )
+            print(f"Added encounter_block column - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
     
     def convert_wide_to_hourly(
         self,
