@@ -460,7 +460,73 @@ class ClifOrchestrator:
                         self.load_table(table_name)
                     except Exception as e:
                         print(f"Warning: Could not load {table_name}: {e}")
-        
+
+        # Check if patient_assessments needs assessment_value column
+        if (tables_to_load and 'patient_assessments' in tables_to_load) or \
+           (category_filters and 'patient_assessments' in category_filters):
+            if self.patient_assessments is not None and hasattr(self.patient_assessments, 'df'):
+                df = self.patient_assessments.df
+                if 'numerical_value' in df.columns and 'categorical_value' in df.columns:
+                    if 'assessment_value' not in df.columns:
+                        try:
+                            import polars as pl
+
+                            # Convert to Polars for efficient processing
+                            df_pl = pl.from_pandas(df)
+
+                            # Check data integrity using Polars
+                            both_filled = df_pl.filter(
+                                (pl.col('numerical_value').is_not_null()) &
+                                (pl.col('categorical_value').is_not_null())
+                            )
+                            both_filled_count = len(both_filled)
+
+                            if both_filled_count > 0:
+                                print(f"WARNING: Found {both_filled_count} rows with both numerical and categorical values!")
+                                print(f"         Numerical values will take precedence in the merged column")
+
+                            # Create assessment_value using Polars coalesce (much faster than pandas fillna)
+                            df_pl = df_pl.with_columns(
+                                pl.coalesce([
+                                    pl.col('numerical_value'),
+                                    pl.col('categorical_value')
+                                ]).cast(pl.Utf8).alias('assessment_value')
+                            )
+
+                            # Calculate statistics efficiently with Polars
+                            num_count = df_pl.select(pl.col('numerical_value').is_not_null().sum()).item()
+                            cat_count = df_pl.select(pl.col('categorical_value').is_not_null().sum()).item()
+                            total_count = df_pl.select(pl.col('assessment_value').is_not_null().sum()).item()
+
+                            # Convert back to pandas for compatibility
+                            self.patient_assessments.df = df_pl.to_pandas()
+
+                            print(f"Created assessment_value column for patient_assessments (using Polars):")
+                            print(f"  - {num_count} numerical values (takes precedence)")
+                            print(f"  - {cat_count} categorical values (used when numerical is null)")
+                            print(f"  - Total non-null assessment values: {total_count}")
+                            print(f"  - Stored as string type for processing compatibility")
+
+                        except ImportError:
+                            print("Warning: Polars not installed. Using pandas (slower)...")
+                            # Fallback to pandas
+                            both_filled = df[(df['numerical_value'].notna()) &
+                                            (df['categorical_value'].notna())]
+                            if len(both_filled) > 0:
+                                print(f"WARNING: Found {len(both_filled)} rows with both values!")
+
+                            df['assessment_value'] = df['numerical_value'].fillna(df['categorical_value'])
+                            df['assessment_value'] = df['assessment_value'].astype(str)
+
+                            num_count = df['numerical_value'].notna().sum()
+                            cat_count = df['categorical_value'].notna().sum()
+                            total_count = df['assessment_value'].notna().sum()
+
+                            print(f"Created assessment_value column for patient_assessments:")
+                            print(f"  - {num_count} numerical values (takes precedence)")
+                            print(f"  - {cat_count} categorical values (used when numerical is null)")
+                            print(f"  - Total non-null assessment values: {total_count}")
+
         # Call utility function with self as clif_instance and store result in wide_df property
         self.wide_df = _create_wide(
             clif_instance=self,
@@ -492,7 +558,101 @@ class ClifOrchestrator:
                 print(f"Added encounter_block column - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
             else:
                 print(f"Encounter_block column already present - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
-    
+
+        # Optimize data types for assessment columns using Polars for performance
+        if self.wide_df is not None and ((tables_to_load and 'patient_assessments' in tables_to_load) or \
+           (category_filters and 'patient_assessments' in category_filters)):
+
+            try:
+                import polars as pl
+
+                # Determine which assessment columns to check
+                assessment_columns = []
+
+                if category_filters and 'patient_assessments' in category_filters:
+                    # If specific categories were requested, use those
+                    assessment_columns = [col for col in category_filters['patient_assessments']
+                                         if col in self.wide_df.columns]
+                else:
+                    # Get all possible assessment categories from the schema
+                    if self.patient_assessments and hasattr(self.patient_assessments, 'schema'):
+                        schema = self.patient_assessments.schema
+                        if 'columns' in schema:
+                            for col_def in schema['columns']:
+                                if col_def.get('name') == 'assessment_category':
+                                    assessment_columns = col_def.get('permissible_values', [])
+                                    break
+
+                    # Filter to only columns that exist in wide_df
+                    assessment_columns = [col for col in assessment_columns if col in self.wide_df.columns]
+
+                if assessment_columns:
+                    print(f"\nOptimizing data types for {len(assessment_columns)} assessment columns using Polars...")
+
+                    # Convert to Polars for efficient processing
+                    df_pl = pl.from_pandas(self.wide_df)
+
+                    numeric_conversions = []
+                    string_kept = []
+
+                    # Process all columns in one go for better performance
+                    for col in assessment_columns:
+                        try:
+                            # Create a temporary column with numeric conversion attempt
+                            temp_col = f"{col}_numeric_test"
+                            df_pl = df_pl.with_columns(
+                                pl.col(col).cast(pl.Float64, strict=False).alias(temp_col)
+                            )
+
+                            # Check conversion success rate
+                            stats = df_pl.select([
+                                pl.col(col).is_not_null().sum().alias('original_count'),
+                                pl.col(temp_col).is_not_null().sum().alias('converted_count')
+                            ]).row(0)
+
+                            if stats[0] > 0:  # If there are non-null values
+                                conversion_rate = stats[1] / stats[0]
+
+                                if conversion_rate >= 0.95:  # 95% or more are numeric
+                                    # Replace original with converted
+                                    df_pl = df_pl.drop(col).rename({temp_col: col})
+                                    numeric_conversions.append(col)
+                                else:
+                                    # Keep original, drop temp
+                                    df_pl = df_pl.drop(temp_col)
+                                    string_kept.append(col)
+                            else:
+                                # No data, just drop temp
+                                df_pl = df_pl.drop(temp_col)
+
+                        except Exception:
+                            # Keep as string if any error, clean up temp column if it exists
+                            if f"{col}_numeric_test" in df_pl.columns:
+                                df_pl = df_pl.drop(f"{col}_numeric_test")
+                            string_kept.append(col)
+
+                    # Convert back to pandas
+                    self.wide_df = df_pl.to_pandas()
+
+                    # Report conversions
+                    if numeric_conversions:
+                        print(f"  Converted to numeric ({len(numeric_conversions)} columns):")
+                        for col in numeric_conversions[:5]:  # Show first 5 examples
+                            print(f"    - {col}")
+                        if len(numeric_conversions) > 5:
+                            print(f"    ... and {len(numeric_conversions) - 5} more")
+
+                    if string_kept:
+                        print(f"  Kept as string ({len(string_kept)} columns with mixed/text values):")
+                        for col in string_kept[:5]:  # Show first 5 examples
+                            print(f"    - {col}")
+                        if len(string_kept) > 5:
+                            print(f"    ... and {len(string_kept) - 5} more")
+
+            except ImportError:
+                print("Warning: Polars not installed. Skipping type optimization...")
+                print("Install polars for better performance: pip install polars")
+
     def convert_wide_to_hourly(
         self,
         aggregation_config: Dict[str, List[str]],
