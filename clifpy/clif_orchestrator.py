@@ -698,11 +698,37 @@ class ClifOrchestrator:
             wide_df: Optional wide dataset. If not provided, uses self.wide_df or creates one
             cohort_df: Optional DataFrame with columns [id_name, 'start_time', 'end_time']
                       to further filter observations by time windows
-            extremal_type: 'worst' or 'latest' (currently only 'worst' is implemented)
-            id_name: Column name for grouping (e.g., 'hospitalization_id', 'patient_id', 'encounter_block')
+            extremal_type: 'worst' (default) or 'latest' (future feature)
+            id_name: Column name for grouping (default: 'encounter_block')
+                    - 'encounter_block': Groups related hospitalizations (requires encounter stitching)
+                    - 'hospitalization_id': Individual hospitalizations
+            fill_na_scores_with_zero: If True, missing component scores default to 0
 
         Returns:
-            DataFrame with SOFA component scores and total score for each ID
+            DataFrame with SOFA component scores and total score for each ID.
+            Results are stored in self.sofa_df.
+
+        Notes:
+            - Medication units should be pre-converted (e.g., 'norepinephrine_mcg_kg_min')
+            - When id_name='encounter_block' and encounter mapping doesn't exist,
+              it will be created automatically via run_stitch_encounters()
+            - Missing data defaults to score of 0 (normal organ function)
+
+        Examples:
+            Basic usage:
+            >>> co = ClifOrchestrator(config_path='config/config.yaml')
+            >>> sofa_scores = co.compute_sofa_scores()
+
+            Per hospitalization instead of encounter:
+            >>> sofa_scores = co.compute_sofa_scores(id_name='hospitalization_id')
+
+            With time filtering:
+            >>> cohort_df = pd.DataFrame({
+            ...     'encounter_block': ['E001', 'E002'],
+            ...     'start_time': pd.to_datetime(['2024-01-01', '2024-01-02']),
+            ...     'end_time': pd.to_datetime(['2024-01-03', '2024-01-04'])
+            ... })
+            >>> sofa_scores = co.compute_sofa_scores(cohort_df=cohort_df)
         """
         from .utils.sofa import compute_sofa, REQUIRED_SOFA_CATEGORIES_BY_TABLE
 
