@@ -4,14 +4,19 @@ import duckdb
 
 REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
     'labs': ['creatinine','platelet_count','po2_arterial','bilirubin_total'],
-    'vitals': ['map','spo2', 'weight_kg'],
+    'vitals': [
+        'map','spo2', # 'weight_kg'
+        ],
     'patient_assessments': ['gcs_total'],
     "medication_admin_continuous": [
-        "norepinephrine","epinephrine","phenylephrine","vasopressin", "dopamine","angiotensin",
-        "dobutamine","milrinone"
+        "norepinephrine","epinephrine", "dopamine","dobutamine"
+        #         "norepinephrine_mcg_kg_min","epinephrine_mcg_kg_min", "dopamine_mcg_kg_min","dobutamine_mg_kg_min"
+        # "vasopressin", "angiotensin", "phenylephrine","milrinone"
         ],
     'respiratory_support': [
-        'device_category','device_name','mode_name','mode_category','peep_set','fio2_set','lpm_set',
+        'device_category','fio2_set',
+        # 'device_name','mode_name','mode_category','peep_set',
+        # 'lpm_set',
         # 'resp_rate_set', 'tracheostomy', 'resp_rate_obs','tidal_volume_set'
     ] 
 }
@@ -19,7 +24,7 @@ REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
 MAX_ITEMS = REQUIRED_SOFA_CATEGORIES_BY_TABLE['medication_admin_continuous'] \
     + ['fio2_set', 'creatinine', 'bilirubin_total']
 
-MIN_ITEMS = ['map', 'spo2', 'po2_arterial', 'pao2_imputed', 'platelet_count', 'gcs_total', 'device_rank']
+MIN_ITEMS = ['map', 'spo2', 'po2_arterial', 'pao2_imputed', 'platelet_count', 'gcs_total']
 
 DEVICE_RANK_DICT = {
     'IMV': 1,
@@ -43,7 +48,7 @@ def _impute_pao2_from_spo2(
     wide_df: pd.DataFrame
 ) -> pd.DataFrame:
     '''
-    the original spo2 = 100 => NULL condition is removed b/c already covered
+    the original spo2 = 100 => NULL condition is removed b/c already covered by spo2 >= 97
     '''
     q = f"""
     FROM wide_df
@@ -75,6 +80,7 @@ def _agg_extremal_values_by_id(
         SELECT {id_name}
             , MAX(COLUMNS({MAX_ITEMS}))
             , MIN(COLUMNS({MIN_ITEMS}))
+            , device_rank: MIN(device_rank)
         GROUP BY {id_name}
         """
         return duckdb.sql(q).df()
