@@ -9,8 +9,8 @@ REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
         ],
     'patient_assessments': ['gcs_total'],
     "medication_admin_continuous": [
-        # "norepinephrine","epinephrine", "dopamine","dobutamine"
-        "norepinephrine_mcg_kg_min","epinephrine_mcg_kg_min", "dopamine_mcg_kg_min", "dobutamine_mcg_kg_min"
+        "norepinephrine","epinephrine", "dopamine","dobutamine"
+        # "norepinephrine_mcg_kg_min","epinephrine_mcg_kg_min", "dopamine_mcg_kg_min", "dobutamine_mcg_kg_min"
         # "vasopressin", "angiotensin", "phenylephrine","milrinone"
         ],
     'respiratory_support': [
@@ -21,8 +21,10 @@ REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
     ] 
 }
 
-MAX_ITEMS = REQUIRED_SOFA_CATEGORIES_BY_TABLE['medication_admin_continuous'] \
-    + ['fio2_set', 'creatinine', 'bilirubin_total']
+MAX_ITEMS = [
+    "norepinephrine_mcg_kg_min","epinephrine_mcg_kg_min", "dopamine_mcg_kg_min", "dobutamine_mcg_kg_min",
+    'fio2_set', 'creatinine', 'bilirubin_total'
+    ]
 
 MIN_ITEMS = ['map', 'spo2', 'po2_arterial', 'pao2_imputed', 'platelet_count', 'gcs_total']
 
@@ -147,9 +149,10 @@ def _compute_sofa_from_extremal_values(
     SELECT {id_name}
         , p_f: po2_arterial / fio2_set
         , p_f_imputed: pao2_imputed / fio2_set
-        , sofa_cv_97: CASE WHEN dopamine > 15 OR epinephrine > 0.1 OR norepinephrine > 0.1 THEN 4
-            WHEN dopamine > 5 OR epinephrine <= 0.1 OR norepinephrine <= 0.1 THEN 3
-            WHEN dopamine <= 5 OR dobutamine > 0 THEN 2
+        , sofa_cv_97: CASE 
+            WHEN dopamine_mcg_kg_min > 15 OR epinephrine_mcg_kg_min > 0.1 OR norepinephrine_mcg_kg_min > 0.1 THEN 4
+            WHEN dopamine_mcg_kg_min > 5 OR epinephrine_mcg_kg_min <= 0.1 OR norepinephrine_mcg_kg_min <= 0.1 THEN 3
+            WHEN dopamine_mcg_kg_min <= 5 OR dobutamine_mcg_kg_min > 0 THEN 2
             WHEN map < 70 THEN 1
             WHEN map >= 70 THEN 0 END
         , sofa_coag: CASE WHEN platelet_count < 20 THEN 4

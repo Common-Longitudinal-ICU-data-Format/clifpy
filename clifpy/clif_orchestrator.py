@@ -1063,13 +1063,12 @@ class ClifOrchestrator:
             self.logger.info("No wide dataset available, creating one...")
             # Create wide dataset with required categories for SOFA
 
-            df = self.create_wide_dataset(
+            self.create_wide_dataset(
                 tables_to_load=list(REQUIRED_SOFA_CATEGORIES_BY_TABLE.keys()),
                 category_filters=REQUIRED_SOFA_CATEGORIES_BY_TABLE,
                 cohort_df=cohort_df
             )
-            # Store the created wide dataset
-            self.wide_df = df
+            df = self.wide_df
             self.logger.debug(f"Created wide dataset with shape: {df.shape}")
 
         if id_name not in df.columns:

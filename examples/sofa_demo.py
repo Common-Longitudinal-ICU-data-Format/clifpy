@@ -37,8 +37,17 @@ def _(mo):
     # Initialize orchestrator
     co = ClifOrchestrator(config_path='config/config.yaml')
 
+    preferred_units_for_sofa = {
+        "norepinephrine": "mcg/kg/min",
+        "epinephrine": "mcg/kg/min", 
+        "dopamine": "mcg/kg/min", 
+        "dobutamine": "mcg/kg/min"
+    }
+
+    co.convert_dose_units_for_continuous_meds(preferred_units_for_sofa)
+
     # Compute SOFA scores (default: by encounter_block)
-    sofa_scores = co.compute_sofa_scores()
+    sofa_scores = co.compute_sofa_scores(id_name='hospitalization_id')
 
     mo.show_code()
     return (co,)
@@ -93,7 +102,9 @@ def _(co, mo):
 
     mo.md(f"""
     **Comparison:**
+
     - By encounter_block: {len(co.sofa_df)} rows
+
     - By hospitalization_id: {len(sofa_by_hosp)} rows
     """)
     return
@@ -106,61 +117,27 @@ def _(mo):
 
 
 @app.cell
-def _(co, mo, pd):
-    # Define a cohort with specific time windows
-    cohort_df = pd.DataFrame({
-        'hospitalization_id': ['23559586', '20626031'],
-        'start_time': pd.to_datetime(['2137-01-01 14:29:00+00:00', '2132-12-14 21:00:00+00:00']),
-        'end_time': pd.to_datetime(['2137-08-25 14:00:00+00:00', '2132-12-15 09:00:00+00:00'])
-    })
+def _():
+    # # Define a cohort with specific time windows
+    # cohort_df = pd.DataFrame({
+    #     'hospitalization_id': ['23559586', '20626031'],
+    #     'start_time': pd.to_datetime(['2137-01-01 14:29:00+00:00', '2132-12-14 21:00:00+00:00']),
+    #     'end_time': pd.to_datetime(['2137-08-25 14:00:00+00:00', '2132-12-15 09:00:00+00:00'])
+    # })
 
-    # Compute SOFA for specific time windows
-    sofa_filtered = co.compute_sofa_scores(
-        cohort_df=cohort_df,
-        id_name='hospitalization_id'
-    )
+    # # Compute SOFA for specific time windows
+    # sofa_filtered = co.compute_sofa_scores(
+    #     cohort_df=cohort_df,
+    #     id_name='hospitalization_id'
+    # )
 
-    mo.show_code()
-    return (sofa_filtered,)
-
-
-@app.cell
-def _(mo, sofa_filtered):
-    mo.ui.table(sofa_filtered)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""## Understanding SOFA Components""")
+    # mo.show_code()
     return
 
 
 @app.cell
-def _(co):
-    # Show component score distribution
-    import matplotlib.pyplot as plt
-
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    axes = axes.flatten()
-
-    components = ['sofa_cv_97', 'sofa_coag', 'sofa_liver', 'sofa_resp', 'sofa_cns', 'sofa_renal']
-    titles = ['Cardiovascular', 'Coagulation', 'Liver', 'Respiratory', 'CNS', 'Renal']
-
-    for i, (comp, title) in enumerate(zip(components, titles)):
-        co.sofa_df[comp].hist(bins=5, ax=axes[i], alpha=0.7)
-        axes[i].set_title(f'{title} SOFA Scores')
-        axes[i].set_xlabel('Score (0-4)')
-        axes[i].set_ylabel('Count')
-
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""## Intermediate Calculations""")
+def _():
+    # mo.ui.table(sofa_filtered)
     return
 
 
@@ -175,35 +152,6 @@ def _(mo):
     - `p_f_imputed`: PaO2/FiO2 ratio using SpO2-derived PaO2 (when PaO2 missing)
     """
     )
-    return
-
-
-@app.cell
-def _(co, mo):
-    # Show P/F ratio calculations
-    pf_data = co.sofa_df[['encounter_block', 'p_f', 'p_f_imputed', 'sofa_resp']].dropna()
-    mo.ui.table(pf_data.head(10))
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""## Missing Data Analysis""")
-    return
-
-
-@app.cell
-def _(co, mo):
-    # Check for missing data patterns
-    missing_summary = co.sofa_df.isnull().sum()
-
-    mo.md(f"""
-    **Missing values in SOFA results:**
-
-    {missing_summary.to_string()}
-
-    Note: Missing component scores are filled with 0 (normal organ function).
-    """)
     return
 
 
@@ -244,7 +192,13 @@ def _import():
 
     # Add parent directory to path for development
     sys.path.append(str(Path().absolute().parent))
-    return mo, pd
+    return (mo,)
+
+
+@app.cell
+def _(co):
+    co.wide_df
+    return
 
 
 if __name__ == "__main__":
