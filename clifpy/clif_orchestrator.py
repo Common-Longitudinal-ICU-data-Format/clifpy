@@ -384,15 +384,31 @@ class ClifOrchestrator:
         - The wide dataset will have one row per hospitalization per time point, with
           columns for each category value specified in category_filters.
         """
+        print("=" * 50)
+        print("=== WIDE DATASET CREATION STARTED ===")
+        print("=" * 50)
+
+        print("\nPhase 1: Initialization")
+        print("  1.1: Validating parameters")
+
         # Import the utility function
         from clifpy.utils.wide_dataset import create_wide_dataset as _create_wide
 
         # Handle encounter stitching scenarios
         if self.encounter_mapping is not None:
+            print("  1.2: Configuring encounter stitching (enabled)")
+        else:
+            print("  1.2: Encounter stitching (disabled)")
+
+        print("\nPhase 2: Encounter Processing")
+
+        if self.encounter_mapping is not None:
+            print("  2.1: === SPECIAL: ENCOUNTER STITCHING ===")
             # Handle cohort_df with encounter_block column
             if cohort_df is not None:
                 if 'encounter_block' in cohort_df.columns:
-                    print("Detected encounter_block column in cohort_df. Mapping encounter blocks to hospitalization IDs...")
+                    print("       - Detected encounter_block column in cohort_df")
+                    print("       - Mapping encounter blocks to hospitalization IDs...")
                     # Merge cohort_df with encounter_mapping to get hospitalization_ids
                     cohort_df = pd.merge(
                         cohort_df,
@@ -404,7 +420,7 @@ class ClifOrchestrator:
                     # If hospitalization_id_orig exists (cohort had both), use the mapping version
                     if 'hospitalization_id_orig' in cohort_df.columns:
                         cohort_df = cohort_df.drop(columns=['hospitalization_id_orig'])
-                    print(f"Processing {cohort_df['encounter_block'].nunique()} encounter blocks from cohort_df")
+                    print(f"       - Processing {cohort_df['encounter_block'].nunique()} encounter blocks from cohort_df")
                 elif 'hospitalization_id' in cohort_df.columns:
                     print("Info: Encounter stitching has been performed. Your cohort_df uses hospitalization_id. " +
                           "Consider using 'encounter_block' column instead for cleaner encounter-level filtering.")
@@ -413,53 +429,62 @@ class ClifOrchestrator:
 
             # Handle encounter_blocks parameter
             if encounter_blocks is not None:
+                print("       - Processing encounter_blocks parameter")
                 if len(encounter_blocks) == 0:
-                    print("Warning: Empty encounter_blocks list provided. Processing all encounter blocks.")
+                    print("       - Warning: Empty encounter_blocks list provided. Processing all encounter blocks.")
                     encounter_blocks = None
                 else:
                     # Validate that provided encounter_blocks exist in mapping
                     invalid_blocks = [b for b in encounter_blocks if b not in self.encounter_mapping['encounter_block'].values]
                     if invalid_blocks:
-                        print(f"Warning: Invalid encounter blocks found: {invalid_blocks}")
+                        print(f"       - Warning: Invalid encounter blocks found: {invalid_blocks}")
                         encounter_blocks = [b for b in encounter_blocks if b in self.encounter_mapping['encounter_block'].values]
 
                     if encounter_blocks:  # Only if valid blocks remain
                         hospitalization_ids = self.encounter_mapping[
                             self.encounter_mapping['encounter_block'].isin(encounter_blocks)
                         ]['hospitalization_id'].tolist()
-                        print(f"Processing {len(encounter_blocks)} encounter blocks")
+                        print(f"       - Converting {len(encounter_blocks)} encounter blocks to {len(hospitalization_ids)} hospitalizations")
                     else:
-                        print("No valid encounter blocks found. Processing all data.")
+                        print("       - No valid encounter blocks found. Processing all data.")
                         encounter_blocks = None
 
             # If no filters provided after stitching
             elif hospitalization_ids is None and cohort_df is None:
-                print("Encounter stitching has been performed. No encounter_blocks provided - processing all encounter blocks.")
+                print("       - No encounter_blocks provided - processing all encounter blocks")
+        else:
+            print("  2.1: No encounter stitching performed")
 
         filters = None
         if hospitalization_ids:
             filters = {'hospitalization_id': hospitalization_ids}
 
+        print("\nPhase 3: Table Loading")
+
+        print("  3.1: Auto-loading base tables")
         # Auto-load base tables if not loaded
         if self.patient is None:
-            print("Loading patient table...")
+            print("       - Loading patient table...")
             self.load_table('patient')  # Patient doesn't need filters
         if self.hospitalization is None:
-            print("Loading hospitalization table...")
+            print("       - Loading hospitalization table...")
             self.load_table('hospitalization', filters=filters)
         if self.adt is None:
-            print("Loading adt table...")
+            print("       - Loading adt table...")
             self.load_table('adt', filters=filters)
         
         # Load optional tables only if not already loaded
+        print(f"  3.2: Loading optional tables: {tables_to_load or 'None'}")
         if tables_to_load:
             for table_name in tables_to_load:
                 if getattr(self, table_name, None) is None:
-                    print(f"Loading {table_name} table...")
+                    print(f"       - Loading {table_name} table...")
                     try:
                         self.load_table(table_name)
                     except Exception as e:
-                        print(f"Warning: Could not load {table_name}: {e}")
+                        print(f"       - Warning: Could not load {table_name}: {e}")
+                else:
+                    print(f"       - {table_name} table already loaded")
 
         # Check if patient_assessments needs assessment_value column
         if (tables_to_load and 'patient_assessments' in tables_to_load) or \
@@ -468,8 +493,12 @@ class ClifOrchestrator:
                 df = self.patient_assessments.df
                 if 'numerical_value' in df.columns and 'categorical_value' in df.columns:
                     if 'assessment_value' not in df.columns:
+
+                        print("  === SPECIAL: PATIENT ASSESSMENTS PROCESSING ===")
+                        print("       - Merging numerical_value and categorical_value columns")
                         try:
                             import polars as pl
+                            print("       - Using Polars for performance optimization")
 
                             # Convert to Polars for efficient processing
                             df_pl = pl.from_pandas(df)
@@ -482,8 +511,8 @@ class ClifOrchestrator:
                             both_filled_count = len(both_filled)
 
                             if both_filled_count > 0:
-                                print(f"WARNING: Found {both_filled_count} rows with both numerical and categorical values!")
-                                print(f"         Numerical values will take precedence in the merged column")
+                                print(f"       - WARNING: Found {both_filled_count} rows with both values!")
+                                print(f"       -          Numerical values will take precedence")
 
                             # Create assessment_value using Polars coalesce (much faster than pandas fillna)
                             df_pl = df_pl.with_columns(
@@ -501,19 +530,19 @@ class ClifOrchestrator:
                             # Convert back to pandas for compatibility
                             self.patient_assessments.df = df_pl.to_pandas()
 
-                            print(f"Created assessment_value column for patient_assessments (using Polars):")
-                            print(f"  - {num_count} numerical values (takes precedence)")
-                            print(f"  - {cat_count} categorical values (used when numerical is null)")
-                            print(f"  - Total non-null assessment values: {total_count}")
-                            print(f"  - Stored as string type for processing compatibility")
+                            print(f"       - Created assessment_value column:")
+                            print(f"       -   {num_count} numerical values (takes precedence)")
+                            print(f"       -   {cat_count} categorical values (used when numerical is null)")
+                            print(f"       -   Total non-null assessment values: {total_count}")
+                            print(f"       -   Stored as string type for processing compatibility")
 
                         except ImportError:
-                            print("Warning: Polars not installed. Using pandas (slower)...")
+                            print("       - Warning: Polars not installed. Using pandas (slower)...")
                             # Fallback to pandas
                             both_filled = df[(df['numerical_value'].notna()) &
                                             (df['categorical_value'].notna())]
                             if len(both_filled) > 0:
-                                print(f"WARNING: Found {len(both_filled)} rows with both values!")
+                                print(f"       - WARNING: Found {len(both_filled)} rows with both values!")
 
                             df['assessment_value'] = df['numerical_value'].fillna(df['categorical_value'])
                             df['assessment_value'] = df['assessment_value'].astype(str)
@@ -522,10 +551,19 @@ class ClifOrchestrator:
                             cat_count = df['categorical_value'].notna().sum()
                             total_count = df['assessment_value'].notna().sum()
 
-                            print(f"Created assessment_value column for patient_assessments:")
-                            print(f"  - {num_count} numerical values (takes precedence)")
-                            print(f"  - {cat_count} categorical values (used when numerical is null)")
-                            print(f"  - Total non-null assessment values: {total_count}")
+                            print(f"       - Created assessment_value column:")
+                            print(f"       -   {num_count} numerical values (takes precedence)")
+                            print(f"       -   {cat_count} categorical values (used when numerical is null)")
+                            print(f"       -   Total non-null assessment values: {total_count}")
+
+        print("\nPhase 4: Calling Wide Dataset Utility")
+
+        print(f"  4.1: Passing to wide_dataset.create_wide_dataset()")
+        print(f"       - Tables: {tables_to_load or 'None'}")
+        print(f"       - Category filters: {list(category_filters.keys()) if category_filters else 'None'}")
+        print(f"       - Batch size: {batch_size}")
+        print(f"       - Memory limit: {memory_limit}")
+        print(f"       - Show progress: {show_progress}")
 
         # Call utility function with self as clif_instance and store result in wide_df property
         self.wide_df = _create_wide(
@@ -545,26 +583,34 @@ class ClifOrchestrator:
             show_progress=show_progress
         )
 
+        print("\nPhase 5: Post-Processing")
+
         # Add encounter_block column if encounter mapping exists and not already present
         if self.encounter_mapping is not None and self.wide_df is not None:
+
+            print("  5.1: === SPECIAL: ADDING ENCOUNTER BLOCKS ===")
             if 'encounter_block' not in self.wide_df.columns:
-                print("Adding encounter_block column from encounter mapping...")
+                print("       - Adding encounter_block column from encounter mapping...")
                 self.wide_df = pd.merge(
                     self.wide_df,
                     self.encounter_mapping[['hospitalization_id', 'encounter_block']],
                     on='hospitalization_id',
                     how='left'
                 )
-                print(f"Added encounter_block column - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
+                print(f"       - Added encounter_block column - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
             else:
-                print(f"Encounter_block column already present - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
+                print(f"       - Encounter_block column already present - {self.wide_df['encounter_block'].nunique()} unique encounter blocks")
+        else:
+            print("  5.1: No encounter block mapping to add")
 
         # Optimize data types for assessment columns using Polars for performance
         if self.wide_df is not None and ((tables_to_load and 'patient_assessments' in tables_to_load) or \
            (category_filters and 'patient_assessments' in category_filters)):
 
+            print("  5.2: === SPECIAL: ASSESSMENT TYPE OPTIMIZATION ===")
             try:
                 import polars as pl
+                print("       - Using Polars for performance optimization")
 
                 # Determine which assessment columns to check
                 assessment_columns = []
@@ -587,7 +633,7 @@ class ClifOrchestrator:
                     assessment_columns = [col for col in assessment_columns if col in self.wide_df.columns]
 
                 if assessment_columns:
-                    print(f"\nOptimizing data types for {len(assessment_columns)} assessment columns using Polars...")
+                    print(f"       - Analyzing {len(assessment_columns)} assessment columns")
 
                     # Convert to Polars for efficient processing
                     df_pl = pl.from_pandas(self.wide_df)
@@ -636,22 +682,39 @@ class ClifOrchestrator:
 
                     # Report conversions
                     if numeric_conversions:
-                        print(f"  Converted to numeric ({len(numeric_conversions)} columns):")
+                        print(f"       - Converted to numeric ({len(numeric_conversions)} columns):")
                         for col in numeric_conversions[:5]:  # Show first 5 examples
-                            print(f"    - {col}")
+                            print(f"       -   {col}")
                         if len(numeric_conversions) > 5:
-                            print(f"    ... and {len(numeric_conversions) - 5} more")
+                            print(f"       -   ... and {len(numeric_conversions) - 5} more")
 
                     if string_kept:
-                        print(f"  Kept as string ({len(string_kept)} columns with mixed/text values):")
+                        print(f"       - Kept as string ({len(string_kept)} columns with mixed/text values):")
                         for col in string_kept[:5]:  # Show first 5 examples
-                            print(f"    - {col}")
+                            print(f"       -   {col}")
                         if len(string_kept) > 5:
-                            print(f"    ... and {len(string_kept) - 5} more")
+                            print(f"       -   ... and {len(string_kept) - 5} more")
+                else:
+                    print("       - No assessment columns found to optimize")
 
             except ImportError:
-                print("Warning: Polars not installed. Skipping type optimization...")
-                print("Install polars for better performance: pip install polars")
+                print("       - Warning: Polars not installed. Skipping type optimization...")
+                print("       - Install polars for better performance: pip install polars")
+        else:
+            print("  5.2: No assessment type optimization needed")
+
+        print("\nPhase 6: Completion")
+
+        if self.wide_df is not None:
+            print(f"  6.1: Wide dataset stored in self.wide_df")
+            print(f"  6.2: Dataset shape: {self.wide_df.shape[0]} rows x {self.wide_df.shape[1]} columns")
+        else:
+            print("  6.1: Warning: No wide dataset was created")
+
+        print("\n" + "=" * 50)
+        print("=== WIDE DATASET CREATION COMPLETED ===")
+        print("=" * 50)
+        print("")
 
     def convert_wide_to_hourly(
         self,

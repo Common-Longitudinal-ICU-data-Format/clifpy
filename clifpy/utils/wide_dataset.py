@@ -65,8 +65,9 @@ def create_wide_dataset(
         pd.DataFrame or None (if return_dataframe=False)
     """
     
-    print("Starting wide dataset creation...")
-    
+    print("\nPhase 4: Wide Dataset Processing (utility function)")
+    print("  4.1: Starting wide dataset creation...")
+
     # Validate cohort_df if provided
     if cohort_df is not None:
         required_cols = ['hospitalization_id', 'start_time', 'end_time']
@@ -82,7 +83,10 @@ def create_wide_dataset(
             if not pd.api.types.is_datetime64_any_dtype(cohort_df[time_col]):
                 cohort_df[time_col] = pd.to_datetime(cohort_df[time_col])
         
-        print(f"Using cohort_df with time windows for {len(cohort_df)} hospitalizations")
+        print("  === SPECIAL: COHORT TIME WINDOW FILTERING ===")
+        print(f"       - Processing {len(cohort_df)} hospitalizations with time windows")
+        print(f"       - Ensuring datetime types for start_time, end_time")
+        print("")
     
     # Define tables that need pivoting vs those already wide
     PIVOT_TABLES = ['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments']
@@ -176,11 +180,13 @@ def create_wide_dataset(
         adt_cols = [col for col in adt_df.columns if not col.endswith('_name') and col != 'patient_id']
         adt_df = adt_df[adt_cols]
         
-        print(f"Base tables filtered - Hospitalization: {len(hospitalization_df)}, Patient: {len(patient_df)}, ADT: {len(adt_df)}")
-        
+        print(f"       - Base tables filtered - Hospitalization: {len(hospitalization_df)}, Patient: {len(patient_df)}, ADT: {len(adt_df)}")
+
+        print("\n  4.2: Determining processing mode")
         # Process in batches to avoid memory issues
         if batch_size > 0 and len(required_ids) > batch_size:
-            print(f"Processing {len(required_ids)} hospitalizations in batches of {batch_size}")
+            print(f"       - Batch mode: {len(required_ids)} hospitalizations in {len(required_ids)//batch_size + 1} batches of {batch_size}")
+            print("  4.B: === BATCH PROCESSING MODE ===")
             return _process_in_batches(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
@@ -188,6 +194,8 @@ def create_wide_dataset(
                 output_format, return_dataframe, cohort_df
             )
         else:
+            print(f"       - Single mode: Processing all {len(required_ids)} hospitalizations at once")
+            print("  4.S: === SINGLE PROCESSING MODE ===")
             # Process all at once for small datasets
             return _process_hospitalizations(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
@@ -648,11 +656,11 @@ def _process_hospitalizations(
 ) -> Optional[pd.DataFrame]:
     """Process hospitalizations with pivot-first approach."""
     
-    print("\n=== Processing Tables ===")
-    
+    print("    4.S.1: Loading and filtering base tables")
+
     # Create base cohort
     base_cohort = pd.merge(hospitalization_df, patient_df, on='patient_id', how='inner')
-    print(f"Base cohort created with {len(base_cohort)} records")
+    print(f"           - Base cohort created with {len(base_cohort)} records")
     
     # Register base tables as proper tables, not views
     conn.register('temp_base', base_cohort)
@@ -676,9 +684,12 @@ def _process_hospitalizations(
             WHERE in_dttm IS NOT NULL
         """)
     
+    print("    4.S.3: Processing tables")
+
     # Process tables to load
     for table_name in tables_to_load:
-        print(f"\nProcessing {table_name}...")
+
+        print(f"           - Processing {table_name}...")
         
         # Get table data - fix: use 'labs' instead of 'lab'
         table_attr = table_name  # Use table_name directly
@@ -731,7 +742,10 @@ def _process_hospitalizations(
         
         # Apply time filtering if cohort_df is provided
         if cohort_df is not None:
+
+            print("           === SPECIAL: TIME FILTERING ===")
             pre_filter_count = len(table_df)
+            print(f"           - Applying cohort time windows to {table_name}")
             # Merge with cohort_df to get time windows
             table_df = pd.merge(
                 table_df,
@@ -739,22 +753,22 @@ def _process_hospitalizations(
                 on='hospitalization_id',
                 how='inner'
             )
-            
+
             # Ensure timestamp column is datetime
             if not pd.api.types.is_datetime64_any_dtype(table_df[timestamp_col]):
                 table_df[timestamp_col] = pd.to_datetime(table_df[timestamp_col])
-            
+
             # Filter to time window
             table_df = table_df[
                 (table_df[timestamp_col] >= table_df['start_time']) &
                 (table_df[timestamp_col] <= table_df['end_time'])
             ].copy()
-            
+
             # Drop the time window columns
             table_df = table_df.drop(columns=['start_time', 'end_time'])
-            
-            print(f"  Time filtering: {pre_filter_count} → {len(table_df)} records")
-        
+
+            print(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records after filtering")
+
         # Register raw table as a proper table, not a view
         raw_table_name = f"{table_name}_raw"
         # First register the DataFrame temporarily
@@ -767,36 +781,47 @@ def _process_hospitalizations(
         
         # Process based on table type
         if table_name in pivot_tables:
+
+            print(f"           === PIVOTING {table_name.upper()} ===")
+            if table_name in category_filters and category_filters[table_name]:
+                print(f"           - Categories to pivot: {category_filters[table_name]}")
             # Pivot the table first
             pivoted_name = _pivot_table_duckdb(conn, table_name, table_df, timestamp_col, category_filters)
             if pivoted_name:
                 pivoted_table_names[table_name] = pivoted_name
                 # Add event times from the RAW table (not pivoted)
                 event_time_queries.append(f"""
-                    SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time 
-                    FROM {raw_table_name} 
+                    SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time
+                    FROM {raw_table_name}
                     WHERE {timestamp_col} IS NOT NULL
                 """)
         else:
+
+            print(f"           === WIDE TABLE {table_name.upper()} ===")
+            if table_name in category_filters and category_filters[table_name]:
+                print(f"           - Keeping columns: {category_filters[table_name]}")
             # Wide table - just add event times
             event_time_queries.append(f"""
-                SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time 
-                FROM {raw_table_name} 
+                SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time
+                FROM {raw_table_name}
                 WHERE {timestamp_col} IS NOT NULL
             """)
     
     # Now create the union and join
     if event_time_queries:
-        print("\n=== Creating wide dataset ===")
+        print("    4.S.4: Creating wide dataset")
+        print("           - Building event time union from {} tables".format(len(event_time_queries)))
+        print("           - Creating combo_id keys")
+        print("           - Executing main join query")
         final_df = _create_wide_dataset(
-            conn, base_cohort, event_time_queries, 
-            pivoted_table_names, raw_table_names, 
-            tables_to_load, pivot_tables, 
+            conn, base_cohort, event_time_queries,
+            pivoted_table_names, raw_table_names,
+            tables_to_load, pivot_tables,
             category_filters, cohort_df
         )
         return final_df
     else:
-        print("No event times found, returning base cohort only")
+        print("           - No event times found, returning base cohort only")
         return base_cohort
 
 
@@ -1020,14 +1045,19 @@ def _create_wide_dataset(
     result_df['hosp_id_day_key'] = (result_df['hospitalization_id'].astype(str) + '_day_' + 
                                     result_df['day_number'].astype(str))
     
+    print("    === SPECIAL: MISSING COLUMNS ===")
     # Add missing columns for requested categories
     _add_missing_columns(result_df, category_filters, tables_to_load)
+    print("")
     
+    print("    4.S.6: Final cleanup")
     # Clean up
     columns_to_drop = ['combo_id', 'date']
     result_df = result_df.drop(columns=[col for col in columns_to_drop if col in result_df.columns])
-    
-    print(f"Wide dataset created: {len(result_df)} records with {len(result_df.columns)} columns")
+    print("           - Removing duplicate columns")
+    print("           - Dropping temporary columns (combo_id, date)")
+
+    print(f"           - Wide dataset created: {len(result_df)} records with {len(result_df.columns)} columns")
     
     return result_df
 
@@ -1047,7 +1077,7 @@ def _add_missing_columns(
             for category in categories:
                 if category not in df.columns:
                     df[category] = np.nan
-                    print(f"Added missing column: {category}")
+                    print(f"           - Added missing column: {category}")
 
 
 def _process_in_batches(
@@ -1079,7 +1109,9 @@ def _process_in_batches(
     
     for batch_idx, batch_hosp_ids in enumerate(iterator):
         try:
-            print(f"\nProcessing batch {batch_idx + 1}/{len(batches)} ({len(batch_hosp_ids)} hospitalizations)")
+            print(f"    4.B.{batch_idx + 1}: Processing batch {batch_idx + 1}/{len(batches)}")
+            print(f"             - {len(batch_hosp_ids)} hospitalizations in batch")
+            print("")
             
             # Filter base tables for this batch
             batch_hosp_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(batch_hosp_ids)]
@@ -1114,7 +1146,7 @@ def _process_in_batches(
             
             if batch_result is not None and len(batch_result) > 0:
                 batch_results.append(batch_result)
-                print(f"Batch {batch_idx + 1} completed: {len(batch_result)} records")
+                print(f"             - Batch {batch_idx + 1} completed: {len(batch_result)} records")
             
             # Clean up after batch
             import gc
@@ -1127,9 +1159,9 @@ def _process_in_batches(
     
     # Combine results
     if batch_results:
-        print(f"\nCombining {len(batch_results)} batch results...")
+        print(f"             - Combining {len(batch_results)} batch results...")
         final_df = pd.concat(batch_results, ignore_index=True)
-        print(f"Final dataset: {len(final_df)} records with {len(final_df.columns)} columns")
+        print(f"             - Final dataset: {len(final_df)} records with {len(final_df.columns)} columns")
         
         if save_to_data_location:
             _save_dataset(final_df, clif_instance.data_directory, output_filename, output_format)
