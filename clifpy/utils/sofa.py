@@ -19,7 +19,7 @@ REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
 MAX_ITEMS = REQUIRED_SOFA_CATEGORIES_BY_TABLE['medication_admin_continuous'] \
     + ['fio2_set', 'creatinine', 'bilirubin_total']
 
-MIN_ITEMS = ['map', 'spo2', 'po2_arterial', 'platelet_count', 'gcs_total']
+MIN_ITEMS = ['map', 'spo2', 'po2_arterial', 'pao2_imputed', 'platelet_count', 'gcs_total', 'device_rank']
 
 DEVICE_RANK_DICT = {
     'IMV': 1,
@@ -39,6 +39,25 @@ DEVICE_RANK_MAPPING = pd.DataFrame({
     'device_rank': DEVICE_RANK_DICT.values()
 })
 
+def _impute_pao2_from_spo2(
+    wide_df: pd.DataFrame
+) -> pd.DataFrame:
+    '''
+    the original spo2 = 100 => NULL condition is removed b/c already covered
+    '''
+    q = f"""
+    FROM wide_df
+    SELECT *
+        , _s: spo2 / 100
+        , _a: 11700.0 / ( (1/_s) - 1 )
+        , _b: sqrt(50^3 + (_a)^2)
+        , pao2_imputed: CASE 
+            WHEN spo2 < 97 THEN ( _b + _a)^(1.0/3.0) - (_b - _a)^(1.0/3.0)
+            END
+    """
+    # print(q)
+    return duckdb.sql(q).df()
+
 def _agg_extremal_values_by_id(
     wide_df: pd.DataFrame,
     extremal_type: str,  
@@ -56,19 +75,18 @@ def _agg_extremal_values_by_id(
         SELECT {id_name}
             , MAX(COLUMNS({MAX_ITEMS}))
             , MIN(COLUMNS({MIN_ITEMS}))
-            , device_rank_min: MIN(device_rank)
         GROUP BY {id_name}
         """
         return duckdb.sql(q).df()
     elif extremal_type == 'latest':
-        raise NotImplementedError("this is a future feature and currently available")
+        raise NotImplementedError("this is a future feature and currently unavailable")
         # TODO: Future feature - implement latest value extraction
         q = f"""
         FROM wide_df
         LEFT JOIN DEVICE_RANK_MAPPING USING (device_category)
         SELECT {id_name}
             , any_value(COLUMNS({MAX_ITEMS + MIN_ITEMS}) ORDER BY event_time DESC)
-            , device_rank_min: MIN(device_rank)
+            , device_rank: MIN(device_rank)
         GROUP BY {id_name}
         """
         return duckdb.sql(q).df()
@@ -82,9 +100,10 @@ def _compute_sofa_from_extremal_values(
 ):
     q = f"""
     FROM extremal_df df
-    LEFT JOIN DEVICE_RANK_MAPPING m on df.device_rank_min = m.device_rank
+    LEFT JOIN DEVICE_RANK_MAPPING m on df.device_rank = m.device_rank
     SELECT {id_name}
         , p_f: po2_arterial / fio2_set
+        , p_f_imputed: pao2_imputed / fio2_set
         , sofa_cv_97: CASE WHEN dopamine > 15 OR epinephrine > 0.1 OR norepinephrine > 0.1 THEN 4
             WHEN dopamine > 5 OR epinephrine <= 0.1 OR norepinephrine <= 0.1 THEN 3
             WHEN dopamine <= 5 OR dobutamine > 0 THEN 2
@@ -175,7 +194,8 @@ def compute_sofa(
         wide_df = duckdb.sql(q).df()
         
     sofa_scores = (
-        _agg_extremal_values_by_id(wide_df, extremal_type, id_name)
+        _impute_pao2_from_spo2(wide_df)
+        .pipe(_agg_extremal_values_by_id, extremal_type, id_name)
         .pipe(_compute_sofa_from_extremal_values, id_name)
     )
 

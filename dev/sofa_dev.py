@@ -41,12 +41,12 @@ def _(sofa):
     from clifpy.clif_orchestrator import ClifOrchestrator
     co = ClifOrchestrator(config_path = 'config/config.yaml')
 
-    wide_df = co.create_wide_dataset(
+    wide_df_raw = co.create_wide_dataset(
         tables_to_load=['vitals', 'labs', 'patient_assessments', 'medication_admin_continuous', 'respiratory_support'],
         category_filters=sofa.REQUIRED_SOFA_CATEGORIES_BY_TABLE, 
         # cohort_df=cohort_df
     )
-    return co, wide_df
+    return co, wide_df_raw
 
 
 @app.cell
@@ -62,6 +62,12 @@ def _(pd):
 def _():
     import marimo as mo
     return (mo,)
+
+
+@app.cell
+def _(sofa, wide_df_raw):
+    wide_df = sofa._impute_pao2_from_spo2(wide_df=wide_df_raw)
+    return (wide_df,)
 
 
 @app.cell
