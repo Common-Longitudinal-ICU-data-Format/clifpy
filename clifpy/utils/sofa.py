@@ -9,8 +9,8 @@ REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
         ],
     'patient_assessments': ['gcs_total'],
     "medication_admin_continuous": [
-        "norepinephrine","epinephrine", "dopamine","dobutamine"
-        #         "norepinephrine_mcg_kg_min","epinephrine_mcg_kg_min", "dopamine_mcg_kg_min","dobutamine_mg_kg_min"
+        # "norepinephrine","epinephrine", "dopamine","dobutamine"
+        "norepinephrine_mcg_kg_min","epinephrine_mcg_kg_min", "dopamine_mcg_kg_min", "dobutamine_mcg_kg_min"
         # "vasopressin", "angiotensin", "phenylephrine","milrinone"
         ],
     'respiratory_support': [
@@ -47,9 +47,18 @@ DEVICE_RANK_MAPPING = pd.DataFrame({
 def _impute_pao2_from_spo2(
     wide_df: pd.DataFrame
 ) -> pd.DataFrame:
-    '''
-    the original spo2 = 100 => NULL condition is removed b/c already covered by spo2 >= 97
-    '''
+    """
+    Impute PaO2 from SpO2 using Severinghaus equation for SOFA respiratory scoring.
+
+    Only applies when SpO2 < 97% (above this, the oxygen dissociation curve is too flat).
+    Uses the Severinghaus equation to estimate arterial PaO2 from pulse oximetry SpO2.
+
+    Parameters:
+        wide_df: Wide dataset containing spo2 and po2_arterial columns
+
+    Returns:
+        DataFrame with added pao2_imputed column
+    """
     q = f"""
     FROM wide_df
     SELECT *
@@ -65,14 +74,24 @@ def _impute_pao2_from_spo2(
 
 def _agg_extremal_values_by_id(
     wide_df: pd.DataFrame,
-    extremal_type: str,  
+    extremal_type: str,
     id_name: str
 ) -> pd.DataFrame:
-    '''
-    extremal_type: 'worst' or 'latest'
-    id_name: 'hospitalization_id', 'patient_id', 'encounter_block'
-    
-    '''
+    """
+    Aggregate extremal (worst) values by ID for SOFA score calculation.
+
+    Takes the worst values across all time points for each ID:
+    - MAX for medications and other 'worse-when-higher' variables
+    - MIN for vitals and labs where lower values indicate worse organ function
+
+    Parameters:
+        wide_df: Wide dataset with SOFA variables
+        extremal_type: 'worst' (implemented) or 'latest' (future feature)
+        id_name: Grouping column ('hospitalization_id', 'encounter_block', etc.)
+
+    Returns:
+        DataFrame with one row per ID containing worst values for SOFA computation
+    """
     if extremal_type == 'worst':
         q = f"""
         FROM wide_df
@@ -103,7 +122,25 @@ def _agg_extremal_values_by_id(
 def _compute_sofa_from_extremal_values(
     extremal_df: pd.DataFrame,
     id_name: str
-):
+) -> pd.DataFrame:
+    """
+    Calculate SOFA component scores from aggregated extremal values.
+
+    Computes all 6 SOFA components:
+    - Cardiovascular (CV): Based on vasopressor doses and MAP
+    - Coagulation: Based on platelet count
+    - Liver: Based on bilirubin levels
+    - Respiratory: Based on P/F ratio and respiratory support
+    - CNS: Based on GCS score
+    - Renal: Based on creatinine levels
+
+    Parameters:
+        extremal_df: DataFrame with one row per ID containing worst values
+        id_name: Grouping column name
+
+    Returns:
+        DataFrame with SOFA component scores and total score
+    """
     q = f"""
     FROM extremal_df df
     LEFT JOIN DEVICE_RANK_MAPPING m on df.device_rank = m.device_rank
@@ -147,6 +184,19 @@ def _compute_sofa_from_extremal_values(
 def _fill_na_scores(
     sofa_df: pd.DataFrame
 ) -> pd.DataFrame:
+    """
+    Handle missing SOFA component scores by filling with 0.
+
+    Missing data is treated as normal/non-failing organ function (score = 0).
+    This follows the clinical convention that absence of data suggests
+    the organ system was not failing enough to warrant monitoring.
+
+    Parameters:
+        sofa_df: DataFrame with SOFA component scores (may contain NAs)
+
+    Returns:
+        DataFrame with NAs filled as 0 and recalculated total score
+    """
     # compute the total score ignoring NAs
     subscore_columns = ['sofa_cv_97', 'sofa_coag', 'sofa_renal', 'sofa_liver', 'sofa_resp', 'sofa_cns']
     sofa_df['sofa_total'] = sofa_df[subscore_columns].sum(axis=1, skipna=True)
@@ -165,15 +215,22 @@ def compute_sofa(
     """
     Compute SOFA scores from a wide dataset.
 
+    Note: Medication columns should be pre-converted to standard units
+    (e.g., 'norepinephrine_mcg_kg_min' rather than raw 'norepinephrine').
+
     Parameters:
         wide_df: Wide dataset containing all required SOFA variables
-        cohort_df: Optional DataFrame with columns ['hospitalization_id', 'start_time', 'end_time']
+        cohort_df: Optional DataFrame with columns [id_name, 'start_time', 'end_time']
                   to further filter observations by time windows
-        extremal_type: 'worst' or 'latest' (currently only 'worst' is implemented)
-        id_name: Column name for grouping (e.g., 'hospitalization_id', 'patient_id', 'encounter_block')
+        extremal_type: 'worst' (default) or 'latest' (future feature)
+        id_name: Grouping column ('hospitalization_id', 'encounter_block', etc.)
+        fill_na_scores_with_zero: If True, fill missing component scores with 0
 
     Returns:
         DataFrame with SOFA component scores and total score for each ID
+
+    Example:
+        >>> sofa_scores = compute_sofa(wide_df, id_name='hospitalization_id')
     """
     # Validate inputs
     if extremal_type not in ['worst', 'latest']:
