@@ -81,6 +81,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#patient-assessments-table" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -275,26 +280,6 @@
   
   
   User Guide
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../examples/" class="md-tabs__link">
-          
-  
-  
-  How-to Guides
 
         </a>
       </li>
@@ -867,6 +852,21 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Assessments
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
         
@@ -879,6 +879,157 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data Dictionary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Fields
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-usage-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Usage Patterns
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Usage Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#loading-patient-assessments-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Loading Patient Assessments Data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glasgow-coma-scale-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Glasgow Coma Scale Analysis
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rass-sedation-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      RASS (Sedation) Monitoring
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pain-score-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pain Score Analysis
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tracking-assessment-trends" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tracking Assessment Trends
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delirium-assessment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Delirium Assessment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-assessment-summaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating Assessment Summaries
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-quality-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data Quality Considerations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Related Tables
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      API Reference
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1148,6 +1299,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../comorbidity-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Comorbidity Index
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1193,7 +1367,7 @@
   
   
   <span class="md-ellipsis">
-    How-to Guides
+    API Reference
     
   </span>
   
@@ -1203,150 +1377,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            How-to Guides
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../examples/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../examples/loading-data/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Loading Data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../examples/icu-analysis/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Analyzing ICU Stays
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../examples/clinical-calculations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Clinical Calculations
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    API Reference
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             API Reference
           </label>
@@ -1513,6 +1543,148 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data Dictionary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Fields
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-usage-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Usage Patterns
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Usage Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#loading-patient-assessments-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Loading Patient Assessments Data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glasgow-coma-scale-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Glasgow Coma Scale Analysis
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rass-sedation-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      RASS (Sedation) Monitoring
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pain-score-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pain Score Analysis
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tracking-assessment-trends" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tracking Assessment Trends
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delirium-assessment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Delirium Assessment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-assessment-summaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating Assessment Summaries
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-quality-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data Quality Considerations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Related Tables
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      API Reference
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1531,9 +1703,264 @@
   
 
 
-  <h1>Assessments</h1>
-
-
+<h1 id="patient-assessments-table">Patient Assessments Table<a class="headerlink" href="#patient-assessments-table" title="Permanent link">&para;</a></h1>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The Patient Assessments table contains clinical assessment scores and scales used to evaluate patient status, including Glasgow Coma Scale (GCS), Richmond Agitation-Sedation Scale (RASS), pain scores, and other standardized assessments. These assessments are crucial for monitoring neurological status, sedation levels, and overall patient comfort.</p>
+<h2 id="data-dictionary">Data Dictionary<a class="headerlink" href="#data-dictionary" title="Permanent link">&para;</a></h2>
+<p>For the complete field definitions and requirements, see the <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient_assessments">official CLIF Data Dictionary for Patient Assessments</a>.</p>
+<h2 id="key-fields">Key Fields<a class="headerlink" href="#key-fields" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>hospitalization_id</code>: Links to hospitalization table</li>
+<li><code>assessment_dttm</code>: Timestamp when assessment was performed</li>
+<li><code>assessment_name</code>: Type of assessment (e.g., gcs_total, rass, pain_scale)</li>
+<li><code>assessment_category</code>: Category of assessment (neurological, pain, sedation, etc.)</li>
+<li><code>assessment_value</code>: Numeric score or value</li>
+<li><code>assessment_value_text</code>: Text description of assessment value</li>
+</ul>
+<h2 id="common-usage-patterns">Common Usage Patterns<a class="headerlink" href="#common-usage-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="loading-patient-assessments-data">Loading Patient Assessments Data<a class="headerlink" href="#loading-patient-assessments-data" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">clifpy.tables</span> <span class="kn">import</span> <span class="n">PatientAssessments</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Load patient assessments data</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">assessments</span> <span class="o">=</span> <span class="n">PatientAssessments</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/path/to/data&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;US/Central&#39;</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Validate the data</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">assessments</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+</code></pre></div>
+<h3 id="glasgow-coma-scale-analysis">Glasgow Coma Scale Analysis<a class="headerlink" href="#glasgow-coma-scale-analysis" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Get GCS scores</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">gcs_total</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;gcs_total&#39;</span><span class="p">]</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">gcs_eye</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;gcs_eye&#39;</span><span class="p">]</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">gcs_verbal</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;gcs_verbal&#39;</span><span class="p">]</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">gcs_motor</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;gcs_motor&#39;</span><span class="p">]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Analyze GCS distribution</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GCS Total scores - Mean: </span><span class="si">{</span><span class="n">gcs_total</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GCS Total scores - Median: </span><span class="si">{</span><span class="n">gcs_total</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">median</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Find severely impaired patients (GCS d 8)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">severe_gcs</span> <span class="o">=</span> <span class="n">gcs_total</span><span class="p">[</span><span class="n">gcs_total</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">8</span><span class="p">]</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="n">severe_patients</span> <span class="o">=</span> <span class="n">severe_gcs</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Patients with severe GCS (d8): </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">severe_patients</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># GCS component analysis</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">gcs_eye</span><span class="o">.</span><span class="n">empty</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">gcs_verbal</span><span class="o">.</span><span class="n">empty</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">gcs_motor</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">GCS Components:&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Eye: Mean </span><span class="si">{</span><span class="n">gcs_eye</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Verbal: Mean </span><span class="si">{</span><span class="n">gcs_verbal</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Motor: Mean </span><span class="si">{</span><span class="n">gcs_motor</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="rass-sedation-monitoring">RASS (Sedation) Monitoring<a class="headerlink" href="#rass-sedation-monitoring" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Analyze RASS scores</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">rass</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;rass&#39;</span><span class="p">]</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">rass</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="c1"># RASS distribution</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">rass_dist</span> <span class="o">=</span> <span class="n">rass</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span><span class="o">.</span><span class="n">sort_index</span><span class="p">()</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">RASS Score Distribution:&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">rass_categories</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="mi">4</span><span class="p">:</span> <span class="s2">&quot;Combative&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="mi">3</span><span class="p">:</span> <span class="s2">&quot;Very agitated&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="mi">2</span><span class="p">:</span> <span class="s2">&quot;Agitated&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;Restless&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="mi">0</span><span class="p">:</span> <span class="s2">&quot;Alert and calm&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="o">-</span><span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;Drowsy&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>        <span class="o">-</span><span class="mi">2</span><span class="p">:</span> <span class="s2">&quot;Light sedation&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>        <span class="o">-</span><span class="mi">3</span><span class="p">:</span> <span class="s2">&quot;Moderate sedation&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>        <span class="o">-</span><span class="mi">4</span><span class="p">:</span> <span class="s2">&quot;Deep sedation&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>        <span class="o">-</span><span class="mi">5</span><span class="p">:</span> <span class="s2">&quot;Unarousable&quot;</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    <span class="p">}</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    <span class="k">for</span> <span class="n">score</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">rass_dist</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>        <span class="n">desc</span> <span class="o">=</span> <span class="n">rass_categories</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">score</span><span class="p">),</span> <span class="s2">&quot;Unknown&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">score</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2"> assessments&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    <span class="c1"># Find over-sedated patients (RASS d -3)</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="n">over_sedated</span> <span class="o">=</span> <span class="n">rass</span><span class="p">[</span><span class="n">rass</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="o">-</span><span class="mi">3</span><span class="p">]</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Over-sedation assessments (RASS d -3): </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">over_sedated</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="pain-score-analysis">Pain Score Analysis<a class="headerlink" href="#pain-score-analysis" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Analyze pain scores</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">pain</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_category&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;pain&#39;</span><span class="p">]</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">pain</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="c1"># Pain score statistics</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Pain scores - Mean: </span><span class="si">{</span><span class="n">pain</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Pain scores - Median: </span><span class="si">{</span><span class="n">pain</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">median</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="c1"># Categorize pain levels (assuming 0-10 scale)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">pain</span><span class="p">[</span><span class="s1">&#39;pain_category&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">cut</span><span class="p">(</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">pain</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">],</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">bins</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">labels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Mild (0-3)&#39;</span><span class="p">,</span> <span class="s1">&#39;Moderate (4-6)&#39;</span><span class="p">,</span> <span class="s1">&#39;Severe (7-10)&#39;</span><span class="p">]</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="p">)</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="n">pain_dist</span> <span class="o">=</span> <span class="n">pain</span><span class="p">[</span><span class="s1">&#39;pain_category&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Pain Level Distribution:&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>    <span class="k">for</span> <span class="n">level</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">pain_dist</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">count</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">pain</span><span class="p">)</span><span class="o">*</span><span class="mi">100</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%)&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="c1"># Find uncontrolled pain (score e 7)</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>    <span class="n">severe_pain</span> <span class="o">=</span> <span class="n">pain</span><span class="p">[</span><span class="n">pain</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">7</span><span class="p">]</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Severe pain assessments (e7): </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">severe_pain</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="tracking-assessment-trends">Tracking Assessment Trends<a class="headerlink" href="#tracking-assessment-trends" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Track GCS trend for a patient</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span> <span class="nf">track_gcs_trend</span><span class="p">(</span><span class="n">hospitalization_id</span><span class="p">):</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Track GCS trend over time for a patient&quot;&quot;&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">patient_gcs</span> <span class="o">=</span> <span class="n">gcs_total</span><span class="p">[</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">gcs_total</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">hospitalization_id</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="p">]</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">&#39;assessment_dttm&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="k">if</span> <span class="n">patient_gcs</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="c1"># Calculate GCS changes</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">patient_gcs</span><span class="p">[</span><span class="s1">&#39;gcs_change&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">patient_gcs</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">diff</span><span class="p">()</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="c1"># Find improvements and deteriorations</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="n">improvements</span> <span class="o">=</span> <span class="n">patient_gcs</span><span class="p">[</span><span class="n">patient_gcs</span><span class="p">[</span><span class="s1">&#39;gcs_change&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="n">deteriorations</span> <span class="o">=</span> <span class="n">patient_gcs</span><span class="p">[</span><span class="n">patient_gcs</span><span class="p">[</span><span class="s1">&#39;gcs_change&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>    <span class="k">return</span> <span class="p">{</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>        <span class="s1">&#39;initial_gcs&#39;</span><span class="p">:</span> <span class="n">patient_gcs</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>        <span class="s1">&#39;final_gcs&#39;</span><span class="p">:</span> <span class="n">patient_gcs</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>        <span class="s1">&#39;lowest_gcs&#39;</span><span class="p">:</span> <span class="n">patient_gcs</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>        <span class="s1">&#39;highest_gcs&#39;</span><span class="p">:</span> <span class="n">patient_gcs</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>        <span class="s1">&#39;improvements&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">improvements</span><span class="p">),</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>        <span class="s1">&#39;deteriorations&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">deteriorations</span><span class="p">),</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>        <span class="s1">&#39;total_assessments&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">patient_gcs</span><span class="p">)</span>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>    <span class="p">}</span>
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="c1"># Example usage</span>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="n">patient_trend</span> <span class="o">=</span> <span class="n">track_gcs_trend</span><span class="p">(</span><span class="s1">&#39;H12345&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="k">if</span> <span class="n">patient_trend</span><span class="p">:</span>
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GCS Trend Summary:&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Initial: </span><span class="si">{</span><span class="n">patient_trend</span><span class="p">[</span><span class="s1">&#39;initial_gcs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Final: </span><span class="si">{</span><span class="n">patient_trend</span><span class="p">[</span><span class="s1">&#39;final_gcs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Range: </span><span class="si">{</span><span class="n">patient_trend</span><span class="p">[</span><span class="s1">&#39;lowest_gcs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">patient_trend</span><span class="p">[</span><span class="s1">&#39;highest_gcs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="delirium-assessment">Delirium Assessment<a class="headerlink" href="#delirium-assessment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Check for CAM-ICU or other delirium assessments</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">delirium</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="s1">&#39;cam|delirium&#39;</span><span class="p">,</span> <span class="n">case</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">na</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">]</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">delirium</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="c1"># Analyze delirium positive rates</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">delirium_positive</span> <span class="o">=</span> <span class="n">delirium</span><span class="p">[</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="p">(</span><span class="n">delirium</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="o">|</span> 
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="p">(</span><span class="n">delirium</span><span class="p">[</span><span class="s1">&#39;assessment_value_text&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="s1">&#39;positive&#39;</span><span class="p">,</span> <span class="n">case</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">na</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="p">]</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="n">delirium_rate</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">delirium_positive</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">delirium</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Delirium positive rate: </span><span class="si">{</span><span class="n">delirium_rate</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="c1"># Patients with delirium</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">delirium_patients</span> <span class="o">=</span> <span class="n">delirium_positive</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Patients with positive delirium screening: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">delirium_patients</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="creating-assessment-summaries">Creating Assessment Summaries<a class="headerlink" href="#creating-assessment-summaries" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Create comprehensive assessment summary for a patient</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">def</span> <span class="nf">create_assessment_summary</span><span class="p">(</span><span class="n">hospitalization_id</span><span class="p">):</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create summary of all assessments for a patient&quot;&quot;&quot;</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">patient_assess</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">hospitalization_id</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">]</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="k">if</span> <span class="n">patient_assess</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">summary</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>    <span class="c1"># Group by assessment type</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="k">for</span> <span class="n">assess_name</span> <span class="ow">in</span> <span class="n">patient_assess</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">():</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>        <span class="n">assess_data</span> <span class="o">=</span> <span class="n">patient_assess</span><span class="p">[</span><span class="n">patient_assess</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">assess_name</span><span class="p">]</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>        <span class="n">summary</span><span class="p">[</span><span class="n">assess_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">assess_data</span><span class="p">),</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>            <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">assess_data</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>            <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="n">assess_data</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>            <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="n">assess_data</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>            <span class="s1">&#39;first&#39;</span><span class="p">:</span> <span class="n">assess_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">],</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>            <span class="s1">&#39;last&#39;</span><span class="p">:</span> <span class="n">assess_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>        <span class="p">}</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>    <span class="k">return</span> <span class="n">summary</span>
+<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>
+<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="c1"># Example usage</span>
+<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="n">patient_summary</span> <span class="o">=</span> <span class="n">create_assessment_summary</span><span class="p">(</span><span class="s1">&#39;H12345&#39;</span><span class="p">)</span>
+<a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a><span class="k">if</span> <span class="n">patient_summary</span><span class="p">:</span>
+<a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Patient Assessment Summary:&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a>    <span class="k">for</span> <span class="n">assess</span><span class="p">,</span> <span class="n">stats</span> <span class="ow">in</span> <span class="n">patient_summary</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="si">{</span><span class="n">assess</span><span class="si">}</span><span class="s2">:&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Assessments: </span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-35" name="__codelineno-6-35" href="#__codelineno-6-35"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Range: </span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;min&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;max&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  FirstLast: </span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;first&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"></span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;last&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="data-quality-considerations">Data Quality Considerations<a class="headerlink" href="#data-quality-considerations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Score Ranges</strong>: Verify assessment values are within valid ranges for each scale</li>
+<li><strong>Assessment Frequency</strong>: Check for appropriate documentation frequency</li>
+<li><strong>Component Consistency</strong>: For multi-component scores (like GCS), verify components sum correctly</li>
+<li><strong>Missing Assessments</strong>: Identify gaps in critical assessments</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Data quality checks</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># Validate GCS total vs components</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">gcs_complete</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="s1">&#39;gcs&#39;</span><span class="p">,</span> <span class="n">case</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">na</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">]</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">index</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">,</span> <span class="s1">&#39;assessment_dttm&#39;</span><span class="p">],</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">columns</span><span class="o">=</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="n">values</span><span class="o">=</span><span class="s1">&#39;assessment_value&#39;</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="p">)</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="k">if</span> <span class="s1">&#39;gcs_total&#39;</span> <span class="ow">in</span> <span class="n">gcs_complete</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">col</span> <span class="ow">in</span> <span class="n">gcs_complete</span><span class="o">.</span><span class="n">columns</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;gcs_eye&#39;</span><span class="p">,</span> <span class="s1">&#39;gcs_verbal&#39;</span><span class="p">,</span> <span class="s1">&#39;gcs_motor&#39;</span><span class="p">]):</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">gcs_complete</span><span class="p">[</span><span class="s1">&#39;calculated_total&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>        <span class="n">gcs_complete</span><span class="p">[</span><span class="s1">&#39;gcs_eye&#39;</span><span class="p">]</span> <span class="o">+</span> 
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>        <span class="n">gcs_complete</span><span class="p">[</span><span class="s1">&#39;gcs_verbal&#39;</span><span class="p">]</span> <span class="o">+</span> 
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>        <span class="n">gcs_complete</span><span class="p">[</span><span class="s1">&#39;gcs_motor&#39;</span><span class="p">]</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="p">)</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="n">mismatched</span> <span class="o">=</span> <span class="n">gcs_complete</span><span class="p">[</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>        <span class="n">gcs_complete</span><span class="p">[</span><span class="s1">&#39;gcs_total&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">gcs_complete</span><span class="p">[</span><span class="s1">&#39;calculated_total&#39;</span><span class="p">]</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>    <span class="p">]</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">mismatched</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mismatched</span><span class="p">)</span><span class="si">}</span><span class="s2"> GCS assessments with mismatched totals&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="c1"># Check for out-of-range values</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="n">range_checks</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>    <span class="s1">&#39;gcs_total&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">15</span><span class="p">),</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>    <span class="s1">&#39;gcs_eye&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>    <span class="s1">&#39;gcs_verbal&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>    <span class="s1">&#39;gcs_motor&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>    <span class="s1">&#39;rass&#39;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>    <span class="s1">&#39;pain_scale&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="p">}</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="k">for</span> <span class="n">assess_name</span><span class="p">,</span> <span class="p">(</span><span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">)</span> <span class="ow">in</span> <span class="n">range_checks</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>    <span class="n">assess_data</span> <span class="o">=</span> <span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">assessments</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;assessment_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">assess_name</span><span class="p">]</span>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">assess_data</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a>        <span class="n">out_of_range</span> <span class="o">=</span> <span class="n">assess_data</span><span class="p">[</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a>            <span class="p">(</span><span class="n">assess_data</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">min_val</span><span class="p">)</span> <span class="o">|</span> 
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a>            <span class="p">(</span><span class="n">assess_data</span><span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">max_val</span><span class="p">)</span>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a>        <span class="p">]</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">out_of_range</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">assess_name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">out_of_range</span><span class="p">)</span><span class="si">}</span><span class="s2"> values outside valid range (</span><span class="si">{</span><span class="n">min_val</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">max_val</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="related-tables">Related Tables<a class="headerlink" href="#related-tables" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Hospitalization</strong>: Primary link via hospitalization_id</li>
+<li><strong>Medication Admin Continuous</strong>: Correlate RASS scores with sedation dosing</li>
+<li><strong>Respiratory Support</strong>: Match GCS/RASS with ventilation status</li>
+<li><strong>Vitals</strong>: Compare neurological assessments with vital signs</li>
+<li><strong>ADT</strong>: Verify ICU assessments align with ICU location</li>
+</ul>
+<h2 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<p>For detailed API documentation, see <a href="../../../api/tables/#clifpy.tables.patient_assessments.PatientAssessments">PatientAssessments API</a></p>
 
 
 

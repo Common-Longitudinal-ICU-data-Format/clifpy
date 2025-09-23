@@ -295,26 +295,6 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../examples/" class="md-tabs__link">
-          
-  
-  
-  How-to Guides
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -1517,6 +1497,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comorbidity-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Comorbidity Index
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1562,7 +1565,7 @@
   
   
   <span class="md-ellipsis">
-    How-to Guides
+    API Reference
     
   </span>
   
@@ -1572,150 +1575,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            How-to Guides
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/loading-data/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Loading Data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/icu-analysis/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Analyzing ICU Stays
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/clinical-calculations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Clinical Calculations
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    API Reference
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             API Reference
           </label>
@@ -2395,9 +2254,9 @@
 <ol>
 <li><strong>Updates hospitalization table</strong> - Adds <code>encounter_block</code> column</li>
 <li><strong>Updates ADT table</strong> - Adds <code>encounter_block</code> column</li>
-<li><strong>Creates encounter mapping</strong> - Available via <code>clif.get_encounter_mapping()</code>:</li>
-<li><code>hospitalization_id</code>: Original hospitalization identifier</li>
-<li><code>encounter_block</code>: Assigned encounter block number</li>
+<li><strong>Creates encounter mapping</strong> - Available via <code>clif.get_encounter_mapping()</code>:
+   - <code>hospitalization_id</code>: Original hospitalization identifier
+   - <code>encounter_block</code>: Assigned encounter block number</li>
 </ol>
 <h2 id="understanding-encounter-blocks">Understanding Encounter Blocks<a class="headerlink" href="#understanding-encounter-blocks" title="Permanent link">&para;</a></h2>
 <p>Each encounter block represents a continuous episode of care:</p>
@@ -2522,11 +2381,11 @@
 </code></pre></div>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Choose appropriate time windows</strong>:</li>
-<li><strong>2-4 hours</strong>: Strict linking for direct transfers only</li>
-<li><strong>6 hours</strong> (default): Balances capturing related encounters while avoiding over-grouping</li>
 <li>
-<p><strong>12-24 hours</strong>: Liberal definition, captures day surgery readmissions</p>
+<p><strong>Choose appropriate time windows</strong>:
+   - <strong>2-4 hours</strong>: Strict linking for direct transfers only
+   - <strong>6 hours</strong> (default): Balances capturing related encounters while avoiding over-grouping
+   - <strong>12-24 hours</strong>: Liberal definition, captures day surgery readmissions</p>
 </li>
 <li>
 <p><strong>Validate stitching results</strong>:
@@ -2539,12 +2398,10 @@
 </code></pre></div></p>
 </li>
 <li>
-<p><strong>Consider your analysis goals</strong>:</p>
-</li>
-<li><strong>Outcome studies</strong>: Use stitched encounters to avoid counting transfers as readmissions</li>
-<li><strong>Resource utilization</strong>: May want to keep encounters separate for accurate billing</li>
-<li>
-<p><strong>Quality metrics</strong>: Check if measure specifications require episode-based analysis</p>
+<p><strong>Consider your analysis goals</strong>:
+   - <strong>Outcome studies</strong>: Use stitched encounters to avoid counting transfers as readmissions
+   - <strong>Resource utilization</strong>: May want to keep encounters separate for accurate billing
+   - <strong>Quality metrics</strong>: Check if measure specifications require episode-based analysis</p>
 </li>
 <li>
 <p><strong>Document your choices</strong>:

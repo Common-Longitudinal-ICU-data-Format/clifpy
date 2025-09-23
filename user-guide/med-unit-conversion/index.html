@@ -295,26 +295,6 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../examples/" class="md-tabs__link">
-          
-  
-  
-  How-to Guides
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -1406,6 +1386,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comorbidity-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Comorbidity Index
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1451,7 +1454,7 @@
   
   
   <span class="md-ellipsis">
-    How-to Guides
+    API Reference
     
   </span>
   
@@ -1461,150 +1464,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            How-to Guides
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/loading-data/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Loading Data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/icu-analysis/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Analyzing ICU Stays
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../examples/clinical-calculations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Clinical Calculations
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    API Reference
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             API Reference
           </label>
@@ -2040,15 +1899,15 @@
 <h3 id="returns">Returns<a class="headerlink" href="#returns" title="Permanent link">&para;</a></h3>
 <p>Under the hood, this function automatically loads and uses the medication and vitals tables to generate two dataframes that are saved to the corresponding medication table instance by default:</p>
 <ol>
-<li><strong><code>co.medication_admin_continuous.df_converted</code></strong> gives the updated medication table with the new columns appended:</li>
-<li><code>weight_kg</code>: the most recent weight relative to the <code>admin_dttm</code> pulled from the <code>vitals</code> table.</li>
-<li><code>_clean_unit</code>: cleaned source unit string where both 'U/h' and 'units / hour' would be standardized to 'u/hr', for example.</li>
-<li><code>_unit_class</code>: distinguishes where the source unit is an amount (e.g. 'mcg'), a 'rate' (e.g. 'mcg/hr'), or 'unrecognized'.</li>
-<li><code>_convert_status</code>: documents whether the conversion is a "success" or, in the case of failure, the reason for failure, e.g. 'cannot convert amount to rate' for rows of propofol in 'mcg' that the users want to convert to 'mcg/kg/min'.</li>
-<li><code>med_dose_converted</code>, <code>med_dose_unit_converted</code>: the converted results if the <code>_convert_status</code> is 'success', or fall back to the original <code>med_dose</code> and <code>_clean_unit</code> if failure.</li>
+<li><strong><code>co.medication_admin_continuous.df_converted</code></strong> gives the updated medication table with the new columns appended:
+   - <code>weight_kg</code>: the most recent weight relative to the <code>admin_dttm</code> pulled from the <code>vitals</code> table.
+   - <code>_clean_unit</code>: cleaned source unit string where both 'U/h' and 'units / hour' would be standardized to 'u/hr', for example.
+   - <code>_unit_class</code>: distinguishes where the source unit is an amount (e.g. 'mcg'), a 'rate' (e.g. 'mcg/hr'), or 'unrecognized'.
+   - <code>_convert_status</code>: documents whether the conversion is a "success" or, in the case of failure, the reason for failure, e.g. 'cannot convert amount to rate' for rows of propofol in 'mcg' that the users want to convert to 'mcg/kg/min'.
+   - <code>med_dose_converted</code>, <code>med_dose_unit_converted</code>: the converted results if the <code>_convert_status</code> is 'success', or fall back to the original <code>med_dose</code> and <code>_clean_unit</code> if failure.</li>
 </ol>
 <p><em>Note: the following demo output omits some rows and columns for display purposes</em></p>
-<ol>
+<ol start="2">
 <li><strong><code>co.medication_admin_continuous.conversion_counts</code></strong> shows an aggregated summary of which source units of which <code>med_category</code> are converted to which preferred units -- and their frequency counts. A useful quality check would be to filter for all the <code>_convert_status</code> that are not 'success.'</li>
 </ol>
 <p>To access the results directly instead of from the table instance, turn off the <code>save_to_table</code> argument:</p>

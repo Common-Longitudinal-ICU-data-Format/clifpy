@@ -295,26 +295,6 @@
     
     
       <li class="md-tabs__item">
-        <a href="../examples/" class="md-tabs__link">
-          
-  
-  
-  How-to Guides
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
         <a href="../api/" class="md-tabs__link">
           
   
@@ -1409,6 +1389,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="comorbidity-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Comorbidity Index
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1454,7 +1457,7 @@
   
   
   <span class="md-ellipsis">
-    How-to Guides
+    API Reference
     
   </span>
   
@@ -1464,150 +1467,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            How-to Guides
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../examples/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../examples/loading-data/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Loading Data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../examples/icu-analysis/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Analyzing ICU Stays
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../examples/clinical-calculations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Clinical Calculations
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    API Reference
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             API Reference
           </label>
@@ -2064,8 +1923,8 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">labs</span> <span class="o">=</span> <span class="n">Labs</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;US/Eastern&#39;</span><span class="p">)</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Method 2: Using configuration file (recommended)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">patient</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">labs</span> <span class="o">=</span> <span class="n">Labs</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">patient</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">labs</span> <span class="o">=</span> <span class="n">Labs</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="consistent-interface">Consistent Interface<a class="headerlink" href="#consistent-interface" title="Permanent link">&para;</a></h3>
 <p>All tables share common methods inherited from <code>BaseTable</code>: </p>
@@ -2090,9 +1949,9 @@
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="configuration-files">Configuration Files<a class="headerlink" href="#configuration-files" title="Permanent link">&para;</a></h2>
-<p>CLIFpy supports configuration files for easier data loading and consistent settings across projects. You can use a <code>clif_config.json</code> file to centralize your configuration:</p>
+<p>CLIFpy supports configuration files for easier data loading and consistent settings across projects. You can use a <code>config.json</code> file to centralize your configuration:</p>
 <h3 id="configuration-structure">Configuration Structure<a class="headerlink" href="#configuration-structure" title="Permanent link">&para;</a></h3>
-<p>Create a <code>clif_config.json</code> file with the following structure:</p>
+<p>Create a <code>config.json</code> file with the following structure:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;data_directory&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/data&quot;</span><span class="p">,</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;filetype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;parquet&quot;</span><span class="p">,</span>
@@ -2105,17 +1964,17 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">clifpy.tables</span> <span class="kn">import</span> <span class="n">Patient</span><span class="p">,</span> <span class="n">Labs</span><span class="p">,</span> <span class="n">Vitals</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Using configuration file</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">patient</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">labs</span> <span class="o">=</span> <span class="n">Labs</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">patient</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">labs</span> <span class="o">=</span> <span class="n">Labs</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">)</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Or with the orchestrator</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="kn">from</span> <span class="nn">clifpy.clif_orchestrator</span> <span class="kn">import</span> <span class="n">ClifOrchestrator</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">)</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">)</span>
 </code></pre></div>
 <p>You can still override specific parameters when needed:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Use config but override timezone and add sampling</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">vitals</span> <span class="o">=</span> <span class="n">Vitals</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">,</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;UTC&#39;</span><span class="p">,</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">sample_size</span><span class="o">=</span><span class="mi">1000</span>
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
@@ -2128,7 +1987,7 @@
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;US/Central&#39;</span><span class="p">)</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># Method 2: Using configuration file (recommended)</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./clif_config.json&#39;</span><span class="p">)</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;./config.json&#39;</span><span class="p">)</span>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
 <a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="c1"># Both methods work the same way after initialization</span>
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">orchestrator</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;patient&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">])</span>
@@ -2143,7 +2002,7 @@
 </code></pre></div>
 <h3 id="filtering-and-analysis">Filtering and Analysis<a class="headerlink" href="#filtering-and-analysis" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Category-based filtering</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">icu_stays</span> <span class="o">=</span> <span class="n">adt</span><span class="o">.</span><span class="n">filter_by_location_category</span><span class="p">(</span><span class="s1">&#39;icu&#39;</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">icu_stays</span> <span class="o">=</span> <span class="n">adt</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">adt</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;location_category&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;icu&#39;</span><span class="p">]</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Patient cohort analysis </span>
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">cohort_ids</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;P001&#39;</span><span class="p">,</span> <span class="s1">&#39;P002&#39;</span><span class="p">,</span> <span class="s1">&#39;P003&#39;</span><span class="p">]</span>
@@ -2152,7 +2011,7 @@
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Always validate data</strong> after loading to ensure compliance with CLIF standards</li>
-<li><strong>Use configuration files</strong> for consistent settings across your project (create <code>clif_config.json</code>)</li>
+<li><strong>Use configuration files</strong> for consistent settings across your project (create <code>config.json</code>)</li>
 <li><strong>Use appropriate timezones</strong> for your data source</li>
 <li><strong>Filter early</strong> to reduce memory usage with large datasets</li>
 <li><strong>Review validation errors</strong> to understand data quality issues</li>
