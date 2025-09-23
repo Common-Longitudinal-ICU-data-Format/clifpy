@@ -1,126 +1,104 @@
-# clifpy - Python Client for CLIF 
+# clifpy - Python Client for CLIF
 
-**⚠️ Status: This project is currently in active development**
+<p align="center">
+  <img src="docs/images/clif_logo_red_2.png" alt="CLIF Logo" width="400">
+</p>
 
-clifpy is a Python package for working with CLIF (Common Longitudinal ICU data Format) data. It provides a standardized interface for loading, validating, and analyzing critical care data across different healthcare systems.
+<p align="center">
+  <i>Transform critical care data into actionable insights 🏥</i>
+</p>
 
-## 🚧 Project Status
+<p align="center">
+  <a href="https://pypi.org/project/clifpy/"><img src="https://badge.fury.io/py/clifpy.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/clifpy/"><img src="https://img.shields.io/pypi/pyversions/clifpy" alt="Python Versions"></a>
+  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
+  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/"><img src="https://img.shields.io/badge/docs-latest-brightgreen" alt="Documentation"></a>
+  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv"></a>
+</p>
 
-### ✅ Completed Features
-- Core [CLIF-2.0.0](https://clif-consortium.github.io/website/data-dictionary/data-dictionary-2.0.0.html) class implementation
-- All 9 [CLIF-2.0.0](https://clif-consortium.github.io/website/data-dictionary/data-dictionary-2.0.0.html) beta table implementations (patient, vitals, labs, etc.)
-- Data validation against mCIDE schemas
-- Timezone handling and conversion
-- Advanced filtering and querying capabilities
-- Comprehensive test suite
-- CLIF Demo Dataset created using [MIMIC-IV Clinical Database Demo](https://physionet.org/content/mimic-iv-demo/2.2/)
-- Example notebooks demonstrating usage
+<p align="center">
+  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/">Documentation</a> | 
+  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/getting-started/quickstart/">Quick Start</a> | 
+  <a href="https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/discussions">Discussions</a> | 
+  <a href="https://clif-icu.com">CLIF Website</a>
+</p>
 
-### 🔄 In Progress
-- Package distribution setup (PyPI)
-- Additional clinical calculation functions
-- Performance optimizations for large datasets
-- Enhanced documentation
-- Integration with additional data sources
+## Standardized framework for critical care data analysis and research
 
-### 📋 Planned Features
-- SOFA score calculations
-- Additional clinical severity scores
-- Data visualization utilities
-- Export functionality to other formats
+CLIFpy is the official Python implementation for working with CLIF (Common Longitudinal ICU data Format) data. Transform heterogeneous ICU data into standardized, analysis-ready datasets with built-in validation, clinical calculations, and powerful data manipulation tools.
 
-## 📦 Installation
+## Key Features
 
-### User Installation
+- 📊 **Comprehensive CLIF Support**: Full implementation of all CLIF 2.0 tables with automatic schema validation
+- 🏥 **Clinical Calculations**: Built-in SOFA scores, comorbidity indices, and other ICU-specific metrics  
+- 💊 **Smart Unit Conversion**: Automatically standardize medication dosages across different unit systems
+- 🔗 **Encounter Stitching**: Link related ICU stays within configurable time windows
+- ⚡ **High Performance**: Leverages DuckDB and Polars for efficient processing of large datasets
+- 🌍 **Timezone Aware**: Proper timestamp handling across different healthcare systems
+- 📈 **Wide Format Support**: Transform longitudinal data into hourly resolution for analysis
 
-For most users, simply install from PyPI using pip:
+## Installation
 
 ```bash
 pip install clifpy
 ```
 
-This is all you need to start using clifpy in your projects.
+Or if you're using [uv](https://docs.astral.sh/uv/):
 
-
-
-## 📋 Requirements
-
-- Python 3.8+
-- pandas >= 2.0.0
-- duckdb >= 0.9.0
-- pyarrow >= 10.0.0
-- pytz
-- pydantic >= 2.0
-
-See `pyproject.toml` for complete dependencies.
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our contributing guidelines (coming soon).
-
-### Prerequisites
-
-First, install [uv](https://docs.astral.sh/uv/) if you haven't already:
 ```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Or on Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+uv add clifpy
 ```
 
-### Development Setup
+## Quick Example
 
-1. Fork the repository
-2. Clone your fork and set up the development environment:
+```python
+from clifpy import ClifOrchestrator
+
+# Load and validate CLIF data
+orchestrator = ClifOrchestrator(
+    data_directory='/path/to/clif/data',
+    timezone='US/Eastern'
+)
+
+# Validate all tables against CLIF schemas
+orchestrator.validate_all()
+
+# Access individual tables
+vitals = orchestrator.vitals.df
+labs = orchestrator.labs.df
+
+# Advanced features
+wide_df = orchestrator.create_wide_dataset()  # Hourly resolution data
+sofa_scores = orchestrator.compute_sofa_scores()  # Calculate SOFA scores
+```
+
+## Development
+
+CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency management.
+
+### Quick Setup
+
+1. Install uv:
    ```bash
-   # Clone the repository
-   git clone https://github.com/<your github username>/clifpy.git
-   cd clifpy
-   
-   # Install dependencies and create virtual environment automatically
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+2. Clone and install:
+   ```bash
+   git clone https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy.git
+   cd CLIFpy
    uv sync
    ```
-3. Create a feature branch (`git checkout -b feature/amazing-feature`)
-4. Make your changes
-5. Add new dependencies with `uv add <package>` (for permanent dependencies)
-6. Run tests (`uv run pytest`)
-7. Commit your changes (`git commit -m 'Add amazing feature'`)
-8. Push to the branch (`git push origin feature/amazing-feature`)
-9. Open a Pull Request
 
-### Development Commands
-```bash
-# Run tests
-uv run pytest
+3. Run tests:
+   ```bash
+   uv run pytest
+   ```
 
-# Add a new dependency (updates pyproject.toml)
-uv add <package>
+## Links & Resources
 
-# Add a development dependency
-uv add --dev <package>
-
-# Install temporary/experimental package (not committed to pyproject.toml)
-uv pip install <package>
-
-# Run any Python script
-uv run python your_script.py
-
-# Sync dependencies after pulling changes
-uv sync
-```
-
-## 📄 License
-
-This project is licensed under the [LICENSE] file in the repository.
-
-## 🔗 Links
-
-- [CLIF Specification](clif-icu.com)
-- [Issue Tracker](https://github.com/Common-Longitudinal-ICU-data-Format/pyCLIF/issues)
-
-## 📧 Contact
-
-For questions or support, please open an issue on GitHub.
-
----
-
-**Note**: This project is under active development. APIs may change between versions until the 1.0 release.
+- 📚 [Full Documentation](https://common-longitudinal-icu-data-format.github.io/clifpy/)
+- 🏥 [CLIF Specification](https://clif-icu.com)
+- 💬 [GitHub Discussions](https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/discussions)
+- 🐛 [Issue Tracker](https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/issues)
+- 📦 [PyPI Package](https://pypi.org/project/clifpy/)
