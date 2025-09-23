@@ -88,18 +88,25 @@ def load_demo_clif(tables: Optional[List[str]] = None, timezone: str = "UTC", ve
     NOTE: This function is not yet implemented as it requires the main CLIF class.
     For now, please use individual table loading functions like load_demo_patient().
     
-    Parameters:
-        tables (List[str], optional): List of tables to load. If None, loads all available.
-        timezone (str): Timezone for datetime conversion. Default is "UTC".
-        verbose (bool): If True, show detailed loading messages. Default is False for cleaner output.
+    Parameters
+    ----------
+    tables : List[str], optional
+        List of tables to load. If None, loads all available.
+    timezone : str, default="UTC"
+        Timezone for datetime conversion.
+    verbose : bool, default=False
+        If True, show detailed loading messages.
         
-    Returns:
-        CLIF: Initialized CLIF object with demo data
+    Returns
+    -------
+    CLIF
+        Initialized CLIF object with demo data
         
-    Examples:
-        >>> # Currently not available. Use instead:
-        >>> from pyclif.data import load_demo_patient
-        >>> patient_data = load_demo_patient()
+    Examples
+    --------
+    >>> # Currently not available. Use instead:
+    >>> from pyclif.data import load_demo_patient
+    >>> patient_data = load_demo_patient()
     """
     raise NotImplementedError(
         "load_demo_clif() is not yet implemented. "
@@ -113,20 +120,25 @@ def load_demo_patient(return_raw: bool = False):
     """
     Load demo patient data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return patient object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return patient object.
         
-    Returns:
-        Union[pd.DataFrame, patient]: Patient data
+    Returns
+    -------
+    Union[pd.DataFrame, patient]
+        Patient data
         
-    Examples:
-        >>> from pyclif.data import load_demo_patient
-        >>> patient_data = load_demo_patient()
-        >>> print(f"Number of patients: {len(patient_data.df)}")
-        >>> 
-        >>> # Get raw DataFrame
-        >>> patient_df = load_demo_patient(return_raw=True)
-        >>> print(patient_df.head())
+    Examples
+    --------
+    >>> from pyclif.data import load_demo_patient
+    >>> patient_data = load_demo_patient()
+    >>> print(f"Number of patients: {len(patient_data.df)}")
+    >>> 
+    >>> # Get raw DataFrame
+    >>> patient_df = load_demo_patient(return_raw=True)
+    >>> print(patient_df.head())
     """
     return _load_demo_table('patient', return_raw)
 
@@ -135,11 +147,15 @@ def load_demo_labs(return_raw: bool = False):
     """
     Load demo labs data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return labs object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return labs object.
         
-    Returns:
-        Union[pd.DataFrame, labs]: Labs data
+    Returns
+    -------
+    Union[pd.DataFrame, labs]
+        Labs data
     """
     return _load_demo_table('labs', return_raw)
 
@@ -148,11 +164,15 @@ def load_demo_vitals(return_raw: bool = False):
     """
     Load demo vitals data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return vitals object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return vitals object.
         
-    Returns:
-        Union[pd.DataFrame, vitals]: Vitals data
+    Returns
+    -------
+    Union[pd.DataFrame, vitals]
+        Vitals data
     """
     return _load_demo_table('vitals', return_raw)
 
@@ -161,11 +181,15 @@ def load_demo_respiratory_support(return_raw: bool = False):
     """
     Load demo respiratory support data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return respiratory_support object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return respiratory_support object.
         
-    Returns:
-        Union[pd.DataFrame, respiratory_support]: Respiratory support data
+    Returns
+    -------
+    Union[pd.DataFrame, respiratory_support]
+        Respiratory support data
     """
     return _load_demo_table('respiratory_support', return_raw)
 
@@ -173,11 +197,15 @@ def load_demo_position(return_raw: bool = False):
     """
     Load demo position data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return position object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return position object.
         
-    Returns:
-        Union[pd.DataFrame, position]: Position data
+    Returns
+    -------
+    Union[pd.DataFrame, position]
+        Position data
     """
     return _load_demo_table('position', return_raw)
 
@@ -186,11 +214,15 @@ def load_demo_adt(return_raw: bool = False):
     """
     Load demo ADT data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return adt object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return adt object.
         
-    Returns:
-        Union[pd.DataFrame, adt]: ADT data
+    Returns
+    -------
+    Union[pd.DataFrame, adt]
+        ADT data
     """
     return _load_demo_table('adt', return_raw)
 
@@ -199,11 +231,15 @@ def load_demo_hospitalization(return_raw: bool = False):
     """
     Load demo hospitalization data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return hospitalization object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return hospitalization object.
         
-    Returns:
-        Union[pd.DataFrame, hospitalization]: Hospitalization data
+    Returns
+    -------
+    Union[pd.DataFrame, hospitalization]
+        Hospitalization data
     """
     return _load_demo_table('hospitalization', return_raw)
 
@@ -211,11 +247,15 @@ def load_demo_medication_admin_continuous(return_raw: bool = False):
     """
     Load demo medication admin continuous data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return medication_admin_continuous object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return medication_admin_continuous object.
         
-    Returns:
-        Union[pd.DataFrame, medication_admin_continuous]: Medication admin continuous data
+    Returns
+    -------
+    Union[pd.DataFrame, medication_admin_continuous]
+        Medication admin continuous data
     """
     return _load_demo_table('medication_admin_continuous', return_raw)
 
@@ -223,11 +263,15 @@ def load_demo_patient_assessments(return_raw: bool = False):
     """
     Load demo patient assessments data.
     
-    Parameters:
-        return_raw (bool): If True, return raw DataFrame. If False, return patient_assessments object.
+    Parameters
+    ----------
+    return_raw : bool, default=False
+        If True, return raw DataFrame. If False, return patient_assessments object.
         
-    Returns:
-        Union[pd.DataFrame, patient_assessments]: Patient assessments data
+    Returns
+    -------
+    Union[pd.DataFrame, patient_assessments]
+        Patient assessments data
     """
     return _load_demo_table('patient_assessments', return_raw)
 
@@ -236,14 +280,17 @@ def list_demo_datasets() -> Dict[str, Dict[str, Union[int, str]]]:
     """
     List all available demo datasets with basic information.
     
-    Returns:
-        Dict: Information about each demo dataset
+    Returns
+    -------
+    Dict
+        Information about each demo dataset
         
-    Examples:
-        >>> from pyclif.data import list_demo_datasets
-        >>> datasets_info = list_demo_datasets()
-        >>> for name, info in datasets_info.items():
-        ...     print(f"{name}: {info['rows']} rows, {info['size']}")
+    Examples
+    --------
+    >>> from pyclif.data import list_demo_datasets
+    >>> datasets_info = list_demo_datasets()
+    >>> for name, info in datasets_info.items():
+    ...     print(f"{name}: {info['rows']} rows, {info['size']}")
     """
     demo_path = _get_demo_data_path()
     datasets_info = {}
@@ -289,9 +336,10 @@ def get_demo_summary() -> None:
     """
     Print a summary of all available demo datasets.
     
-    Examples:
-        >>> from pyclif.data import get_demo_summary
-        >>> get_demo_summary()
+    Examples
+    --------
+    >>> from pyclif.data import get_demo_summary
+    >>> get_demo_summary()
     """
     datasets_info = list_demo_datasets()
     

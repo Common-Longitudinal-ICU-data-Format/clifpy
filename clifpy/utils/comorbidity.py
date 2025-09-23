@@ -24,17 +24,21 @@ def calculate_elix(
     This function processes hospital diagnosis data to calculate Elixhauser scores
     using the Quan (2011) adaptation with ICD-10-CM codes and van Walraven weights.
 
-    Parameters:
-        hospital_diagnosis: HospitalDiagnosis object, pandas DataFrame, or polars DataFrame
-                           containing diagnosis data with columns:
-                           - hospitalization_id
-                           - diagnosis_code
-                           - diagnosis_code_format
-        hierarchy: bool (default=True) - Apply assign0 logic to prevent double counting
-                  of conditions when both mild and severe forms are present
+    Parameters
+    ----------
+    hospital_diagnosis : HospitalDiagnosis object, pandas DataFrame, or polars DataFrame
+        containing diagnosis data with columns:
+        - hospitalization_id
+        - diagnosis_code
+        - diagnosis_code_format
+    hierarchy : bool, default=True
+        Apply assign0 logic to prevent double counting
+        of conditions when both mild and severe forms are present
 
-    Returns:
-        pd.DataFrame with columns:
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns:
         - hospitalization_id (index)
         - 31 binary condition columns (0/1)
         - elix_score (weighted sum)
@@ -134,17 +138,21 @@ def calculate_cci(
     This function processes hospital diagnosis data to calculate CCI scores
     using the Quan (2011) adaptation with ICD-10-CM codes.
 
-    Parameters:
-        hospital_diagnosis: HospitalDiagnosis object, pandas DataFrame, or polars DataFrame
-                           containing diagnosis data with columns:
-                           - hospitalization_id
-                           - diagnosis_code
-                           - diagnosis_code_format
-        hierarchy: bool (default=True) - Apply assign0 logic to prevent double counting
-                  of conditions when both mild and severe forms are present
+    Parameters
+    ----------
+    hospital_diagnosis : HospitalDiagnosis object, pandas DataFrame, or polars DataFrame
+        containing diagnosis data with columns:
+        - hospitalization_id
+        - diagnosis_code
+        - diagnosis_code_format
+    hierarchy : bool, default=True
+        Apply assign0 logic to prevent double counting
+        of conditions when both mild and severe forms are present
 
-    Returns:
-        pd.DataFrame with columns:
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns:
         - hospitalization_id (index)
         - 17 binary condition columns (0/1)
         - cci_score (weighted sum)

@@ -55,18 +55,27 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
     """
     Load data from a file in the specified directory with the option to select specific columns and apply filters.
 
-    Parameters:
-        table_name (str): The name of the table to load.
-        sample_size (int, optional): Number of rows to load.
-        columns (list of str, optional): List of column names to load.
-        filters (dict, optional): Dictionary of filters to apply.
-        site_tz (str, optional): Timezone string for datetime conversion, e.g., "America/New_York".
+    Parameters
+    ----------
+    table_name : str
+        The name of the table to load.
+    table_path : str
+        Path to the directory containing the data file.
+    table_format_type : str
+        Format of the data file (e.g., 'csv', 'parquet').
+    sample_size : int, optional
+        Number of rows to load.
+    columns : list of str, optional
+        List of column names to load.
+    filters : dict, optional
+        Dictionary of filters to apply.
+    site_tz : str, optional
+        Timezone string for datetime conversion, e.g., "America/New_York".
 
-    Returns:
-        pd.DataFrame: DataFrame containing the requested data.
-
-    Usage:
-        
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the requested data.
     """
     # Determine the file path based on the directory and filetype
   
@@ -122,13 +131,19 @@ def convert_datetime_columns_to_site_tz(df, site_tz_str, verbose=True):
     """
     Convert all datetime columns in the DataFrame to the specified site timezone.
 
-    Parameters:
-    - df (pd.DataFrame): Input DataFrame.
-    - site_tz_str (str): Timezone string, e.g., "America/New_York". or "US/Central"
-    - verbose (bool): Whether to print detailed output (default: True).
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame.
+    site_tz_str : str
+        Timezone string, e.g., "America/New_York". or "US/Central"
+    verbose : bool
+        Whether to print detailed output (default: True).
 
-    Returns:
-    - pd.DataFrame: Modified DataFrame with datetime columns converted.
+    Returns
+    -------
+    pd.DataFrame
+        Modified DataFrame with datetime columns converted.
     """
     site_tz = pytz.timezone(site_tz_str)
 

@@ -7,8 +7,8 @@ repo_name: CLIFpy
 
 theme:
   name: material
-  logo: images/clif_logo_no_text_white.png  # Add your logo here
-  favicon: images/clif_logo_red_no_text.png  # Optional: use same logo as favicon
+  logo: images/clif_logo_no_text_white.png  
+  favicon: images/clif_logo_red_no_text.png  
   features:
     - navigation.tabs
     - navigation.sections
@@ -47,7 +47,7 @@ plugins:
             show_symbol_type_toc: true
             show_root_heading: true
             show_root_toc_entry: true
-            docstring_style: google
+            docstring_style: numpy
             merge_init_into_class: true
             separate_signature: true
 
@@ -70,6 +70,8 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
+  - def_list
+  - sane_lists
 
 nav:
   - Home: index.md
@@ -100,11 +102,7 @@ nav:
           - Respiratory Support Waterfall: user-guide/waterfall.md
           - Encounter Stitching: user-guide/encounter-stitching.md
           - Outlier Handling: user-guide/outlier-handling.md
-  - How-to Guides:
-      - Overview: examples/index.md
-      - Loading Data: examples/loading-data.md
-      - Analyzing ICU Stays: examples/icu-analysis.md
-      - Clinical Calculations: examples/clinical-calculations.md
+          - Comorbidity Index: user-guide/comorbidity-index.md
   - API Reference:
       - Overview: api/index.md
       - Orchestrator: api/orchestrator.md

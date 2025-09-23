@@ -9,7 +9,7 @@ import os
 import logging
 import pandas as pd
 import psutil
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Union, Tuple
 
 from .tables.patient import Patient
 from .tables.hospitalization import Hospitalization
@@ -46,26 +46,46 @@ class ClifOrchestrator:
     This class provides a centralized interface for loading, managing,
     and validating multiple CLIF tables with consistent configuration.
     
-    Attributes:
-        config_path (str, optional): Path to configuration JSON file
-        data_directory (str): Path to the directory containing data files
-        filetype (str): Type of data file (csv, parquet, etc.)
-        timezone (str): Timezone for datetime columns
-        output_directory (str): Directory for saving output files and logs
-        stitch_encounter (bool): Whether to stitch encounters within time interval
-        stitch_time_interval (int): Hours between discharge and next admission to consider encounters linked
-        encounter_mapping (pd.DataFrame): Mapping of hospitalization_id to encounter_block (after stitching)
-        patient (Patient): Patient table object
-        hospitalization (Hospitalization): Hospitalization table object
-        adt (Adt): ADT table object
-        labs (Labs): Labs table object
-        vitals (Vitals): Vitals table object
-        medication_admin_continuous (MedicationAdminContinuous): Medication administration continuous table object
-        medication_admin_intermittent (MedicationAdminIntermittent): Medication administration intermittent table object
-        patient_assessments (PatientAssessments): Patient assessments table object
-        respiratory_support (RespiratorySupport): Respiratory support table object
-        position (Position): Position table object
-        wide_df (pd.DataFrame): Wide dataset with time-series data (populated by create_wide_dataset)
+    Attributes
+    ----------
+    config_path : str, optional
+        Path to configuration JSON file
+    data_directory : str
+        Path to the directory containing data files
+    filetype : str
+        Type of data file (csv, parquet, etc.)
+    timezone : str
+        Timezone for datetime columns
+    output_directory : str
+        Directory for saving output files and logs
+    stitch_encounter : bool
+        Whether to stitch encounters within time interval
+    stitch_time_interval : int
+        Hours between discharge and next admission to consider encounters linked
+    encounter_mapping : pd.DataFrame
+        Mapping of hospitalization_id to encounter_block (after stitching)
+    patient : Patient
+        Patient table object
+    hospitalization : Hospitalization
+        Hospitalization table object
+    adt : Adt
+        ADT table object
+    labs : Labs
+        Labs table object
+    vitals : Vitals
+        Vitals table object
+    medication_admin_continuous : MedicationAdminContinuous
+        Medication administration continuous table object
+    medication_admin_intermittent : MedicationAdminIntermittent
+        Medication administration intermittent table object
+    patient_assessments : PatientAssessments
+        Patient assessments table object
+    respiratory_support : RespiratorySupport
+        Respiratory support table object
+    position : Position
+        Position table object
+    wide_df : pd.DataFrame
+        Wide dataset with time-series data (populated by create_wide_dataset)
     """
     
     def __init__(
@@ -81,22 +101,33 @@ class ClifOrchestrator:
         """
         Initialize the ClifOrchestrator.
         
-        Parameters:
-            config_path (str, optional): Path to configuration JSON file
-            data_directory (str, optional): Path to the directory containing data files
-            filetype (str, optional): Type of data file (csv, parquet, etc.)
-            timezone (str, optional): Timezone for datetime columns
-            output_directory (str, optional): Directory for saving output files and logs.
-                If not provided, creates an 'output' directory in the current working directory.
-            stitch_encounter (bool, optional): Whether to stitch encounters within time interval. Default False.
-            stitch_time_interval (int, optional): Hours between discharge and next admission to consider 
-                encounters linked. Default 6 hours.
+        Parameters
+        ----------
+        config_path : str, optional
+            Path to configuration JSON file
+        data_directory : str, optional
+            Path to the directory containing data files
+        filetype : str, optional
+            Type of data file (csv, parquet, etc.)
+        timezone : str, optional
+            Timezone for datetime columns
+        output_directory : str, optional
+            Directory for saving output files and logs.
+            If not provided, creates an 'output' directory in the current working directory.
+        stitch_encounter : bool, optional
+            Whether to stitch encounters within time interval. Default False.
+        stitch_time_interval : int, optional
+            Hours between discharge and next admission to consider 
+            encounters linked. Default 6 hours.
                 
+        Notes
+        -----
         Loading priority:
-            1. If all required params provided → use them
-            2. If config_path provided → load from that path, allow param overrides
-            3. If no params and no config_path → auto-detect config.json
-            4. Parameters override config file values when both are provided
+        
+        1. If all required params provided → use them
+        2. If config_path provided → load from that path, allow param overrides
+        3. If no params and no config_path → auto-detect config.json
+        4. Parameters override config file values when both are provided
         """
         # Get configuration from config file or parameters
         config = get_config_or_params(
@@ -148,11 +179,15 @@ class ClifOrchestrator:
         """
         Create a ClifOrchestrator instance from a configuration file.
         
-        Parameters:
-            config_path (str): Path to the configuration JSON file
+        Parameters
+        ----------
+        config_path : str
+            Path to the configuration JSON file
             
-        Returns:
-            ClifOrchestrator: Configured instance
+        Returns
+        -------
+        ClifOrchestrator
+            Configured instance
         """
         return cls(config_path=config_path)
     
@@ -162,17 +197,24 @@ class ClifOrchestrator:
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
-    ) -> Any:
+    ) -> Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, MedicationAdminIntermittent, PatientAssessments, RespiratorySupport, Position]:
         """
         Load table data and create table object.
         
-        Parameters:
-            table_name (str): Name of the table to load
-            sample_size (int, optional): Number of rows to load
-            columns (List[str], optional): Specific columns to load
-            filters (Dict, optional): Filters to apply when loading
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to load
+        sample_size : int, optional
+            Number of rows to load
+        columns : List[str], optional
+            Specific columns to load
+        filters : Dict, optional
+            Filters to apply when loading
             
-        Returns:
+        Returns
+        -------
+        Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, PatientAssessments, RespiratorySupport, Position]
             The loaded table object
         """
         if table_name not in TABLE_CLASSES:
@@ -201,11 +243,16 @@ class ClifOrchestrator:
         """
         Initialize specified tables with optional filtering and column selection.
         
-        Parameters:
-            tables (List[str], optional): List of table names to load. Defaults to ['patient'].
-            sample_size (int, optional): Number of rows to load for each table.
-            columns (Dict[str, List[str]], optional): Dictionary mapping table names to lists of columns to load.
-            filters (Dict[str, Dict], optional): Dictionary mapping table names to filter dictionaries.
+        Parameters
+        ----------
+        tables : List[str], optional
+            List of table names to load. Defaults to ['patient'].
+        sample_size : int, optional
+            Number of rows to load for each table.
+        columns : Dict[str, List[str]], optional
+            Dictionary mapping table names to lists of columns to load.
+        filters : Dict[str, Dict], optional
+            Dictionary mapping table names to filter dictionaries.
         """
         if tables is None:
             tables = ['patient']
@@ -252,8 +299,10 @@ class ClifOrchestrator:
         """
         Return list of currently loaded table names.
         
-        Returns:
-            List[str]: List of loaded table names
+        Returns
+        -------
+        List[str]
+            List of loaded table names
         """
         loaded = []
         for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
@@ -267,8 +316,10 @@ class ClifOrchestrator:
         """
         Return list of loaded table objects.
         
-        Returns:
-            List: List of loaded table objects
+        Returns
+        -------
+        List
+            List of loaded table objects
         """
         table_objects = []
         for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
@@ -283,9 +334,11 @@ class ClifOrchestrator:
         """
         Return the encounter mapping DataFrame if encounter stitching was performed.
         
-        Returns:
-            pd.DataFrame: Mapping of hospitalization_id to encounter_block if stitching was performed.
-            None: If stitching was not performed or failed.
+        Returns
+        -------
+        pd.DataFrame or None
+            Mapping of hospitalization_id to encounter_block if stitching was performed,
+            None if stitching was not performed or failed.
         """
         if self.encounter_mapping is None:
             self.run_stitch_encounters()
@@ -354,9 +407,11 @@ class ClifOrchestrator:
             Only used when encounter stitching is enabled and encounter mapping exists.
         cohort_df : pd.DataFrame, optional
             DataFrame containing cohort definitions with columns:
+            
             - 'patient_id': Patient identifier
             - 'start_time': Start of time window (datetime)
             - 'end_time': End of time window (datetime)
+            
             When encounter stitching is enabled, can also include 'encounter_block' column.
             Used to filter data to specific time windows per patient.
         output_format : str, default='dataframe'
@@ -734,24 +789,32 @@ class ClifOrchestrator:
         """
         Convert wide dataset to hourly aggregation using DuckDB.
         
-        Parameters:
-            wide_df: Wide dataset DataFrame. If None, uses the stored wide_df from create_wide_dataset()
-            aggregation_config: Dict mapping aggregation methods to columns
-                Example: {
-                    'mean': ['heart_rate', 'sbp'],
-                    'max': ['spo2'],
-                    'min': ['map'],
-                    'median': ['glucose'],
-                    'first': ['gcs_total'],
-                    'last': ['assessment_value'],
-                    'boolean': ['norepinephrine'],
-                    'one_hot_encode': ['device_category']
-                }
-            memory_limit: DuckDB memory limit (e.g., '4GB', '8GB')
-            temp_directory: Directory for DuckDB temp files
-            batch_size: Process in batches if specified
+        Parameters
+        ----------
+        aggregation_config : Dict[str, List[str]]
+            Dict mapping aggregation methods to columns
+            Example: {
+                'mean': ['heart_rate', 'sbp'],
+                'max': ['spo2'],
+                'min': ['map'],
+                'median': ['glucose'],
+                'first': ['gcs_total'],
+                'last': ['assessment_value'],
+                'boolean': ['norepinephrine'],
+                'one_hot_encode': ['device_category']
+            }
+        wide_df : pd.DataFrame, optional
+            Wide dataset DataFrame. If None, uses the stored wide_df from create_wide_dataset()
+        memory_limit : str, default='4GB'
+            DuckDB memory limit (e.g., '4GB', '8GB')
+        temp_directory : str, optional
+            Directory for DuckDB temp files
+        batch_size : int, optional
+            Process in batches if specified
             
-        Returns:
+        Returns
+        -------
+        pd.DataFrame
             Hourly aggregated DataFrame with nth_hour column
 
         Examples:
@@ -786,11 +849,16 @@ class ClifOrchestrator:
         """
         Get system resource information including CPU, memory, and practical thread limits.
         
-        Parameters:
-            print_summary (bool): Whether to print a formatted summary
+        Parameters
+        ----------
+        print_summary : bool, default=True
+            Whether to print a formatted summary
             
-        Returns:
-            Dict containing system resource information:
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing system resource information:
+            
             - cpu_count_physical: Number of physical CPU cores
             - cpu_count_logical: Number of logical CPU cores
             - cpu_usage_percent: Current CPU usage percentage
@@ -865,17 +933,25 @@ class ClifOrchestrator:
         """
         Convert dose units for continuous medication data.
 
-        Parameters:
-            preferred_units: Dict of preferred units for each medication category
-            vitals_df: Vitals DataFrame for extracting patient weights (optional)
-            show_intermediate: If True, includes intermediate calculation columns in output
-            override: If True, continues processing with warnings for unacceptable units
-            save_to_table: If True, saves the converted DataFrame to the table's df_converted
-                property and stores conversion_counts as a table property. If False,
-                returns the converted data without updating the table.
+        Parameters
+        ----------
+        preferred_units : Dict[str, str]
+            Dict of preferred units for each medication category
+        vitals_df : pd.DataFrame, optional
+            Vitals DataFrame for extracting patient weights
+        show_intermediate : bool, default=False
+            If True, includes intermediate calculation columns in output
+        override : bool, default=False
+            If True, continues processing with warnings for unacceptable units
+        save_to_table : bool, default=True
+            If True, saves the converted DataFrame to the table's df_converted
+            property and stores conversion_counts as a table property. If False,
+            returns the converted data without updating the table.
 
-        Returns:
-            Tuple[pd.DataFrame, pd.DataFrame]: (converted_df, counts_df) when save_to_table=False
+        Returns
+        -------
+        Tuple[pd.DataFrame, pd.DataFrame] or None
+            (converted_df, counts_df) when save_to_table=False, None otherwise
         """
         from .utils.unit_converter import convert_dose_units_by_med_category
 
@@ -937,17 +1013,25 @@ class ClifOrchestrator:
         """
         Convert dose units for intermittent medication data.
 
-        Parameters:
-            preferred_units: Dict of preferred units for each medication category
-            vitals_df: Vitals DataFrame for extracting patient weights (optional)
-            show_intermediate: If True, includes intermediate calculation columns in output
-            override: If True, continues processing with warnings for unacceptable units
-            save_to_table: If True, saves the converted DataFrame to the table's df_converted
-                property and stores conversion_counts as a table property. If False,
-                returns the converted data without updating the table.
+        Parameters
+        ----------
+        preferred_units : Dict[str, str]
+            Dict of preferred units for each medication category
+        vitals_df : pd.DataFrame, optional
+            Vitals DataFrame for extracting patient weights
+        show_intermediate : bool, default=False
+            If True, includes intermediate calculation columns in output
+        override : bool, default=False
+            If True, continues processing with warnings for unacceptable units
+        save_to_table : bool, default=True
+            If True, saves the converted DataFrame to the table's df_converted
+            property and stores conversion_counts as a table property. If False,
+            returns the converted data without updating the table.
 
-        Returns:
-            Tuple[pd.DataFrame, pd.DataFrame]: (converted_df, counts_df) when save_to_table=False
+        Returns
+        -------
+        Tuple[pd.DataFrame, pd.DataFrame] or None
+            (converted_df, counts_df) when save_to_table=False, None otherwise
         """
         from .utils.unit_converter import convert_dose_units_by_med_category
 
