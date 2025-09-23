@@ -109,7 +109,6 @@ nav:
       - Base Table: api/base-table.md
       - Tables: api/tables.md
       - Utilities: api/utilities.md
-  - Contributing: contributing.md
 
 extra:
   social:
