@@ -1,4 +1,4 @@
-from .config import load_clif_config, get_config_or_params, create_example_config
+from .config import load_config, get_config_or_params, create_example_config
 from .io import load_data, convert_datetime_columns_to_site_tz
 from .wide_dataset import create_wide_dataset, convert_wide_to_hourly
 from .outlier_handler import apply_outlier_handling, get_outlier_summary
@@ -28,7 +28,7 @@ __all__ = [
       # comorbidity
       'calculate_cci',
       # config
-      'load_clif_config',
+      'load_config',
       'get_config_or_params',
       'create_example_config',
       # waterfall
