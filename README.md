@@ -19,7 +19,6 @@
 <p align="center">
   <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/">Documentation</a> | 
   <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/getting-started/quickstart/">Quick Start</a> | 
-  <a href="https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/discussions">Discussions</a> | 
   <a href="https://clif-icu.com">CLIF Website</a>
 </p>
 
@@ -99,6 +98,5 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
 
 - 📚 [Full Documentation](https://common-longitudinal-icu-data-format.github.io/clifpy/)
 - 🏥 [CLIF Specification](https://clif-icu.com)
-- 💬 [GitHub Discussions](https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/discussions)
 - 🐛 [Issue Tracker](https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/issues)
 - 📦 [PyPI Package](https://pypi.org/project/clifpy/)
