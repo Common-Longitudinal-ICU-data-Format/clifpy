@@ -42,12 +42,6 @@ CLIFpy is the official Python implementation for working with CLIF (Common Longi
 pip install clifpy
 ```
 
-Or if you're using [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv add clifpy
-```
-
 ## Quick Example
 
 ```python
@@ -97,6 +91,6 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
 ## Links & Resources
 
 - 📚 [Full Documentation](https://common-longitudinal-icu-data-format.github.io/clifpy/)
-- 🏥 [CLIF Specification](https://clif-icu.com)
+- 🏥 [CLIF Specification](https://clif-icu.com/data-dictionary)
 - 🐛 [Issue Tracker](https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy/issues)
 - 📦 [PyPI Package](https://pypi.org/project/clifpy/)
