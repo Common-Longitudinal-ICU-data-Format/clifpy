@@ -1,7 +1,7 @@
 # clifpy - Python Client for CLIF
 
 <p align="center">
-  <img src="docs/images/clif_logo_red_2.png" alt="CLIF Logo" width="400">
+  <img src="https://raw.githubusercontent.com/Common-Longitudinal-ICU-data-Format/CLIFpy/main/docs/images/clif_logo_red_2.png" alt="CLIF Logo" width="400">
 </p>
 
 <p align="center">
