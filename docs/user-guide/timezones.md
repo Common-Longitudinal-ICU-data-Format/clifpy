@@ -263,17 +263,7 @@ US_TIMEZONES = {
     'Central': 'US/Central',     # Chicago, Houston, Dallas
     'Mountain': 'US/Mountain',   # Denver, Phoenix
     'Pacific': 'US/Pacific',     # LA, Seattle, San Francisco
-    'Alaska': 'US/Alaska',       # Anchorage
-    'Hawaii': 'US/Hawaii'        # Honolulu
-}
-
-# International
-INTL_TIMEZONES = {
-    'London': 'Europe/London',
-    'Paris': 'Europe/Paris',
-    'Tokyo': 'Asia/Tokyo',
-    'Sydney': 'Australia/Sydney',
-    'Toronto': 'America/Toronto'
+    'Toronto': 'America/Toronto' # Toronto, Canada
 }
 ```
 
