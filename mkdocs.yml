@@ -95,6 +95,7 @@ nav:
           - Position: user-guide/tables/position.md
       - Data Validation: user-guide/validation.md
       - Medication Unit Conversion: user-guide/med-unit-conversion.md
+      - SOFA Score Computation: user-guide/sofa.md
       - Working with Timezones: user-guide/timezones.md
       - Advanced Features:
           - Wide Dataset Creation: user-guide/wide-dataset.md

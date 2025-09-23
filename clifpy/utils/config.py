@@ -64,7 +64,7 @@ def _load_config_file(config_path: str) -> Dict[str, Any]:
     return config
 
 
-def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Load CLIF configuration from JSON or YAML file.
 
@@ -72,7 +72,7 @@ def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     ----------
     config_path : str, optional
         Path to the configuration file.
-        If None, looks for 'clif_config.json' or 'clif_config.yaml' in current directory.
+        If None, looks for 'config.json' or 'config.yaml' in current directory.
 
     Returns
     -------
@@ -94,7 +94,7 @@ def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     if config_path is None:
         # Look for config files in order of preference: JSON, YAML, YML
         cwd = os.getcwd()
-        for filename in ['clif_config.json', 'clif_config.yaml', 'clif_config.yml']:
+        for filename in ['config.json', 'config.yaml', 'config.yml']:
             potential_path = os.path.join(cwd, filename)
             if os.path.exists(potential_path):
                 config_path = potential_path
@@ -104,7 +104,7 @@ def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
             raise FileNotFoundError(
                 f"Configuration file not found in {cwd}\n"
                 "Please either:\n"
-                "  1. Create a clif_config.json or clif_config.yaml file in the current directory\n"
+                "  1. Create a config.json or config.yaml file in the current directory\n"
                 "  2. Provide config_path parameter pointing to your config file\n"
                 "  3. Provide data_directory, filetype, and timezone parameters directly"
             )
@@ -114,7 +114,7 @@ def load_clif_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         raise FileNotFoundError(
             f"Configuration file not found: {config_path}\n"
             "Please either:\n"
-            "  1. Create a clif_config.json or clif_config.yaml file in the current directory\n"
+            "  1. Create a config.json or config.yaml file in the current directory\n"
             "  2. Provide config_path parameter pointing to your config file\n"
             "  3. Provide data_directory, filetype, and timezone parameters directly"
         )
@@ -166,7 +166,7 @@ def get_config_or_params(
     
     1. If all required params provided directly → use them
     2. If config_path provided → load from that path, allow param overrides
-    3. If no params and no config_path → auto-detect clif_config.json/yaml/yml
+    3. If no params and no config_path → auto-detect config.json/yaml/yml
     4. Parameters override config file values when both are provided
     
     Parameters
@@ -208,7 +208,7 @@ def get_config_or_params(
     
     # Try to load from config file
     try:
-        config = load_clif_config(config_path)
+        config = load_config(config_path)
     except FileNotFoundError:
         # If no config file and incomplete params, raise helpful error
         if any(param is not None for param in required_params):
@@ -224,7 +224,7 @@ def get_config_or_params(
                 f"Incomplete parameters provided. Missing: {missing}\n"
                 "Please either:\n"
                 "  1. Provide all required parameters (data_directory, filetype, timezone)\n"
-                "  2. Create a clif_config.json or clif_config.yaml file\n"
+                "  2. Create a config.json or config.yaml file\n"
                 "  3. Provide a config_path parameter"
             )
         else:
@@ -256,7 +256,7 @@ def create_example_config(
     filetype: str = "parquet",
     timezone: str = "UTC",
     output_directory: str = "./output",
-    config_path: str = "./clif_config.json",
+    config_path: str = "./config.json",
     format: str = "json"
 ) -> None:
     """

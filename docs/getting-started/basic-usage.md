@@ -15,6 +15,7 @@ Each CLIF table is represented by a Python class that inherits from `BaseTable`:
 - `Vitals` - Vital signs measurements
 - `RespiratorySupport` - Ventilation and oxygen therapy
 - `MedicationAdminContinuous` - Continuous infusions
+- `MicrobiologyCulture` - Microbiology culture results
 - `PatientAssessments` - Clinical assessment scores
 - `Position` - Patient positioning
 

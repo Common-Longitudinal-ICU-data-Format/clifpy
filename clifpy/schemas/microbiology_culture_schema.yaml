@@ -1,0 +1,255 @@
+table_name: microbiology_culture
+composite_keys:
+  - hospitalization_id
+  - organism_id
+  - fluid_category
+  - method_category
+  - organism_category
+  - result_dttm
+
+columns:
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: organism_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: order_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: collect_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: result_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: fluid_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: fluid_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - blood_buffy_coat
+      - bone_cortex_osteomyelitis
+      - bone_marrow
+      - brain
+      - cardiac_endocardium_myocardium_pericardium
+      - catheter_tip
+      - central_nervous_system_unspecified
+      - disseminated_generalized_isolated_at_2_or_more_distinct_sites
+      - ears
+      - esophagus
+      - eyes
+      - fallopian_tubes_uterus_cervix
+      - feces_stool
+      - gallbladder_and_billary_tree_not_hepatitis_pancreas
+      - gastrointestinal_tract_unspecified
+      - genital_area
+      - genito_urinary_tract_unspecified
+      - joints
+      - kidneys_renal_pelvis_ureters_and_bladder
+      - large_intestine
+      - larynx
+      - lips
+      - liver
+      - lower_respiratory_tract_lung
+      - lymph_nodes
+      - meninges_and_csf
+      - muscle_excluding_cardiac
+      - other_unspecified
+      - peritoneum
+      - pleural_cavity_pleural_fluid
+      - prostate
+      - rash_pustules_or_abscesses_not_typical_of_any_of_the_above
+      - respiratory_tract_unspecified
+      - sinuses
+      - skin_unspecified
+      - small_intestine
+      - spinal_cord
+      - spleen
+      - stomach
+      - testes
+      - tongue_oral_cavity_and_oro_pharynx
+      - upper_airway_and_nasopharynx
+      - vagina
+      - woundsite
+  - name: method_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: method_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - culture
+      - gram stain
+      - smear
+  - name: organism_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: organism_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+
+  - name: organism_group
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - acinetobacter
+      - adenovirus
+      - agrobacterium_radiobacter
+      - alcaligenes_xylosoxidans
+      - amebiasis
+      - anaerobes_wo_bacteroides_clostridium
+      - aspergillus_nos
+      - aspergillus_flavus
+      - aspergillus_fumigatus
+      - aspergillus_niger
+      - bacillus
+      - bacteria_other
+      - bacteroides
+      - borrelia
+      - branhamelia_moraxella_catarrhalis
+      - campylobacter
+      - candida_albicans
+      - candida_krusei
+      - candida_nos
+      - candida_parapsilosis
+      - candida_tropicalis
+      - chlamydia
+      - citrobacter
+      - clostridium_difficile
+      - clostridium_wo_difficile
+      - corynebacterium
+      - coxiella
+      - cryptococcus
+      - cryptosporidium
+      - cytomegalovirus
+      - echinoco_ocalcyst
+      - enterobacter
+      - enterococcus
+      - enterovirus
+      - epstein_barr_virus
+      - escherichia
+      - flavimonas_oryzihabitans
+      - flavobacterium
+      - fungus_other
+      - fusarium
+      - fusobacterium_nucleatum
+      - giardia
+      - gram_negative_diplococci
+      - gram_negative_rod
+      - gram_positive_cocci
+      - gram_positive_rod
+      - haemophilus
+      - helicobacter_pylori
+      - hepatitis_a
+      - hepatitis_b
+      - hepatitis_c
+      - herpes_simplex
+      - herpes_zoster
+      - hhv_6
+      - hiv_htlv
+      - influenza
+      - klebsiella
+      - lactobacillus
+      - legionella
+      - leptospira
+      - leptotrichia_buccalis
+      - leuconostoc
+      - listeria
+      - measles
+      - methylobacterium
+      - micrococcus
+      - mucormycosis_zygomycetes_rhizopus
+      - mumps
+      - mycobacteria_avium_bovium_haemophilum_intercelluare
+      - mycobacterium_other
+      - mycoplasma
+      - neisseria
+      - nocardia
+      - no_growth
+      - other_organism
+      - papovavirus
+      - parainfluenza
+      - pharyngeal_respiratory_flora
+      - pneumocystis
+      - polyomavirus
+      - propionbacterium
+      - protozoal_other
+      - pseudomonas_burkholderia_cepacia
+      - pseudomonas_stenotrophomonas_xanthomonas_maltophilia
+      - pseudomonas_wo_cepacia_maltophilia
+      - respiratory_syncytial_virus
+      - rhinovirus
+      - rhodococcus
+      - rickettsia
+      - rotavirus
+      - rubella
+      - salmonella
+      - serratia_marcescens
+      - shigella
+      - staphylococcus_coag_neg
+      - staphylococcus_coag_pos
+      - staphylococcus_nos
+      - stomatococcus_mucilaginosis
+      - streptococcus
+      - torulopsis_galbrata
+      - toxoplasma
+      - treponema
+      - trichomonas
+      - tuberculosis
+      - tuberculosis_nos_afb_kochbacillus
+      - vibrio
+      - viral_other
+      - yeast
+  - name: lab_loinc_code
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - organism_id
+  - fluid_category
+  - method_category
+  - organism_category
+  - result_dttm
+
+category_columns:
+  - fluid_category
+  - method_category
+  - organism_category
+
+group_columns:
+  - organism_group
