@@ -1,0 +1,54 @@
+table_name: hospital_diagnosis
+composite_keys:
+  - hospitalization_id
+  - diagnosis_code
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_code
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_code_format
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ICD10CM
+      - ICD9CM
+  - name: diagnosis_primary
+    data_type: INT
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - 0
+      - 1
+  - name: poa_present
+    data_type: INT
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - 0
+      - 1
+
+required_columns:
+  - hospitalization_id
+  - diagnosis_code
+  - diagnosis_code_format
+  - diagnosis_primary
+  - poa_present
+
+category_columns:
+  - diagnosis_code_format
+  - diagnosis_primary
+  - poa_present
+
+group_columns: []

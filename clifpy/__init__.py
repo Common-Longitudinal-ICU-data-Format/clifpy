@@ -4,6 +4,7 @@ from .tables import (
     Patient,
     Adt,
     Hospitalization,
+    HospitalDiagnosis,
     Labs,
     RespiratorySupport,
     Vitals,
@@ -11,6 +12,8 @@ from .tables import (
     PatientAssessments,
     Position,
 )
+# Re-export ClifOrchestrator at package root
+from .clif_orchestrator import ClifOrchestrator
 
 # Version info
 __version__ = "0.0.1"
@@ -21,10 +24,12 @@ __all__ = [
     "Patient",
     "Adt",
     "Hospitalization",
+    "HospitalDiagnosis",
     "Labs",
     "RespiratorySupport",
     "Vitals",
     "MedicationAdminContinuous",
     "PatientAssessments",
     "Position",
+    "ClifOrchestrator",
 ]

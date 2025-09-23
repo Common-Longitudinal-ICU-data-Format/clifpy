@@ -1,6 +1,6 @@
 __pycache__/
 .DS_Store
-/dev
+# /dev
 examples/output/
 dev/readme.md
 dev/requirements.txt
@@ -21,7 +21,9 @@ __pycache__/
 .claude
 todo.md
 
-#dev
+# dev
+.dev/
+graphs/
 
 clif_2.1.0.txt
 context7.json
@@ -34,3 +36,13 @@ site/
 .serena/
 .pytest_cache
 env.txt
+
+*/__marimo__
+#AI dev files
+marimo.md
+claude.md
+gemini.md
+codex.md
+cline.md
+rules.md
+kilo.md

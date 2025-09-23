@@ -28,10 +28,15 @@ Complete API documentation for all CLIF table implementations:
 ## Utilities
 
 ### [Utility Functions](utilities.md)
-Helper functions for data loading, validation, and I/O operations:
+Helper functions for data processing, validation, and specialized operations:
 
-- **io** - Data loading utilities
+- **stitch_encounters** - Link related hospitalizations within time windows
+- **process_resp_support_waterfall** - Respiratory support waterfall algorithm
+- **io** - Data loading and sample creation utilities
+- **config** - Configuration management functions
 - **validator** - Data validation functions
+- **outlier_handler** - Outlier detection and handling
+- **wide_dataset** - Wide dataset creation utilities
 
 ## Quick Links
 
