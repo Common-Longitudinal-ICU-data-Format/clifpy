@@ -200,7 +200,7 @@ class BaseTable:
         Loading priority:
             1. If all required params provided → use them
             2. If config_path provided → load from that path, allow param overrides
-            3. If no params and no config_path → auto-detect clif_config.json
+            3. If no params and no config_path → auto-detect config.json
             4. Parameters override config file values when both are provided
             
         Returns
