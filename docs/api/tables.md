@@ -16,6 +16,10 @@
 
 ::: clifpy.tables.labs.Labs
 
+## Microbiology Culture
+
+::: clifpy.tables.microbiology_culture.MicrobiologyCulture
+
 ## Vitals
 
 ::: clifpy.tables.vitals.Vitals
