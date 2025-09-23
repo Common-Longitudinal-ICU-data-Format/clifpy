@@ -37,6 +37,7 @@ site/
 .pytest_cache
 env.txt
 
+*/__marimo__
 #AI dev files
 marimo.md
 claude.md

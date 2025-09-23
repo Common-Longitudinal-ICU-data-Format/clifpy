@@ -7,8 +7,8 @@ repo_name: CLIFpy
 
 theme:
   name: material
-  logo: images/clif_logo_no_text_white.png  # Add your logo here
-  favicon: images/clif_logo_red_no_text.png  # Optional: use same logo as favicon
+  logo: images/clif_logo_no_text_white.png  
+  favicon: images/clif_logo_red_no_text.png  
   features:
     - navigation.tabs
     - navigation.sections
@@ -94,6 +94,7 @@ nav:
           - Assessments: user-guide/tables/patient-assessments.md
           - Position: user-guide/tables/position.md
       - Data Validation: user-guide/validation.md
+      - Medication Unit Conversion: user-guide/med-unit-conversion.md
       - Working with Timezones: user-guide/timezones.md
       - Advanced Features:
           - Wide Dataset Creation: user-guide/wide-dataset.md
