@@ -129,7 +129,7 @@ Comprehensive validation functions for ensuring data quality and CLIF compliance
 
 Load and manage CLIF configuration files for consistent settings.
 
-::: clifpy.utils.config.load_clif_config
+::: clifpy.utils.config.load_config
 
 ::: clifpy.utils.config.get_config_or_params
 
