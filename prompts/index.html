@@ -22,7 +22,7 @@
     
     
       
-        <title>Prompts - CLIFpy Documentation</title>
+        <title>utils - CLIFpy Documentation</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#medication_admin_continuous" class="md-skip">
+        <a href="#utils" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Prompts
+              utils
             
           </span>
         </div>
@@ -931,6 +931,52 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-guide/med-unit-conversion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Medication Unit Conversion
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/sofa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    SOFA Score Computation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/timezones/" class="md-nav__link">
         
   
@@ -969,10 +1015,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_8" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
             
   
   
@@ -985,8 +1031,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
             <span class="md-nav__icon md-icon"></span>
             Advanced Features
           </label>
@@ -1028,6 +1074,29 @@
   
   <span class="md-ellipsis">
     Respiratory Support Waterfall
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/encounter-stitching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Encounter Stitching
     
   </span>
   
@@ -1426,6 +1495,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -1434,9 +1505,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#medication_admin_continuous" class="md-nav__link">
+  <a href="#unit_converter" class="md-nav__link">
     <span class="md-ellipsis">
-      medication_admin_continuous
+      unit_converter
     </span>
   </a>
   
@@ -1461,9 +1532,8 @@
   
 
 
-  <h1>Prompts</h1>
-
-<h2 id="medication_admin_continuous"><code>medication_admin_continuous</code><a class="headerlink" href="#medication_admin_continuous" title="Permanent link">&para;</a></h2>
+<h1 id="utils"><code>utils</code><a class="headerlink" href="#utils" title="Permanent link">&para;</a></h1>
+<h2 id="unit_converter"><code>unit_converter</code><a class="headerlink" href="#unit_converter" title="Permanent link">&para;</a></h2>
 <p>Implement the following tests in tests/tables/test_medication_admin_continuous.py following instructions in their docstrings:
 - test_acceptable_dose_unit_patterns
 - test_standardize_dose_unit_pattern
@@ -1497,6 +1567,20 @@ at all. </li>
 @clifpy/tables/medication_admin_continuous.py
 1. Add a test(s) for when no med_df was ever provided (self.df was not even populated), triggering the ValueError("No data provided")
 2. Flesh out the doc strings for all functions</p>
+<ol>
+<li>can you make the file called med-unit-conversion.md to avoid confusion\</li>
+<li>can you create a table for all the acceptable units? the columns would be: unit class; unit subclass;
+_clean_unit; acceptable variations;_base_unit. and explain where you see fit what they mean, i.e. unit
+class = rate or amount; unit subclass = mass, volume, unit; _clean_unit = the format in which user need to
+write their preferred units; acceptable variations = all of 'mL/m' 'ml/min' 'milli-liter/minute' would be
+converted to the 'ml/min'. finally mention that the unit class and subclass are used to track if units
+are conversion to one each other. </li>
+<li>introduce how the _convert_status column should be used and how any failure in conversion would result
+in the original dose and _clean_unit being the *_converted output columns and the override = True option
+can be used to bypass detection of unacceptable conversion\</li>
+<li>highlight both the public functions give two outputs: a df with converted dose and units and a df that
+lists the conversion status and count by med_category, med_unit, _base_unit, etc etc.</li>
+</ol>
 
 
 

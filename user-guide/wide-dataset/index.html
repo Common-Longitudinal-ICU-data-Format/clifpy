@@ -943,6 +943,52 @@
   
   
     <li class="md-nav__item">
+      <a href="../med-unit-conversion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Medication Unit Conversion
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sofa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    SOFA Score Computation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../timezones/" class="md-nav__link">
         
   
@@ -984,10 +1030,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" checked>
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="">
             
   
   
@@ -1000,8 +1046,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_8">
             <span class="md-nav__icon md-icon"></span>
             Advanced Features
           </label>
@@ -1076,6 +1122,15 @@
   <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-wide-dataset-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Accessing Wide Dataset Results
     </span>
   </a>
   
@@ -1325,6 +1380,29 @@
   
   <span class="md-ellipsis">
     Respiratory Support Waterfall
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../encounter-stitching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Encounter Stitching
     
   </span>
   
@@ -1751,6 +1829,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#accessing-wide-dataset-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Accessing Wide Dataset Results
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#function-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       Function Parameters
@@ -2015,7 +2102,7 @@
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Create wide dataset with sample data</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
@@ -2023,6 +2110,34 @@
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="p">},</span>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">sample</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Use 20 random hospitalizations for testing</span>
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># Access the created wide dataset</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
+</code></pre></div>
+<h2 id="accessing-wide-dataset-results">Accessing Wide Dataset Results<a class="headerlink" href="#accessing-wide-dataset-results" title="Permanent link">&para;</a></h2>
+<p>The <code>create_wide_dataset()</code> method stores the resulting DataFrame in the orchestrator's <code>wide_df</code> property rather than returning it directly. This approach provides several benefits:</p>
+<ul>
+<li><strong>Persistent storage</strong>: The wide dataset remains accessible throughout your session</li>
+<li><strong>Memory management</strong>: Avoids creating multiple copies of large DataFrames</li>
+<li><strong>Consistent access pattern</strong>: Aligns with other orchestrator table properties</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Create the wide dataset (no return value)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">],</span> <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">]}</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Access the result via the property</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Check if wide dataset exists</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">if</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Wide dataset shape: </span><span class="si">{</span><span class="n">co</span><span class="o">.</span><span class="n">wide_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No wide dataset has been created yet&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># Direct access to the DataFrame</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hospitalizations: </span><span class="si">{</span><span class="n">co</span><span class="o">.</span><span class="n">wide_df</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="function-parameters">Function Parameters<a class="headerlink" href="#function-parameters" title="Permanent link">&para;</a></h2>
 <p>The <code>create_wide_dataset()</code> method accepts the following parameters:</p>
@@ -2088,7 +2203,7 @@
 <td><code>return_dataframe</code></td>
 <td>bool</td>
 <td>True</td>
-<td>Return DataFrame even when saving to file</td>
+<td>Store DataFrame in <code>wide_df</code> property even when saving to file</td>
 </tr>
 <tr>
 <td><code>batch_size</code></td>
@@ -2118,137 +2233,155 @@
 </table>
 <h2 id="best-practices-system-resource-management">Best Practices: System Resource Management<a class="headerlink" href="#best-practices-system-resource-management" title="Permanent link">&para;</a></h2>
 <p><strong>Always check your system resources before running wide dataset creation on large datasets:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Check system resources first</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">()</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Available RAM: </span><span class="si">{</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;memory_available_gb&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Recommended threads: </span><span class="si">{</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># Configure based on available resources</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">memory_limit</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;memory_available_gb&#39;</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">0.7</span><span class="p">)</span><span class="si">}</span><span class="s2">GB&quot;</span>  <span class="c1"># Use 70% of available RAM</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">threads</span> <span class="o">=</span> <span class="n">resources</span><span class="p">[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">]</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Create wide dataset with optimized settings</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">]</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="p">},</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="n">memory_limit</span><span class="p">,</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="n">threads</span><span class="o">=</span><span class="n">threads</span><span class="p">,</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span>  <span class="c1"># Adjust based on dataset size</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Check system resources first</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">()</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Available RAM: </span><span class="si">{</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;memory_available_gb&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Recommended threads: </span><span class="si">{</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># Configure based on available resources</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">memory_limit</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;memory_available_gb&#39;</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">0.7</span><span class="p">)</span><span class="si">}</span><span class="s2">GB&quot;</span>  <span class="c1"># Use 70% of available RAM</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">threads</span> <span class="o">=</span> <span class="n">resources</span><span class="p">[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">]</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Create wide dataset with optimized settings</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">]</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="p">},</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="n">memory_limit</span><span class="p">,</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="n">threads</span><span class="o">=</span><span class="n">threads</span><span class="p">,</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span>  <span class="c1"># Adjust based on dataset size</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="p">)</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="c1"># Access the created dataset</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div>
 <h2 id="usage-examples">Usage Examples<a class="headerlink" href="#usage-examples" title="Permanent link">&para;</a></h2>
 <h3 id="example-1-development-and-testing">Example 1: Development and Testing<a class="headerlink" href="#example-1-development-and-testing" title="Permanent link">&para;</a></h3>
 <p>Use sampling for initial development and testing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Sample mode for development</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;dbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">,</span> <span class="s1">&#39;respiratory_rate&#39;</span><span class="p">],</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;wbc&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">,</span> <span class="s1">&#39;potassium&#39;</span><span class="p">,</span> <span class="s1">&#39;creatinine&#39;</span><span class="p">]</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="p">},</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">sample</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Only 20 random hospitalizations</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">)</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sample dataset shape: </span><span class="si">{</span><span class="n">wide_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unique hospitalizations: </span><span class="si">{</span><span class="n">wide_df</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Sample mode for development</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;dbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">,</span> <span class="s1">&#39;respiratory_rate&#39;</span><span class="p">],</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;wbc&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">,</span> <span class="s1">&#39;potassium&#39;</span><span class="p">,</span> <span class="s1">&#39;creatinine&#39;</span><span class="p">]</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="p">},</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">sample</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Only 20 random hospitalizations</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">)</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># Access the created dataset</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sample dataset shape: </span><span class="si">{</span><span class="n">wide_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unique hospitalizations: </span><span class="si">{</span><span class="n">wide_df</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nunique</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="example-2-production-use-with-resource-optimization">Example 2: Production Use with Resource Optimization<a class="headerlink" href="#example-2-production-use-with-resource-optimization" title="Permanent link">&para;</a></h3>
 <p>For production use with large datasets:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Get system info and configure accordingly</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">(</span><span class="n">print_summary</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Production settings</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;medication_admin_continuous&#39;</span><span class="p">],</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;dbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">,</span> <span class="s1">&#39;temp_c&#39;</span><span class="p">],</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;wbc&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">,</span> <span class="s1">&#39;potassium&#39;</span><span class="p">],</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="s1">&#39;medication_admin_continuous&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;norepinephrine&#39;</span><span class="p">,</span> <span class="s1">&#39;propofol&#39;</span><span class="p">,</span> <span class="s1">&#39;fentanyl&#39;</span><span class="p">]</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="p">},</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>  <span class="c1"># Smaller batches for large datasets</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s2">&quot;12GB&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">threads</span><span class="o">=</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">],</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="n">save_to_data_location</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="n">output_format</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="n">output_filename</span><span class="o">=</span><span class="s1">&#39;wide_dataset_production&#39;</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Get system info and configure accordingly</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">(</span><span class="n">print_summary</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Production settings</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;medication_admin_continuous&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;dbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">,</span> <span class="s1">&#39;temp_c&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;wbc&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">,</span> <span class="s1">&#39;potassium&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="s1">&#39;medication_admin_continuous&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;norepinephrine&#39;</span><span class="p">,</span> <span class="s1">&#39;propofol&#39;</span><span class="p">,</span> <span class="s1">&#39;fentanyl&#39;</span><span class="p">]</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="p">},</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>  <span class="c1"># Smaller batches for large datasets</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s2">&quot;12GB&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">threads</span><span class="o">=</span><span class="n">resources</span><span class="p">[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">],</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="n">save_to_data_location</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="n">output_format</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>    <span class="n">output_filename</span><span class="o">=</span><span class="s1">&#39;wide_dataset_production&#39;</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="p">)</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="c1"># Access the created dataset</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div>
 <h3 id="example-3-targeted-analysis-with-specific-ids">Example 3: Targeted Analysis with Specific IDs<a class="headerlink" href="#example-3-targeted-analysis-with-specific-ids" title="Permanent link">&para;</a></h3>
 <p>Process specific hospitalizations:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Analyze specific patient cohort</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">target_ids</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;12345&#39;</span><span class="p">,</span> <span class="s1">&#39;67890&#39;</span><span class="p">,</span> <span class="s1">&#39;11111&#39;</span><span class="p">,</span> <span class="s1">&#39;22222&#39;</span><span class="p">]</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">target_ids</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;patient_assessments&#39;</span><span class="p">],</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;lactate&#39;</span><span class="p">,</span> <span class="s1">&#39;hemoglobin&#39;</span><span class="p">],</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="s1">&#39;patient_assessments&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;gcs_total&#39;</span><span class="p">,</span> <span class="s1">&#39;rass&#39;</span><span class="p">]</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="p">}</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="p">)</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Analyzed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">target_ids</span><span class="p">)</span><span class="si">}</span><span class="s2"> specific hospitalizations&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Analyze specific patient cohort</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">target_ids</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;12345&#39;</span><span class="p">,</span> <span class="s1">&#39;67890&#39;</span><span class="p">,</span> <span class="s1">&#39;11111&#39;</span><span class="p">,</span> <span class="s1">&#39;22222&#39;</span><span class="p">]</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">target_ids</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;patient_assessments&#39;</span><span class="p">],</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;lactate&#39;</span><span class="p">,</span> <span class="s1">&#39;hemoglobin&#39;</span><span class="p">],</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="s1">&#39;patient_assessments&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;gcs_total&#39;</span><span class="p">,</span> <span class="s1">&#39;rass&#39;</span><span class="p">]</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="p">}</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="p">)</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="c1"># Access the created dataset</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Analyzed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">target_ids</span><span class="p">)</span><span class="si">}</span><span class="s2"> specific hospitalizations&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="example-4-time-window-filtering-with-cohort-dataframe">Example 4: Time Window Filtering with Cohort DataFrame<a class="headerlink" href="#example-4-time-window-filtering-with-cohort-dataframe" title="Permanent link">&para;</a></h3>
 <p>Filter data to specific time windows:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># Define cohort with time windows</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">cohort_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="s1">&#39;hospitalization_id&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;12345&#39;</span><span class="p">,</span> <span class="s1">&#39;67890&#39;</span><span class="p">,</span> <span class="s1">&#39;11111&#39;</span><span class="p">],</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="s1">&#39;start_time&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;2023-01-01 08:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-05 12:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-10 06:00:00&#39;</span><span class="p">],</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="s1">&#39;end_time&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;2023-01-03 18:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-07 20:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-12 14:00:00&#39;</span><span class="p">]</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">})</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Convert to datetime</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;start_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;start_time&#39;</span><span class="p">])</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;end_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;end_time&#39;</span><span class="p">])</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="c1"># Create wide dataset with time filtering</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">],</span>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">]</span>
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>    <span class="p">},</span>
-<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>    <span class="n">cohort_df</span><span class="o">=</span><span class="n">cohort_df</span>  <span class="c1"># Only include data within specified time windows</span>
-<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Define cohort with time windows</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">cohort_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="s1">&#39;hospitalization_id&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;12345&#39;</span><span class="p">,</span> <span class="s1">&#39;67890&#39;</span><span class="p">,</span> <span class="s1">&#39;11111&#39;</span><span class="p">],</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="s1">&#39;start_time&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;2023-01-01 08:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-05 12:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-10 06:00:00&#39;</span><span class="p">],</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="s1">&#39;end_time&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;2023-01-03 18:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-07 20:00:00&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-12 14:00:00&#39;</span><span class="p">]</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">})</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Convert to datetime</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;start_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;start_time&#39;</span><span class="p">])</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;end_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;end_time&#39;</span><span class="p">])</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="c1"># Create wide dataset with time filtering</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">],</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">,</span> <span class="s1">&#39;sodium&#39;</span><span class="p">]</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>    <span class="p">},</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>    <span class="n">cohort_df</span><span class="o">=</span><span class="n">cohort_df</span>  <span class="c1"># Only include data within specified time windows</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="p">)</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="c1"># Access the created dataset</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div>
 <h3 id="example-5-no-batch-processing-for-small-datasets">Example 5: No Batch Processing for Small Datasets<a class="headerlink" href="#example-5-no-batch-processing-for-small-datasets" title="Permanent link">&para;</a></h3>
 <p>Disable batching for small datasets:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Small dataset - process all at once</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">small_id_list</span><span class="p">,</span>  <span class="c1"># &lt; 100 hospitalizations</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">],</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">]</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="p">},</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">batch_size</span><span class="o">=-</span><span class="mi">1</span>  <span class="c1"># Disable batching</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Small dataset - process all at once</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">small_id_list</span><span class="p">,</span>  <span class="c1"># &lt; 100 hospitalizations</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">],</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">]</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="p">},</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">batch_size</span><span class="o">=-</span><span class="mi">1</span>  <span class="c1"># Disable batching</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="p">)</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1"># Access the created dataset</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div>
 <h2 id="memory-management-and-batch-processing">Memory Management and Batch Processing<a class="headerlink" href="#memory-management-and-batch-processing" title="Permanent link">&para;</a></h2>
 <h3 id="understanding-batch-processing">Understanding Batch Processing<a class="headerlink" href="#understanding-batch-processing" title="Permanent link">&para;</a></h3>
 <p>Batch processing divides hospitalizations into smaller groups to prevent memory (larger-than-memory, OOM) issues:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Large dataset - use batching</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>  <span class="c1"># Process 1000 hospitalizations at a time</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s2">&quot;8GB&quot;</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">)</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># Small dataset - disable batching for better performance</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="n">batch_size</span><span class="o">=-</span><span class="mi">1</span>  <span class="c1"># Process all at once</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Large dataset - use batching</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>  <span class="c1"># Process 1000 hospitalizations at a time</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s2">&quot;8GB&quot;</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Small dataset - disable batching for better performance</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="n">batch_size</span><span class="o">=-</span><span class="mi">1</span>  <span class="c1"># Process all at once</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="p">)</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div>
 <h3 id="memory-optimization-guidelines">Memory Optimization Guidelines<a class="headerlink" href="#memory-optimization-guidelines" title="Permanent link">&para;</a></h3>
 <table>
@@ -2282,27 +2415,33 @@
 </tbody>
 </table>
 <h2 id="hourly-aggregation">Hourly Aggregation<a class="headerlink" href="#hourly-aggregation" title="Permanent link">&para;</a></h2>
-<p>Convert the wide dataset to hourly aggregation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Create aggregation configuration</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">aggregation_config</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;map&#39;</span><span class="p">],</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;respiratory_rate&#39;</span><span class="p">],</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="s1">&#39;median&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;temp_c&#39;</span><span class="p">],</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="s1">&#39;first&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;gcs_total&#39;</span><span class="p">,</span> <span class="s1">&#39;rass&#39;</span><span class="p">],</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="s1">&#39;last&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">],</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="s1">&#39;boolean&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;norepinephrine&#39;</span><span class="p">,</span> <span class="s1">&#39;propofol&#39;</span><span class="p">],</span>  <span class="c1"># 1 if present, 0 if absent</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="p">}</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1"># Convert to hourly</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">hourly_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">convert_wide_to_hourly</span><span class="p">(</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="n">wide_df</span><span class="p">,</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    <span class="n">aggregation_config</span><span class="o">=</span><span class="n">aggregation_config</span><span class="p">,</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s1">&#39;8GB&#39;</span>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="p">)</span>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hourly dataset: </span><span class="si">{</span><span class="n">hourly_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hour range: </span><span class="si">{</span><span class="n">hourly_df</span><span class="p">[</span><span class="s1">&#39;nth_hour&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">hourly_df</span><span class="p">[</span><span class="s1">&#39;nth_hour&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<p>Convert the wide dataset to hourly aggregation. The <code>convert_wide_to_hourly</code> method automatically uses the stored wide dataset from <code>create_wide_dataset()</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Create aggregation configuration</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">aggregation_config</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;sbp&#39;</span><span class="p">,</span> <span class="s1">&#39;map&#39;</span><span class="p">],</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;respiratory_rate&#39;</span><span class="p">],</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;spo2&#39;</span><span class="p">],</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="s1">&#39;median&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;temp_c&#39;</span><span class="p">],</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="s1">&#39;first&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;gcs_total&#39;</span><span class="p">,</span> <span class="s1">&#39;rass&#39;</span><span class="p">],</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="s1">&#39;last&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;assessment_value&#39;</span><span class="p">],</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="s1">&#39;boolean&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;norepinephrine&#39;</span><span class="p">,</span> <span class="s1">&#39;propofol&#39;</span><span class="p">],</span>  <span class="c1"># 1 if present, 0 if absent</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="p">}</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="c1"># Convert to hourly (automatically uses stored wide_df)</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="n">hourly_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">convert_wide_to_hourly</span><span class="p">(</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>    <span class="n">aggregation_config</span><span class="o">=</span><span class="n">aggregation_config</span><span class="p">,</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s1">&#39;8GB&#39;</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">)</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hourly dataset: </span><span class="si">{</span><span class="n">hourly_df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Hour range: </span><span class="si">{</span><span class="n">hourly_df</span><span class="p">[</span><span class="s1">&#39;nth_hour&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">hourly_df</span><span class="p">[</span><span class="s1">&#39;nth_hour&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="c1"># Alternative: Explicitly provide wide_df (useful for custom datasets)</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="c1"># hourly_df = co.convert_wide_to_hourly(</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="c1">#     wide_df=custom_wide_df,</span>
+<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="c1">#     aggregation_config=aggregation_config,</span>
+<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="c1">#     memory_limit=&#39;8GB&#39;</span>
+<a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="c1"># )</span>
 </code></pre></div>
 <h2 id="output-structure">Output Structure<a class="headerlink" href="#output-structure" title="Permanent link">&para;</a></h2>
 <p>The wide dataset includes:</p>
@@ -2331,37 +2470,39 @@
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="common-issues-and-solutions">Common Issues and Solutions<a class="headerlink" href="#common-issues-and-solutions" title="Permanent link">&para;</a></h3>
 <p><strong>Memory Errors</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Solution: Reduce batch size and set memory limit</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">250</span><span class="p">,</span>  <span class="c1"># Smaller batches</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s2">&quot;4GB&quot;</span><span class="p">,</span>  <span class="c1"># Conservative limit</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">sample</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Test with sample first</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Solution: Reduce batch size and set memory limit</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">250</span><span class="p">,</span>  <span class="c1"># Smaller batches</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">memory_limit</span><span class="o">=</span><span class="s2">&quot;4GB&quot;</span><span class="p">,</span>  <span class="c1"># Conservative limit</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">sample</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Test with sample first</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div></p>
 <p><strong>System Crashes</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Solution: Check resources first and configure accordingly</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">()</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="k">if</span> <span class="n">resources</span><span class="p">[</span><span class="s1">&#39;memory_available_gb&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">8</span><span class="p">:</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning: Low memory available. Consider using smaller batch_size.&quot;</span><span class="p">)</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">250</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Solution: Check resources first and configure accordingly</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">resources</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">()</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="k">if</span> <span class="n">resources</span><span class="p">[</span><span class="s1">&#39;memory_available_gb&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">8</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Warning: Low memory available. Consider using smaller batch_size.&quot;</span><span class="p">)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">250</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1000</span>
 </code></pre></div></p>
 <p><strong>Empty Results</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Check if tables and categories exist</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Available tables:&quot;</span><span class="p">,</span> <span class="n">co</span><span class="o">.</span><span class="n">get_loaded_tables</span><span class="p">())</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">co</span><span class="o">.</span><span class="n">vitals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Vital categories:&quot;</span><span class="p">,</span> <span class="n">co</span><span class="o">.</span><span class="n">vitals</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;vital_category&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Check if tables and categories exist</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Available tables:&quot;</span><span class="p">,</span> <span class="n">co</span><span class="o">.</span><span class="n">get_loaded_tables</span><span class="p">())</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">co</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">co</span><span class="o">.</span><span class="n">vitals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Vital categories:&quot;</span><span class="p">,</span> <span class="n">co</span><span class="o">.</span><span class="n">vitals</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;vital_category&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
 </code></pre></div></p>
 <p><strong>Slow Performance</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Use optimize settings</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">],</span>  <span class="c1"># Start with one table</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">]</span>  <span class="c1"># Limit categories</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="p">},</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">threads</span><span class="o">=</span><span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">(</span><span class="n">print_summary</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">]</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Use optimize settings</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">],</span>  <span class="c1"># Start with one table</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">]</span>  <span class="c1"># Limit categories</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="p">},</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">threads</span><span class="o">=</span><span class="n">co</span><span class="o">.</span><span class="n">get_sys_resource_info</span><span class="p">(</span><span class="n">print_summary</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span><span class="s1">&#39;max_recommended_threads&#39;</span><span class="p">]</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="p">)</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">wide_df</span>
 </code></pre></div></p>
 <h3 id="error-messages">Error Messages<a class="headerlink" href="#error-messages" title="Permanent link">&para;</a></h3>
 <table>
@@ -2392,22 +2533,22 @@
 </table>
 <h2 id="integration-with-existing-workflows">Integration with Existing Workflows<a class="headerlink" href="#integration-with-existing-workflows" title="Permanent link">&para;</a></h2>
 <p>Wide dataset creation integrates seamlessly with existing ClifOrchestrator workflows:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Traditional approach</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">co</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="s1">&#39;/path/to/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;UTC&#39;</span><span class="p">)</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">co</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s1">&#39;patient&#39;</span><span class="p">,</span> <span class="s1">&#39;hospitalization&#39;</span><span class="p">,</span> <span class="s1">&#39;adt&#39;</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">])</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># Enhanced with wide dataset</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">wide_df</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">],</span>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">]</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>    <span class="p">}</span>
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="p">)</span>
-<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
-<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="c1"># Continue with validation and analysis</span>
-<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="n">co</span><span class="o">.</span><span class="n">validate_all</span><span class="p">()</span>
-<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="n">analysis_results</span> <span class="o">=</span> <span class="n">your_analysis_function</span><span class="p">(</span><span class="n">wide_df</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># Traditional approach</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">co</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="s1">&#39;/path/to/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;UTC&#39;</span><span class="p">)</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">co</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s1">&#39;patient&#39;</span><span class="p">,</span> <span class="s1">&#39;hospitalization&#39;</span><span class="p">,</span> <span class="s1">&#39;adt&#39;</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">])</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="c1"># Enhanced with wide dataset</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">co</span><span class="o">.</span><span class="n">create_wide_dataset</span><span class="p">(</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">tables_to_load</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;vitals&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">],</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="n">category_filters</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>        <span class="s1">&#39;vitals&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;heart_rate&#39;</span><span class="p">,</span> <span class="s1">&#39;sbp&#39;</span><span class="p">],</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>        <span class="s1">&#39;labs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;hemoglobin&#39;</span><span class="p">]</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    <span class="p">}</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="p">)</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="c1"># Continue with validation and analysis</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="n">co</span><span class="o">.</span><span class="n">validate_all</span><span class="p">()</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="n">analysis_results</span> <span class="o">=</span> <span class="n">your_analysis_function</span><span class="p">(</span><span class="n">co</span><span class="o">.</span><span class="n">wide_df</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>

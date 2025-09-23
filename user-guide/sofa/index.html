@@ -12,22 +12,28 @@
         <meta name="author" content="CLIF Consortium">
       
       
+        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/sofa/">
       
       
+        <link rel="prev" href="../med-unit-conversion/">
       
-      <link rel="icon" href="/CLIFpy/images/clif_logo_red_no_text.png">
+      
+        <link rel="next" href="../timezones/">
+      
+      
+      <link rel="icon" href="../../images/clif_logo_red_no_text.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
     
     
       
-        <title>CLIFpy Documentation</title>
+        <title>SOFA Score Computation - CLIFpy Documentation</title>
       
     
     
-      <link rel="stylesheet" href="/CLIFpy/assets/stylesheets/main.7e37652d.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
       
         
-        <link rel="stylesheet" href="/CLIFpy/assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +52,11 @@
       
     
     
-      <link rel="stylesheet" href="/CLIFpy/assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="/CLIFpy/stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("/CLIFpy/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -75,6 +81,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#sofa-score-computation" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -89,9 +100,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/CLIFpy/." title="CLIFpy Documentation" class="md-header__button md-logo" aria-label="CLIFpy Documentation" data-md-component="logo">
+    <a href="../.." title="CLIFpy Documentation" class="md-header__button md-logo" aria-label="CLIFpy Documentation" data-md-component="logo">
       
-  <img src="/CLIFpy/images/clif_logo_no_text_white.png" alt="logo">
+  <img src="../../images/clif_logo_no_text_white.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -108,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              SOFA Score Computation
             
           </span>
         </div>
@@ -221,7 +232,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/CLIFpy/." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -242,7 +253,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/CLIFpy/getting-started/installation/" class="md-tabs__link">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
           
   
   
@@ -258,11 +269,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="/CLIFpy/user-guide/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -282,7 +295,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/CLIFpy/examples/" class="md-tabs__link">
+        <a href="../../examples/" class="md-tabs__link">
           
   
   
@@ -302,7 +315,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/CLIFpy/api/" class="md-tabs__link">
+        <a href="../../api/" class="md-tabs__link">
           
   
   
@@ -320,7 +333,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/CLIFpy/contributing/" class="md-tabs__link">
+      <a href="../../contributing/" class="md-tabs__link">
         
   
   
@@ -355,9 +368,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/CLIFpy/." title="CLIFpy Documentation" class="md-nav__button md-logo" aria-label="CLIFpy Documentation" data-md-component="logo">
+    <a href="../.." title="CLIFpy Documentation" class="md-nav__button md-logo" aria-label="CLIFpy Documentation" data-md-component="logo">
       
-  <img src="/CLIFpy/images/clif_logo_no_text_white.png" alt="logo">
+  <img src="../../images/clif_logo_no_text_white.png" alt="logo">
 
     </a>
     CLIFpy Documentation
@@ -384,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -451,7 +464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/getting-started/installation/" class="md-nav__link">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
@@ -474,7 +487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -497,7 +510,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/getting-started/basic-usage/" class="md-nav__link">
+      <a href="../../getting-started/basic-usage/" class="md-nav__link">
         
   
   
@@ -524,28 +537,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -558,7 +574,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             User Guide
@@ -572,7 +588,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -595,7 +611,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/orchestrator/" class="md-nav__link">
+      <a href="../orchestrator/" class="md-nav__link">
         
   
   
@@ -624,10 +640,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -636,7 +655,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
             
   
   
@@ -663,7 +682,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/" class="md-nav__link">
+      <a href="../tables/" class="md-nav__link">
         
   
   
@@ -686,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/patient/" class="md-nav__link">
+      <a href="../tables/patient/" class="md-nav__link">
         
   
   
@@ -709,7 +728,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/adt/" class="md-nav__link">
+      <a href="../tables/adt/" class="md-nav__link">
         
   
   
@@ -732,7 +751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/hospitalization/" class="md-nav__link">
+      <a href="../tables/hospitalization/" class="md-nav__link">
         
   
   
@@ -755,7 +774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/labs/" class="md-nav__link">
+      <a href="../tables/labs/" class="md-nav__link">
         
   
   
@@ -778,7 +797,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/vitals/" class="md-nav__link">
+      <a href="../tables/vitals/" class="md-nav__link">
         
   
   
@@ -801,7 +820,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/respiratory-support/" class="md-nav__link">
+      <a href="../tables/respiratory-support/" class="md-nav__link">
         
   
   
@@ -824,7 +843,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/medication-admin/" class="md-nav__link">
+      <a href="../tables/medication-admin/" class="md-nav__link">
         
   
   
@@ -847,7 +866,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/patient-assessments/" class="md-nav__link">
+      <a href="../tables/patient-assessments/" class="md-nav__link">
         
   
   
@@ -870,7 +889,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/tables/position/" class="md-nav__link">
+      <a href="../tables/position/" class="md-nav__link">
         
   
   
@@ -901,7 +920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/validation/" class="md-nav__link">
+      <a href="../validation/" class="md-nav__link">
         
   
   
@@ -924,7 +943,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/med-unit-conversion/" class="md-nav__link">
+      <a href="../med-unit-conversion/" class="md-nav__link">
         
   
   
@@ -944,10 +963,32 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/sofa/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    SOFA Score Computation
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -958,6 +999,107 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#encounter-block-vs-hospitalization-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Encounter Block vs Hospitalization ID
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Required Data
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#missing-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Missing Data
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-with-time-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example with Time Filtering
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sofa-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      SOFA Components
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notes
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -970,7 +1112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/timezones/" class="md-nav__link">
+      <a href="../timezones/" class="md-nav__link">
         
   
   
@@ -999,10 +1141,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -1011,7 +1156,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_8" >
         
           
-          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="">
             
   
   
@@ -1038,7 +1183,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/wide-dataset/" class="md-nav__link">
+      <a href="../wide-dataset/" class="md-nav__link">
         
   
   
@@ -1061,7 +1206,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/waterfall/" class="md-nav__link">
+      <a href="../waterfall/" class="md-nav__link">
         
   
   
@@ -1084,7 +1229,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/encounter-stitching/" class="md-nav__link">
+      <a href="../encounter-stitching/" class="md-nav__link">
         
   
   
@@ -1107,7 +1252,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/user-guide/outlier-handling/" class="md-nav__link">
+      <a href="../outlier-handling/" class="md-nav__link">
         
   
   
@@ -1190,7 +1335,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/examples/" class="md-nav__link">
+      <a href="../../examples/" class="md-nav__link">
         
   
   
@@ -1213,7 +1358,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/examples/loading-data/" class="md-nav__link">
+      <a href="../../examples/loading-data/" class="md-nav__link">
         
   
   
@@ -1236,7 +1381,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/examples/icu-analysis/" class="md-nav__link">
+      <a href="../../examples/icu-analysis/" class="md-nav__link">
         
   
   
@@ -1259,7 +1404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/examples/clinical-calculations/" class="md-nav__link">
+      <a href="../../examples/clinical-calculations/" class="md-nav__link">
         
   
   
@@ -1334,7 +1479,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/api/" class="md-nav__link">
+      <a href="../../api/" class="md-nav__link">
         
   
   
@@ -1357,7 +1502,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/api/orchestrator/" class="md-nav__link">
+      <a href="../../api/orchestrator/" class="md-nav__link">
         
   
   
@@ -1380,7 +1525,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/api/base-table/" class="md-nav__link">
+      <a href="../../api/base-table/" class="md-nav__link">
         
   
   
@@ -1403,7 +1548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/api/tables/" class="md-nav__link">
+      <a href="../../api/tables/" class="md-nav__link">
         
   
   
@@ -1426,7 +1571,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/api/utilities/" class="md-nav__link">
+      <a href="../../api/utilities/" class="md-nav__link">
         
   
   
@@ -1456,7 +1601,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/CLIFpy/contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         
   
   
@@ -1488,6 +1633,97 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#encounter-block-vs-hospitalization-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Encounter Block vs Hospitalization ID
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Required Data
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#missing-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Missing Data
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-with-time-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example with Time Filtering
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sofa-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      SOFA Components
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notes
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1499,8 +1735,158 @@
             <div class="md-content" data-md-component="content">
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+
+  
+  
+
+
+<h1 id="sofa-score-computation">SOFA Score Computation<a class="headerlink" href="#sofa-score-computation" title="Permanent link">&para;</a></h1>
+<p>Compute Sequential Organ Failure Assessment (SOFA) scores from CLIF data.</p>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">clifpy.clif_orchestrator</span> <span class="kn">import</span> <span class="n">ClifOrchestrator</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">co</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;config/config.yaml&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">sofa_scores</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">compute_sofa_scores</span><span class="p">()</span>
+</code></pre></div>
+<h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>wide_df</code>: Optional pre-computed wide dataset</li>
+<li><code>cohort_df</code>: Optional time windows for filtering</li>
+<li><code>id_name</code>: Grouping column (default: 'encounter_block')</li>
+<li><code>extremal_type</code>: 'worst' (default) or 'latest' (future)</li>
+<li><code>fill_na_scores_with_zero</code>: Handle missing data (default: True)</li>
+</ul>
+<h2 id="encounter-block-vs-hospitalization-id">Encounter Block vs Hospitalization ID<a class="headerlink" href="#encounter-block-vs-hospitalization-id" title="Permanent link">&para;</a></h2>
+<p>By default, SOFA scores are computed per <code>encounter_block</code>, which groups related hospitalizations:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Initialize with encounter stitching</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">co</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;config/config.yaml&#39;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">stitch_encounter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">stitch_time_interval</span><span class="o">=</span><span class="mi">6</span>  <span class="c1"># hours between admissions</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Default: scores per encounter block (may span multiple hospitalizations)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">sofa_by_encounter</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">compute_sofa_scores</span><span class="p">()</span>  <span class="c1"># uses encounter_block</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Alternative: scores per individual hospitalization</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">sofa_by_hosp</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">compute_sofa_scores</span><span class="p">(</span><span class="n">id_name</span><span class="o">=</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>What happens when using encounter_block:</strong></p>
+<ul>
+<li>If encounter mapping doesn't exist, it's created automatically via <code>run_stitch_encounters()</code></li>
+<li>Multiple hospitalizations within the time interval are grouped as one encounter</li>
+<li>SOFA score represents the worst values across the entire encounter</li>
+<li>Result has one row per encounter_block instead of per hospitalization</li>
+</ul>
+<p><strong>Example encounter mapping:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>hospitalization_id | encounter_block
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>-------------------|----------------
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>12345             | E001
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>12346             | E001  # Same encounter (readmit &lt; 6 hours)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>12347             | E002  # Different encounter
+</code></pre></div></p>
+<h2 id="required-data">Required Data<a class="headerlink" href="#required-data" title="Permanent link">&para;</a></h2>
+<p>SOFA requires these variables:</p>
+<ul>
+<li><strong>Labs</strong>: creatinine, platelet_count, po2_arterial, bilirubin_total</li>
+<li><strong>Vitals</strong>: map, spo2</li>
+<li><strong>Assessments</strong>: gcs_total</li>
+<li><strong>Medications</strong>: norepinephrine, epinephrine, dopamine, dobutamine (pre-converted to mcg/kg/min)</li>
+<li><strong>Respiratory</strong>: device_category, fio2_set</li>
+</ul>
+<h2 id="missing-data">Missing Data<a class="headerlink" href="#missing-data" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Missing values default to score of 0</li>
+<li>P/F ratio uses PaO2 or imputed from SpO2</li>
+<li>Medications must be pre-converted to standard units</li>
+</ul>
+<h2 id="example-with-time-filtering">Example with Time Filtering<a class="headerlink" href="#example-with-time-filtering" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Define cohort with time windows</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">cohort_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="s1">&#39;encounter_block&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;E001&#39;</span><span class="p">,</span> <span class="s1">&#39;E002&#39;</span><span class="p">],</span>  <span class="c1"># or &#39;hospitalization_id&#39;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="s1">&#39;start_time&#39;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">([</span><span class="s1">&#39;2024-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2024-01-02&#39;</span><span class="p">]),</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="s1">&#39;end_time&#39;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">([</span><span class="s1">&#39;2024-01-03&#39;</span><span class="p">,</span> <span class="s1">&#39;2024-01-04&#39;</span><span class="p">])</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">})</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">sofa_scores</span> <span class="o">=</span> <span class="n">co</span><span class="o">.</span><span class="n">compute_sofa_scores</span><span class="p">(</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">cohort_df</span><span class="o">=</span><span class="n">cohort_df</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">id_name</span><span class="o">=</span><span class="s1">&#39;encounter_block&#39;</span>  <span class="c1"># must match cohort_df column</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">)</span>
+</code></pre></div>
+<h2 id="output">Output<a class="headerlink" href="#output" title="Permanent link">&para;</a></h2>
+<p>Returns DataFrame with:</p>
+<ul>
+<li>One row per <code>id_name</code> (encounter_block or hospitalization_id)</li>
+<li>Individual component scores (sofa_cv_97, sofa_coag, sofa_liver, sofa_resp, sofa_cns, sofa_renal)</li>
+<li>Total SOFA score (sofa_total)</li>
+<li>Intermediate calculations (p_f, p_f_imputed)</li>
+</ul>
+<h2 id="sofa-components">SOFA Components<a class="headerlink" href="#sofa-components" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Based on</th>
+<th>Score Range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cardiovascular</td>
+<td>Vasopressor doses, MAP</td>
+<td>0-4</td>
+</tr>
+<tr>
+<td>Coagulation</td>
+<td>Platelet count</td>
+<td>0-4</td>
+</tr>
+<tr>
+<td>Liver</td>
+<td>Bilirubin levels</td>
+<td>0-4</td>
+</tr>
+<tr>
+<td>Respiratory</td>
+<td>P/F ratio, respiratory support</td>
+<td>0-4</td>
+</tr>
+<tr>
+<td>CNS</td>
+<td>GCS score</td>
+<td>0-4</td>
+</tr>
+<tr>
+<td>Renal</td>
+<td>Creatinine levels</td>
+<td>0-4</td>
+</tr>
+</tbody>
+</table>
+<p>Higher scores indicate worse organ dysfunction. Total score ranges from 0-24.</p>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Medication units</strong>: Ensure medications are pre-converted to mcg/kg/min using the unit converter</li>
+<li><strong>PaO2 imputation</strong>: When PaO2 is missing but SpO2 &lt; 97%, PaO2 is estimated using the Severinghaus equation</li>
+<li><strong>Missing data philosophy</strong>: Absence of monitoring data suggests the organ wasn't failing enough to warrant close observation (score = 0)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -1559,12 +1945,12 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "/CLIFpy/", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy"], "search": "/CLIFpy/assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="/CLIFpy/assets/javascripts/bundle.92b07e13.min.js"></script>
+      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
       
-        <script src="/CLIFpy/js/dark-mode-default.js"></script>
+        <script src="../../js/dark-mode-default.js"></script>
       
     
   </body>
