@@ -21,7 +21,7 @@ from .utils.waterfall import process_resp_support_waterfall
 from .utils.wide_dataset import create_wide_dataset, convert_wide_to_hourly
 from .utils.comorbidity import calculate_cci
 from .utils.outlier_handler import apply_outlier_handling, get_outlier_summary
-from .utils.config import load_clif_config
+from .utils.config import load_config
 from .utils.io import load_data
 
 # Version info
@@ -52,6 +52,6 @@ __all__ = [
     "calculate_cci",
     "apply_outlier_handling",
     "get_outlier_summary",
-    "load_clif_config",
+    "load_config",
     "load_data",
 ]
