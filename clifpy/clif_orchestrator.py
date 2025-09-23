@@ -222,27 +222,32 @@ class ClifOrchestrator:
         
         # Perform encounter stitching if enabled
         if self.stitch_encounter:
-            if self.hospitalization is None or self.adt is None:
-                print("Warning: Encounter stitching requires both hospitalization and ADT tables to be loaded. Skipping stitching.")
-            else:
-                print(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours...")
-                try:
-                    hospitalization_stitched, adt_stitched, encounter_mapping = stitch_encounters(
-                        self.hospitalization.df,
-                        self.adt.df,
-                        time_interval=self.stitch_time_interval
-                    )
-                    
-                    # Update the dataframes in place
-                    self.hospitalization.df = hospitalization_stitched
-                    self.adt.df = adt_stitched
-                    self.encounter_mapping = encounter_mapping
-                    
-                    print("Encounter stitching completed successfully.")
-                except Exception as e:
-                    print(f"Error during encounter stitching: {e}")
-                    self.encounter_mapping = None
+            self.run_stitch_encounters()
     
+    def run_stitch_encounters(self):
+        if (self.hospitalization is None) or (self.adt is None):
+            # automatically load hospitalization and adt
+            self.load_table('hospitalization')
+            self.load_table('adt')
+        else:
+            print(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours...")
+            try:
+                hospitalization_stitched, adt_stitched, encounter_mapping = stitch_encounters(
+                    self.hospitalization.df,
+                    self.adt.df,
+                    time_interval=self.stitch_time_interval
+                )
+                
+                # Update the dataframes in place
+                self.hospitalization.df = hospitalization_stitched
+                self.adt.df = adt_stitched
+                self.encounter_mapping = encounter_mapping
+                
+                print("Encounter stitching completed successfully.")
+            except Exception as e:
+                print(f"Error during encounter stitching: {e}")
+                self.encounter_mapping = None
+        
     def get_loaded_tables(self) -> List[str]:
         """
         Return list of currently loaded table names.
@@ -282,6 +287,8 @@ class ClifOrchestrator:
             pd.DataFrame: Mapping of hospitalization_id to encounter_block if stitching was performed.
             None: If stitching was not performed or failed.
         """
+        if self.encounter_mapping is None:
+            self.run_stitch_encounters()
         return self.encounter_mapping
     
     def validate_all(self):
@@ -990,3 +997,103 @@ class ClifOrchestrator:
         else:
             self.logger.info("Returning converted data without updating table")
             return converted_df, counts_df
+
+    def compute_sofa_scores(
+        self,
+        wide_df: Optional[pd.DataFrame] = None,
+        cohort_df: Optional[pd.DataFrame] = None,
+        extremal_type: str = 'worst',
+        id_name: str = 'encounter_block',
+        fill_na_scores_with_zero: bool = True
+    ) -> pd.DataFrame:
+        """
+        Compute SOFA (Sequential Organ Failure Assessment) scores.
+
+        Parameters:
+            wide_df: Optional wide dataset. If not provided, uses self.wide_df or creates one
+            cohort_df: Optional DataFrame with columns [id_name, 'start_time', 'end_time']
+                      to further filter observations by time windows
+            extremal_type: 'worst' (default) or 'latest' (future feature)
+            id_name: Column name for grouping (default: 'encounter_block')
+                    - 'encounter_block': Groups related hospitalizations (requires encounter stitching)
+                    - 'hospitalization_id': Individual hospitalizations
+            fill_na_scores_with_zero: If True, missing component scores default to 0
+
+        Returns:
+            DataFrame with SOFA component scores and total score for each ID.
+            Results are stored in self.sofa_df.
+
+        Notes:
+            - Medication units should be pre-converted (e.g., 'norepinephrine_mcg_kg_min')
+            - When id_name='encounter_block' and encounter mapping doesn't exist,
+              it will be created automatically via run_stitch_encounters()
+            - Missing data defaults to score of 0 (normal organ function)
+
+        Examples:
+            Basic usage:
+            >>> co = ClifOrchestrator(config_path='config/config.yaml')
+            >>> sofa_scores = co.compute_sofa_scores()
+
+            Per hospitalization instead of encounter:
+            >>> sofa_scores = co.compute_sofa_scores(id_name='hospitalization_id')
+
+            With time filtering:
+            >>> cohort_df = pd.DataFrame({
+            ...     'encounter_block': ['E001', 'E002'],
+            ...     'start_time': pd.to_datetime(['2024-01-01', '2024-01-02']),
+            ...     'end_time': pd.to_datetime(['2024-01-03', '2024-01-04'])
+            ... })
+            >>> sofa_scores = co.compute_sofa_scores(cohort_df=cohort_df)
+        """
+        from .utils.sofa import compute_sofa, REQUIRED_SOFA_CATEGORIES_BY_TABLE
+
+        self.logger.info(f"Computing SOFA scores with extremal_type='{extremal_type}', id_name='{id_name}'")
+        
+        if (cohort_df is not None) and (id_name not in cohort_df.columns):
+            raise ValueError(f"id_name '{id_name}' not found in cohort_df columns")
+        
+        # Determine which wide_df to use
+        if wide_df is not None:
+            self.logger.debug("Using provided wide_df")
+            df = wide_df
+        elif hasattr(self, 'wide_df') and self.wide_df is not None:
+            self.logger.debug("Using existing self.wide_df")
+            df = self.wide_df
+        else:
+            self.logger.info("No wide dataset available, creating one...")
+            # Create wide dataset with required categories for SOFA
+
+            self.create_wide_dataset(
+                tables_to_load=list(REQUIRED_SOFA_CATEGORIES_BY_TABLE.keys()),
+                category_filters=REQUIRED_SOFA_CATEGORIES_BY_TABLE,
+                cohort_df=cohort_df
+            )
+            df = self.wide_df
+            self.logger.debug(f"Created wide dataset with shape: {df.shape}")
+
+        if id_name not in df.columns:
+            if self.encounter_mapping is None:
+                try:
+                    self.run_stitch_encounters()
+                except Exception as e:
+                    self.logger.error(f"Error during encounter stitching: {e}")
+                    raise ValueError("Encounter stitching failed. Please run stitch_encounters() manually.")
+            df = df.merge(self.encounter_mapping, on='hospitalization_id', how='left')   
+            self.wide_df = df
+            self.logger.debug(f"Mapped {id_name} to wide_df via encounter_mapping, with shape: {df.shape}")
+    
+        # Compute SOFA scores
+        self.logger.debug("Calling compute_sofa function")
+        sofa_scores = compute_sofa(
+            wide_df=df,
+            cohort_df=cohort_df,
+            extremal_type=extremal_type,
+            id_name=id_name,
+            fill_na_scores_with_zero=fill_na_scores_with_zero
+        )
+
+        # Store results in orchestrator
+        self.sofa_df = sofa_scores
+        self.logger.info(f"SOFA computation completed. Results stored in self.sofa_df with shape: {sofa_scores.shape}")
+
+        return sofa_scores
