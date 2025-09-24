@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <i>Transform critical care data into actionable insights 🏥</i>
+  <i>Transform critical care data into actionable insights </i>
 </p>
 
 <p align="center">
