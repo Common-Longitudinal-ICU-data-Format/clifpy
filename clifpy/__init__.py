@@ -25,7 +25,11 @@ from .utils.config import load_config
 from .utils.io import load_data
 
 # Version info
-__version__ = "0.0.1"
+try:
+    from importlib.metadata import version
+    __version__ = version("clifpy")
+except Exception:
+    __version__ = "unknown"
 
 # Public API
 __all__ = [
