@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clifpy"  
-version = "0.0.6"
+version = "0.0.7"
 description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
+  {name = "CLIF Consortium", email = "clif_consortium@uchicago.edu"},
   {name = "Kaveri Chhikara", email = "kaveri.chhikara@gmail.com"},
   {name = "Dema Therese Maria", email = "theresemaria98@gmail.com"},
   {name = "Vaishvik Chaudhari", email = "Vaishvikc@gmail.com"},
