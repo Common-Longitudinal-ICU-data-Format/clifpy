@@ -18,7 +18,7 @@
         <link rel="prev" href="../orchestrator/">
       
       
-        <link rel="next" href="patient/">
+        <link rel="next" href="../validation/">
       
       
       <link rel="icon" href="../../images/clif_logo_red_no_text.png">
@@ -26,7 +26,7 @@
     
     
       
-        <title>Overview - CLIFpy Documentation</title>
+        <title>Tables - CLIFpy Documentation</title>
       
     
     
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Tables
             
           </span>
         </div>
@@ -304,25 +304,6 @@
         </a>
       </li>
     
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Contributing
-
-      </a>
-    </li>
   
 
       
@@ -615,54 +596,6 @@
   
   
   
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    Tables
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_3">
-            <span class="md-nav__icon md-icon"></span>
-            Tables
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-    
-  
-  
-  
     <li class="md-nav__item md-nav__item--active">
       
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
@@ -676,7 +609,7 @@
   
   
   <span class="md-ellipsis">
-    Overview
+    Tables
     
   </span>
   
@@ -689,7 +622,7 @@
   
   
   <span class="md-ellipsis">
-    Overview
+    Tables
     
   </span>
   
@@ -712,37 +645,19 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#data-standards" class="md-nav__link">
+  <a href="#core-tables" class="md-nav__link">
     <span class="md-ellipsis">
-      Data Standards
+      Core Tables
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#available-tables" class="md-nav__link">
-    <span class="md-ellipsis">
-      Available Tables
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Available Tables">
+    <nav class="md-nav" aria-label="Core Tables">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#patient" class="md-nav__link">
     <span class="md-ellipsis">
       Patient
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#adt" class="md-nav__link">
-    <span class="md-ellipsis">
-      ADT
     </span>
   </a>
   
@@ -758,22 +673,28 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#labs" class="md-nav__link">
+  <a href="#adt-admission-discharge-transfer" class="md-nav__link">
     <span class="md-ellipsis">
-      Labs
+      ADT (Admission, Discharge, Transfer)
     </span>
   </a>
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#microbiology-culture" class="md-nav__link">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clinical-data-tables" class="md-nav__link">
     <span class="md-ellipsis">
-      Microbiology Culture
+      Clinical Data Tables
     </span>
   </a>
   
-</li>
+    <nav class="md-nav" aria-label="Clinical Data Tables">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#vitals" class="md-nav__link">
@@ -785,9 +706,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#position" class="md-nav__link">
+  <a href="#labs" class="md-nav__link">
     <span class="md-ellipsis">
-      Position
+      Labs
     </span>
   </a>
   
@@ -802,14 +723,53 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#medications" class="md-nav__link">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#medication-tables" class="md-nav__link">
     <span class="md-ellipsis">
-      Medications
+      Medication Tables
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Medication Tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#medication-administration-continuous" class="md-nav__link">
+    <span class="md-ellipsis">
+      Medication Administration - Continuous
     </span>
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#medication-administration-intermittent" class="md-nav__link">
+    <span class="md-ellipsis">
+      Medication Administration - Intermittent
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assessment-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Assessment Tables
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Assessment Tables">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#patient-assessments" class="md-nav__link">
@@ -820,43 +780,10 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-table-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Common Table Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common Table Features">
-      <ul class="md-nav__list">
-        
           <li class="md-nav__item">
-  <a href="#data-loading" class="md-nav__link">
+  <a href="#position" class="md-nav__link">
     <span class="md-ellipsis">
-      Data Loading
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Validation
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#summary-statistics" class="md-nav__link">
-    <span class="md-ellipsis">
-      Summary Statistics
+      Position
     </span>
   </a>
   
@@ -868,44 +795,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#choosing-tables-for-your-analysis" class="md-nav__link">
+  <a href="#usage-example" class="md-nav__link">
     <span class="md-ellipsis">
-      Choosing Tables for Your Analysis
+      Usage Example
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Choosing Tables for Your Analysis">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#for-patient-cohort-building" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Patient Cohort Building
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-clinical-outcomes" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Clinical Outcomes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-treatment-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Treatment Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -921,221 +815,6 @@
     </ul>
   
 </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="patient/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Patient
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="adt/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    ADT
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="hospitalization/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Hospitalization
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="labs/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Labs
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="vitals/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Vitals
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="respiratory-support/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Respiratory Support
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="medication-admin/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Medications
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="patient-assessments/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Assessments
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="position/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Position
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
       
     </li>
   
@@ -1579,28 +1258,6 @@
   
 
     
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Contributing
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
   </ul>
 </nav>
                   </div>
@@ -1628,37 +1285,19 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#data-standards" class="md-nav__link">
+  <a href="#core-tables" class="md-nav__link">
     <span class="md-ellipsis">
-      Data Standards
+      Core Tables
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#available-tables" class="md-nav__link">
-    <span class="md-ellipsis">
-      Available Tables
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Available Tables">
+    <nav class="md-nav" aria-label="Core Tables">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#patient" class="md-nav__link">
     <span class="md-ellipsis">
       Patient
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#adt" class="md-nav__link">
-    <span class="md-ellipsis">
-      ADT
     </span>
   </a>
   
@@ -1674,22 +1313,28 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#labs" class="md-nav__link">
+  <a href="#adt-admission-discharge-transfer" class="md-nav__link">
     <span class="md-ellipsis">
-      Labs
+      ADT (Admission, Discharge, Transfer)
     </span>
   </a>
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#microbiology-culture" class="md-nav__link">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clinical-data-tables" class="md-nav__link">
     <span class="md-ellipsis">
-      Microbiology Culture
+      Clinical Data Tables
     </span>
   </a>
   
-</li>
+    <nav class="md-nav" aria-label="Clinical Data Tables">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#vitals" class="md-nav__link">
@@ -1701,9 +1346,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#position" class="md-nav__link">
+  <a href="#labs" class="md-nav__link">
     <span class="md-ellipsis">
-      Position
+      Labs
     </span>
   </a>
   
@@ -1718,14 +1363,53 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#medications" class="md-nav__link">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#medication-tables" class="md-nav__link">
     <span class="md-ellipsis">
-      Medications
+      Medication Tables
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Medication Tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#medication-administration-continuous" class="md-nav__link">
+    <span class="md-ellipsis">
+      Medication Administration - Continuous
     </span>
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#medication-administration-intermittent" class="md-nav__link">
+    <span class="md-ellipsis">
+      Medication Administration - Intermittent
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assessment-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Assessment Tables
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Assessment Tables">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#patient-assessments" class="md-nav__link">
@@ -1736,43 +1420,10 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-table-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Common Table Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common Table Features">
-      <ul class="md-nav__list">
-        
           <li class="md-nav__item">
-  <a href="#data-loading" class="md-nav__link">
+  <a href="#position" class="md-nav__link">
     <span class="md-ellipsis">
-      Data Loading
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Validation
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#summary-statistics" class="md-nav__link">
-    <span class="md-ellipsis">
-      Summary Statistics
+      Position
     </span>
   </a>
   
@@ -1784,44 +1435,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#choosing-tables-for-your-analysis" class="md-nav__link">
+  <a href="#usage-example" class="md-nav__link">
     <span class="md-ellipsis">
-      Choosing Tables for Your Analysis
+      Usage Example
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Choosing Tables for Your Analysis">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#for-patient-cohort-building" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Patient Cohort Building
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-clinical-outcomes" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Clinical Outcomes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-treatment-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Treatment Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1854,107 +1472,99 @@
 
 
 <h1 id="clif-tables-overview">CLIF Tables Overview<a class="headerlink" href="#clif-tables-overview" title="Permanent link">&para;</a></h1>
-<p>CLIFpy implements all 9 tables defined in the CLIF 2.0.0 specification. Each table represents a specific aspect of ICU patient data, with standardized columns and validation rules. Detailed CLIF Data Dictionary is available <a href="https://clif-icu.com/data-dictionary">here</a></p>
-<h2 id="data-standards">Data Standards<a class="headerlink" href="#data-standards" title="Permanent link">&para;</a></h2>
-<p>Each table follows CLIF standards for:</p>
-<div class="grid cards">
+<p>This page provides a concise overview of all CLIF tables. For detailed field definitions, see the <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0">CLIF Data Dictionary</a>.</p>
+<h2 id="core-tables">Core Tables<a class="headerlink" href="#core-tables" title="Permanent link">&para;</a></h2>
+<h3 id="patient">Patient<a class="headerlink" href="#patient" title="Permanent link">&para;</a></h3>
+<p>Core demographic information including birth date, sex, race, ethnicity, and language. This is the primary table that links <code>patient_id</code> field to the <code>hospitalization_id</code> field in the Hospitalization table.</p>
 <ul>
-<li>
-<p>🏷️ <strong>Standardized Categories</strong></p>
-<hr />
-<p>Consistent values across institutions, validated against permissible value lists, and mapped from institution-specific values.</p>
-</li>
-<li>
-<p>🏥 <strong>Source Preservation</strong></p>
-<hr />
-<p>Original EHR data elements maintained alongside standardized mappings for institutional transparency.</p>
-</li>
-<li>
-<p>🕒 <strong>Timezone Handling</strong></p>
-<hr />
-<p>All datetime columns are timezone-aware with consistent timezone across all tables and automatic conversion during loading.</p>
-</li>
-<li>
-<p>🔑 <strong>Composite Keys</strong></p>
-<hr />
-<p>Unique record identification with duplicate detection and data integrity validation.</p>
-</li>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient">Patient Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#patient">Patient API</a></li>
 </ul>
-</div>
-<h2 id="available-tables">Available Tables<a class="headerlink" href="#available-tables" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TD
-    Patient[Patient] --&gt; |patient_id| Hospitalization[Hospitalization]
-    Hospitalization --&gt; |hospitalization_id| ADT[ADT]
-    Hospitalization --&gt; |hospitalization_id| Labs[Labs]
-    Hospitalization --&gt; |hospitalization_id| Vitals[Vitals]
-    Hospitalization --&gt; |hospitalization_id| Meds[Medications]
-    Hospitalization --&gt; |hospitalization_id| Assess[Assessments]
-    Hospitalization --&gt; |hospitalization_id| Resp[Respiratory Support]
-    Hospitalization --&gt; |hospitalization_id| Pos[Position]</code></pre>
-<h4 id="patient"><a href="patient/">Patient</a><a class="headerlink" href="#patient" title="Permanent link">&para;</a></h4>
-<p>Core demographic information including birth date, sex, race, ethnicity, and language. This is the primary table that links <code>patient_id</code> field to the <code>hospitalization_id</code> field in the Hospitalization table. For detailed API documentation, see <a href="../../api/tables/#patient">Patient API</a></p>
-<h4 id="adt"><a href="adt/">ADT</a><a class="headerlink" href="#adt" title="Permanent link">&para;</a></h4>
-<p>Admission, Discharge, and Transfer events tracking patient movement through different hospital locations (ICU, ward, ED, etc.).</p>
-<h4 id="hospitalization"><a href="hospitalization/">Hospitalization</a><a class="headerlink" href="#hospitalization" title="Permanent link">&para;</a></h4>
-<p>Hospital admission and discharge information, including admission source, discharge disposition, and length of stay.</p>
-<h4 id="labs"><a href="labs/">Labs</a><a class="headerlink" href="#labs" title="Permanent link">&para;</a></h4>
-<p>Laboratory test results with standardized categories (chemistry, hematology, etc.) and reference ranges.</p>
-<h4 id="microbiology-culture"><a href="microbiology-culture/">Microbiology Culture</a><a class="headerlink" href="#microbiology-culture" title="Permanent link">&para;</a></h4>
-<p>Microbiology Culture data includes order and result times of microbiology culture tests, the type of fluid collected, the component of the test, and the organism identified.</p>
-<h4 id="vitals"><a href="vitals/">Vitals</a><a class="headerlink" href="#vitals" title="Permanent link">&para;</a></h4>
-<p>Vital signs measurements including temperature, heart rate, blood pressure, respiratory rate, and oxygen saturation.</p>
-<h4 id="position"><a href="position/">Position</a><a class="headerlink" href="#position" title="Permanent link">&para;</a></h4>
-<p>Patient positioning data, particularly important for prone positioning in ARDS management.</p>
-<h4 id="respiratory-support"><a href="respiratory-support/">Respiratory Support</a><a class="headerlink" href="#respiratory-support" title="Permanent link">&para;</a></h4>
-<p>Ventilation and oxygen therapy data, including device types, settings, and observed values.</p>
-<h4 id="medications"><a href="medication-admin/">Medications</a><a class="headerlink" href="#medications" title="Permanent link">&para;</a></h4>
-<p>Continuous medication infusions with standardized drug categories and dosing information.</p>
-<h4 id="patient-assessments"><a href="patient-assessments/">Patient Assessments</a><a class="headerlink" href="#patient-assessments" title="Permanent link">&para;</a></h4>
-<p>Clinical assessment scores including GCS, RASS, CAM-ICU, pain scores, and other standardized assessments.</p>
-<h2 id="common-table-features">Common Table Features<a class="headerlink" href="#common-table-features" title="Permanent link">&para;</a></h2>
-<p>All tables inherit from <code>BaseTable</code> and share these features:</p>
-<h3 id="data-loading">Data Loading<a class="headerlink" href="#data-loading" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">table</span> <span class="o">=</span> <span class="n">TableClass</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/path/to/data&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;US/Central&#39;</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span>
+<h3 id="hospitalization">Hospitalization<a class="headerlink" href="#hospitalization" title="Permanent link">&para;</a></h3>
+<p>Contains information about each hospital admission including admission/discharge times, disposition, and care unit details.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#hospitalization">Hospitalization Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#hospitalization">Hospitalization API</a></li>
+</ul>
+<h3 id="adt-admission-discharge-transfer">ADT (Admission, Discharge, Transfer)<a class="headerlink" href="#adt-admission-discharge-transfer" title="Permanent link">&para;</a></h3>
+<p>Tracks patient movement throughout their hospitalization with location categories and timestamps.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#adt">ADT Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#adt">ADT API</a></li>
+</ul>
+<h2 id="clinical-data-tables">Clinical Data Tables<a class="headerlink" href="#clinical-data-tables" title="Permanent link">&para;</a></h2>
+<h3 id="vitals">Vitals<a class="headerlink" href="#vitals" title="Permanent link">&para;</a></h3>
+<p>Physiological measurements including heart rate, blood pressure, temperature, respiratory rate, and oxygen saturation.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#vitals">Vitals Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#vitals">Vitals API</a></li>
+</ul>
+<h3 id="labs">Labs<a class="headerlink" href="#labs" title="Permanent link">&para;</a></h3>
+<p>Laboratory test results with standardized categories and units for common ICU tests.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#labs">Labs Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#labs">Labs API</a></li>
+</ul>
+<h3 id="respiratory-support">Respiratory Support<a class="headerlink" href="#respiratory-support" title="Permanent link">&para;</a></h3>
+<p>Detailed ventilation parameters and respiratory support device information.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#respiratory-support">Respiratory Support Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#respiratory-support">Respiratory Support API</a></li>
+</ul>
+<h2 id="medication-tables">Medication Tables<a class="headerlink" href="#medication-tables" title="Permanent link">&para;</a></h2>
+<h3 id="medication-administration-continuous">Medication Administration - Continuous<a class="headerlink" href="#medication-administration-continuous" title="Permanent link">&para;</a></h3>
+<p>Continuous infusions with rates and units, typically for vasoactive drugs and sedatives.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-continuous">Medication Admin Continuous Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#medication-admin-continuous">Medication Admin Continuous API</a></li>
+</ul>
+<h3 id="medication-administration-intermittent">Medication Administration - Intermittent<a class="headerlink" href="#medication-administration-intermittent" title="Permanent link">&para;</a></h3>
+<p>Discrete medication doses including antibiotics, analgesics, and other scheduled medications.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-intermittent">Medication Admin Intermittent Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#medication-admin-intermittent">Medication Admin Intermittent API</a></li>
+</ul>
+<h2 id="assessment-tables">Assessment Tables<a class="headerlink" href="#assessment-tables" title="Permanent link">&para;</a></h2>
+<h3 id="patient-assessments">Patient Assessments<a class="headerlink" href="#patient-assessments" title="Permanent link">&para;</a></h3>
+<p>Clinical assessments and scores including pain scales, sedation scores, and delirium assessments.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient-assessments">Patient Assessments Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#patient-assessments">Patient Assessments API</a></li>
+</ul>
+<h3 id="position">Position<a class="headerlink" href="#position" title="Permanent link">&para;</a></h3>
+<p>Patient positioning data crucial for prone positioning protocols and pressure ulcer prevention.</p>
+<ul>
+<li><strong>Data Dictionary</strong>: <a href="https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#position">Position Table Specification</a></li>
+<li><strong>API Reference</strong>: <a href="../../api/tables/#position">Position API</a></li>
+</ul>
+<h2 id="usage-example">Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">clifpy</span> <span class="kn">import</span> <span class="n">ClifOrchestrator</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Load all tables</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/path/to/clif/data&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;US/Eastern&#39;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Access individual tables</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">patient_df</span> <span class="o">=</span> <span class="n">orchestrator</span><span class="o">.</span><span class="n">patient</span><span class="o">.</span><span class="n">df</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">vitals_df</span> <span class="o">=</span> <span class="n">orchestrator</span><span class="o">.</span><span class="n">vitals</span><span class="o">.</span><span class="n">df</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">labs_df</span> <span class="o">=</span> <span class="n">orchestrator</span><span class="o">.</span><span class="n">labs</span><span class="o">.</span><span class="n">df</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># Join tables for analysis</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">patient_vitals</span> <span class="o">=</span> <span class="n">vitals_df</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">orchestrator</span><span class="o">.</span><span class="n">hospitalization</span><span class="o">.</span><span class="n">df</span><span class="p">[[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">,</span> <span class="s1">&#39;patient_id&#39;</span><span class="p">]],</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">on</span><span class="o">=</span><span class="s1">&#39;hospitalization_id&#39;</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">patient_df</span><span class="p">[[</span><span class="s1">&#39;patient_id&#39;</span><span class="p">,</span> <span class="s1">&#39;birth_date&#39;</span><span class="p">,</span> <span class="s1">&#39;sex_category&#39;</span><span class="p">]],</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">on</span><span class="o">=</span><span class="s1">&#39;patient_id&#39;</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">)</span>
 </code></pre></div>
-<h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">table</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">if</span> <span class="n">table</span><span class="o">.</span><span class="n">isvalid</span><span class="p">():</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Validation passed&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="summary-statistics">Summary Statistics<a class="headerlink" href="#summary-statistics" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">get_summary</span><span class="p">()</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rows: </span><span class="si">{</span><span class="n">summary</span><span class="p">[</span><span class="s1">&#39;num_rows&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Memory: </span><span class="si">{</span><span class="n">summary</span><span class="p">[</span><span class="s1">&#39;memory_usage_mb&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> MB&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="choosing-tables-for-your-analysis">Choosing Tables for Your Analysis<a class="headerlink" href="#choosing-tables-for-your-analysis" title="Permanent link">&para;</a></h2>
-<h3 id="for-patient-cohort-building">For Patient Cohort Building<a class="headerlink" href="#for-patient-cohort-building" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Start with <code>Patient</code> for demographics</li>
-<li>Add <code>Hospitalization</code> for admission criteria</li>
-<li>Include <code>ADT</code> for ICU/location-specific cohorts</li>
-</ul>
-<h3 id="for-clinical-outcomes">For Clinical Outcomes<a class="headerlink" href="#for-clinical-outcomes" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Use <code>Labs</code> for laboratory markers</li>
-<li>Add <code>Vitals</code> for physiological parameters</li>
-<li>Include <code>PatientAssessments</code> for severity scores</li>
-</ul>
-<h3 id="for-treatment-analysis">For Treatment Analysis<a class="headerlink" href="#for-treatment-analysis" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Use <code>RespiratorySupport</code> for ventilation data</li>
-<li>Add <code>MedicationAdminContinuous</code> for drug therapy</li>
-<li>Include <code>Position</code> for positioning interventions</li>
-</ul>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Explore individual table guides for detailed usage</li>
-<li>Learn about <a href="../validation/">data validation</a></li>
-<li>See <a href="../../examples/">practical examples</a></li>
-<li>Review the <a href="../../api/tables/">API reference</a></li>
+<li>Review the <a href="../validation/">Data Validation Guide</a> to ensure data quality</li>
+<li>Explore <a href="../#advanced-features">Advanced Features</a> for complex analyses</li>
+<li>Check the <a href="../../api/">API Reference</a> for detailed method documentation</li>
 </ul>
 
 
