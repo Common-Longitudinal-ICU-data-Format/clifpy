@@ -16,7 +16,7 @@
 
     In depth explanation and discussion of the concepts and working of different features available in CLIFpy.
 
-- 🔨 [**How-to Guides**](examples/index.md)
+- 🔨 [**How-to Guides**](https://common-longitudinal-icu-data-format.github.io/clifpy/)
 
     ---
 

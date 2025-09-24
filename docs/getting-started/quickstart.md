@@ -163,5 +163,5 @@ compliance = assessments.get_assessment_compliance(
 
 - [Learn about basic usage patterns](basic-usage.md)
 - [Explore the full User Guide](../user-guide/index.md)
-- [See more examples](../examples/index.md)
+- [See more examples]()
 - [Read the API documentation](../api/index.md)

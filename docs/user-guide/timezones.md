@@ -263,17 +263,7 @@ US_TIMEZONES = {
     'Central': 'US/Central',     # Chicago, Houston, Dallas
     'Mountain': 'US/Mountain',   # Denver, Phoenix
     'Pacific': 'US/Pacific',     # LA, Seattle, San Francisco
-    'Alaska': 'US/Alaska',       # Anchorage
-    'Hawaii': 'US/Hawaii'        # Honolulu
-}
-
-# International
-INTL_TIMEZONES = {
-    'London': 'Europe/London',
-    'Paris': 'Europe/Paris',
-    'Tokyo': 'Asia/Tokyo',
-    'Sydney': 'Australia/Sydney',
-    'Toronto': 'America/Toronto'
+    'Toronto': 'America/Toronto' # Toronto, Canada
 }
 ```
 
@@ -304,5 +294,5 @@ if not table.isvalid():
 ## Next Steps
 
 - Review [validation guide](validation.md) for timezone validation
-- See [examples](../examples/index.md) of timezone handling
-- Learn about [multi-site analysis](../examples/index.md)
+- See [examples]() of timezone handling
+- Learn about [multi-site analysis]()

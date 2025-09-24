@@ -202,6 +202,6 @@ for table_name in orchestrator.get_loaded_tables():
 
 ## Next Steps
 
-- Learn about individual [table types](tables/index.md)
+- Learn about individual [table types](tables.md)
 - Understand [data validation](validation.md)
-- See [practical examples](../examples/index.md)
+- See [practical examples]()
