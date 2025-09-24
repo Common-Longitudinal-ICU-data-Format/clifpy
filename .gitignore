@@ -24,6 +24,7 @@ todo.md
 # dev
 .dev/
 graphs/
+publish.sh
 
 clif_2.1.0.txt
 context7.json
