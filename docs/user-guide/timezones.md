@@ -294,5 +294,5 @@ if not table.isvalid():
 ## Next Steps
 
 - Review [validation guide](validation.md) for timezone validation
-- See [examples](../examples/index.md) of timezone handling
-- Learn about [multi-site analysis](../examples/index.md)
+- See [examples]() of timezone handling
+- Learn about [multi-site analysis]()

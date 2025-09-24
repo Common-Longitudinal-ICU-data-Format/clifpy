@@ -257,5 +257,5 @@ if not table.isvalid():
 ## Next Steps
 
 - Learn about [timezone handling](timezones.md)
-- Explore [table-specific guides](tables/index.md)
-- See [practical examples](../examples/index.md)
+- Explore [table-specific guides](tables.md)
+- See [practical examples]()

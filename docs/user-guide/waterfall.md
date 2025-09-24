@@ -191,7 +191,7 @@ processed = rs.waterfall()
 
 ## See Also
 
-- [Respiratory Support Table](tables/respiratory-support.md) - Table schema and validation
+- [Respiratory Support Table](tables.md#respiratory-support) - Table schema and validation
 - [Wide Dataset Creation](wide-dataset.md) - Creating analysis-ready datasets
 - [Data Validation](validation.md) - Understanding validation errors
 - [Timezone Handling](timezones.md) - Working with different timezones

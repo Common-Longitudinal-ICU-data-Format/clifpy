@@ -20,7 +20,7 @@ Detect and remove physiologically implausible values using configurable ranges a
 ### [Comorbidity Index Computation](comorbidity-index.md)
 Calculate Charlson and Elixhauser comorbidity indices from hospital diagnosis data for risk stratification and outcomes research.
 
-### [Tables](tables/index.md)
+### [Tables](tables.md)
 Detailed guides for each CLIF table type: 
 
 - Patient demographics
@@ -177,8 +177,8 @@ cohort_vitals = vitals.df[vitals.df['hospitalization_id'].isin(cohort_ids)]
 
 ## Next Steps
 
-- Explore specific [table guides](tables/index.md)
+- Explore specific [table guides](tables.md)
 - Calculate [comorbidity indices](comorbidity-index.md) for risk stratification
 - Learn about [data validation](validation.md)
-- See [practical examples](../examples/index.md)
+- See [practical examples]()
 - Review the [API reference](../api/index.md)

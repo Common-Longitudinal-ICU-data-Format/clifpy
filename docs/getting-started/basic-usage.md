@@ -221,5 +221,5 @@ except Exception as e:
 
 - [Explore the full User Guide](../user-guide/index.md)
 - [Learn about the Orchestrator](../user-guide/orchestrator.md)
-- [See table-specific guides](../user-guide/tables/index.md)
-- [View practical examples](../examples/index.md)
+- [See table-specific guides](../user-guide/tables.md)
+- [View practical examples]()

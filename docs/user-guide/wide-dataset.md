@@ -417,6 +417,6 @@ analysis_results = your_analysis_function(co.wide_df)
 ## Next Steps
 
 - Learn about [data validation](validation.md) to ensure data quality
-- Explore [individual table guides](tables/index.md) for detailed table documentation
+- Explore [individual table guides](tables.md) for detailed table documentation
 - See the [orchestrator guide](orchestrator.md) for advanced orchestrator features
 - Review [timezone handling](timezones.md) for multi-site data

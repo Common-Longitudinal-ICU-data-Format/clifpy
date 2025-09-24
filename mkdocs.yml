@@ -82,17 +82,7 @@ nav:
   - User Guide:
       - Overview: user-guide/index.md
       - CLIF Orchestrator: user-guide/orchestrator.md
-      - Tables:
-          - Overview: user-guide/tables/index.md
-          - Patient: user-guide/tables/patient.md
-          - ADT: user-guide/tables/adt.md
-          - Hospitalization: user-guide/tables/hospitalization.md
-          - Labs: user-guide/tables/labs.md
-          - Vitals: user-guide/tables/vitals.md
-          - Respiratory Support: user-guide/tables/respiratory-support.md
-          - Medications: user-guide/tables/medication-admin.md
-          - Assessments: user-guide/tables/patient-assessments.md
-          - Position: user-guide/tables/position.md
+      - Tables: user-guide/tables.md
       - Data Validation: user-guide/validation.md
       - Medication Unit Conversion: user-guide/med-unit-conversion.md
       - SOFA Score Computation: user-guide/sofa.md

@@ -496,5 +496,5 @@ The internal configuration includes clinically-validated ranges for:
 
 - Learn about [data validation](validation.md) to ensure data quality after outlier removal
 - Explore [wide dataset creation](wide-dataset.md) with cleaned data
-- Review [individual table guides](tables/index.md) for table-specific considerations
+- Review [individual table guides](tables.md) for table-specific considerations
 - See the [orchestrator guide](orchestrator.md) for workflow integration
