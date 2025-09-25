@@ -1,8 +1,8 @@
-table_name: microbiology_culture
+table_name: microbiology_nonculture
 composite_keys:
 - patient_id
 - hospitalization_id
-- organism_id
+- result_dttm
 columns:
 - name: patient_id
   data_type: VARCHAR
@@ -14,14 +14,9 @@ columns:
   required: true
   is_category_column: false
   is_group_column: false
-- name: organism_id
-  data_type: VARCHAR
-  required: true
-  is_category_column: false
-  is_group_column: false
-- name: order_dttm
+- name: result_dttm
   data_type: DATETIME
-  required: true
+  required: false
   is_category_column: false
   is_group_column: false
 - name: collect_dttm
@@ -29,9 +24,9 @@ columns:
   required: false
   is_category_column: false
   is_group_column: false
-- name: result_dttm
+- name: order_dttm
   data_type: DATETIME
-  required: true
+  required: false
   is_category_column: false
   is_group_column: false
 - name: fluid_name
@@ -45,50 +40,50 @@ columns:
   is_category_column: true
   is_group_column: false
   permissible_values:
-  - brain
-  - central_nervous_system
-  - meninges_csf
-  - spinal_cord
-  - eyes
-  - ears
-  - sinuses
-  - nasopharynx_upperairway
-  - lips
-  - oropharynx_tongue_oralcavity
-  - larynx
-  - lymph_nodes
-  - catheter_tip
-  - cardiac
-  - respiratory_tract
-  - respiratory_tract_lower
-  - pleural_cavity_fluid
-  - joints
-  - bone_marrow
-  - bone_cortex
-  - blood_buffy
-  - esophagus
-  - gallbladder_billary_pancreas
-  - liver
-  - spleen
-  - stomach
-  - small_intestine
-  - large_intestine
-  - gastrointestinal_tract
-  - kidneys_renal_pelvis_ureters_bladder
-  - genito_urinary_tract
-  - fallopians_uterus_cervix
-  - peritoneum
-  - feces_stool
-  - genital_area
-  - prostate
-  - testes
-  - vagina
-  - muscle
-  - skin_rash_pustules_abscesses
-  - skin_disseminated_multiple_sites
-  - woundsite
-  - skin_unspecified
-  - other_unspecified
+  - Brain
+  - Central Nervous System Unspecified
+  - Meninges and CSF
+  - Spinal Cord
+  - Eyes
+  - Ears
+  - Sinuses
+  - Upper Airway and Nasopharynx
+  - Lips
+  - Tongue, Oral Cavity, and Oro-Pharynx
+  - Larynx
+  - Lymph Nodes
+  - Catheter Tip
+  - Cardiac (Endocardium, Myocardium, Pericardium)
+  - Respiratory Tract Unspecified
+  - Lower Respiratory Tract (Lung)
+  - Pleural Cavity, Pleural Fluid
+  - Joints
+  - Bone Marrow
+  - Bone Cortex (Osteomyelitis)
+  - Blood/Buffy Coat
+  - Esophagus
+  - Gallbladder and Billary Tree (Not Hepatitis), Pancreas
+  - Liver
+  - Spleen
+  - Stomach
+  - Small Intestine
+  - Large Intestine
+  - Gastrointestinal Tract Unspecified
+  - Kidneys, Renal Pelvis, Ureters and Bladder
+  - Genito-Urinary Tract Unspecified
+  - Fallopian Tubes, Uterus, Cervix
+  - Peritoneum
+  - Feces/Stool
+  - Genital Area
+  - Prostate
+  - Testes
+  - Vagina
+  - Muscle (Excluding Cardiac)
+  - Rash, Pustules, or Abscesses Not Typical of Any of the Above
+  - Disseminated - Generalized, Isolated at 2 or More Distinct Sites
+  - Woundsite
+  - Skin Unspecified
+  - Other Unspecified
 - name: method_name
   data_type: VARCHAR
   required: false
@@ -100,9 +95,12 @@ columns:
   is_category_column: true
   is_group_column: false
   permissible_values:
-  - culture
-  - gram stain
-  - smear
+  - pcr
+- name: micro_order_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
 - name: organism_category
   data_type: VARCHAR
   required: false
@@ -747,3 +745,17 @@ columns:
   - vibrio
   - viral_other
   - yeast
+- name: result_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: result_category
+  data_type: VARCHAR
+  required: false
+  is_category_column: true
+  is_group_column: false
+  permissible_values:
+  - detected
+  - not detected
+  - indeterminant

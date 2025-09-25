@@ -9,8 +9,16 @@ from .tables import (
     RespiratorySupport,
     Vitals,
     MedicationAdminContinuous,
+    MedicationAdminIntermittent,
     PatientAssessments,
     Position,
+    MicrobiologyCulture,
+    CrrtTherapy,
+    PatientProcedures,
+    MicrobiologySusceptibility,
+    EcmoMcs,
+    MicrobiologyNonculture,
+    CodeStatus,
 )
 # Re-export ClifOrchestrator at package root
 from .clif_orchestrator import ClifOrchestrator
@@ -44,8 +52,16 @@ __all__ = [
     "RespiratorySupport",
     "Vitals",
     "MedicationAdminContinuous",
+    "MedicationAdminIntermittent",
     "PatientAssessments",
     "Position",
+    "MicrobiologyCulture",
+    "CrrtTherapy",
+    "PatientProcedures",
+    "MicrobiologySusceptibility",
+    "EcmoMcs",
+    "MicrobiologyNonculture",
+    "CodeStatus",
     # Orchestrator
     "ClifOrchestrator",
     # Utility functions
