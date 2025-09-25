@@ -2,7 +2,6 @@ table_name: adt
 composite_keys:
   - hospitalization_id
   - in_dttm
-  - location_category
 
 columns:
   - name: hospitalization_id

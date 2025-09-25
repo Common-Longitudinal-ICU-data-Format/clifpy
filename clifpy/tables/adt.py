@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Dict
 import pandas as pd
+import os
 from .base_table import BaseTable
 
 
@@ -54,62 +55,80 @@ class Adt(BaseTable):
     # ------------------------------------------------------------------
     # ADT Specific Methods
     # ------------------------------------------------------------------
-    def get_location_categories(self) -> List[str]:
-        """Return unique location categories in the dataset."""
-        if self.df is None or 'location_category' not in self.df.columns:
-            return []
-        return self.df['location_category'].dropna().unique().tolist()
+    def check_overlapping_admissions(self, save_overlaps: bool = False, overlaps_output_directory: Optional[str] = None) -> int:
+        """
+        Check for overlapping admissions within the same hospitalization.
 
-    def get_hospital_types(self) -> List[str]:
-        """Return unique hospital types in the dataset."""
-        if self.df is None or 'hospital_type' not in self.df.columns:
-            return []
-        return self.df['hospital_type'].dropna().unique().tolist()
+        Identifies cases where a patient has overlapping stays in different locations
+        within the same hospitalization (i.e., the out_dttm of one location is after
+        the in_dttm of the next location).
 
-    def filter_by_hospitalization(self, hospitalization_id: str) -> pd.DataFrame:
-        """Return all ADT records for a specific hospitalization."""
-        if self.df is None:
-            return pd.DataFrame()
-        
-        return self.df[self.df['hospitalization_id'] == hospitalization_id].copy()
+        Parameters:
+            save_overlaps (bool): If True, save detailed overlap information to CSV. Default is False.
+            overlaps_output_directory (str, optional): Directory for saving the overlaps CSV file. 
+                If None, uses the output_directory provided at initialization.
 
-    def filter_by_location_category(self, location_category: str) -> pd.DataFrame:
-        """Return all records for a specific location category (e.g., 'icu', 'ward')."""
-        if self.df is None or 'location_category' not in self.df.columns:
-            return pd.DataFrame()
-        
-        return self.df[self.df['location_category'] == location_category].copy()
+        Returns:
+            int: Count of unique hospitalizations that have overlapping admissions
 
-    def filter_by_date_range(self, start_date: datetime, end_date: datetime, 
-                           date_column: str = 'in_dttm') -> pd.DataFrame:
-        """Return records within a specific date range for a given datetime column."""
-        if self.df is None or date_column not in self.df.columns:
-            return pd.DataFrame()
-        
-        # Convert datetime column to datetime if it's not already
-        df_copy = self.df.copy()
-        df_copy[date_column] = pd.to_datetime(df_copy[date_column])
-        
-        mask = (df_copy[date_column] >= start_date) & (df_copy[date_column] <= end_date)
-        return df_copy[mask]
+        Raises:
+            RuntimeError: If an error occurs during processing
+        """
+        try:
+            if self.df is None:
+                return 0
 
-    def get_summary_stats(self) -> Dict:
-        """Return summary statistics for the ADT data."""
-        if self.df is None:
-            return {}
-        
-        stats = {
-            'total_records': len(self.df),
-            'unique_hospitalizations': self.df['hospitalization_id'].nunique() if 'hospitalization_id' in self.df.columns else 0,
-            'unique_hospitals': self.df['hospital_id'].nunique() if 'hospital_id' in self.df.columns else 0,
-            'location_category_counts': self.df['location_category'].value_counts().to_dict() if 'location_category' in self.df.columns else {},
-            'hospital_type_counts': self.df['hospital_type'].value_counts().to_dict() if 'hospital_type' in self.df.columns else {},
-            'date_range': {
-                'earliest_in': self.df['in_dttm'].min() if 'in_dttm' in self.df.columns else None,
-                'latest_in': self.df['in_dttm'].max() if 'in_dttm' in self.df.columns else None,
-                'earliest_out': self.df['out_dttm'].min() if 'out_dttm' in self.df.columns else None,
-                'latest_out': self.df['out_dttm'].max() if 'out_dttm' in self.df.columns else None
-            }
-        }
-        
-        return stats
+            if 'hospitalization_id' not in self.df.columns:
+                error = "hospitalization_id is missing."
+                raise ValueError(error)
+
+            # Sort by hospitalization_id and in_dttm to make comparisons easier
+            data = self.df.sort_values(by=['hospitalization_id', 'in_dttm'])
+
+            overlaps = []
+            overlapping_hospitalizations = set()
+
+            # Group by hospitalization_id to compare bookings for each hospitalization
+            for hospitalization_id, group in data.groupby('hospitalization_id'):
+                for i in range(len(group) - 1):
+                    # Current and next bookings
+                    current = group.iloc[i]
+                    next = group.iloc[i + 1]
+
+                    # Check if the locations are different and times overlap
+                    if (
+                        current['location_name'] != next['location_name'] and
+                        current['out_dttm'] > next['in_dttm']
+                    ):
+                        overlapping_hospitalizations.add(hospitalization_id)
+
+                        if save_overlaps:
+                            overlaps.append({
+                                'hospitalization_id': hospitalization_id,
+                                'Initial Location': current['location_name'],
+                                'Initial Location Category': current['location_category'],
+                                'Overlapping Location': next['location_name'],
+                                'Overlapping Location Category': next['location_category'],
+                                'Admission Start': current['in_dttm'],
+                                'Admission End': current['out_dttm'],
+                                'Next Admission Start': next['in_dttm']
+                            })
+
+            # Save overlaps to CSV if requested
+            if save_overlaps and overlaps:
+                overlaps_df = pd.DataFrame(overlaps)
+                # Determine the directory to save the overlaps file
+                save_dir = overlaps_output_directory if overlaps_output_directory is not None else self.output_directory
+                if save_dir is not None:
+                    os.makedirs(save_dir, exist_ok=True)
+                    file_path = os.path.join(save_dir, 'overlapping_admissions.csv')
+                    overlaps_df.to_csv(file_path, index=False)
+                else:
+                    # Fallback to original method if no directory is specified
+                    self.save_dataframe(overlaps_df, 'overlapping_admissions')
+
+            return len(overlapping_hospitalizations)
+
+        except Exception as e:
+            # Handle errors gracefully
+            raise RuntimeError(f"Error checking time overlap: {str(e)}")
