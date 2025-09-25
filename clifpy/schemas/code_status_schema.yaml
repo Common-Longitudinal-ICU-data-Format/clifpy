@@ -1,0 +1,36 @@
+table_name: code_status
+composite_keys:
+- hospitalization_id
+- start_dttm
+- code_status_category
+columns:
+- name: patient_id
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: start_dttm
+  data_type: DATETIME
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: code_status_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: code_status_category
+  data_type: VARCHAR
+  required: false
+  is_category_column: true
+  is_group_column: false
+  permissible_values:
+  - DNR
+  - DNAR
+  - UDNR
+  - DNR/DNI
+  - DNAR/DNI
+  - AND
+  - Full
+  - Presume Full
+  - Other
