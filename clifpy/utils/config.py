@@ -8,8 +8,12 @@ for consistent data loading across CLIF tables and orchestrator.
 import os
 import json
 import yaml
+import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
+
+# Initialize logger for this module
+logger = logging.getLogger('pyclif.utils.config')
 
 
 def _load_config_file(config_path: str) -> Dict[str, Any]:
@@ -148,7 +152,7 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
             f"Supported filetypes are: {supported_filetypes}"
         )
     
-    print(f"Configuration loaded successfully from {config_path}")
+    logger.info(f"Configuration loaded from {config_path}")
     return config
 
 
@@ -203,7 +207,7 @@ def get_config_or_params(
         }
         if output_directory is not None:
             config['output_directory'] = output_directory
-        print("Using directly provided parameters")
+        logger.debug("Using directly provided parameters")
         return config
     
     # Try to load from config file
@@ -234,19 +238,19 @@ def get_config_or_params(
     # Override config values with any provided parameters
     if data_directory is not None:
         config['data_directory'] = data_directory
-        print(f"Overriding data_directory from config with: {data_directory}")
-    
+        logger.debug(f"Overriding data_directory: {data_directory}")
+
     if filetype is not None:
         config['filetype'] = filetype
-        print(f"Overriding filetype from config with: {filetype}")
-        
+        logger.debug(f"Overriding filetype: {filetype}")
+
     if timezone is not None:
         config['timezone'] = timezone
-        print(f"Overriding timezone from config with: {timezone}")
-        
+        logger.debug(f"Overriding timezone: {timezone}")
+
     if output_directory is not None:
         config['output_directory'] = output_directory
-        print(f"Overriding output_directory from config with: {output_directory}")
+        logger.debug(f"Overriding output_directory: {output_directory}")
     
     return config
 
@@ -308,4 +312,4 @@ def create_example_config(
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
 
-    print(f"Example {format.upper()} configuration file created at: {config_path}")
+    logger.info(f"Example {format.upper()} configuration file created at: {config_path}")

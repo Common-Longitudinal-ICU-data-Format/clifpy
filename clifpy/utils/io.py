@@ -5,7 +5,11 @@ import duckdb
 import pytz
 from typing import Dict
 import yaml
+import logging
 from .config import get_config_or_params
+
+# Initialize logger for this module
+logger = logging.getLogger('pyclif.utils.io')
 
 # conn = duckdb.connect(database=':memory:')
 
@@ -22,10 +26,11 @@ def load_config(file_path: str) -> Dict:
     return config
 
 
-def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None):
+def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None, verbose=False):
     # Extract just the filename for cleaner output
     filename = os.path.basename(file_path)
-    print(f"Loading {filename}")
+    if verbose:
+        logger.info(f"Loading {filename}")
     con = duckdb.connect()
     # DuckDB >=0.9 understands the original zone if we ask for TIMESTAMPTZ
     con.execute("SET timezone = 'UTC';")          # read & return in UTC
@@ -51,7 +56,7 @@ def load_parquet_with_tz(file_path, columns=None, filters=None, sample_size=None
     df = _cast_id_cols_to_string(df)         # cast id columns to string
     return df
 
-def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None) -> pd.DataFrame:
+def load_data(table_name, table_path, table_format_type, sample_size=None, columns=None, filters=None, site_tz=None, verbose=False) -> pd.DataFrame:
     """
     Load data from a file in the specified directory with the option to select specific columns and apply filters.
 
@@ -71,6 +76,8 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
         Dictionary of filters to apply.
     site_tz : str, optional
         Timezone string for datetime conversion, e.g., "America/New_York".
+    verbose : bool, optional
+        If True, show detailed loading messages. Default is False.
 
     Returns
     -------
@@ -84,7 +91,8 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
     # Load the data based on filetype
     if os.path.exists(file_path):
         if  table_format_type == 'csv':
-            print('Loading CSV file')
+            if verbose:
+                logger.info('Loading CSV file')
             # For CSV, we can use DuckDB to read specific columns and apply filters efficiently
             con = duckdb.connect()
             # Build the SELECT clause
@@ -111,17 +119,18 @@ def load_data(table_name, table_path, table_format_type, sample_size=None, colum
             df = con.execute(query).fetchdf()
             con.close()
         elif table_format_type == 'parquet':
-            df = load_parquet_with_tz(file_path, columns, filters, sample_size)
+            df = load_parquet_with_tz(file_path, columns, filters, sample_size, verbose)
         else:
             raise ValueError("Unsupported filetype. Only 'csv' and 'parquet' are supported.")
         # Extract just the filename for cleaner output
         filename = os.path.basename(file_path)
-        print(f"Data loaded successfully from {filename}")
+        if verbose:
+            logger.info(f"Data loaded successfully from {filename}")
         df = _cast_id_cols_to_string(df) # Cast id columns to string
         
         # Convert datetime columns to site timezone if specified
         if site_tz:
-            df = convert_datetime_columns_to_site_tz(df, site_tz)
+            df = convert_datetime_columns_to_site_tz(df, site_tz, verbose)
         
         return df
     else:
@@ -150,28 +159,60 @@ def convert_datetime_columns_to_site_tz(df, site_tz_str, verbose=True):
     # Identify datetime-related columns
     dttm_columns = [col for col in df.columns if 'dttm' in col]
 
+    if not dttm_columns:
+        logger.debug("No datetime columns found in DataFrame")
+        return df
+
+    # Track conversion statistics
+    converted_cols = []
+    already_correct_cols = []
+    naive_cols = []
+    problem_cols = []
+
     for col in dttm_columns:
         df[col] = pd.to_datetime(df[col], errors='coerce')
         if pd.api.types.is_datetime64tz_dtype(df[col]):
             current_tz = df[col].dt.tz
             # Compare timezone names/strings instead of timezone objects
             if str(current_tz) == str(site_tz):
-                if verbose:
-                    print(f"{col}: Already in your timezone ({current_tz}), no conversion needed.")
+                already_correct_cols.append(col)
+                logger.debug(f"{col}: Already in timezone {current_tz}")
             else:
-                print(f"{col}: null count before conversion= {df[col].isna().sum()}")
+                null_before = df[col].isna().sum()
                 df[col] = df[col].dt.tz_convert(site_tz)
-                if verbose:
-                    if current_tz == pytz.UTC or str(current_tz) == 'UTC':
-                        print(f"{col}: Converted from UTC to your timezone ({site_tz}).")
-                    else:
-                        print(f"{col}: Your timezone is {current_tz}, Converting to your site timezone ({site_tz}).")
-                    print(f"{col}: null count after conversion= {df[col].isna().sum()}")
+                null_after = df[col].isna().sum()
+                converted_cols.append(col)
+                if null_before != null_after:
+                    logger.warning(f"{col}: Null count changed during conversion ({null_before} → {null_after})")
+                logger.debug(f"{col}: Converted from {current_tz} to {site_tz}")
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
-            if verbose:
-                df[col] = df[col].dt.tz_localize(site_tz, ambiguous=True, nonexistent='shift_forward')
-                print(f"WARNING: {col}: Naive datetime, NOT converting. Assuming it's in your LOCAL ZONE. Please check ETL!")
+            df[col] = df[col].dt.tz_localize(site_tz, ambiguous=True, nonexistent='shift_forward')
+            naive_cols.append(col)
+            logger.warning(f"{col}: Naive datetime localized to {site_tz}. Please verify this is correct.")
         else:
-            if verbose:
-                print(f"WARNING: {col}: Not a datetime column. Please check ETL and run again!")
+            problem_cols.append(col)
+            logger.warning(f"{col}: Expected datetime but found {df[col].dtype}")
+
+    # Log summary based on verbosity
+    if verbose and (converted_cols or naive_cols or problem_cols):
+        summary_parts = []
+        if converted_cols:
+            summary_parts.append(f"{len(converted_cols)} converted to {site_tz}")
+        if already_correct_cols:
+            summary_parts.append(f"{len(already_correct_cols)} already correct")
+        if naive_cols:
+            summary_parts.append(f"{len(naive_cols)} naive dates localized")
+        if problem_cols:
+            summary_parts.append(f"{len(problem_cols)} problematic")
+
+        logger.info(f"Timezone processing complete: {', '.join(summary_parts)}")
+
+        if logger.isEnabledFor(logging.DEBUG):
+            if converted_cols:
+                logger.debug(f"Converted columns: {', '.join(converted_cols)}")
+            if naive_cols:
+                logger.debug(f"Naive columns: {', '.join(naive_cols)}")
+            if problem_cols:
+                logger.debug(f"Problem columns: {', '.join(problem_cols)}")
+
     return df
