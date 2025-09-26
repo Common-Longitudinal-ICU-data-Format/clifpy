@@ -9,7 +9,8 @@ import os
 import logging
 import pandas as pd
 import yaml
-from typing import Optional, List, Dict, Any
+import numpy as np
+from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 from datetime import datetime
 
@@ -515,3 +516,115 @@ class BaseTable:
             
         except Exception as e:
             self.logger.error(f"Error saving summary: {str(e)}")
+
+    def analyze_categorical_distributions(self) -> Dict[str, pd.DataFrame]:
+        """
+        Analyze distributions of categorical variables.
+
+        For each categorical variable, returns the distribution of categories
+        (counts and proportions) for the entire table.
+
+        Returns
+        -------
+        Dict[str, pd.DataFrame]
+            Dictionary where keys are categorical column names and values are
+            DataFrames with category distributions (counts and proportions).
+        """
+        if self.df is None:
+            self.logger.warning("No dataframe to analyze")
+            return {}
+
+        if not self.schema:
+            self.logger.warning("No schema available for categorical analysis")
+            return {}
+
+        # Get categorical columns from schema
+        categorical_columns = [
+            col['name'] for col in self.schema.get('columns', [])
+            if col.get('is_category_column', False) and col['name'] in self.df.columns
+        ]
+
+        if not categorical_columns:
+            self.logger.info("No categorical columns found in schema")
+            return {}
+
+        results = {}
+
+        for col in categorical_columns:
+            try:
+                value_counts = self.df[col].value_counts(dropna=False)
+                proportions = self.df[col].value_counts(normalize=True, dropna=False).round(4)
+
+                distribution_df = pd.DataFrame({
+                    'category': value_counts.index,
+                    'count': value_counts.values,
+                    'proportion': proportions.values
+                })
+
+                results[col] = distribution_df
+
+                self.logger.info(f"Analyzed categorical distribution for {col}")
+
+            except Exception as e:
+                self.logger.error(f"Error analyzing categorical distribution for {col}: {str(e)}")
+                continue
+
+        return results
+
+    def calculate_ecdf(self) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Calculate Empirical Cumulative Distribution Functions (ECDF) for continuous variables.
+
+        For each continuous variable, calculates ECDF values for the entire table.
+
+        Returns
+        -------
+        Dict[str, Tuple[np.ndarray, np.ndarray]]
+            Dictionary where keys are continuous column names and values are
+            tuples of (x_values, y_values) for ECDF plotting.
+        """
+        if self.df is None:
+            self.logger.warning("No dataframe to analyze")
+            return {}
+
+        if not self.schema:
+            self.logger.warning("No schema available for ECDF analysis")
+            return {}
+
+        # Get continuous/numeric columns from schema
+        continuous_columns = [
+            col['name'] for col in self.schema.get('columns', [])
+            if col.get('data_type') in ['DOUBLE', 'FLOAT', 'INT', 'INTEGER']
+            and col['name'] in self.df.columns
+            and not col.get('is_category_column', False)
+        ]
+
+        if not continuous_columns:
+            self.logger.info("No continuous columns found in schema")
+            return {}
+
+        results = {}
+
+        for col in continuous_columns:
+            try:
+                # Remove missing values for ECDF calculation
+                clean_data = self.df[col].dropna()
+
+                if len(clean_data) == 0:
+                    self.logger.warning(f"No valid data for ECDF calculation in column {col}")
+                    continue
+
+                # Calculate overall ECDF
+                x_vals = np.sort(clean_data.values)
+                y_vals = np.arange(1, len(x_vals) + 1) / len(x_vals)
+
+                results[col] = (x_vals, y_vals)
+
+                self.logger.info(f"Calculated ECDF for {col}")
+
+            except Exception as e:
+                self.logger.error(f"Error calculating ECDF for {col}: {str(e)}")
+                continue
+
+        return results
+
