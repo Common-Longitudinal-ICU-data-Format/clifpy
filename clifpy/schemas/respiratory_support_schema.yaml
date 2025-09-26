@@ -1,8 +1,4 @@
 table_name: respiratory_support
-composite_keys:
-  - hospitalization_id
-  - recorded_dttm
-  - device_category
 
 columns:
   - name: hospitalization_id
@@ -13,6 +9,11 @@ columns:
   - name: recorded_dttm
     data_type: DATETIME
     required: true
+    is_category_column: false
+    is_group_column: false
+  - name: device_id
+    data_type: VARCHAR
+    required: false
     is_category_column: false
     is_group_column: false
   - name: device_name

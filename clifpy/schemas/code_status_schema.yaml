@@ -1,8 +1,5 @@
 table_name: code_status
-composite_keys:
-- hospitalization_id
-- start_dttm
-- code_status_category
+
 columns:
 - name: patient_id
   data_type: VARCHAR
@@ -34,3 +31,13 @@ columns:
   - Full
   - Presume Full
   - Other
+
+required_columns:
+  - patient_id
+  - start_dttm
+  - code_status_category
+
+category_columns:
+  - code_status_category
+
+group_columns: []

@@ -1,8 +1,4 @@
 table_name: medication_admin_continuous
-composite_keys:
-  - hospitalization_id
-  - admin_dttm
-  - med_category
 
 columns:
   - name: hospitalization_id

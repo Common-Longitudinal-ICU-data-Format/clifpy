@@ -1,8 +1,4 @@
 table_name: vitals
-composite_keys:
-  - hospitalization_id
-  - recorded_dttm
-  - vital_category
 
 columns:
   - name: hospitalization_id

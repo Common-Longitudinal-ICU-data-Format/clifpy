@@ -1,9 +1,4 @@
 table_name: labs
-composite_keys:
-  - hospitalization_id
-  - lab_result_dttm
-  - lab_category
-  - lab_specimen_category
 
 columns:
   - name: hospitalization_id
