@@ -1,8 +1,5 @@
 table_name: microbiology_susceptibility
-composite_keys:
-- oragnism_id
-- antimicrobial_category
-- susceptibility_category
+
 columns:
 - name: organism_id
   data_type: VARCHAR
@@ -16,7 +13,7 @@ columns:
   is_group_column: false
 - name: antimicrobial_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -199,7 +196,7 @@ columns:
   is_group_column: false
 - name: susceptibility_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -207,3 +204,13 @@ columns:
   - non susceptible
   - intermediate
   - NA
+
+required_columns:
+  - antimicrobial_category
+  - susceptibility_category
+
+category_columns:
+  - antimicrobial_category
+  - susceptibility_category
+
+group_columns: []

@@ -1,22 +1,19 @@
 table_name: hospital_diagnosis
-composite_keys:
-- hospitalization_id
-- diagnosis_code
-- diagnosis_code_format
+
 columns:
 - name: hospitalization_id
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: diagnosis_code
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: diagnosis_code_format
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
   permissible_values:
@@ -24,13 +21,24 @@ columns:
   - ICD9CM
 - name: diagnosis_primary
   data_type: INT
-  required: false
-  is_category_column: true
+  required: true
+  is_category_column: false
   is_group_column: false
   permissible_values: [0, 1]
 - name: poa_present
   data_type: INT
-  required: false
-  is_category_column: true
+  required: true
+  is_category_column: false
   is_group_column: false
   permissible_values: [0, 1]
+
+required_columns:
+  - hospitalization_id
+  - diagnosis_code
+  - diagnosis_code_format
+  - diagnosis_primary
+  - poa_present
+
+category_columns:
+
+group_columns: []

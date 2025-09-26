@@ -1,8 +1,5 @@
 table_name: microbiology_nonculture
-composite_keys:
-- patient_id
-- hospitalization_id
-- result_dttm
+
 columns:
 - name: patient_id
   data_type: VARCHAR
@@ -16,17 +13,17 @@ columns:
   is_group_column: false
 - name: result_dttm
   data_type: DATETIME
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: collect_dttm
   data_type: DATETIME
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: order_dttm
   data_type: DATETIME
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: fluid_name
@@ -36,7 +33,7 @@ columns:
   is_group_column: false
 - name: fluid_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -91,7 +88,7 @@ columns:
   is_group_column: false
 - name: method_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -103,7 +100,7 @@ columns:
   is_group_column: false
 - name: organism_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -633,7 +630,7 @@ columns:
   - zygomycete_sp
 - name: organism_group
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: false
   is_group_column: true
   permissible_values:
@@ -759,3 +756,23 @@ columns:
   - detected
   - not detected
   - indeterminant
+
+required_columns:
+  - patient_id
+  - hospitalization_id
+  - result_dttm
+  - collect_dttm
+  - order_dttm
+  - fluid_category
+  - method_category
+  - organism_category
+  - organism_group
+
+category_columns:
+  - fluid_category
+  - method_category
+  - organism_category
+  - result_category
+
+group_columns:
+  - organism_group

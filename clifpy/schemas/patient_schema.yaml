@@ -1,7 +1,7 @@
 table_name: patient
 composite_keys:
   - patient_id
-
+  
 columns:
   - name: patient_id
     data_type: VARCHAR

@@ -1,9 +1,5 @@
 table_name: patient_procedures
-composite_keys:
-- hospitalization_id
-- billing_provider_id
-- performing_provider_id
-- procedure_billed_dttm
+
 columns:
 - name: hospitalization_id
   data_type: VARCHAR
@@ -32,11 +28,23 @@ columns:
   is_group_column: false
 - name: procedure_code_format
   data_type: VARCHAR
-  required: false
-  is_category_column: true
+  required: true
+  is_category_column: false
   is_group_column: false
   permissible_values:
-      - CPT
-      - ICD10PCS
-      - HCPCS
+    - CPT
+    - ICD10PCS
+    - HCPCS
 
+required_columns:
+  - hospitalization_id
+  - billing_provider_id
+  - performing_provider_id
+  - procedure_billed_dttm
+  - procedure_code
+  - procedure_code_format
+
+category_columns:
+-
+
+group_columns: []

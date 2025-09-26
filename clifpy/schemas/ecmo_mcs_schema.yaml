@@ -1,10 +1,5 @@
 table_name: ecmo_mcs
-composite_keys:
-- hospitalization_id
-- device_id
-- recorded_dttm
-- device_category
-- mcs_group
+
 columns:
 - name: hospitalization_id
   data_type: VARCHAR
@@ -65,21 +60,37 @@ columns:
   is_group_column: false
 - name: device_rate
   data_type: FLOAT
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: sweep
   data_type: FLOAT
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: flow
   data_type: FLOAT
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: fdO2
   data_type: FLOAT
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - device_category
+  - mcs_group
+  - device_rate
+  - sweep
+  - flow
+  - fdO2
+
+category_columns:
+  - device_category
+
+group_columns:
+  - mcs_group

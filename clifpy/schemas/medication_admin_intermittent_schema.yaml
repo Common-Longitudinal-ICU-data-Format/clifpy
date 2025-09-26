@@ -1,8 +1,5 @@
 table_name: medication_admin_intermittent
-composite_keys:
-- hospitalization_id
-- med_order_id
-- admin_dttm
+
 columns:
 - name: hospitalization_id
   data_type: VARCHAR
@@ -11,7 +8,7 @@ columns:
   is_group_column: false
 - name: med_order_id
   data_type: VARCHAR
-  required: true
+  required: false
   is_category_column: false
   is_group_column: false
 - name: admin_dttm
@@ -222,6 +219,12 @@ columns:
   required: true
   is_category_column: true
   is_group_column: false
+  permissible_values:
+  - enteral
+  - im 
+  - iv
+  - buccal_sublingual
+  - intrapleural
 - name: med_dose
   data_type: FLOAT
   required: true
@@ -239,6 +242,24 @@ columns:
   is_group_column: false
 - name: mar_action_category
   data_type: VARCHAR
-  required: true
+  required: false
   is_category_column: true
   is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - admin_dttm
+  - med_category
+  - med_group
+  - med_route_category
+  - med_dose
+  - med_dose_unit
+  - mar_action_category
+
+category_columns:
+  - med_category
+  - med_route_category
+  - mar_action_category
+
+group_columns:
+  - med_group

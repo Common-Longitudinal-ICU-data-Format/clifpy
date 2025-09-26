@@ -1,8 +1,4 @@
 table_name: patient_assessments
-composite_keys:
-  - hospitalization_id
-  - recorded_dttm
-  - assessment_category
 
 columns:
   - name: hospitalization_id
