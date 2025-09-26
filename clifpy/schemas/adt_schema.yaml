@@ -22,6 +22,7 @@ columns:
     permissible_values:
       - academic
       - community
+      - LTACH
   - name: in_dttm
     data_type: DATETIME
     required: true
@@ -65,7 +66,6 @@ required_columns:
   - location_category
 
 category_columns:
-  - hospital_type
   - location_category
 
 group_columns: []
