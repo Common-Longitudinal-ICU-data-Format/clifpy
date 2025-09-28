@@ -61,24 +61,24 @@ def _load_demo_table(table_name: str, return_raw: bool = False) -> Union[pd.Data
     from ..tables.patient import Patient
     from ..tables.adt import Adt
     from ..tables.hospitalization import Hospitalization
-    from ..tables.labs import labs
-    from ..tables.vitals import vitals
-    from ..tables.respiratory_support import respiratory_support
-    from ..tables.position import position
-    from ..tables.medication_admin_continuous import medication_admin_continuous
-    from ..tables.patient_assessments import patient_assessments
-    
+    from ..tables.labs import Labs
+    from ..tables.vitals import Vitals
+    from ..tables.respiratory_support import RespiratorySupport
+    from ..tables.position import Position
+    from ..tables.medication_admin_continuous import MedicationAdminContinuous
+    from ..tables.patient_assessments import PatientAssessments
+
     # Return wrapped table object
     table_classes = {
         'patient': Patient,
         'adt': Adt,
         'hospitalization': Hospitalization,
-        'labs': labs,
-        'vitals': vitals,
-        'respiratory_support': respiratory_support,
-        'position': position,
-        'medication_admin_continuous': medication_admin_continuous,
-        'patient_assessments': patient_assessments
+        'labs': Labs,
+        'vitals': Vitals,
+        'respiratory_support': RespiratorySupport,
+        'position': Position,
+        'medication_admin_continuous': MedicationAdminContinuous,
+        'patient_assessments': PatientAssessments
     }
     
     if table_name in table_classes:
