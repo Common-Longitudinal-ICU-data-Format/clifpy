@@ -21,6 +21,14 @@ from .tables.medication_admin_intermittent import MedicationAdminIntermittent
 from .tables.patient_assessments import PatientAssessments
 from .tables.respiratory_support import RespiratorySupport
 from .tables.position import Position
+from .tables.hospital_diagnosis import HospitalDiagnosis
+from .tables.microbiology_culture import MicrobiologyCulture
+from .tables.crrt_therapy import CrrtTherapy
+from .tables.patient_procedures import PatientProcedures
+from .tables.microbiology_susceptibility import MicrobiologySusceptibility
+from .tables.ecmo_mcs import EcmoMcs
+from .tables.microbiology_nonculture import MicrobiologyNonculture
+from .tables.code_status import CodeStatus
 from .utils.config import get_config_or_params
 from .utils.stitching_encounters import stitch_encounters
 
@@ -35,7 +43,15 @@ TABLE_CLASSES = {
     'medication_admin_intermittent': MedicationAdminIntermittent,
     'patient_assessments': PatientAssessments,
     'respiratory_support': RespiratorySupport,
-    'position': Position
+    'position': Position,
+    'hospital_diagnosis': HospitalDiagnosis,
+    'microbiology_culture': MicrobiologyCulture,
+    'crrt_therapy': CrrtTherapy,
+    'patient_procedures': PatientProcedures,
+    'microbiology_susceptibility': MicrobiologySusceptibility,
+    'ecmo_mcs': EcmoMcs,
+    'microbiology_nonculture': MicrobiologyNonculture,
+    'code_status': CodeStatus
 }
 
 
@@ -84,6 +100,22 @@ class ClifOrchestrator:
         Respiratory support table object
     position : Position
         Position table object
+    hospital_diagnosis : HospitalDiagnosis
+        Hospital diagnosis table object
+    microbiology_culture : MicrobiologyCulture
+        Microbiology culture table object
+    crrt_therapy : CrrtTherapy
+        CRRT therapy table object
+    patient_procedures : PatientProcedures
+        Patient procedures table object
+    microbiology_susceptibility : MicrobiologySusceptibility
+        Microbiology susceptibility table object
+    ecmo_mcs : EcmoMcs
+        ECMO/MCS table object
+    microbiology_nonculture : MicrobiologyNonculture
+        Microbiology non-culture table object
+    code_status : CodeStatus
+        Code status table object
     wide_df : pd.DataFrame
         Wide dataset with time-series data (populated by create_wide_dataset)
     """
@@ -168,6 +200,14 @@ class ClifOrchestrator:
         self.patient_assessments: PatientAssessments = None
         self.respiratory_support: RespiratorySupport = None
         self.position: Position = None
+        self.hospital_diagnosis: HospitalDiagnosis = None
+        self.microbiology_culture: MicrobiologyCulture = None
+        self.crrt_therapy: CrrtTherapy = None
+        self.patient_procedures: PatientProcedures = None
+        self.microbiology_susceptibility: MicrobiologySusceptibility = None
+        self.ecmo_mcs: EcmoMcs = None
+        self.microbiology_nonculture: MicrobiologyNonculture = None
+        self.code_status: CodeStatus = None
 
         # Initialize wide dataset property
         self.wide_df: Optional[pd.DataFrame] = None
@@ -197,7 +237,7 @@ class ClifOrchestrator:
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None
-    ) -> Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, MedicationAdminIntermittent, PatientAssessments, RespiratorySupport, Position]:
+    ) -> Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, MedicationAdminIntermittent, PatientAssessments, RespiratorySupport, Position, HospitalDiagnosis, MicrobiologyCulture, CrrtTherapy, PatientProcedures, MicrobiologySusceptibility, EcmoMcs, MicrobiologyNonculture, CodeStatus]:
         """
         Load table data and create table object.
         

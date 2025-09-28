@@ -1,0 +1,42 @@
+table_name: patient_procedures
+composite_keys:
+- hospitalization_id
+- billing_provider_id
+- performing_provider_id
+- procedure_billed_dttm
+columns:
+- name: hospitalization_id
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: billing_provider_id
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: performing_provider_id
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: procedure_billed_dttm
+  data_type: DATETIME
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: procedure_code
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: procedure_code_format
+  data_type: VARCHAR
+  required: false
+  is_category_column: true
+  is_group_column: false
+  permissible_values:
+      - CPT
+      - ICD10PCS
+      - HCPCS
+

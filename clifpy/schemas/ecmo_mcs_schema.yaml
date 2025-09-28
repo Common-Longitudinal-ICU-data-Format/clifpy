@@ -1,0 +1,85 @@
+table_name: ecmo_mcs
+composite_keys:
+- hospitalization_id
+- device_id
+- recorded_dttm
+- device_category
+- mcs_group
+columns:
+- name: hospitalization_id
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: recorded_dttm
+  data_type: DATETIME
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: device_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: device_category
+  data_type: VARCHAR
+  required: true
+  is_category_column: true
+  is_group_column: false
+  permissible_values:
+  - Impella_2.5
+  - Impella_CP
+  - Impella_5.0
+  - Impella_5.5
+  - Impella_LD
+  - Impella_RP
+  - Impella_RP_Flex
+  - iVAC
+  - TandemHeart_LV
+  - TandemHeart_RV
+  - CentriMag_LV
+  - CentriMag_RV
+  - IABP
+  - VA_ECMO
+  - VV_ECMO
+  - VAV_ECMO
+  - LAVA_ECMO
+  - HeartWare
+  - HMII
+  - HMIII
+- name: mcs_group
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: true
+  permissible_values:
+  - ECMO
+  - IABP
+  - RVAD
+  - durable_LVAD
+  - temporary_LVAD
+- name: device_metric_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: device_rate
+  data_type: FLOAT
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: sweep
+  data_type: FLOAT
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: flow
+  data_type: FLOAT
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: fdO2
+  data_type: FLOAT
+  required: false
+  is_category_column: false
+  is_group_column: false

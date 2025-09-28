@@ -208,7 +208,12 @@ def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str,
     req_cols = set(spec.get("required_columns", []))
     missing = req_cols - set(df.columns)
     if missing:
-        errors.append({"type": "missing_columns", "columns": sorted(missing)})
+        missing_list = sorted(missing)
+        errors.append({
+            "type": "missing_columns",
+            "columns": missing_list,
+            "message": f"Missing required columns: {', '.join(missing_list)}"
+        })
 
     # 2. Per-column checks -------------------------------------------------------
     for col_spec in spec.get("columns", []):
@@ -223,7 +228,12 @@ def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str,
         if col_spec.get("required", False):
             null_cnt = int(series.isna().sum())
             if null_cnt:
-                errors.append({"type": "null_values", "column": name, "count": null_cnt})
+                errors.append({
+                    "type": "null_values",
+                    "column": name,
+                    "count": null_cnt,
+                    "message": f"Column '{name}' has {null_cnt} null values in required field"
+                })
 
         # 2b. Datatype checks -------------------------------------------------
         expected_type = col_spec.get("data_type")
@@ -316,13 +326,15 @@ def check_required_columns(
                 "type": "missing_required_columns",
                 "table": table_name,
                 "missing_columns": missing_columns,
-                "status": "error"
+                "status": "error",
+                "message": f"Table '{table_name}' is missing required columns: {', '.join(missing_columns)}"
             }
         
         return {
             "type": "missing_required_columns",
             "table": table_name,
-            "status": "success"
+            "status": "success",
+            "message": f"Table '{table_name}' has all required columns"
         }
         
     except Exception as e:
@@ -330,7 +342,8 @@ def check_required_columns(
             "type": "missing_required_columns",
             "table": table_name,
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error checking required columns for table '{table_name}': {str(e)}"
         }
 
 
@@ -393,7 +406,8 @@ def verify_column_dtypes(df: pd.DataFrame, schema: Dict[str, Any]) -> List[Dict[
         errors.append({
             "type": "datatype_verification",
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error during datatype verification: {str(e)}"
         })
     
     return errors
@@ -435,7 +449,8 @@ def validate_datetime_timezone(
                             "column": col,
                             "timezone": str(df[col].dt.tz),
                             "expected": "UTC",
-                            "status": "warning"
+                            "status": "warning",
+                            "message": f"Column '{col}' has timezone '{df[col].dt.tz}' but expected 'UTC'"
                         })
                 else:
                     # Timezone-naive datetime
@@ -444,14 +459,16 @@ def validate_datetime_timezone(
                         "column": col,
                         "timezone": "naive",
                         "expected": "UTC",
-                        "status": "info"
+                        "status": "info",
+                        "message": f"Column '{col}' is timezone-naive, expected UTC timezone"
                     })
                     
     except Exception as e:
         results.append({
             "type": "datetime_timezone",
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error validating datetime timezones: {str(e)}"
         })
     
     return results
@@ -604,7 +621,8 @@ def validate_categorical_values(
         errors.append({
             "type": "categorical_validation",
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error validating categorical values: {str(e)}"
         })
     
     return errors
@@ -652,7 +670,7 @@ def check_for_duplicates(
             "unique_rows": len(df) - int(num_duplicates),
             "has_duplicates": num_duplicates > 0
         }
-        
+
         if num_duplicates > 0:
             # Get examples of duplicate keys (limit to 5)
             duplicate_df = df[duplicated]
@@ -664,8 +682,10 @@ def check_for_duplicates(
             )
             result["duplicate_examples"] = duplicate_examples
             result["status"] = "warning"
+            result["message"] = f"Found {int(num_duplicates)} duplicate rows out of {len(df)} total rows based on keys: {', '.join(existing_keys)}"
         else:
             result["status"] = "success"
+            result["message"] = f"No duplicate rows found based on composite keys: {', '.join(existing_keys)}"
         
         return result
         
@@ -673,7 +693,8 @@ def check_for_duplicates(
         return {
             "type": "duplicate_check",
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error checking for duplicates: {str(e)}"
         }
 
 
@@ -824,7 +845,8 @@ def validate_units(
                         "category": category,
                         "expected_unit": expected_unit,
                         "row_count": len(category_data),
-                        "status": "info"
+                        "status": "info",
+                        "message": f"Table '{table_name}' category '{category}' found with {len(category_data)} rows, expected unit: {expected_unit}"
                     })
                     
         elif table_name == 'labs' and 'lab_category' in df.columns and 'reference_unit' in df.columns:
@@ -844,7 +866,8 @@ def validate_units(
                             "category": category,
                             "expected_units": expected_units,
                             "unexpected_units": list(unexpected_units),
-                            "status": "warning"
+                            "status": "warning",
+                            "message": f"Table '{table_name}' category '{category}' has unexpected units: {', '.join(unexpected_units)}, expected: {', '.join(expected_units)}"
                         })
                         
     except Exception as e:
@@ -852,7 +875,8 @@ def validate_units(
             "type": "unit_validation",
             "table": table_name,
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error validating units for table '{table_name}': {str(e)}"
         })
     
     return results
@@ -997,7 +1021,8 @@ def validate_numeric_ranges(
                                 "below_min_count": int(below_min),
                                 "above_max_count": int(above_max),
                                 "total_values": len(numeric_data),
-                                "status": "warning"
+                                "status": "warning",
+                                "message": f"Table '{table_name}' category '{category}': {int(below_min)} values below minimum ({min_val}), {int(above_max)} values above maximum ({max_val}) out of {len(numeric_data)} total values"
                             })
             elif category in df.columns and pd.api.types.is_numeric_dtype(df[category]):
                 # Direct column check
@@ -1016,7 +1041,8 @@ def validate_numeric_ranges(
                             "below_min_count": int(below_min),
                             "above_max_count": int(above_max),
                             "total_values": len(numeric_data),
-                            "status": "warning"
+                            "status": "warning",
+                            "message": f"Column '{category}': {int(below_min)} values below minimum ({min_val}), {int(above_max)} values above maximum ({max_val}) out of {len(numeric_data)} total values"
                         })
                         
     except Exception as e:
@@ -1024,7 +1050,8 @@ def validate_numeric_ranges(
             "type": "numeric_range_validation",
             "table": table_name,
             "status": "error",
-            "error_message": str(e)
+            "error_message": str(e),
+            "message": f"Error validating numeric ranges for table '{table_name}': {str(e)}"
         })
     
     return results 
