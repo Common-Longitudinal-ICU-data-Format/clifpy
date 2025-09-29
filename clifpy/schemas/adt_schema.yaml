@@ -17,7 +17,7 @@ columns:
   - name: hospital_type
     data_type: VARCHAR
     required: true
-    is_category_column: false
+    is_category_column: true
     is_group_column: false
     permissible_values:
       - academic
@@ -58,7 +58,7 @@ columns:
       - other
   - name: location_type
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: true
     is_group_column: false
     permissible_values:
@@ -83,6 +83,8 @@ required_columns:
   - location_type
 
 category_columns:
+  - hospital_type
   - location_category
+  - location_type
 
 group_columns: []
