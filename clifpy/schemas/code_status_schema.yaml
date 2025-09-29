@@ -3,12 +3,12 @@ table_name: code_status
 columns:
 - name: patient_id
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: start_dttm
   data_type: DATETIME
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: code_status_name
@@ -18,7 +18,7 @@ columns:
   is_group_column: false
 - name: code_status_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
