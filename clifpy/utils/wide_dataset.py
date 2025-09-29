@@ -223,8 +223,9 @@ def create_wide_dataset(
 
 
 def convert_wide_to_hourly(
-    wide_df: pd.DataFrame, 
+    wide_df: pd.DataFrame,
     aggregation_config: Dict[str, List[str]],
+    id_name: str = 'hospitalization_id',
     memory_limit: str = '4GB',
     temp_directory: Optional[str] = None,
     batch_size: Optional[int] = None
@@ -250,6 +251,11 @@ def convert_wide_to_hourly(
             'boolean': ['norepinephrine', 'propofol'],
             'one_hot_encode': ['medication_name', 'assessment_category']
         }
+    id_name : str, default='hospitalization_id'
+        Column name to use for grouping aggregation
+        - 'hospitalization_id': Group by individual hospitalizations (default)
+        - 'encounter_block': Group by encounter blocks (after encounter stitching)
+        - Any other ID column present in the wide dataset
     memory_limit : str, default='4GB'
         DuckDB memory limit (e.g., '4GB', '8GB')
     temp_directory : str, optional
@@ -268,7 +274,7 @@ def convert_wide_to_hourly(
     print(f"Memory limit: {memory_limit}")
     
     # Validate input
-    required_columns = ['event_time', 'hospitalization_id', 'day_number']
+    required_columns = ['event_time', id_name, 'day_number']
     for col in required_columns:
         if col not in wide_df.columns:
             raise ValueError(f"wide_df must contain '{col}' column")
@@ -276,13 +282,13 @@ def convert_wide_to_hourly(
     # Auto-determine batch size for very large datasets
     if batch_size is None:
         n_rows = len(wide_df)
-        n_hospitalizations = wide_df['hospitalization_id'].nunique()
+        n_ids = wide_df[id_name].nunique()
         
         # Use batching if dataset is very large
-        if n_rows > 1_000_000 or n_hospitalizations > 10_000:
-            batch_size = min(5000, n_hospitalizations // 4)
-            print(f"Large dataset detected ({n_rows:,} rows, {n_hospitalizations:,} hospitalizations)")
-            print(f"Will process in batches of {batch_size} hospitalizations")
+        if n_rows > 1_000_000 or n_ids > 10_000:
+            batch_size = min(5000, n_ids // 4)
+            print(f"Large dataset detected ({n_rows:,} rows, {n_ids:,} {id_name}s)")
+            print(f"Will process in batches of {batch_size} {id_name}s")
         else:
             batch_size = 0  # Process all at once
     
@@ -304,9 +310,9 @@ def convert_wide_to_hourly(
             conn.execute("SET preserve_insertion_order = false")
             
             if batch_size > 0:
-                return _process_hourly_in_batches(conn, wide_df, aggregation_config, batch_size)
+                return _process_hourly_in_batches(conn, wide_df, aggregation_config, id_name, batch_size)
             else:
-                return _process_hourly_single_batch(conn, wide_df, aggregation_config)
+                return _process_hourly_single_batch(conn, wide_df, aggregation_config, id_name)
                 
     except Exception as e:
         print(f"DuckDB processing failed: {str(e)}")
@@ -367,7 +373,8 @@ def _get_timestamp_column(table_name: str) -> Optional[str]:
 def _process_hourly_single_batch(
     conn: duckdb.DuckDBPyConnection,
     wide_df: pd.DataFrame,
-    aggregation_config: Dict[str, List[str]]
+    aggregation_config: Dict[str, List[str]],
+    id_name: str = 'hospitalization_id'
 ) -> pd.DataFrame:
     """Process entire dataset in a single batch with progress tracking by aggregation type."""
     
@@ -388,24 +395,24 @@ def _process_hourly_single_batch(
         
         # Calculate nth_hour
         print("Calculating nth_hour...")
-        conn.execute("""
+        conn.execute(f"""
             CREATE OR REPLACE TABLE hourly_data AS
             WITH first_events AS (
-                SELECT 
-                    hospitalization_id,
+                SELECT
+                    {id_name},
                     MIN(event_time_hour) AS first_event_hour
                 FROM hourly_base
-                GROUP BY hospitalization_id
+                GROUP BY {id_name}
             )
-            SELECT 
+            SELECT
                 hb.*,
                 CAST((EPOCH(hb.event_time_hour) - EPOCH(fe.first_event_hour)) / 3600 AS INTEGER) AS nth_hour
             FROM hourly_base hb
-            JOIN first_events fe ON hb.hospitalization_id = fe.hospitalization_id
+            JOIN first_events fe ON hb.{id_name} = fe.{id_name}
         """)
         
         # Build separate queries for each aggregation type
-        agg_queries = _build_aggregation_query_duckdb(conn, aggregation_config, wide_df.columns)
+        agg_queries = _build_aggregation_query_duckdb(conn, aggregation_config, wide_df.columns, id_name)
         
         # Execute base query first
         print("\nProcessing aggregations by type:")
@@ -424,7 +431,7 @@ def _process_hourly_single_batch(
                 try:
                     agg_result = conn.execute(agg_queries[agg_type]).df()
                     # Drop the group by columns from aggregation results to avoid duplicates
-                    cols_to_drop = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+                    cols_to_drop = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
                     agg_result = agg_result.drop(columns=cols_to_drop)
                     aggregation_results.append(agg_result)
                     print(f"  ✓ {agg_type} complete ({agg_result.shape[1]} columns)")
@@ -435,8 +442,8 @@ def _process_hourly_single_batch(
         print("\nMerging aggregation results...")
         result_df = pd.concat(aggregation_results, axis=1)
         
-        # Sort by hospitalization_id and nth_hour
-        result_df = result_df.sort_values(['hospitalization_id', 'nth_hour']).reset_index(drop=True)
+        # Sort by id_name and nth_hour
+        result_df = result_df.sort_values([id_name, 'nth_hour']).reset_index(drop=True)
         
         print(f"\nHourly aggregation complete: {len(result_df)} hourly records")
         print(f"Columns in hourly dataset: {len(result_df.columns)}")
@@ -452,38 +459,39 @@ def _process_hourly_in_batches(
     conn: duckdb.DuckDBPyConnection,
     wide_df: pd.DataFrame,
     aggregation_config: Dict[str, List[str]],
+    id_name: str,
     batch_size: int
 ) -> pd.DataFrame:
     """Process dataset in batches to manage memory usage with progress tracking."""
     
-    print(f"Processing in batches of {batch_size} hospitalizations...")
-    
-    # Get unique hospitalization IDs
-    unique_hosp_ids = wide_df['hospitalization_id'].unique()
-    n_batches = (len(unique_hosp_ids) + batch_size - 1) // batch_size
+    print(f"Processing in batches of {batch_size} {id_name}s...")
+
+    # Get unique IDs
+    unique_ids = wide_df[id_name].unique()
+    n_batches = (len(unique_ids) + batch_size - 1) // batch_size
     
     batch_results = []
     
     # Use tqdm for batch-level progress
-    batch_iterator = tqdm(range(0, len(unique_hosp_ids), batch_size), 
-                         desc="Processing batches", 
+    batch_iterator = tqdm(range(0, len(unique_ids), batch_size),
+                         desc="Processing batches",
                          total=n_batches,
                          unit="batch")
-    
+
     for i in batch_iterator:
-        batch_ids = unique_hosp_ids[i:i + batch_size]
+        batch_ids = unique_ids[i:i + batch_size]
         batch_num = (i // batch_size) + 1
         
         batch_iterator.set_description(f"Processing batch {batch_num}/{n_batches}")
         
         try:
             # Filter to current batch
-            batch_df = wide_df[wide_df['hospitalization_id'].isin(batch_ids)].copy()
-            
-            print(f"\n--- Batch {batch_num}/{n_batches} ({len(batch_ids)} hospitalizations) ---")
+            batch_df = wide_df[wide_df[id_name].isin(batch_ids)].copy()
+
+            print(f"\n--- Batch {batch_num}/{n_batches} ({len(batch_ids)} {id_name}s) ---")
             
             # Process this batch
-            batch_result = _process_hourly_single_batch(conn, batch_df, aggregation_config.copy())
+            batch_result = _process_hourly_single_batch(conn, batch_df, aggregation_config.copy(), id_name)
             
             if len(batch_result) > 0:
                 batch_results.append(batch_result)
@@ -508,7 +516,7 @@ def _process_hourly_in_batches(
     if batch_results:
         print(f"\nCombining {len(batch_results)} batch results...")
         final_df = pd.concat(batch_results, ignore_index=True)
-        final_df = final_df.sort_values(['hospitalization_id', 'nth_hour']).reset_index(drop=True)
+        final_df = final_df.sort_values([id_name, 'nth_hour']).reset_index(drop=True)
         
         print(f"Final hourly dataset: {len(final_df)} records from {len(batch_results)} batches")
         return final_df
@@ -519,12 +527,13 @@ def _process_hourly_in_batches(
 def _build_aggregation_query_duckdb(
     conn: duckdb.DuckDBPyConnection,
     aggregation_config: Dict[str, List[str]],
-    all_columns: List[str]
+    all_columns: List[str],
+    id_name: str = 'hospitalization_id'
 ) -> Dict[str, str]:
     """Build separate DuckDB aggregation queries by type for better performance and progress tracking."""
     
     # Group by columns
-    group_cols = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+    group_cols = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
     
     # Get columns not in aggregation config
     all_agg_columns = []
@@ -549,15 +558,15 @@ def _build_aggregation_query_duckdb(
     
     # Base columns query
     base_query = f"""
-    SELECT 
-        hospitalization_id,
-        event_time_hour, 
+    SELECT
+        {id_name},
+        event_time_hour,
         nth_hour,
         hour_bucket,
         FIRST(patient_id) AS patient_id,
         FIRST(day_number) AS day_number
     FROM hourly_data
-    GROUP BY hospitalization_id, event_time_hour, nth_hour, hour_bucket
+    GROUP BY {id_name}, event_time_hour, nth_hour, hour_bucket
     """
     queries['base'] = base_query
     
@@ -570,7 +579,7 @@ def _build_aggregation_query_duckdb(
         if not valid_columns:
             continue
             
-        select_parts = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+        select_parts = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
         
         for col in valid_columns:
             if agg_method == 'max':
@@ -592,17 +601,17 @@ def _build_aggregation_query_duckdb(
                 select_parts.append(f"CASE WHEN COUNT({col}) > 0 THEN 1 ELSE 0 END AS {col}_boolean")
         
         query = f"""
-        SELECT 
+        SELECT
             {', '.join(select_parts)}
         FROM hourly_data
-        GROUP BY hospitalization_id, event_time_hour, nth_hour, hour_bucket
+        GROUP BY {id_name}, event_time_hour, nth_hour, hour_bucket
         """
         queries[agg_method] = query
     
     # Handle one-hot encoding separately
     if 'one_hot_encode' in aggregation_config:
         one_hot_query = _build_one_hot_encoding_query_duckdb(
-            conn, aggregation_config['one_hot_encode'], all_columns
+            conn, aggregation_config['one_hot_encode'], all_columns, id_name
         )
         if one_hot_query:
             queries['one_hot_encode'] = one_hot_query
@@ -613,7 +622,8 @@ def _build_aggregation_query_duckdb(
 def _build_one_hot_encoding_query_duckdb(
     conn: duckdb.DuckDBPyConnection,
     one_hot_columns: List[str],
-    all_columns: List[str]
+    all_columns: List[str],
+    id_name: str = 'hospitalization_id'
 ) -> Optional[str]:
     """Build a separate query for one-hot encoding."""
     
@@ -621,7 +631,7 @@ def _build_one_hot_encoding_query_duckdb(
     if not valid_columns:
         return None
     
-    select_parts = ['hospitalization_id', 'event_time_hour', 'nth_hour', 'hour_bucket']
+    select_parts = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
     
     for col in valid_columns:
         # Get unique values for this column
@@ -657,10 +667,10 @@ def _build_one_hot_encoding_query_duckdb(
     
     if len(select_parts) > 4:  # More than just the group by columns
         query = f"""
-        SELECT 
+        SELECT
             {', '.join(select_parts)}
         FROM hourly_data
-        GROUP BY hospitalization_id, event_time_hour, nth_hour, hour_bucket
+        GROUP BY {id_name}, event_time_hour, nth_hour, hour_bucket
         """
         return query
     
