@@ -57,7 +57,7 @@ columns:
   required: true
   is_category_column: false
   is_group_column: false
-- name: ultrafilteration_out
+- name: ultrafiltration_out
   data_type: FLOAT
   required: true
   is_category_column: false
@@ -71,7 +71,7 @@ required_columns:
   - pre_filter_replacement_fluid_rate
   - post_filter_replacement_fluid_rate
   - dialysate_flow_rate
-  - ultrafilteration_out
+  - ultrafiltration_out
 
 category_columns:
   - crrt_mode_category
