@@ -28,18 +28,16 @@ columns:
     is_group_column: false
   - name: lab_order_category
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: true
     is_group_column: false
     permissible_values:
-      - ABG
-      - BMP
-      - CBC
-      - Coags
-      - LFT
-      - Lactic Acid
-      - Misc
-      - VBG
+      - blood_gas
+      - bmp
+      - cbc
+      - coags
+      - lft
+      - misc
   - name: lab_name
     data_type: VARCHAR
     required: false
@@ -114,7 +112,7 @@ columns:
     is_group_column: false
   - name: reference_unit
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: false
     is_group_column: false
   - name: lab_specimen_name
@@ -124,7 +122,7 @@ columns:
     is_group_column: false
   - name: lab_specimen_category
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: true
     is_group_column: false
     permissible_values:
@@ -146,13 +144,12 @@ required_columns:
   - lab_category
   - lab_order_category
   - lab_value
-  - lab_value_numeric
   - reference_unit
 
 category_columns:
   - lab_order_category
   - lab_category
-  - lab_specimen_category
+
 
 group_columns: []
 
