@@ -254,7 +254,7 @@ required_columns:
   - med_route_category
   - med_dose
   - med_dose_unit
-  - mar_action_category
+
 
 category_columns:
   - med_category
