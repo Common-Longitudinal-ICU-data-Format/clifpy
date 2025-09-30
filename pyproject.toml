@@ -54,7 +54,6 @@ markers = [
   "unit_conversion: marks tests related to unit conversion",
 ]
 doctest_plus = "enabled"
-addopts = "--markdown-docs"
 
 
 [dependency-groups]
@@ -65,6 +64,5 @@ dev = [
     "mkdocstrings[python]>=0.30.0",
     "nbformat>=5.10.4",
     "pytest-doctestplus>=1.4.0",
-    "pytest-markdown-docs>=0.9.0",
     "sybil>=9.2.0",
 ]
