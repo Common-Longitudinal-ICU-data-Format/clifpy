@@ -18,6 +18,9 @@ __pycache__/
 
 # Virtual environment
 .venv/
+venv/
+
+
 .pyclif_dev/
 .claude
 todo.md
