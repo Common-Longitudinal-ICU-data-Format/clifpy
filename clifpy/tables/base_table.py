@@ -517,18 +517,23 @@ class BaseTable:
         except Exception as e:
             self.logger.error(f"Error saving summary: {str(e)}")
 
-    def analyze_categorical_distributions(self) -> Dict[str, pd.DataFrame]:
+    def analyze_categorical_distributions(self, save: bool = True) -> Dict[str, pd.DataFrame]:
         """
         Analyze distributions of categorical variables.
 
         For each categorical variable, returns the distribution of categories
-        (counts and proportions) for the entire table.
+        based on unique hospitalization_id (or patient_id if hospitalization_id is not present).
+
+        Parameters
+        ----------
+        save : bool, default=True
+            If True, saves distribution data to CSV files in the output directory.
 
         Returns
         -------
         Dict[str, pd.DataFrame]
             Dictionary where keys are categorical column names and values are
-            DataFrames with category distributions (counts and proportions).
+            DataFrames with category distributions (unique ID counts and %).
         """
         if self.df is None:
             self.logger.warning("No dataframe to analyze")
@@ -536,6 +541,15 @@ class BaseTable:
 
         if not self.schema:
             self.logger.warning("No schema available for categorical analysis")
+            return {}
+
+        # Determine ID column to use (prefer hospitalization_id)
+        if 'hospitalization_id' in self.df.columns:
+            id_col = 'hospitalization_id'
+        elif 'patient_id' in self.df.columns:
+            id_col = 'patient_id'
+        else:
+            self.logger.warning("No hospitalization_id or patient_id column found")
             return {}
 
         # Get categorical columns from schema
@@ -552,16 +566,26 @@ class BaseTable:
 
         for col in categorical_columns:
             try:
-                value_counts = self.df[col].value_counts(dropna=False)
-                proportions = self.df[col].value_counts(normalize=True, dropna=False).round(4)
+                # Count unique IDs per category
+                id_counts = self.df.groupby(col, dropna=False)[id_col].nunique().sort_values(ascending=False)
+                # Calculate % as (unique IDs in category) / (total unique IDs in entire table)
+                total_unique_ids = self.df[id_col].nunique()
+                percent = (id_counts / total_unique_ids * 100).round(2)
 
                 distribution_df = pd.DataFrame({
-                    'category': value_counts.index,
-                    'count': value_counts.values,
-                    'proportion': proportions.values
+                    'category': id_counts.index,
+                    'count': id_counts.values,
+                    '%': percent.values
                 })
 
                 results[col] = distribution_df
+
+                # Save to CSV if requested
+                if save:
+                    csv_filename = f'categorical_dist_{self.table_name}_{col}.csv'
+                    csv_path = os.path.join(self.output_directory, csv_filename)
+                    distribution_df.to_csv(csv_path, index=False)
+                    self.logger.info(f"Saved distribution data to {csv_path}")
 
                 self.logger.info(f"Analyzed categorical distribution for {col}")
 
@@ -571,60 +595,132 @@ class BaseTable:
 
         return results
 
-    def calculate_ecdf(self) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    def plot_categorical_distributions(self, columns: Optional[List[str]] = None, figsize: Tuple[int, int] = (10, 6), save: bool = True, dpi: int = 300):
         """
-        Calculate Empirical Cumulative Distribution Functions (ECDF) for continuous variables.
+        Create bar plots for categorical variable distributions.
 
-        For each continuous variable, calculates ECDF values for the entire table.
+        Counts unique hospitalization_id (or patient_id if hospitalization_id is not present)
+        for each category.
+
+        Parameters
+        ----------
+        columns : List[str], optional
+            Specific categorical columns to plot. If None, plots all categorical columns.
+        figsize : Tuple[int, int], default=(10, 6)
+            Figure size for each plot (width, height).
+        save : bool, default=True
+            If True, saves plots to output directory as PNG files.
+        dpi : int, default=300
+            Resolution for saved plots (dots per inch).
 
         Returns
         -------
-        Dict[str, Tuple[np.ndarray, np.ndarray]]
-            Dictionary where keys are continuous column names and values are
-            tuples of (x_values, y_values) for ECDF plotting.
+        Dict[str, Figure]
+            Dictionary where keys are categorical column names and values are
+            matplotlib Figure objects.
         """
+        import matplotlib.pyplot as plt
+
         if self.df is None:
-            self.logger.warning("No dataframe to analyze")
+            self.logger.warning("No dataframe to plot")
             return {}
 
         if not self.schema:
-            self.logger.warning("No schema available for ECDF analysis")
+            self.logger.warning("No schema available for categorical plotting")
             return {}
 
-        # Get continuous/numeric columns from schema
-        continuous_columns = [
+        # Determine ID column to use (prefer hospitalization_id)
+        if 'hospitalization_id' in self.df.columns:
+            id_col = 'hospitalization_id'
+        elif 'patient_id' in self.df.columns:
+            id_col = 'patient_id'
+        else:
+            self.logger.warning("No hospitalization_id or patient_id column found")
+            return {}
+
+        # Get categorical columns from schema
+        categorical_columns = [
             col['name'] for col in self.schema.get('columns', [])
-            if col.get('data_type') in ['DOUBLE', 'FLOAT', 'INT', 'INTEGER']
-            and col['name'] in self.df.columns
-            and not col.get('is_category_column', False)
+            if col.get('is_category_column', False) and col['name'] in self.df.columns
         ]
 
-        if not continuous_columns:
-            self.logger.info("No continuous columns found in schema")
+        if not categorical_columns:
+            self.logger.info("No categorical columns found in schema")
             return {}
 
-        results = {}
+        # Filter to requested columns if specified
+        if columns is not None:
+            categorical_columns = [col for col in categorical_columns if col in columns]
 
-        for col in continuous_columns:
+        if not categorical_columns:
+            self.logger.warning("No matching categorical columns found")
+            return {}
+
+        plots = {}
+
+        for col in categorical_columns:
             try:
-                # Remove missing values for ECDF calculation
-                clean_data = self.df[col].dropna()
+                # Count unique IDs per category
+                id_counts = self.df.groupby(col, dropna=False)[id_col].nunique().sort_values(ascending=False)
 
-                if len(clean_data) == 0:
-                    self.logger.warning(f"No valid data for ECDF calculation in column {col}")
-                    continue
+                # Create modern bar plot
+                fig, ax = plt.subplots(figsize=figsize, facecolor='white')
 
-                # Calculate overall ECDF
-                x_vals = np.sort(clean_data.values)
-                y_vals = np.arange(1, len(x_vals) + 1) / len(x_vals)
+                # Use colorblind-friendly color palette (cividis)
+                colors = plt.cm.cividis(np.linspace(0.3, 0.9, len(id_counts)))
+                bars = ax.bar(range(len(id_counts)), id_counts.values, color=colors, edgecolor='white', linewidth=1.5)
 
-                results[col] = (x_vals, y_vals)
+                # Styling
+                ax.set_xlabel('Category', fontsize=12, fontweight='bold', color='#333333')
+                ax.set_ylabel(f'Unique {id_col} counts', fontsize=12, fontweight='bold', color='#333333')
+                ax.set_title(f'Distribution of {col}', fontsize=14, fontweight='bold', pad=20, color='#1a1a1a')
+                ax.set_xticks(range(len(id_counts)))
+                ax.set_xticklabels([str(x) for x in id_counts.index], rotation=45, ha='right', fontsize=10)
 
-                self.logger.info(f"Calculated ECDF for {col}")
+                # Remove top and right spines
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_color('#cccccc')
+                ax.spines['bottom'].set_color('#cccccc')
+
+                # Add grid for readability
+                ax.yaxis.grid(True, linestyle='--', alpha=0.3, color='#cccccc')
+                ax.set_axisbelow(True)
+
+                # Add value labels on top of bars (adjust font size and rotation based on number of categories)
+                num_categories = len(id_counts)
+                if num_categories <= 10:
+                    label_fontsize = 9
+                    label_rotation = 0
+                elif num_categories <= 20:
+                    label_fontsize = 7
+                    label_rotation = 45
+                else:
+                    label_fontsize = 6
+                    label_rotation = 90
+
+                for i, (bar, value) in enumerate(zip(bars, id_counts.values)):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height,
+                           f'{int(value)}',
+                           ha='center', va='bottom', fontsize=label_fontsize,
+                           color='#333333', rotation=label_rotation)
+
+                plt.tight_layout()
+
+                # Save plot if requested
+                if save:
+                    plot_filename = f'categorical_dist_{self.table_name}_{col}.png'
+                    plot_path = os.path.join(self.output_directory, plot_filename)
+                    fig.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+                    self.logger.info(f"Saved plot to {plot_path}")
+
+                plots[col] = fig
+
+                self.logger.info(f"Created plot for {col}")
 
             except Exception as e:
-                self.logger.error(f"Error calculating ECDF for {col}: {str(e)}")
+                self.logger.error(f"Error creating plot for {col}: {str(e)}")
                 continue
 
-        return results
-
+        return plots
