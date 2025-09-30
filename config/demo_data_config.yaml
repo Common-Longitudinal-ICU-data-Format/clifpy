@@ -1,0 +1,6 @@
+# Configuration mirroring real-world usage for the bundled demo data
+# Paths are resolved relative to the project root unless overridden.
+data_directory: "clifpy/data/clif_demo"
+filetype: "parquet"
+timezone: "US/Central"
+output_directory: "output/demo"

@@ -32,7 +32,8 @@ context7.json
 # visualization
 output/
 
-config/
+# config/
+config/config.yaml
 site/
 .serena/
 .pytest_cache
