@@ -1,3 +1,26 @@
+# docs
+
+review all the files under @examples/ and @docs/user-guide/  and synthesize them into a marino notebook at examples/demo.py which is serves as a quick tutorial of the core functionalities of the package for first time users. some of the files you are asked to review may contain zombie code that no longer works, so please also keep them in mind as future targets for update/removal and please do not include them in demo.py. for example, the most recommended way of usage is through the ClifOrchestrator class so make sure you center the tutorial demo.py around that. Note that that a lot of code in the demo notebook is expected to pass automatic `doctest` if they are transported into code blocks in a markdown file. make sure you use context7 to understand the coding patterns and requirement of a marimo notebook. 
+
+provide a plan of implementation including a list of the core functionalities you identified
+
+1. can you devise a plan to update the interface of using the demo data, such that it would maximally resemble how the functions/classes should be invoked when users actually use their own data. I'm thinking something like `co = ClifOrchestrator(config_path='config/demo_data_config.yaml')` instead of the current `co = load_demo_clif(timezone = 'US/Central')`.
+ 
+2. update your current implementation plan for the demo.py marimo notebook with the above understanding and that a lot of code in the demo notebook is expected to pass automatic `doctest` if they are transported into code blocks in a markdown file.
+
+3. make sure you use context7 to understand the coding patterns and requirement of a marimo notebook. 
+
+1. remove any mentioning of json, we are going full .yaml.
+2. use `co` to consistently refer to the instantiated ClifOrchetrator. 
+3. for doctest, do not 'skip blocks requiring large data.'
+4. refer to @clifpy/utils/config.py for all the ways of configuration. make sure you cover all the possible approaches (e.g. using a .yaml file or using the args of the builder)
+5. i'm thinking of removing the orchestrator.md file entirely and move the content elsewhere. Overall i'm thinking there should be one must-read page for every user that introduces the core features, like a clifpy 101 course (not that it should be necessarily named that way). this must-read intro page should introduce the orchestrator conceptually and its core features (including e.g. wide dataset creation, sofa calculation, med dose unit conversion, etc.) and point to their respective pages for more specifics. should these be in basic-usage.md? what are your recommendations? I also agree that the overview index.md page should be more like a table of contents with just a brief intro of the package and then point to other pages with brief explanations.
+
+overall good, but 
+1. i want to move quickstart.md to be within basic-usage.md as well -- can it just be a subsection in it? perhaps the first? 
+2. all the demo code should thrive to demo the function interfaces in two steps: first, the minimal args needed; second, the most common and useful args all configured at once. e.g. the orchestrator can load the data via `co.initialize(tables=['patient', 'vitals', 'labs'])` but more commonly we'd want users to use the `columns` and `filters` args as well to reduce the memory burden created by excessive data loaded. For all such specifications, refer to @clifpy/clif_orchestrator.py
+3. meanwhile, where do you plan to mention the configuration options?
+
 # `utils`
 ## `unit_converter`
 Implement the following tests in tests/tables/test_medication_admin_continuous.py following instructions in their docstrings:

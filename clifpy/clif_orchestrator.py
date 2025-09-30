@@ -347,7 +347,8 @@ class ClifOrchestrator:
         loaded = []
         for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
                           'medication_admin_continuous', 'medication_admin_intermittent',
-                          'patient_assessments', 'respiratory_support', 'position']:
+                          'patient_assessments', 'respiratory_support', 'position',
+                          'hospital_diagnosis']:
             if getattr(self, table_name) is not None:
                 loaded.append(table_name)
         return loaded
@@ -364,7 +365,8 @@ class ClifOrchestrator:
         table_objects = []
         for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
                           'medication_admin_continuous', 'medication_admin_intermittent',
-                          'patient_assessments', 'respiratory_support', 'position']:
+                          'patient_assessments', 'respiratory_support', 'position',
+                          'hospital_diagnosis']:
             table_obj = getattr(self, table_name)
             if table_obj is not None:
                 table_objects.append(table_obj)

@@ -174,18 +174,6 @@ class hospitalization(BaseTable):
         # Implementation here
         pass
 
-# adt.py  
-class adt(BaseTable):
-    def get_location_categories(self) -> List[str]:
-        """Return unique location categories."""
-        if 'location_category' not in self.df.columns:
-            return []
-        return self.df['location_category'].dropna().unique().tolist()
-        
-    def filter_by_location_category(self, location: str) -> pd.DataFrame:
-        """Filter records by location category (e.g., 'icu', 'ward')."""
-        # Implementation here
-        pass
 ```
 
 ## Validation Flow

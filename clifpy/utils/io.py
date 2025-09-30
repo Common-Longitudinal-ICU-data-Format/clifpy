@@ -9,7 +9,7 @@ import logging
 from .config import get_config_or_params
 
 # Initialize logger for this module
-logger = logging.getLogger('pyclif.utils.io')
+logger = logging.getLogger('clifpy.utils.io')
 
 # conn = duckdb.connect(database=':memory:')
 
@@ -171,6 +171,7 @@ def convert_datetime_columns_to_site_tz(df, site_tz_str, verbose=True):
 
     for col in dttm_columns:
         df[col] = pd.to_datetime(df[col], errors='coerce')
+        # if isinstance(df[col], pd.DatetimeTZDtype):
         if pd.api.types.is_datetime64tz_dtype(df[col]):
             current_tz = df[col].dt.tz
             # Compare timezone names/strings instead of timezone objects

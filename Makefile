@@ -7,4 +7,4 @@ docs:
 	uv run mkdocs serve
 
 mo:
-	uv run marimo edit
+	uv run marimo edit --watch

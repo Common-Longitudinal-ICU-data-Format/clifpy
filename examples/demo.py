@@ -37,9 +37,6 @@ def _(mo):
     # Initialize using config file (recommended)
     co = ClifOrchestrator(config_path="config/demo_data_config.yaml")
 
-    print(f"Data Directory: {co.data_directory}")
-    print(f"Timezone: {co.timezone}")
-
     mo.show_code()
     return (co,)
 
@@ -63,11 +60,6 @@ def _(co, mo):
     co.initialize(tables=['patient', 'hospitalization', 'adt', 'vitals', 'labs'])
 
     mo.show_code()
-
-    print("Loaded tables:")
-    for _table_name in co.get_loaded_tables():
-        _table = getattr(co, _table_name)
-        print(f"  {_table_name}: {len(_table.df):,} rows")
     return
 
 
@@ -85,17 +77,17 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Access DataFrames directly
     patient_df = co.patient.df
     vitals_df = co.vitals.df
     labs_df = co.labs.df
 
     # Example: patient demographics
-    print(f"Total patients: {len(patient_df)}")
-    print("\nSex distribution:")
-    print(patient_df['sex_category'].value_counts())
-    return (patient_df,)
+    patient_df['sex_category'].value_counts()
+
+    mo.show_code()
+    return (patient_df, vitals_df, labs_df)
 
 
 @app.cell
@@ -119,15 +111,17 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Validate all loaded tables
     co.validate_all()
 
     # Check validation status
-    for table_name in co.get_loaded_tables():
-        table = getattr(co, table_name)
-        status = "✅ Valid" if table.isvalid() else f"❌ {len(table.errors)} errors"
-        print(f"{table_name:20s}: {status}")
+    # for table_name in co.get_loaded_tables():
+    #     table = getattr(co, table_name)
+    #     status = "✅ Valid" if table.isvalid() else f"❌ {len(table.errors)} errors"
+    #     print(f"{table_name:20s}: {status}")
+
+    mo.show_code()
     return
 
 
@@ -155,31 +149,36 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Hospitalization statistics
     mortality_rate = co.hospitalization.get_mortality_rate()
     summary = co.hospitalization.get_summary_stats()
 
-    print(f"Mortality rate: {mortality_rate:.1f}%")
-    print(f"Mean age: {summary['age_stats']['mean']:.1f} years")
-    print(f"Mean LOS: {summary['length_of_stay_stats']['mean_days']:.1f} days")
-    return
+    # Display native outputs
+    summary
+
+    mo.show_code()
+    return (mortality_rate, summary)
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Vitals summary - distributions by category
     vital_summary = co.vitals.get_vital_summary_stats()
     vital_summary
-    return
+
+    mo.show_code()
+    return (vital_summary,)
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Labs summary - distributions by category
     lab_summary = co.labs.get_lab_category_stats()
     lab_summary
-    return
+
+    mo.show_code()
+    return (lab_summary,)
 
 
 @app.cell
@@ -197,16 +196,16 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Check system resources (best practice for large datasets)
     resources = co.get_sys_resource_info()
-    print(f"Available RAM: {resources['memory_available_gb']:.1f} GB")
-    print(f"Recommended threads: {resources['max_recommended_threads']}")
-    return
+
+    mo.show_code()
+    return (resources,)
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Create wide dataset
     co.create_wide_dataset(
         tables_to_load=['vitals', 'labs'],
@@ -219,9 +218,8 @@ def _(co):
     )
 
     wide_df = co.wide_df
-    print(f"✅ Shape: {wide_df.shape}")
-    print(f"   Columns: {list(wide_df.columns[:10])}...")
-    print(f"   Time range: {wide_df['event_time'].min()} to {wide_df['event_time'].max()}")
+
+    mo.show_code()
     return (wide_df,)
 
 
@@ -246,7 +244,7 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Define aggregation methods per variable
     aggregation_config = {
         'mean': ['heart_rate', 'sbp', 'dbp', 'respiratory_rate'],
@@ -260,10 +258,8 @@ def _(co):
         memory_limit='4GB'
     )
 
-    print(f"✅ Shape: {hourly_df.shape}")
-    print(f"   Unique hospitalizations: {hourly_df['hospitalization_id'].nunique()}")
-    print(f"   Hour range: {hourly_df['nth_hour'].min()} - {hourly_df['nth_hour'].max()}")
-    return (hourly_df,)
+    mo.show_code()
+    return (hourly_df, aggregation_config)
 
 
 @app.cell
@@ -286,13 +282,14 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     # Compute SOFA scores
     sofa_df = co.compute_sofa_scores(id_name='hospitalization_id')
 
-    print(f"✅ Computed for {len(sofa_df)} hospitalizations")
-    print("\nSOFA score statistics:")
-    print(sofa_df['sofa_total'].describe())
+    # Show statistics
+    sofa_df['sofa_total'].describe()
+
+    mo.show_code()
     return (sofa_df,)
 
 
@@ -317,7 +314,7 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     preferred_units = {
         "propofol": "mcg/kg/min",
         "fentanyl": "mcg/hr",
@@ -332,9 +329,11 @@ def _(co):
     converted_df = co.medication_admin_continuous.df_converted
     conversion_summary = co.medication_admin_continuous.conversion_counts
 
-    print("✅ Conversion summary (shows source → target units with counts):")
+    # Show conversion summary
     conversion_summary.head(10)
-    return (converted_df,)
+
+    mo.show_code()
+    return (converted_df, conversion_summary)
 
 
 @app.cell
@@ -363,7 +362,7 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     from clifpy.utils import calculate_cci, calculate_elix
 
     co.load_table('hospital_diagnosis')
@@ -374,11 +373,11 @@ def _(co):
     # Elixhauser Comorbidity Index
     elix_df = calculate_elix(co.hospital_diagnosis, hierarchy=True)
 
-    print("✅ Charlson CCI:")
-    print(cci_df['cci_score'].describe())
-    print("\n✅ Elixhauser:")
-    print(elix_df['elix_score'].describe())
-    return (cci_df,)
+    # Show statistics
+    cci_df['cci_score'].describe()
+
+    mo.show_code()
+    return (cci_df, elix_df, calculate_cci, calculate_elix)
 
 
 @app.cell
@@ -401,22 +400,14 @@ def _(mo):
 
 
 @app.cell
-def _(co):
+def _(co, mo):
     from clifpy.utils import apply_outlier_handling
 
-    print("Before outlier handling:")
-    print(f"  Vitals rows: {len(co.vitals.df)}")
-    hr_data = co.vitals.df[co.vitals.df['vital_category']=='heart_rate']
-    print(f"  Non-null heart rates: {hr_data['vital_value'].notna().sum()}")
-
+    # Apply outlier handling
     apply_outlier_handling(co.vitals)
 
-    print("\nAfter outlier handling:")
-    print(f"  Vitals rows: {len(co.vitals.df)}")
-    hr_data = co.vitals.df[co.vitals.df['vital_category']=='heart_rate']
-    print(f"  Non-null heart rates: {hr_data['vital_value'].notna().sum()}")
-    print("  (Outliers converted to NaN)")
-    return
+    mo.show_code()
+    return (apply_outlier_handling,)
 
 
 @app.cell
