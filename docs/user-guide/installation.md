@@ -11,6 +11,7 @@ This guide will help you install CLIFpy and its dependencies.
 
 ### From PyPI (Recommended)
 
+<!-- skip: next -->
 ```bash
 pip install clifpy
 ```
@@ -19,6 +20,7 @@ pip install clifpy
 
 Clone the repository and install in development mode:
 
+<!-- skip: next -->
 ```bash
 # Clone the repository
 git clone https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy.git
@@ -38,6 +40,7 @@ pip install -e .
 
 To build the documentation locally:
 
+<!-- skip: next -->
 ```bash
 pip install clifpy[docs]
 ```
@@ -51,20 +54,8 @@ import clifpy
 print(clifpy.__version__)
 ```
 
-You should see the version number (e.g., `0.0.1`).
+You should see the version number (e.g., `0.0.8`).
 
-## Dependencies
-
-CLIFpy automatically installs the following dependencies:
-
-- **pandas**: Data manipulation and analysis
-- **duckdb**: SQL analytics engine
-- **pyarrow**: Parquet file support
-- **pytz**: Timezone handling
-- **matplotlib** & **seaborn**: Visualization (for demos)
-- **pytest**: Testing framework
-- **tqdm**: Progress bars
-- **marimo**: Interactive notebooks
 
 ## Platform Support
 
@@ -89,6 +80,7 @@ python --version
 
 On some systems, you may need to use `pip install --user`:
 
+<!-- skip: next -->
 ```bash
 pip install --user clifpy
 ```
@@ -97,6 +89,7 @@ pip install --user clifpy
 
 If you encounter dependency conflicts, consider using a virtual environment:
 
+<!-- skip: next -->
 ```bash
 python -m venv clifpy-env
 source clifpy-env/bin/activate  # On Windows: clifpy-env\Scripts\activate

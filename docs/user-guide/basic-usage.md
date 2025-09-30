@@ -63,13 +63,6 @@ All table data is accessible via the `df` attribute:
 # Access the underlying DataFrame
 df = table.df
 
-# Use standard pandas operations
-print(df.shape)
-print(df.columns.tolist())
-print(df.dtypes)
-
-# Filter data
-filtered = df[df['some_column'] > threshold]
 ```
 
 ## Common Operations

@@ -23,32 +23,12 @@ Need the convenience wrapper? ``from clifpy.data import load_demo_clif`` still
 returns an orchestrator, but the configuration-based pattern above mirrors the
 workflow you'll use with your own data.
 
-## Using Individual Tables
-
-### Loading a Single Table
-
-```python
-from clifpy.tables import Patient
-
-# Load patient data using configuration (recommended)
-patient = Patient.from_file(config_path='config/demo_data_config.yaml')
-
-# Validate the data
-patient.validate()
-
-# Check if data is valid
-if patient.isvalid():
-    print("Data validation passed!")
-else:
-    print(f"Found {len(patient.errors)} validation errors")
-```
-
 ## Using the Orchestrator
 
 For working with multiple tables at once:
 
 ```python
-from clifpy.clif_orchestrator import ClifOrchestrator
+from clifpy import ClifOrchestrator
 
 # Initialize orchestrator using configuration
 orchestrator = ClifOrchestrator(config_path='config/demo_data_config.yaml')
@@ -65,6 +45,24 @@ orchestrator.validate_all()
 # Get summary of loaded tables
 loaded = orchestrator.get_loaded_tables()
 print(f"Loaded tables: {loaded}")
+```
+
+## Using Individual Tables
+
+```python
+from clifpy.tables import Patient
+
+# Load patient data using configuration (recommended)
+patient = Patient.from_file(config_path='config/demo_data_config.yaml')
+
+# Validate the data
+patient.validate()
+
+# Check if data is valid
+if patient.isvalid():
+    print("Data validation passed!")
+else:
+    print(f"Found {len(patient.errors)} validation errors")
 ```
 
 
