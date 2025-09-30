@@ -1,8 +1,4 @@
 table_name: position
-composite_keys:
-  - hospitalization_id
-  - recorded_dttm
-  - position_category
 
 columns:
   - name: hospitalization_id

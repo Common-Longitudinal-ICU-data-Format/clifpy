@@ -22,6 +22,7 @@ columns:
     permissible_values:
       - academic
       - community
+      - LTACH
   - name: in_dttm
     data_type: DATETIME
     required: true
@@ -55,6 +56,22 @@ columns:
       - radiology
       - dialysis
       - other
+  - name: location_type
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - general_icu
+      - cardiac_icu
+      - cardiothoracic_surgical_icu
+      - mixed_cardiothoracic_icu
+      - surgical_icu
+      - burn_icu
+      - neuro_icu
+      - neurosurgical_icu
+      - mixed_neuro_icu
+      - medical_icu
 
 required_columns:
   - hospitalization_id
@@ -63,9 +80,11 @@ required_columns:
   - in_dttm
   - out_dttm
   - location_category
+  - location_type
 
 category_columns:
   - hospital_type
   - location_category
+  - location_type
 
 group_columns: []

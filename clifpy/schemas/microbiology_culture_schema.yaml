@@ -1,8 +1,5 @@
 table_name: microbiology_culture
-composite_keys:
-- patient_id
-- hospitalization_id
-- organism_id
+
 columns:
 - name: patient_id
   data_type: VARCHAR
@@ -26,7 +23,7 @@ columns:
   is_group_column: false
 - name: collect_dttm
   data_type: DATETIME
-  required: false
+  required: true
   is_category_column: false
   is_group_column: false
 - name: result_dttm
@@ -41,7 +38,7 @@ columns:
   is_group_column: false
 - name: fluid_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -96,7 +93,7 @@ columns:
   is_group_column: false
 - name: method_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -105,7 +102,7 @@ columns:
   - smear
 - name: organism_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
   permissible_values:
@@ -635,7 +632,7 @@ columns:
   - zygomycete_sp
 - name: organism_group
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: false
   is_group_column: true
   permissible_values:
@@ -747,3 +744,23 @@ columns:
   - vibrio
   - viral_other
   - yeast
+
+required_columns:
+  - patient_id
+  - hospitalization_id
+  - organism_id
+  - order_dttm
+  - collect_dttm
+  - result_dttm
+  - fluid_category
+  - method_category
+  - organism_category
+  - organism_group
+
+category_columns:
+  - fluid_category
+  - method_category
+  - organism_category
+
+group_columns:
+  - organism_group
