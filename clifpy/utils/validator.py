@@ -591,10 +591,10 @@ def validate_categorical_values(
         List of invalid category value errors
     """
     errors = []
-    
+
     try:
-        category_columns = schema.get("category_columns", [])
-        
+        category_columns = schema.get("category_columns") or []
+
         for col_spec in schema.get("columns", []):
             name = col_spec["name"]
             

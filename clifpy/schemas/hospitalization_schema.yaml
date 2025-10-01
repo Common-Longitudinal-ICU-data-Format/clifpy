@@ -43,7 +43,13 @@ columns:
     required: true
     is_category_column: true
     is_group_column: false
-    permissible_values: []
+    permissible_values: 
+      - ed 
+      - facility
+      - osh
+      - direct
+      - elective
+      - other
   - name: discharge_name
     data_type: VARCHAR
     required: false

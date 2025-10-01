@@ -1,7 +1,7 @@
 table_name: patient
 composite_keys:
   - patient_id
-
+  
 columns:
   - name: patient_id
     data_type: VARCHAR
@@ -20,7 +20,7 @@ columns:
     is_group_column: false
   - name: race_name
     data_type: VARCHAR
-    required: true
+    required: false
     is_category_column: false
     is_group_column: false
   - name: race_category
@@ -38,7 +38,7 @@ columns:
       - Other
   - name: ethnicity_name
     data_type: VARCHAR
-    required: true
+    required: false
     is_category_column: false
     is_group_column: false
   - name: ethnicity_category
@@ -52,7 +52,7 @@ columns:
       - Unknown
   - name: sex_name
     data_type: VARCHAR
-    required: true
+    required: false
     is_category_column: false
     is_group_column: false
   - name: sex_category
@@ -66,7 +66,7 @@ columns:
       - Unknown
   - name: language_name
     data_type: VARCHAR
-    required: true
+    required: false
     is_category_column: false
     is_group_column: false
   - name: language_category
@@ -74,19 +74,60 @@ columns:
     required: true
     is_category_column: true
     is_group_column: false
-    permissible_values: []
+    permissible_values:
+      - English
+      - Spanish
+      - French
+      - Haitian Creole
+      - Italian
+      - Portuguese
+      - German
+      - Yiddish, Pennsylvania Dutch, or other West Germanic Languages
+      - Greek
+      - Russian
+      - Polish
+      - Serbo-Croatian
+      - Ukrainian or other Slavic languages
+      - Armenian
+      - Persian
+      - Gujarati
+      - Hindi
+      - Urdu
+      - Punjabi
+      - Bengali
+      - Nepali, Marathi, or other Indic languages
+      - Other European Indo-European languages
+      - Other Asian Indo-European languages
+      - Telugu
+      - Tamil
+      - Malayalam, Kannada, or other Dravidian languages
+      - Chinese
+      - Japanese
+      - Korean
+      - Vietnamese
+      - Khmer
+      - Thai, Lao, or other Tai-Kadai languages
+      - Other languages of Asia
+      - Tagalog
+      - Ilocano, Samoan, Hawaiian, or other Austronesian languages
+      - Arabic
+      - Hebrew
+      - Amharic, Somali, or other Afro-Asiatic languages
+      - Yoruba, Twi, Igbo, or other languages of Western Africa
+      - Swahili or other languages of Central, Eastern, and Southern Africa
+      - Navajo
+      - Other Native languages of North America
+      - Other and unspecified languages
+      - Sign Language
+      - Unknown or NA
 
 required_columns:
   - patient_id
   - birth_date
   - death_dttm
-  - race_name
   - race_category
-  - ethnicity_name
   - ethnicity_category
-  - sex_name
   - sex_category
-  - language_name
   - language_category
 
 category_columns:

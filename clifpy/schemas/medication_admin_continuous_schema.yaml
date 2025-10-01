@@ -1,8 +1,4 @@
 table_name: medication_admin_continuous
-composite_keys:
-  - hospitalization_id
-  - admin_dttm
-  - med_category
 
 columns:
   - name: hospitalization_id
@@ -112,7 +108,7 @@ columns:
       - dextrose_in_water_d5w
   - name: med_group
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: true
     is_group_column: false
     permissible_values:
@@ -136,18 +132,21 @@ columns:
     is_group_column: false
   - name: med_route_category
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: true
     is_group_column: false
-    permissible_values: []
+    permissible_values: 
+     - im
+     - iv
+     - inhaled
   - name: med_dose
     data_type: DOUBLE
-    required: false
+    required: true
     is_category_column: false
     is_group_column: false
   - name: med_dose_unit
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: false
     is_group_column: false
   - name: mar_action_name
@@ -166,6 +165,10 @@ required_columns:
   - hospitalization_id
   - admin_dttm
   - med_category
+  - med_group
+  - med_route_category
+  - med_dose
+  - med_dose_unit
 
 category_columns:
   - med_category

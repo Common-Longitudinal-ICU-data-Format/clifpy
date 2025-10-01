@@ -282,14 +282,65 @@ wide_df = co.wide_df
 
 ## Hourly Aggregation
 
-Convert the wide dataset to hourly aggregation. The `convert_wide_to_hourly` method automatically uses the stored wide dataset from `create_wide_dataset()`:
+The hourly aggregation feature transforms your wide time-series data into hourly buckets with configurable aggregation methods. This is essential for creating consistent time-series features for machine learning, calculating clinical scores (like SOFA), and analyzing temporal patterns.
+
+### Understanding Hourly Aggregation
+
+Hourly aggregation:
+- Groups events into hourly time buckets based on `event_time`
+- Applies specified aggregation methods (mean, max, min, etc.) to each column
+- Creates consistent time series with one row per hour per ID
+- Calculates `nth_hour` representing hours since the first event
+- Supports flexible grouping by different ID columns (hospitalization or encounter)
+
+### Function Parameters
+
+The `convert_wide_to_hourly()` method accepts:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `aggregation_config` | Dict[str, List[str]] | Required | Maps aggregation methods to column lists |
+| `wide_df` | DataFrame | None | Input wide dataset (uses stored `co.wide_df` if None) |
+| `id_name` | str | 'hospitalization_id' | Column for grouping: 'hospitalization_id', 'encounter_block', or custom |
+| `memory_limit` | str | '4GB' | DuckDB memory limit (e.g., '8GB', '16GB') |
+| `temp_directory` | str | None | Directory for temporary files |
+| `batch_size` | int | Auto | Batch size for processing large datasets |
+
+### Aggregation Methods and Column Suffixes
+
+Each column gets a suffix based on its aggregation method:
+
+| Method | Suffix | Description | Use Case |
+|--------|--------|-------------|----------|
+| `max` | `_max` | Maximum value within hour | Worst vital signs, peak lab values |
+| `min` | `_min` | Minimum value within hour | Lowest counts, minimum scores |
+| `mean` | `_mean` | Average value within hour | Typical vital signs, average doses |
+| `median` | `_median` | Median value within hour | Robust central tendency |
+| `first` | `_first` | First value chronologically | Initial assessments, admission values |
+| `last` | `_last` | Last value chronologically | Most recent status, discharge values |
+| `boolean` | `_boolean` | 1 if any value present, 0 if absent | Medication administration, interventions |
+| (auto) | `_c` | Carry-forward for non-aggregated columns | Demographics, static values |
+
+**Note**: Columns not explicitly specified in `aggregation_config` are automatically assigned to 'first' aggregation with `_c` suffix to distinguish them from explicitly requested aggregations.
+
+### Special Columns (No Suffix)
+
+These columns maintain their original names without suffixes:
+- **`patient_id`**: Patient identifier
+- **`day_number`**: Sequential day within stay
+- **`nth_hour`**: Hours since first event (0, 1, 2, ...) - key temporal column
+- **`event_time_hour`**: Timestamp of the hour bucket
+- **`hour_bucket`**: Hour of day (0-23)
+- **ID column**: The grouping column (varies based on `id_name` parameter)
+
+### Basic Usage
 
 ```python
 # Create aggregation configuration
 aggregation_config = {
-    'max': ['sbp', 'map'],
+    'max': ['sbp', 'map', 'creatinine'],
     'mean': ['heart_rate', 'respiratory_rate'],
-    'min': ['spo2'],
+    'min': ['spo2', 'platelet_count'],
     'median': ['temp_c'],
     'first': ['gcs_total', 'rass'],
     'last': ['assessment_value'],
@@ -304,14 +355,116 @@ hourly_df = co.convert_wide_to_hourly(
 
 print(f"Hourly dataset: {hourly_df.shape}")
 print(f"Hour range: {hourly_df['nth_hour'].min()} to {hourly_df['nth_hour'].max()}")
-
-# Alternative: Explicitly provide wide_df (useful for custom datasets)
-# hourly_df = co.convert_wide_to_hourly(
-#     wide_df=custom_wide_df,
-#     aggregation_config=aggregation_config,
-#     memory_limit='8GB'
-# )
+print(f"Columns created: {list(hourly_df.columns)}")
 ```
+
+### Using Encounter Blocks for Aggregation
+
+When encounter stitching is enabled, you can aggregate by `encounter_block` to treat linked hospitalizations as continuous stays:
+
+```python
+# Enable encounter stitching during initialization
+co = ClifOrchestrator(
+    data_directory='/path/to/data',
+    stitch_encounter=True,
+    stitch_time_interval=6  # Link hospitalizations within 6 hours
+)
+
+# Create wide dataset (encounter_block column automatically added)
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs'],
+    category_filters={
+        'vitals': ['heart_rate', 'sbp'],
+        'labs': ['hemoglobin', 'creatinine']
+    }
+)
+
+# Aggregate by encounter blocks instead of individual hospitalizations
+hourly_df_encounter = co.convert_wide_to_hourly(
+    aggregation_config=aggregation_config,
+    id_name='encounter_block'  # Group by encounter blocks
+)
+
+# Compare with hospitalization-level aggregation
+hourly_df_hosp = co.convert_wide_to_hourly(
+    aggregation_config=aggregation_config,
+    id_name='hospitalization_id'  # Default behavior
+)
+
+print(f"Encounter blocks: {hourly_df_encounter['encounter_block'].nunique()}")
+print(f"Hospitalizations: {hourly_df_hosp['hospitalization_id'].nunique()}")
+```
+
+### Example: Comparing Aggregation Strategies
+
+```python
+# Define consistent aggregation config
+config = {
+    'mean': ['heart_rate', 'map', 'spo2'],
+    'max': ['creatinine', 'bilirubin'],
+    'boolean': ['norepinephrine', 'vasopressin']
+}
+
+# Method 1: Aggregate by hospitalization (default)
+hourly_by_hosp = co.convert_wide_to_hourly(
+    aggregation_config=config,
+    id_name='hospitalization_id'
+)
+
+# Method 2: Aggregate by encounter block (for linked stays)
+hourly_by_encounter = co.convert_wide_to_hourly(
+    aggregation_config=config,
+    id_name='encounter_block'
+)
+
+# Analysis
+print("=== Aggregation Comparison ===")
+print(f"By hospitalization: {len(hourly_by_hosp)} hourly records")
+print(f"By encounter block: {len(hourly_by_encounter)} hourly records")
+
+# Encounter blocks create longer continuous stays
+max_hours_hosp = hourly_by_hosp.groupby('hospitalization_id')['nth_hour'].max()
+max_hours_enc = hourly_by_encounter.groupby('encounter_block')['nth_hour'].max()
+print(f"Max stay duration (hospitalizations): {max_hours_hosp.max()} hours")
+print(f"Max stay duration (encounters): {max_hours_enc.max()} hours")
+```
+
+### Output Structure
+
+The hourly dataset contains:
+1. **ID column** (based on `id_name` parameter)
+2. **Temporal columns**: `nth_hour`, `event_time_hour`, `hour_bucket`, `day_number`
+3. **Patient columns**: `patient_id`
+4. **Aggregated columns** with appropriate suffixes
+5. **Carry-forward columns** with `_c` suffix
+
+Example output structure:
+```
+hospitalization_id | nth_hour | heart_rate_mean | sbp_max | norepinephrine_boolean | age_at_admission_c
+123456            | 0        | 75.5           | 130     | 0                     | 65.0
+123456            | 1        | 82.3           | 135     | 1                     | 65.0
+123456            | 2        | 79.0           | 128     | 1                     | 65.0
+```
+
+### Memory Optimization for Large Datasets
+
+```python
+# For very large datasets, use batching
+hourly_df = co.convert_wide_to_hourly(
+    aggregation_config=aggregation_config,
+    batch_size=5000,  # Process 5000 IDs at a time
+    memory_limit='16GB',
+    temp_directory='/path/to/fast/disk'  # SSD recommended
+)
+```
+
+### Common Patterns and Tips
+
+1. **Vital Signs**: Use `mean` for typical values, `max`/`min` for extremes
+2. **Medications**: Use `boolean` for presence/absence or `mean` for average doses
+3. **Lab Values**: Use `max` for values you want to catch peaks (creatinine, bilirubin)
+4. **Assessments**: Use `first` or `last` depending on clinical relevance
+5. **Demographics**: Automatically get `_c` suffix (carry-forward)
 
 ## Output Structure
 

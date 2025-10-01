@@ -345,9 +345,7 @@ class ClifOrchestrator:
             List of loaded table names
         """
         loaded = []
-        for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
-                          'medication_admin_continuous', 'medication_admin_intermittent',
-                          'patient_assessments', 'respiratory_support', 'position']:
+        for table_name in TABLE_CLASSES.keys():
             if getattr(self, table_name) is not None:
                 loaded.append(table_name)
         return loaded
@@ -362,9 +360,7 @@ class ClifOrchestrator:
             List of loaded table objects
         """
         table_objects = []
-        for table_name in ['patient', 'hospitalization', 'adt', 'labs', 'vitals',
-                          'medication_admin_continuous', 'medication_admin_intermittent',
-                          'patient_assessments', 'respiratory_support', 'position']:
+        for table_name in TABLE_CLASSES.keys():
             table_obj = getattr(self, table_name)
             if table_obj is not None:
                 table_objects.append(table_obj)
@@ -822,6 +818,7 @@ class ClifOrchestrator:
         self,
         aggregation_config: Dict[str, List[str]],
         wide_df: Optional[pd.DataFrame] = None,
+        id_name: str = 'hospitalization_id',
         memory_limit: str = '4GB',
         temp_directory: Optional[str] = None,
         batch_size: Optional[int] = None
@@ -845,6 +842,11 @@ class ClifOrchestrator:
             }
         wide_df : pd.DataFrame, optional
             Wide dataset DataFrame. If None, uses the stored wide_df from create_wide_dataset()
+        id_name : str, default='hospitalization_id'
+            Column name to use for grouping aggregation. Options:
+            - 'hospitalization_id': Group by individual hospitalizations (default)
+            - 'encounter_block': Group by encounter blocks (after encounter stitching)
+            - Any other ID column present in the wide dataset
         memory_limit : str, default='4GB'
             DuckDB memory limit (e.g., '4GB', '8GB')
         temp_directory : str, optional
@@ -861,6 +863,11 @@ class ClifOrchestrator:
             # Using stored wide_df (after create_wide_dataset())
             co.create_wide_dataset(...)
             hourly_df = co.convert_wide_to_hourly(aggregation_config=config)
+
+            # Using encounter blocks after stitching
+            co.run_stitch_encounters()
+            co.create_wide_dataset(...)
+            hourly_df = co.convert_wide_to_hourly(aggregation_config=config, id_name='encounter_block')
 
             # Using explicit wide_df parameter
             hourly_df = co.convert_wide_to_hourly(wide_df=my_df, aggregation_config=config)
@@ -880,6 +887,7 @@ class ClifOrchestrator:
         return convert_wide_to_hourly(
             wide_df=wide_df,
             aggregation_config=aggregation_config,
+            id_name=id_name,
             memory_limit=memory_limit,
             temp_directory=temp_directory,
             batch_size=batch_size
