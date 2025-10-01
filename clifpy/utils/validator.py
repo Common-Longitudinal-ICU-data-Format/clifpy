@@ -29,6 +29,8 @@ import os
 import yaml
 from typing import List, Dict, Any, Optional, Tuple
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -613,9 +615,9 @@ def validate_categorical_values(
                     errors.append({
                                 "type": "missing_categorical_values",
                                 "column": name,
-                                "missing_values": missing_values,  
+                                "missing_values": missing_values,
                                 "total_missing": len(missing_values),
-                                "message": f"Column '{name}' is missing {len(missing_values)} expected category values"
+                                "message": f"Column '{name}' is missing {len(missing_values)} expected category values: {missing_values}"
                             })
                     
     except Exception as e:
@@ -1199,3 +1201,228 @@ def validate_numeric_ranges_from_config(
                 ))
 
     return results
+
+
+def plot_outlier_distribution(
+    df: pd.DataFrame,
+    table_name: str,
+    schema: Dict[str, Any],
+    outlier_config: Dict[str, Any],
+    save_path: Optional[str] = None,
+    show_plot: bool = True,
+    figsize: Optional[Tuple[int, int]] = None,
+    max_cols: int = 3,
+    max_plots_per_figure: Optional[int] = 6
+) -> Optional[List[plt.Figure]]:
+    """
+    Create boxplots showing outlier distributions for numeric columns.
+
+    This function creates visualizations that show:
+    - Data distribution via boxplots
+    - Expected min/max ranges as red horizontal lines
+    - Outliers beyond the expected ranges highlighted
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The dataframe to visualize
+    table_name : str
+        Name of the table being validated
+    schema : dict
+        Table schema with column definitions
+    outlier_config : dict
+        Outlier configuration from outlier_config.yaml
+    save_path : str, optional
+        Path to save the figure. If None, figure is not saved.
+        If multiple figures are created, saves as 'path_part1.png', 'path_part2.png', etc.
+    show_plot : bool, default=True
+        Whether to display the plot
+    figsize : tuple, optional
+        Figure size as (width, height). If None, automatically calculated based on number of plots.
+    max_cols : int, default=3
+        Maximum number of columns in the grid layout
+    max_plots_per_figure : int, optional, default=6
+        Maximum number of plots per figure. If more plots exist, splits into multiple figures.
+        Set to None to disable splitting. Default creates 2 rows × 3 columns layout.
+
+    Returns
+    -------
+    List[matplotlib.figure.Figure] or None
+        List of figure objects if plots were created, None otherwise
+
+    Examples
+    --------
+    >>> from clifpy.utils.validator import load_outlier_config, plot_outlier_distribution
+    >>>
+    >>> outlier_config = load_outlier_config()
+    >>> fig = plot_outlier_distribution(
+    ...     vitals_df, 'vitals', vitals_schema, outlier_config,
+    ...     save_path='vitals_outliers.png'
+    ... )
+    """
+    table_config = outlier_config.get('tables', {}).get(table_name, {})
+    if not table_config:
+        return None
+
+    # Get category columns from schema
+    cat_cols = {col['name'] for col in schema.get('columns', [])
+                if col.get('is_category_column')}
+
+    # Collect plot data
+    plot_data = []
+
+    for col_name, col_config in table_config.items():
+        if col_name not in df.columns:
+            continue
+
+        # Pattern 1: Simple range {min: X, max: Y}
+        if 'min' in col_config and 'max' in col_config:
+            data = df[col_name].dropna()
+            if len(data) > 0:
+                plot_data.append({
+                    'label': col_name,
+                    'data': data,
+                    'min': col_config['min'],
+                    'max': col_config['max']
+                })
+        else:
+            # Pattern 2 & 3: Category-dependent
+            category_col = _find_category_column(df, col_config, cat_cols)
+            if not category_col:
+                continue
+
+            first_val = col_config[list(col_config.keys())[0]]
+
+            # Pattern 2: Single category
+            if isinstance(first_val, dict) and 'min' in first_val:
+                for category, ranges in col_config.items():
+                    mask = df[category_col].astype(str).str.lower() == category.lower()
+                    if mask.any():
+                        data = df.loc[mask, col_name].dropna()
+                        if len(data) > 0:
+                            plot_data.append({
+                                'label': f"{category}\n({col_name})",
+                                'data': data,
+                                'min': ranges['min'],
+                                'max': ranges['max']
+                            })
+
+            # Pattern 3: Double category
+            else:
+                sec_col = _find_secondary_category_column(df, col_config, cat_cols, category_col)
+                if sec_col:
+                    for cat1, sub_config in col_config.items():
+                        for cat2, ranges in sub_config.items():
+                            if not isinstance(ranges, dict) or 'min' not in ranges:
+                                continue
+                            mask = (
+                                (df[category_col].astype(str).str.lower() == cat1.lower()) &
+                                (df[sec_col].astype(str).str.lower() == cat2.lower())
+                            )
+                            if mask.any():
+                                data = df.loc[mask, col_name].dropna()
+                                if len(data) > 0:
+                                    plot_data.append({
+                                        'label': f"{cat1}\n{cat2}\n({col_name})",
+                                        'data': data,
+                                        'min': ranges['min'],
+                                        'max': ranges['max']
+                                    })
+
+    if not plot_data:
+        return None
+
+    # Split into multiple figures if needed
+    n_total = len(plot_data)
+    if max_plots_per_figure and n_total > max_plots_per_figure:
+        n_figures = (n_total + max_plots_per_figure - 1) // max_plots_per_figure
+        plot_chunks = [plot_data[i:i + max_plots_per_figure]
+                       for i in range(0, n_total, max_plots_per_figure)]
+    else:
+        n_figures = 1
+        plot_chunks = [plot_data]
+
+    figures = []
+
+    for fig_idx, chunk in enumerate(plot_chunks):
+        n_plots = len(chunk)
+        n_cols = min(max_cols, n_plots)
+        n_rows = (n_plots + n_cols - 1) // n_cols  # Ceiling division
+
+        # Auto-calculate figsize if not provided
+        if figsize is None:
+            width = min(4 * n_cols, 20)  # Cap at 20 inches wide
+            height = 4 * n_rows
+            current_figsize = (width, height)
+        else:
+            current_figsize = figsize
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=current_figsize, squeeze=False)
+        axes = axes.flatten()
+
+        # Hide unused subplots
+        for idx in range(n_plots, len(axes)):
+            axes[idx].axis('off')
+
+        for idx, item in enumerate(chunk):
+            ax = axes[idx]
+            data = item['data']
+
+            # Create boxplot
+            bp = ax.boxplot([data], widths=0.6, patch_artist=True,
+                            boxprops=dict(facecolor='lightblue', alpha=0.7),
+                            medianprops=dict(color='darkblue', linewidth=2),
+                            flierprops=dict(marker='o', markerfacecolor='red',
+                                           markersize=4, alpha=0.5))
+
+            # Add expected range lines
+            ax.axhline(y=item['min'], color='red', linestyle='--',
+                       linewidth=2, label=f"Min: {item['min']}")
+            ax.axhline(y=item['max'], color='red', linestyle='--',
+                       linewidth=2, label=f"Max: {item['max']}")
+
+            # Shade the acceptable range
+            ax.axhspan(item['min'], item['max'], alpha=0.1, color='green')
+
+            # Count outliers
+            below = (data < item['min']).sum()
+            above = (data > item['max']).sum()
+
+            # Set labels and title
+            ax.set_title(f"{item['label']}\n(n={len(data)})", fontsize=9, pad=10)
+            ax.set_ylabel('Value', fontsize=8)
+            ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
+            ax.legend(fontsize=7, loc='best')
+            ax.grid(True, alpha=0.3, axis='y')
+
+            # Add outlier counts as text
+            if below > 0 or above > 0:
+                outlier_text = f"Below: {below}\nAbove: {above}"
+                ax.text(0.02, 0.98, outlier_text, transform=ax.transAxes,
+                       fontsize=7, verticalalignment='top',
+                       bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # Add title with part number if multiple figures
+        if n_figures > 1:
+            fig.suptitle(f'Outlier Distribution: {table_name} (Part {fig_idx + 1}/{n_figures})',
+                        fontsize=12, y=0.995)
+        else:
+            fig.suptitle(f'Outlier Distribution: {table_name}', fontsize=12, y=0.995)
+
+        plt.tight_layout(rect=[0, 0, 1, 0.99])
+
+        # Save with part number if multiple figures
+        if save_path:
+            if n_figures > 1:
+                base, ext = save_path.rsplit('.', 1) if '.' in save_path else (save_path, 'png')
+                current_save_path = f"{base}_part{fig_idx + 1}.{ext}"
+            else:
+                current_save_path = save_path
+            fig.savefig(current_save_path, dpi=150, bbox_inches='tight')
+
+        if show_plot:
+            plt.show()
+
+        figures.append(fig)
+
+    return figures if figures else None
