@@ -245,10 +245,10 @@ patient_table = patient.from_file(
 
 ### Method 3: Demo Data (Recommended for Learning)
 ```python
-# Use built-in demo datasets
-from clifpy.data import load_demo_patient
+# Use built-in demo datasets via configuration
+from clifpy.tables import Patient
 
-patient_table = load_demo_patient()  # Uses Method 1 internally
+patient_table = Patient.from_file(config_path='config/demo_data_config.yaml')
 ```
 
 ### All Methods Result in Same Capabilities:

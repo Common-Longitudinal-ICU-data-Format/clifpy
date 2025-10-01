@@ -7,6 +7,7 @@ dev/requirements.txt
 /archive
 *.csv
 !tests/fixtures/*/*.csv
+research_config.yaml
  
 build/
 dist/
@@ -17,6 +18,9 @@ __pycache__/
 
 # Virtual environment
 .venv/
+venv/
+
+
 .pyclif_dev/
 .claude
 todo.md
@@ -32,7 +36,8 @@ context7.json
 # visualization
 output/
 
-config/
+# config/
+config/config.yaml
 site/
 .serena/
 .pytest_cache

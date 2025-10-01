@@ -1,6 +1,6 @@
 # CLIFpy Examples
 
-This directory contains Python scripts and Jupyter notebooks demonstrating the capabilities of the CLIFpy library for working with CLIF (Critical Care Data Exchange Format) data.
+This directory contains Python scripts and Jupyter notebooks demonstrating the capabilities of the CLIFpy library for working with CLIF data.
 
 ## Prerequisites
 

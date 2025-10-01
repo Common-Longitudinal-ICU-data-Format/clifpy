@@ -53,6 +53,8 @@ clifpy = [
 markers = [
   "unit_conversion: marks tests related to unit conversion",
 ]
+# addopts = "-p no:doctestplus"
+
 
 [dependency-groups]
 dev = [
@@ -61,4 +63,5 @@ dev = [
     "mkdocs-material>=9.6.20",
     "mkdocstrings[python]>=0.30.0",
     "nbformat>=5.10.4",
+    "sybil>=9.2.0",
 ]

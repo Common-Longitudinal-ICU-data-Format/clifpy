@@ -163,7 +163,7 @@ class BaseTable:
     
     @classmethod
     def from_file(
-        cls, 
+        cls,
         data_directory: Optional[str] = None,
         filetype: Optional[str] = None,
         timezone: Optional[str] = None,
@@ -171,7 +171,8 @@ class BaseTable:
         output_directory: Optional[str] = None,
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
+        verbose: bool = False
     ) -> 'BaseTable':
         """
         Load data from file and create a table instance.
@@ -194,6 +195,8 @@ class BaseTable:
             Specific columns to load
         filters : Dict, optional
             Filters to apply when loading
+        verbose : bool, optional
+            If True, show detailed loading messages. Default is False
             
         Notes
         -----
@@ -222,13 +225,14 @@ class BaseTable:
         
         # Load data using existing io utility
         data = load_data(
-            table_name, 
-            config['data_directory'], 
-            config['filetype'], 
+            table_name,
+            config['data_directory'],
+            config['filetype'],
             sample_size=sample_size,
             columns=columns,
             filters=filters,
-            site_tz=config['timezone']
+            site_tz=config['timezone'],
+            verbose=verbose
         )
         
         # Create instance with loaded data

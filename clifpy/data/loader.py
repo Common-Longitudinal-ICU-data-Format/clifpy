@@ -10,6 +10,21 @@ import pandas as pd
 from typing import Dict, Optional, List, Union
 from pathlib import Path
 
+from ..clif_orchestrator import ClifOrchestrator
+
+
+DEMO_TABLES = [
+    'patient',
+    'hospitalization',
+    'adt',
+    'labs',
+    'vitals',
+    'respiratory_support',
+    'position',
+    'medication_admin_continuous',
+    'patient_assessments'
+]
+
 
 def _get_demo_data_path() -> str:
     """Get the path to demo data directory."""
@@ -46,24 +61,24 @@ def _load_demo_table(table_name: str, return_raw: bool = False) -> Union[pd.Data
     from ..tables.patient import Patient
     from ..tables.adt import Adt
     from ..tables.hospitalization import Hospitalization
-    from ..tables.labs import labs
-    from ..tables.vitals import vitals
-    from ..tables.respiratory_support import respiratory_support
-    from ..tables.position import position
-    from ..tables.medication_admin_continuous import medication_admin_continuous
-    from ..tables.patient_assessments import patient_assessments
-    
+    from ..tables.labs import Labs
+    from ..tables.vitals import Vitals
+    from ..tables.respiratory_support import RespiratorySupport
+    from ..tables.position import Position
+    from ..tables.medication_admin_continuous import MedicationAdminContinuous
+    from ..tables.patient_assessments import PatientAssessments
+
     # Return wrapped table object
     table_classes = {
         'patient': Patient,
         'adt': Adt,
         'hospitalization': Hospitalization,
-        'labs': labs,
-        'vitals': vitals,
-        'respiratory_support': respiratory_support,
-        'position': position,
-        'medication_admin_continuous': medication_admin_continuous,
-        'patient_assessments': patient_assessments
+        'labs': Labs,
+        'vitals': Vitals,
+        'respiratory_support': RespiratorySupport,
+        'position': Position,
+        'medication_admin_continuous': MedicationAdminContinuous,
+        'patient_assessments': PatientAssessments
     }
     
     if table_name in table_classes:
@@ -80,13 +95,13 @@ def _load_demo_table(table_name: str, return_raw: bool = False) -> Union[pd.Data
         raise ValueError(f"Unknown table name: {table_name}. Available: {list(table_classes.keys())}")
 
 
-# TODO: Implement this function once CLIF main class is created
-def load_demo_clif(tables: Optional[List[str]] = None, timezone: str = "UTC", verbose: bool = False) -> object:
+def load_demo_clif(
+    tables: Optional[List[str]] = None,
+    timezone: str = "UTC",
+    verbose: bool = False
+) -> ClifOrchestrator:
     """
-    Load a complete CLIF object with demo data.
-    
-    NOTE: This function is not yet implemented as it requires the main CLIF class.
-    For now, please use individual table loading functions like load_demo_patient().
+    Load a CLIF orchestrator populated with demo data.
     
     Parameters
     ----------
@@ -99,20 +114,44 @@ def load_demo_clif(tables: Optional[List[str]] = None, timezone: str = "UTC", ve
         
     Returns
     -------
-    CLIF
-        Initialized CLIF object with demo data
+    ClifOrchestrator
+        Initialized orchestrator with demo data
         
     Examples
     --------
-    >>> # Currently not available. Use instead:
-    >>> from pyclif.data import load_demo_patient
-    >>> patient_data = load_demo_patient()
+    >>> from pyclif.data import load_demo_clif
+    >>> demo_clif = load_demo_clif()
+    >>> sorted(demo_clif.get_loaded_tables())
     """
-    raise NotImplementedError(
-        "load_demo_clif() is not yet implemented. "
-        "Please use individual table loading functions like load_demo_patient(), "
-        "load_demo_hospitalization(), and load_demo_adt()."
+    available_tables = set(DEMO_TABLES)
+
+    if tables is None:
+        tables_to_load = list(DEMO_TABLES)
+    else:
+        unknown_tables = sorted(set(tables) - available_tables)
+        if unknown_tables:
+            raise ValueError(
+                "Unknown table name(s): " + ", ".join(unknown_tables) +
+                f". Available demo tables: {sorted(available_tables)}"
+            )
+        tables_to_load = list(dict.fromkeys(tables))
+
+    orchestrator = ClifOrchestrator(
+        data_directory=_get_demo_data_path(),
+        filetype="parquet",
+        timezone=timezone,
+        output_directory=None
     )
+
+    if verbose:
+        print("Loading demo CLIF tables:", ", ".join(tables_to_load))
+
+    orchestrator.initialize(tables=tables_to_load)
+
+    if verbose:
+        print("Loaded tables:", ", ".join(orchestrator.get_loaded_tables()))
+
+    return orchestrator
 
 
 # Individual table loading functions
@@ -296,13 +335,7 @@ def list_demo_datasets() -> Dict[str, Dict[str, Union[int, str]]]:
     datasets_info = {}
     
     # Only include implemented tables
-    table_names = [
-        'patient', 'hospitalization', 'adt',
-        'labs', 'vitals', 'respiratory_support', 'position',
-        'medication_admin_continuous', 'patient_assessments'
-    ]
-    
-    for table_name in table_names:
+    for table_name in DEMO_TABLES:
         file_path = os.path.join(demo_path, f'clif_{table_name}.parquet')
         if os.path.exists(file_path):
             try:

@@ -1,184 +1,68 @@
 # User Guide
 
-Welcome to the CLIFpy User Guide. This guide provides comprehensive documentation for working with CLIF data using CLIFpy.
+Welcome to the CLIFpy User Guide. CLIFpy makes working with CLIF (Common Longitudinal ICU data Format) data straightforward and efficient for researchers, data scientists, and clinicians analyzing ICU outcomes and building predictive models.
 
-## Overview
+## Getting Started
 
-CLIFpy is designed to make working with CLIF (Common Longitudinal ICU data Format) data straightforward and efficient. Whether you're a researcher analyzing ICU outcomes, a data scientist building predictive models, or a clinician exploring patient data, this guide will help you make the most of CLIFpy.
+| Guide | Description |
+|-------|-------------|
+| [Installation](installation.md) | Install CLIFpy and set up your environment |
+| [Quickstart](quickstart.md) | Learn core workflows: loading data with ClifOrchestrator, configuration, validation, and key features |
 
-## Guide Organization
+## Core Features
 
-### [CLIF Orchestrator](orchestrator.md)
-Learn how to manage multiple CLIF tables simultaneously with consistent configuration and validation.
+| Guide | Description |
+|-------|-------------|
+| [Data Validation](validation.md) | Understand how CLIFpy validates data against CLIF schemas |
+| [Outlier Handling](outlier-handling.md) | Detect and remove physiologically implausible values with configurable ranges |
+| [Encounter Stitching](encounter-stitching.md) | Link related hospital encounters to create continuous patient care timelines |
+| [Wide Dataset Creation](wide-dataset.md) | Create comprehensive time-series datasets by joining multiple CLIF tables with automatic pivoting |
+| [Working with Timezones](timezones.md) | Best practices for handling timezone-aware datetime data |
 
-### [Wide Dataset Creation](wide-dataset.md)
-Create comprehensive time-series datasets by joining multiple CLIF tables with automatic pivoting and high-performance processing.
+## Advanced Features
 
-### [Outlier Handling](outlier-handling.md)
-Detect and remove physiologically implausible values using configurable ranges and category-specific validation.
+| Guide | Description |
+|-------|-------------|
+| [Medication Unit Conversion](med-unit-conversion.md) | Convert continuous medication doses to standardized units |
+| [SOFA Score Computation](sofa.md) | Compute Sequential Organ Failure Assessment scores for sepsis identification |
+| [Respiratory Support Waterfall](waterfall.md) | Visualize patient trajectories and treatment timelines with customizable plots |
+| [Comorbidity Index Computation](comorbidity-index.md) | Calculate Charlson and Elixhauser comorbidity indices from diagnosis data |
 
-### [Comorbidity Index Computation](comorbidity-index.md)
-Calculate Charlson and Elixhauser comorbidity indices from hospital diagnosis data for risk stratification and outcomes research.
+## API Reference
 
-### [Tables](tables.md)
-Detailed guides for each CLIF table type: 
+Complete API reference: **[API Documentation](../api/index.md)**
 
-- Patient demographics
-- ADT (Admission, Discharge, Transfer) events
-- Hospitalization information
-- Laboratory results
-- Vital signs
-- Respiratory support
-- Medication administration
-- Clinical assessments
-- Patient positioning
+## CLIF Tables Reference
 
-### [Data Validation](validation.md)
-Understand how CLIFpy validates your data against CLIF schemas and how to interpret validation results.
+This section provides a reference for all CLIF tables available in CLIFpy. For detailed field definitions, see the [CLIF Data Dictionary](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0).
 
-### [Working with Timezones](timezones.md)
-Learn best practices for handling timezone-aware datetime data across different hospital systems.
+| Table | Data Dictionary | API Reference | Orchestrator Methods | Table Methods |
+|-------|----|----|---------------------|---------------|
+| patient | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient) | [⚙️](../api/tables.md#patient) | - | - |
+| hospitalization | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#hospitalization) | [⚙️](../api/tables.md#hospitalization) | - | - |
+| adt | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#adt) | [⚙️](../api/tables.md#adt) | - | - |
+| labs | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#labs) | [⚙️](../api/tables.md#labs) | - | - |
+| vitals | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#vitals) | [⚙️](../api/tables.md#vitals) | - | - |
+| medication_admin_continuous | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-continuous) | [⚙️](../api/tables.md#medication-admin-continuous) | `convert_dose_units_for_continuous_meds()` | - |
+| medication_admin_intermittent | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-intermittent) | [⚙️](../api/tables.md#medication-admin-intermittent) | `convert_dose_units_for_intermittent_meds()` | - |
+| patient_assessments | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient-assessments) | [⚙️](../api/tables.md#patient-assessments) | - | - |
+| respiratory_support | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#respiratory-support) | [⚙️](../api/tables.md#respiratory-support) | - | - |
+| position | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#position) | [⚙️](../api/tables.md#position) | - | - |
+| hospital_diagnosis | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#hospital-diagnosis) | [⚙️](../api/tables.md#hospital-diagnosis) | - | - |
+| microbiology_culture | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#microbiology-culture) | [⚙️](../api/tables.md#microbiology-culture) | - | - |
+| crrt_therapy | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#crrt-therapy) | [⚙️](../api/tables.md#crrt-therapy) | - | - |
+| patient_procedures | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient-procedures) | [⚙️](../api/tables.md#patient-procedures) | - | - |
+| microbiology_susceptibility | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#microbiology-susceptibility) | [⚙️](../api/tables.md#microbiology-susceptibility) | - | - |
+| ecmo_mcs | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#ecmo-mcs) | [⚙️](../api/tables.md#ecmo-mcs) | - | - |
+| microbiology_nonculture | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#microbiology-nonculture) | [⚙️](../api/tables.md#microbiology-nonculture) | - | - |
+| code_status | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#code-status) | [⚙️](../api/tables.md#code-status) | - | - |
 
-## Key Concepts
+**Legend:**
 
-### Table-Based Architecture
+- 📖 Links to CLIF Data Dictionary for field specifications
 
-CLIFpy organizes ICU data into standardized tables, each representing a specific aspect of patient care:
+- ⚙️ Links to CLIFpy API Reference for class documentation
 
-```python
-from clifpy.tables import Patient, Labs, Vitals
+- **Orchestrator Methods**: Table-specific methods callable from `ClifOrchestrator` instance
 
-# Method 1: Direct parameters (traditional)
-patient = Patient.from_file('/data', 'parquet', timezone='US/Eastern')
-labs = Labs.from_file('/data', 'parquet', timezone='US/Eastern')
-
-# Method 2: Using configuration file (recommended)
-patient = Patient.from_file(config_path='./config.json')
-labs = Labs.from_file(config_path='./config.json')
-```
-
-### Consistent Interface
-
-All tables share common methods inherited from `BaseTable`: 
-
-- `from_file()` - Load data from files
-- `validate()` - Run comprehensive validation
-- `isvalid()` - Check validation status
-- `get_summary()` - Get table statistics
-
-### Standardized Categories
-
-CLIF defines standardized categories for consistent data representation:
-- Lab categories: chemistry, hematology, coagulation, etc.
-- Location categories: icu, ward, ed, etc.
-- Medication groups: vasopressor, sedative, antibiotic, etc.
-
-### Timezone Awareness
-
-All datetime columns are timezone-aware to handle data from different time zones correctly:
-
-```python
-# Specify timezone when loading
-table = TableClass.from_file(
-    data_directory='/data',
-    filetype='parquet',
-    timezone='US/Central'
-)
-```
-
-## Configuration Files
-
-CLIFpy supports configuration files for easier data loading and consistent settings across projects. You can use a `config.json` file to centralize your configuration:
-
-### Configuration Structure
-
-Create a `config.json` file with the following structure:
-
-```json
-{
-  "data_directory": "/path/to/data",
-  "filetype": "parquet",
-  "timezone": "US/Eastern", 
-  "output_directory": "/path/to/output"  // optional
-}
-```
-
-### Using Configuration Files
-
-Load tables using the config file:
-
-```python
-from clifpy.tables import Patient, Labs, Vitals
-
-# Using configuration file
-patient = Patient.from_file(config_path='./config.json')
-labs = Labs.from_file(config_path='./config.json')
-
-# Or with the orchestrator
-from clifpy.clif_orchestrator import ClifOrchestrator
-orchestrator = ClifOrchestrator(config_path='./config.json')
-```
-
-You can still override specific parameters when needed:
-
-```python
-# Use config but override timezone and add sampling
-vitals = Vitals.from_file(
-    config_path='./config.json',
-    timezone='UTC',
-    sample_size=1000
-)
-```
-
-## Common Workflows
-
-### Loading and Validating Data
-
-```python
-from clifpy.clif_orchestrator import ClifOrchestrator
-
-# Method 1: Direct parameters
-orchestrator = ClifOrchestrator('/data', 'parquet', 'US/Central')
-
-# Method 2: Using configuration file (recommended)
-orchestrator = ClifOrchestrator(config_path='./config.json')
-
-# Both methods work the same way after initialization
-orchestrator.initialize(tables=['patient', 'labs', 'vitals'])
-
-# Validate all tables
-orchestrator.validate_all()
-
-# Check validation status
-for table_name in orchestrator.get_loaded_tables():
-    table = getattr(orchestrator, table_name)
-    print(f"{table_name}: {'Valid' if table.isvalid() else 'Invalid'}")
-```
-
-### Filtering and Analysis
-
-```python
-# Category-based filtering
-icu_stays = adt.df[adt.df['location_category'] == 'icu']
-
-# Patient cohort analysis 
-cohort_ids = ['P001', 'P002', 'P003']
-cohort_vitals = vitals.df[vitals.df['hospitalization_id'].isin(cohort_ids)]
-```
-
-## Best Practices
-
-1. **Always validate data** after loading to ensure compliance with CLIF standards
-2. **Use configuration files** for consistent settings across your project (create `config.json`)
-3. **Use appropriate timezones** for your data source
-4. **Filter early** to reduce memory usage with large datasets
-5. **Review validation errors** to understand data quality issues
-6. **Use the orchestrator** when working with multiple related tables
-
-## Next Steps
-
-- Explore specific [table guides](tables.md)
-- Calculate [comorbidity indices](comorbidity-index.md) for risk stratification
-- Learn about [data validation](validation.md)
-- See [practical examples]()
-- Review the [API reference](../api/index.md)
+- **Table Methods**: Table-specific class methods

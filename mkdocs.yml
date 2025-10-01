@@ -75,24 +75,22 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting Started:
-      - Installation: getting-started/installation.md
-      - Quick Start: getting-started/quickstart.md
-      - Basic Usage: getting-started/basic-usage.md
   - User Guide:
       - Overview: user-guide/index.md
-      - CLIF Orchestrator: user-guide/orchestrator.md
-      - Tables: user-guide/tables.md
-      - Data Validation: user-guide/validation.md
-      - Medication Unit Conversion: user-guide/med-unit-conversion.md
-      - SOFA Score Computation: user-guide/sofa.md
-      - Working with Timezones: user-guide/timezones.md
+      - Getting Started:
+        - Installation: user-guide/installation.md
+        - Quickstart: user-guide/quickstart.md
+      - Core Features:
+        - Data Validation: user-guide/validation.md
+        - Outlier Handling: user-guide/outlier-handling.md
+        - Encounter Stitching: user-guide/encounter-stitching.md
+        - Wide Dataset Creation: user-guide/wide-dataset.md
+        - Working with Timezones: user-guide/timezones.md
       - Advanced Features:
-          - Wide Dataset Creation: user-guide/wide-dataset.md
-          - Respiratory Support Waterfall: user-guide/waterfall.md
-          - Encounter Stitching: user-guide/encounter-stitching.md
-          - Outlier Handling: user-guide/outlier-handling.md
-          - Comorbidity Index: user-guide/comorbidity-index.md
+        - Medication Unit Conversion: user-guide/med-unit-conversion.md
+        - SOFA Score Computation: user-guide/sofa.md
+        - Respiratory Support Waterfall: user-guide/waterfall.md
+        - Comorbidity Index: user-guide/comorbidity-index.md
   - API Reference:
       - Overview: api/index.md
       - Orchestrator: api/orchestrator.md
