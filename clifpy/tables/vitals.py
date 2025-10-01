@@ -81,92 +81,93 @@ class Vitals(BaseTable):
         
         This overrides the base class method to add vitals-specific validation.
         """
+        pass
         # Run vital range validation
-        self.validate_vital_ranges()
+        # self.validate_vital_ranges()
 
-    def validate_vital_ranges(self):
-        """Validate vital values against expected ranges using grouped data for efficiency."""
-        self.range_validation_errors = []
+    # def validate_vital_ranges(self):
+    #     """Validate vital values against expected ranges using grouped data for efficiency."""
+    #     self.range_validation_errors = []
         
-        if self.df is None or not self._vital_ranges:
-            return
+    #     if self.df is None or not self._vital_ranges:
+    #         return
         
-        required_columns = ['vital_category', 'vital_value']
-        required_columns_for_df = ['vital_category', 'vital_value']
-        if not all(col in self.df.columns for col in required_columns_for_df):
-            self.range_validation_errors.append({
-                "error_type": "missing_columns_for_range_validation",
-                "columns": [col for col in required_columns_for_df if col not in self.df.columns],
-                "message": "vital_category or vital_value column missing, cannot perform range validation."
-            })
-            return
+    #     required_columns = ['vital_category', 'vital_value']
+    #     required_columns_for_df = ['vital_category', 'vital_value']
+    #     if not all(col in self.df.columns for col in required_columns_for_df):
+    #         self.range_validation_errors.append({
+    #             "error_type": "missing_columns_for_range_validation",
+    #             "columns": [col for col in required_columns_for_df if col not in self.df.columns],
+    #             "message": "vital_category or vital_value column missing, cannot perform range validation."
+    #         })
+    #         return
 
-        # Work on a copy to safely convert vital_value to numeric for aggregation
-        df_for_stats = self.df[required_columns_for_df].copy()
-        df_for_stats['vital_value'] = pd.to_numeric(df_for_stats['vital_value'], errors='coerce')
+    #     # Work on a copy to safely convert vital_value to numeric for aggregation
+    #     df_for_stats = self.df[required_columns_for_df].copy()
+    #     df_for_stats['vital_value'] = pd.to_numeric(df_for_stats['vital_value'], errors='coerce')
 
-        # Filter out rows where vital_value could not be converted
-        df_for_stats.dropna(subset=['vital_value'], inplace=True)
+    #     # Filter out rows where vital_value could not be converted
+    #     df_for_stats.dropna(subset=['vital_value'], inplace=True)
 
-        if df_for_stats.empty:
-            # No numeric vital_value data to perform range validation on
-            return
+    #     if df_for_stats.empty:
+    #         # No numeric vital_value data to perform range validation on
+    #         return
 
-        vital_stats = (df_for_stats
-                       .groupby('vital_category')['vital_value']
-                       .agg(['min', 'max', 'mean', 'count'])
-                       .reset_index())
+    #     vital_stats = (df_for_stats
+    #                    .groupby('vital_category')['vital_value']
+    #                    .agg(['min', 'max', 'mean', 'count'])
+    #                    .reset_index())
         
-        if vital_stats.empty:
-            return
+    #     if vital_stats.empty:
+    #         return
         
-        # Check each vital category's ranges
-        for _, row in vital_stats.iterrows():
-            vital_category = row['vital_category']
-            min_val = row['min']
-            max_val = row['max']
-            count = row['count']
-            mean_val = row['mean']
+    #     # Check each vital category's ranges
+    #     for _, row in vital_stats.iterrows():
+    #         vital_category = row['vital_category']
+    #         min_val = row['min']
+    #         max_val = row['max']
+    #         count = row['count']
+    #         mean_val = row['mean']
             
-            # Check if vital category has defined ranges
-            if vital_category not in self._vital_ranges:
-                self.range_validation_errors.append({
-                    'error_type': 'unknown_vital_category',
-                    'vital_category': vital_category,
-                    'affected_rows': count,
-                    'observed_min': min_val,
-                    'observed_max': max_val,
-                    'message': f"Unknown vital category '{vital_category}' found in data."
-                })
-                continue
+    #         # Check if vital category has defined ranges
+    #         if vital_category not in self._vital_ranges:
+    #             self.range_validation_errors.append({
+    #                 'error_type': 'unknown_vital_category',
+    #                 'vital_category': vital_category,
+    #                 'affected_rows': count,
+    #                 'observed_min': min_val,
+    #                 'observed_max': max_val,
+    #                 'message': f"Unknown vital category '{vital_category}' found in data."
+    #             })
+    #             continue
             
-            expected_range = self._vital_ranges[vital_category]
-            expected_min = expected_range.get('min')
-            expected_max = expected_range.get('max')
+    #         expected_range = self._vital_ranges[vital_category]
+    #         expected_min = expected_range.get('min')
+    #         expected_max = expected_range.get('max')
             
-            # Check if any values are outside the expected range
-            if expected_min is not None and min_val < expected_min:
-                self.range_validation_errors.append({
-                    'error_type': 'below_range',
-                    'vital_category': vital_category,
-                    'observed_min': min_val,
-                    'expected_min': expected_min,
-                    'message': f"Values below expected minimum for {vital_category}"
-                })
+    #         # Check if any values are outside the expected range
+    #         if expected_min is not None and min_val < expected_min:
+    #             self.range_validation_errors.append({
+    #                 'error_type': 'below_range',
+    #                 'vital_category': vital_category,
+    #                 'observed_min': min_val,
+    #                 'expected_min': expected_min,
+    #                 'message': f"Values below expected minimum for {vital_category}"
+    #             })
             
-            if expected_max is not None and max_val > expected_max:
-                self.range_validation_errors.append({
-                    'error_type': 'above_range',
-                    'vital_category': vital_category,
-                    'observed_max': max_val,
-                    'expected_max': expected_max,
-                    'message': f"Values above expected maximum for {vital_category}"
-                })
+    #         if expected_max is not None and max_val > expected_max:
+    #             self.range_validation_errors.append({
+    #                 'error_type': 'above_range',
+    #                 'vital_category': vital_category,
+    #                 'observed_max': max_val,
+    #                 'expected_max': expected_max,
+    #                 'message': f"Values above expected maximum for {vital_category}"
+    #             })
         
-        # Add range validation errors to main errors list
-        if self.range_validation_errors:
-            self.errors.extend(self.range_validation_errors)
-            self.logger.warning(f"Found {len(self.range_validation_errors)} range validation errors")
+    #     # Add range validation errors to main errors list
+    #     if self.range_validation_errors:
+    #         self.errors.extend(self.range_validation_errors)
+    #         self.logger.warning(f"Found {len(self.range_validation_errors)} range validation errors")
 
     # ------------------------------------------------------------------
     # Vitals Specific Methods

@@ -91,13 +91,17 @@ class BaseTable:
         self.df: Optional[pd.DataFrame] = data
         self.errors: List[Dict[str, Any]] = []
         self.schema: Optional[Dict[str, Any]] = None
+        self.outlier_config: Optional[Dict[str, Any]] = None
         self._validated: bool = False
-        
+
         # Setup logging
         self._setup_logging()
-        
+
         # Load schema
         self._load_schema()
+
+        # Load outlier config
+        self._load_outlier_config()
         
     
     def _setup_logging(self):
@@ -145,21 +149,33 @@ class BaseTable:
                 schema_dir,
                 f'{self.table_name}_schema.yaml'
             )
-            
+
             # Check if schema file exists
             if not os.path.exists(schema_file):
                 self.logger.warning(f"Schema file not found: {schema_file}")
                 return
-            
+
             # Load YAML schema
             with open(schema_file, 'r') as f:
                 self.schema = yaml.safe_load(f)
-            
+
             self.logger.info(f"Loaded schema from {schema_file}")
-            
+
         except Exception as e:
             self.logger.error(f"Error loading schema: {str(e)}")
             self.schema = None
+
+    def _load_outlier_config(self):
+        """Load the outlier configuration for validation."""
+        try:
+            self.outlier_config = validator.load_outlier_config()
+            if self.outlier_config:
+                self.logger.info("Loaded outlier configuration")
+            else:
+                self.logger.warning("Could not load outlier configuration")
+        except Exception as e:
+            self.logger.error(f"Error loading outlier config: {str(e)}")
+            self.outlier_config = None
     
     @classmethod
     def from_file(
@@ -414,7 +430,22 @@ class BaseTable:
             if existing_id_cols:
                 cohort_sizes = validator.calculate_cohort_sizes(self.df, existing_id_cols)
                 self.logger.info(f"Cohort sizes: {cohort_sizes}")
-                
+
+            # 10. Validate numeric ranges for outliers
+            if self.outlier_config:
+                self.logger.info("Validating numeric ranges for outliers")
+                outlier_results = validator.validate_numeric_ranges_from_config(
+                    self.df,
+                    self.table_name,
+                    self.schema,
+                    self.outlier_config
+                )
+                if outlier_results:
+                    self.errors.extend(outlier_results)
+                    self.logger.warning(f"Found {len(outlier_results)} outlier summaries")
+                else:
+                    self.logger.info("No outliers detected")
+
         except Exception as e:
             self.logger.error(f"Error in enhanced validations: {str(e)}")
             self.errors.append({

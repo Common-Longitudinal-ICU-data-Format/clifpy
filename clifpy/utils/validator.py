@@ -26,7 +26,8 @@ from __future__ import annotations
 
 import json
 import os
-from typing import List, Dict, Any
+import yaml
+from typing import List, Dict, Any, Optional, Tuple
 import pandas as pd
 
 # ---------------------------------------------------------------------------
@@ -954,104 +955,247 @@ def get_distinct_counts(
     except Exception as e:
         return {"error": str(e)}
 
-
 # ---------------------------------------------------------------------------
-# Additional validation functions from enhanced_validator
+# Outlier range validation from outlier_config.yaml
 # ---------------------------------------------------------------------------
 
-def validate_numeric_ranges(
-    df: pd.DataFrame, 
-    ranges: Dict[str, Dict[str, float]],
-    table_name: str
+def load_outlier_config(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Load outlier configuration from YAML file."""
+    try:
+        if config_path is None:
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'schemas',
+                'outlier_config.yaml'
+            )
+        if not os.path.exists(config_path):
+            return None
+        with open(config_path, 'r') as f:
+            return yaml.safe_load(f)
+    except Exception:
+        return None
+
+
+def _validate_range(df: pd.DataFrame, mask: pd.Series, column: str,
+                    min_val: float, max_val: float) -> Tuple[int, int]:
+    """Helper to check min/max violations for masked data."""
+    data = df.loc[mask, column].dropna()
+    if len(data) == 0:
+        return 0, 0
+    return int((data < min_val).sum()), int((data > max_val).sum())
+
+
+def _validate_simple_range(
+    df: pd.DataFrame,
+    table_name: str,
+    col_name: str,
+    col_config: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """Validate simple range pattern: {min: X, max: Y}"""
+    results = []
+    below, above = _validate_range(df, df.index, col_name, col_config['min'], col_config['max'])
+    if below > 0 or above > 0:
+        total_values = df[col_name].notna().sum()
+        results.append({
+            "type": "outlier_validation",
+            "table": table_name,
+            "column": col_name,
+            "min_expected": col_config['min'],
+            "max_expected": col_config['max'],
+            "below_min_count": below,
+            "above_max_count": above,
+            "status": "warning",
+            "message": f"Column '{col_name}' has {below} values below minimum *{col_config['min']}* & {above} values above maximum *{col_config['max']}*"
+        })
+    return results
+
+
+def _validate_single_category(
+    df: pd.DataFrame,
+    table_name: str,
+    col_name: str,
+    col_config: Dict[str, Any],
+    category_col: str
+) -> List[Dict[str, Any]]:
+    """Validate single category pattern: {category: {min: X, max: Y}}"""
+    results = []
+    for category, ranges in col_config.items():
+        mask = df[category_col].astype(str).str.lower() == category.lower()
+        if not mask.any():
+            continue
+        below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
+        if below > 0 or above > 0:
+            total_values = df.loc[mask, col_name].notna().sum()
+            results.append({
+                "type": "outlier_validation",
+                "category": category,
+                "column": col_name,
+                "min_expected": ranges['min'],
+                "max_expected": ranges['max'],
+                "below_min_count": below,
+                "above_max_count": above,
+                "status": "warning",
+                "message": f"Category {category} for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
+            })
+    return results
+
+
+def _validate_double_category(
+    df: pd.DataFrame,
+    table_name: str,
+    col_name: str,
+    col_config: Dict[str, Any],
+    primary_col: str,
+    secondary_col: str
+) -> List[Dict[str, Any]]:
+    """Validate double category pattern: {cat1: {cat2: {min: X, max: Y}}}"""
+    results = []
+    for cat1, sub_config in col_config.items():
+        for cat2, ranges in sub_config.items():
+            if not isinstance(ranges, dict) or 'min' not in ranges:
+                continue
+            mask = (
+                (df[primary_col].astype(str).str.lower() == cat1.lower()) &
+                (df[secondary_col].astype(str).str.lower() == cat2.lower())
+            )
+            if not mask.any():
+                continue
+            below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
+            if below > 0 or above > 0:
+                total_values = df.loc[mask, col_name].notna().sum()
+                results.append({
+                    "type": "outlier_validation",
+                    "primary_category": cat1,
+                    "secondary_category": cat2,
+                    "column": col_name,
+                    "min_expected": ranges['min'],
+                    "max_expected": ranges['max'],
+                    "below_min_count": below,
+                    "above_max_count": above,
+                    "status": "warning",
+                    "message": f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
+                })
+    return results
+
+
+def _find_category_column(
+    df: pd.DataFrame,
+    col_config: Dict[str, Any],
+    cat_cols: set
+) -> Optional[str]:
+    """Find which category column matches the config categories."""
+    config_cats = set(col_config.keys())
+    for cat_col in cat_cols:
+        if cat_col in df.columns:
+            df_cats = {str(c).lower() for c in df[cat_col].dropna().unique()}
+            if config_cats & {c.lower() for c in df_cats}:
+                return cat_col
+    return None
+
+
+def _find_secondary_category_column(
+    df: pd.DataFrame,
+    col_config: Dict[str, Any],
+    cat_cols: set,
+    primary_col: str
+) -> Optional[str]:
+    """Find the secondary category column for double-nested patterns."""
+    first_val = col_config[list(col_config.keys())[0]]
+    sec_cats = set(first_val.keys())
+
+    for potential_col in cat_cols:
+        if potential_col != primary_col and potential_col in df.columns:
+            df_vals = {str(v).lower() for v in df[potential_col].dropna().unique()}
+            if sec_cats & {c.lower() for c in df_vals}:
+                return potential_col
+    return None
+
+
+def validate_numeric_ranges_from_config(
+    df: pd.DataFrame,
+    table_name: str,
+    schema: Dict[str, Any],
+    outlier_config: Dict[str, Any]
 ) -> List[Dict[str, Any]]:
     """
-    Validate that numeric values fall within expected ranges.
-    
+    Validate numeric ranges using outlier config with automatic pattern detection.
+
+    Automatically handles three patterns:
+    - Simple range: {min: X, max: Y}
+    - Single-category: {category: {min: X, max: Y}}
+    - Double-category: {cat1: {cat2: {min: X, max: Y}}}
+
     Parameters
     ----------
     df : pd.DataFrame
         The dataframe to validate
-    ranges : dict
-        Dictionary mapping column/category names to min/max ranges
     table_name : str
         Name of the table being validated
-        
+    schema : dict
+        Table schema with column definitions
+    outlier_config : dict
+        Outlier configuration from outlier_config.yaml
+
     Returns
     -------
     List[dict]
-        List of range validation results
+        List of outlier summaries with type "outlier_summary"
+
+    Examples
+    --------
+    >>> from clifpy.utils.validator import load_outlier_config, validate_numeric_ranges_from_config
+    >>>
+    >>> # Load config once
+    >>> outlier_config = load_outlier_config()
+    >>>
+    >>> # Validate multiple tables
+    >>> vitals_outliers = validate_numeric_ranges_from_config(
+    ...     vitals_df, 'vitals', vitals_schema, outlier_config
+    ... )
+    >>> ecmo_outliers = validate_numeric_ranges_from_config(
+    ...     ecmo_df, 'ecmo_mcs', ecmo_schema, outlier_config
+    ... )
     """
     results = []
-    
-    try:
-        for category, range_def in ranges.items():
-            min_val = range_def.get('min')
-            max_val = range_def.get('max')
-            
-            if min_val is None or max_val is None:
-                continue
-            
-            # For tables with category columns (vitals, labs)
-            category_col = None
-            value_col = None
-            
-            if table_name == 'vitals' and 'vital_category' in df.columns:
-                category_col = 'vital_category'
-                value_col = 'vital_value_numeric'
-            elif table_name == 'labs' and 'lab_category' in df.columns:
-                category_col = 'lab_category'
-                value_col = 'lab_value_numeric'
-            
-            if category_col and value_col and category_col in df.columns and value_col in df.columns:
-                # Filter for this category
-                category_data = df[df[category_col] == category]
-                if len(category_data) > 0:
-                    numeric_data = category_data[value_col].dropna()
-                    if len(numeric_data) > 0:
-                        below_min = (numeric_data < min_val).sum()
-                        above_max = (numeric_data > max_val).sum()
-                        
-                        if below_min > 0 or above_max > 0:
-                            results.append({
-                                "type": "numeric_range_violation",
-                                "table": table_name,
-                                "category": category,
-                                "min_expected": min_val,
-                                "max_expected": max_val,
-                                "below_min_count": int(below_min),
-                                "above_max_count": int(above_max),
-                                "total_values": len(numeric_data),
-                                "status": "warning",
-                                "message": f"Table '{table_name}' category '{category}': {int(below_min)} values below minimum ({min_val}), {int(above_max)} values above maximum ({max_val}) out of {len(numeric_data)} total values"
-                            })
-            elif category in df.columns and pd.api.types.is_numeric_dtype(df[category]):
-                # Direct column check
-                numeric_data = df[category].dropna()
-                if len(numeric_data) > 0:
-                    below_min = (numeric_data < min_val).sum()
-                    above_max = (numeric_data > max_val).sum()
-                    
-                    if below_min > 0 or above_max > 0:
-                        results.append({
-                            "type": "numeric_range_violation",
-                            "table": table_name,
-                            "column": category,
-                            "min_expected": min_val,
-                            "max_expected": max_val,
-                            "below_min_count": int(below_min),
-                            "above_max_count": int(above_max),
-                            "total_values": len(numeric_data),
-                            "status": "warning",
-                            "message": f"Column '{category}': {int(below_min)} values below minimum ({min_val}), {int(above_max)} values above maximum ({max_val}) out of {len(numeric_data)} total values"
-                        })
-                        
-    except Exception as e:
-        results.append({
-            "type": "numeric_range_validation",
-            "table": table_name,
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error validating numeric ranges for table '{table_name}': {str(e)}"
-        })
-    
-    return results 
+    table_config = outlier_config.get('tables', {}).get(table_name, {})
+    if not table_config:
+        return results
+
+    # Get category columns from schema
+    cat_cols = {col['name'] for col in schema.get('columns', [])
+                if col.get('is_category_column')}
+
+    # Process each column in config
+    for col_name, col_config in table_config.items():
+        if col_name not in df.columns:
+            continue
+
+        # Pattern 1: Simple range {min: X, max: Y}
+        if 'min' in col_config and 'max' in col_config:
+            results.extend(_validate_simple_range(df, table_name, col_name, col_config))
+            continue
+
+        # Pattern 2 & 3: Category-dependent
+        # Find the primary category column
+        category_col = _find_category_column(df, col_config, cat_cols)
+        if not category_col:
+            continue
+
+        # Determine if single or double category
+        first_val = col_config[list(col_config.keys())[0]]
+
+        # Pattern 2: Single category {category: {min: X, max: Y}}
+        if isinstance(first_val, dict) and 'min' in first_val:
+            results.extend(_validate_single_category(
+                df, table_name, col_name, col_config, category_col
+            ))
+
+        # Pattern 3: Double category {cat1: {cat2: {min: X, max: Y}}}
+        else:
+            sec_col = _find_secondary_category_column(df, col_config, cat_cols, category_col)
+            if sec_col:
+                results.extend(_validate_double_category(
+                    df, table_name, col_name, col_config, category_col, sec_col
+                ))
+
+    return results
