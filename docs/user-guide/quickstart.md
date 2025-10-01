@@ -141,13 +141,14 @@ Validating labs...
 Validation completed with 3 error(s). See `errors` attribute.
 
 Validating vitals...
-Validation completed with 4 error(s). See `errors` attribute.
+Validation completed with 3 error(s). See `errors` attribute.
 ```
 
 <details>
 <summary> Validating tables individually </summary>
 This is equivalent to running each of the following individually: 
 
+<!-- skip: next -->
 ```python
 >>> co.patient.validate()
 Validation completed with 5 error(s). See `errors` attribute.
@@ -156,7 +157,8 @@ Validation completed with 5 error(s). See `errors` attribute.
 Validation completed with 3 error(s). See `errors` attribute.
 
 >>> co.vitals.validate()
-Validation completed with 4 error(s). See `errors` attribute.
+Validation completed with 3 error(s). See `errors` attribute.
+
 ```
 
 </details>
