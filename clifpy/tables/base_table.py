@@ -9,7 +9,8 @@ import os
 import logging
 import pandas as pd
 import yaml
-from typing import Optional, List, Dict, Any
+import numpy as np
+from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 from datetime import datetime
 
@@ -519,3 +520,475 @@ class BaseTable:
             
         except Exception as e:
             self.logger.error(f"Error saving summary: {str(e)}")
+
+    def analyze_categorical_distributions(self, save: bool = True) -> Dict[str, pd.DataFrame]:
+        """
+        Analyze distributions of categorical variables.
+
+        For each categorical variable, returns the distribution of categories
+        based on unique hospitalization_id (or patient_id if hospitalization_id is not present).
+
+        Parameters
+        ----------
+        save : bool, default=True
+            If True, saves distribution data to CSV files in the output directory.
+
+        Returns
+        -------
+        Dict[str, pd.DataFrame]
+            Dictionary where keys are categorical column names and values are
+            DataFrames with category distributions (unique ID counts and %).
+        """
+        if self.df is None:
+            self.logger.warning("No dataframe to analyze")
+            return {}
+
+        if not self.schema:
+            self.logger.warning("No schema available for categorical analysis")
+            return {}
+
+        # Determine ID column to use (prefer hospitalization_id)
+        if 'hospitalization_id' in self.df.columns:
+            id_col = 'hospitalization_id'
+        elif 'patient_id' in self.df.columns:
+            id_col = 'patient_id'
+        else:
+            self.logger.warning("No hospitalization_id or patient_id column found")
+            return {}
+
+        # Get categorical columns from schema
+        categorical_columns = [
+            col['name'] for col in self.schema.get('columns', [])
+            if col.get('is_category_column', False) and col['name'] in self.df.columns
+        ]
+
+        if not categorical_columns:
+            self.logger.info("No categorical columns found in schema")
+            return {}
+
+        results = {}
+
+        for col in categorical_columns:
+            try:
+                # Count unique IDs per category
+                id_counts = self.df.groupby(col, dropna=False)[id_col].nunique().sort_values(ascending=False)
+                # Calculate % as (unique IDs in category) / (total unique IDs in entire table)
+                total_unique_ids = self.df[id_col].nunique()
+                percent = (id_counts / total_unique_ids * 100).round(2)
+
+                distribution_df = pd.DataFrame({
+                    'category': id_counts.index,
+                    'count': id_counts.values,
+                    '%': percent.values
+                })
+
+                results[col] = distribution_df
+
+                # Save to CSV if requested
+                if save:
+                    csv_filename = f'categorical_dist_{self.table_name}_{col}.csv'
+                    csv_path = os.path.join(self.output_directory, csv_filename)
+                    distribution_df.to_csv(csv_path, index=False)
+                    self.logger.info(f"Saved distribution data to {csv_path}")
+
+                self.logger.info(f"Analyzed categorical distribution for {col}")
+
+            except Exception as e:
+                self.logger.error(f"Error analyzing categorical distribution for {col}: {str(e)}")
+                continue
+
+        return results
+
+    def plot_categorical_distributions(self, columns: Optional[List[str]] = None, figsize: Tuple[int, int] = (10, 6), save: bool = True, dpi: int = 300):
+        """
+        Create bar plots for categorical variable distributions.
+
+        Counts unique hospitalization_id (or patient_id if hospitalization_id is not present)
+        for each category.
+
+        Parameters
+        ----------
+        columns : List[str], optional
+            Specific categorical columns to plot. If None, plots all categorical columns.
+        figsize : Tuple[int, int], default=(10, 6)
+            Figure size for each plot (width, height).
+        save : bool, default=True
+            If True, saves plots to output directory as PNG files.
+        dpi : int, default=300
+            Resolution for saved plots (dots per inch).
+
+        Returns
+        -------
+        Dict[str, Figure]
+            Dictionary where keys are categorical column names and values are
+            matplotlib Figure objects.
+        """
+        import matplotlib.pyplot as plt
+
+        if self.df is None:
+            self.logger.warning("No dataframe to plot")
+            return {}
+
+        if not self.schema:
+            self.logger.warning("No schema available for categorical plotting")
+            return {}
+
+        # Determine ID column to use (prefer hospitalization_id)
+        if 'hospitalization_id' in self.df.columns:
+            id_col = 'hospitalization_id'
+        elif 'patient_id' in self.df.columns:
+            id_col = 'patient_id'
+        else:
+            self.logger.warning("No hospitalization_id or patient_id column found")
+            return {}
+
+        # Get categorical columns from schema
+        categorical_columns = [
+            col['name'] for col in self.schema.get('columns', [])
+            if col.get('is_category_column', False) and col['name'] in self.df.columns
+        ]
+
+        if not categorical_columns:
+            self.logger.info("No categorical columns found in schema")
+            return {}
+
+        # Filter to requested columns if specified
+        if columns is not None:
+            categorical_columns = [col for col in categorical_columns if col in columns]
+
+        if not categorical_columns:
+            self.logger.warning("No matching categorical columns found")
+            return {}
+
+        plots = {}
+
+        for col in categorical_columns:
+            try:
+                # Count unique IDs per category
+                id_counts = self.df.groupby(col, dropna=False)[id_col].nunique().sort_values(ascending=False)
+
+                # Create modern bar plot
+                fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+
+                # Use colorblind-friendly color palette (cividis)
+                colors = plt.cm.cividis(np.linspace(0.3, 0.9, len(id_counts)))
+                bars = ax.bar(range(len(id_counts)), id_counts.values, color=colors, edgecolor='white', linewidth=1.5)
+
+                # Styling
+                ax.set_xlabel('Category', fontsize=12, fontweight='bold', color='#333333')
+                ax.set_ylabel(f'Unique {id_col} counts', fontsize=12, fontweight='bold', color='#333333')
+                ax.set_title(f'Distribution of {col}', fontsize=14, fontweight='bold', pad=20, color='#1a1a1a')
+                ax.set_xticks(range(len(id_counts)))
+                ax.set_xticklabels([str(x) for x in id_counts.index], rotation=45, ha='right', fontsize=10)
+
+                # Remove top and right spines
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_color('#cccccc')
+                ax.spines['bottom'].set_color('#cccccc')
+
+                # Add grid for readability
+                ax.yaxis.grid(True, linestyle='--', alpha=0.3, color='#cccccc')
+                ax.set_axisbelow(True)
+
+                # Add value labels on top of bars (adjust font size and rotation based on number of categories)
+                num_categories = len(id_counts)
+                if num_categories <= 10:
+                    label_fontsize = 9
+                    label_rotation = 0
+                elif num_categories <= 20:
+                    label_fontsize = 7
+                    label_rotation = 45
+                else:
+                    label_fontsize = 6
+                    label_rotation = 90
+
+                for i, (bar, value) in enumerate(zip(bars, id_counts.values)):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height,
+                           f'{int(value)}',
+                           ha='center', va='bottom', fontsize=label_fontsize,
+                           color='#333333', rotation=label_rotation)
+
+                plt.tight_layout()
+
+                # Save plot if requested
+                if save:
+                    plot_filename = f'categorical_dist_{self.table_name}_{col}.png'
+                    plot_path = os.path.join(self.output_directory, plot_filename)
+                    fig.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+                    self.logger.info(f"Saved plot to {plot_path}")
+
+                plots[col] = fig
+
+                self.logger.info(f"Created plot for {col}")
+
+            except Exception as e:
+                self.logger.error(f"Error creating plot for {col}: {str(e)}")
+                continue
+
+        return plots
+
+    def calculate_stratified_ecdf(self, value_column: str, category_column: str, category_values: Optional[List[str]] = None, percentiles: Optional[List[int]] = None, save: bool = True) -> Dict[str, Dict[str, Any]]:
+        """
+        Calculate ECDF for a continuous variable stratified by categories.
+
+        Parameters
+        ----------
+        value_column : str
+            Name of the continuous/numeric column to calculate ECDF for.
+        category_column : str
+            Name of the categorical column to stratify by.
+        category_values : List[str], optional
+            Specific category values to include. If None, uses permissible values from schema,
+            or all unique values in the data if schema doesn't specify permissible values.
+        percentiles : List[int], optional
+            List of percentiles to compute. Defaults to [5, 10, 25, 50, 75, 90, 95].
+        save : bool, default=True
+            If True, saves stratified ECDF summary to CSV.
+
+        Returns
+        -------
+        Dict[str, Dict[str, Any]]
+            Dictionary where keys are category values and values are dictionaries containing:
+            - 'ecdf_x': x-values for ECDF plotting
+            - 'ecdf_y': y-values for ECDF plotting
+            - 'n_measurements': number of measurements
+            - 'percentiles': dictionary of percentiles
+            - 'min_value', 'max_value', 'mean_value', 'std_value': summary statistics
+        """
+        if self.df is None:
+            self.logger.warning("No dataframe to analyze")
+            return {}
+
+        if value_column not in self.df.columns:
+            self.logger.error(f"Value column '{value_column}' not found in dataframe")
+            return {}
+
+        if category_column not in self.df.columns:
+            self.logger.error(f"Category column '{category_column}' not found in dataframe")
+            return {}
+
+        if percentiles is None:
+            percentiles = [25, 50, 75]
+
+        # Determine which category values to use
+        if category_values is None:
+            # Try to get permissible values from schema
+            if self.schema:
+                for col_def in self.schema.get('columns', []):
+                    if col_def.get('name') == category_column:
+                        category_values = col_def.get('permissible_values')
+                        if category_values:
+                            self.logger.info(f"Using permissible values from schema for {category_column}")
+                        break
+
+            # If no permissible values in schema, use all unique values in data
+            if category_values is None:
+                category_values = self.df[category_column].dropna().unique().tolist()
+                self.logger.info(f"Using all unique values from data for {category_column}")
+
+        results = {}
+        categories = category_values
+
+        for category in categories:
+            try:
+                # Filter data for this category
+                category_data = self.df[self.df[category_column] == category][value_column].dropna()
+
+                if len(category_data) == 0:
+                    self.logger.warning(f"No valid data for category '{category}'")
+                    continue
+
+                values = category_data.values
+
+                # Compute percentiles
+                percentiles_dict = {}
+                for p in percentiles:
+                    percentiles_dict[f'p{p}'] = np.percentile(values, p)
+
+                # Calculate ECDF
+                x_vals = np.sort(values)
+                y_vals = np.arange(1, len(x_vals) + 1) / len(x_vals)
+
+                results[str(category)] = {
+                    'n_measurements': len(values),
+                    'percentiles': percentiles_dict,
+                    'min_value': float(np.min(values)),
+                    'max_value': float(np.max(values)),
+                    'mean_value': float(np.mean(values)),
+                    'std_value': float(np.std(values)),
+                    'ecdf_x': x_vals,
+                    'ecdf_y': y_vals
+                }
+
+                self.logger.info(f"Calculated ECDF for {category_column}={category}")
+
+            except Exception as e:
+                self.logger.error(f"Error calculating ECDF for category '{category}': {str(e)}")
+                continue
+
+        # Save combined summary if requested
+        if save and results:
+            summary_rows = []
+            for category, data in results.items():
+                row = {
+                    'category': category,
+                    'n_measurements': data['n_measurements'],
+                    'min': data['min_value'],
+                    'max': data['max_value'],
+                    'mean': data['mean_value'],
+                    'std': data['std_value']
+                }
+                for p in percentiles:
+                    row[f'p{p}'] = data['percentiles'][f'p{p}']
+                summary_rows.append(row)
+
+            summary_df = pd.DataFrame(summary_rows)
+            csv_filename = f'stratified_ecdf_{self.table_name}_{value_column}_by_{category_column}.csv'
+            csv_path = os.path.join(self.output_directory, csv_filename)
+            summary_df.to_csv(csv_path, index=False)
+            self.logger.info(f"Saved stratified ECDF summary to {csv_path}")
+
+        return results
+
+    def plot_stratified_ecdf(self, value_column: str, category_column: str, category_values: Optional[List[str]] = None,
+                            figsize: Tuple[int, int] = (10, 6), percentiles: Optional[List[int]] = None, save: bool = True, dpi: int = 300):
+        """
+        Create ECDF plot showing multiple categories on the same plot.
+
+        Parameters
+        ----------
+        value_column : str
+            Name of the continuous/numeric column to plot ECDF for.
+        category_column : str
+            Name of the categorical column to stratify by.
+        category_values : List[str], optional
+            Specific category values to include. If None, uses permissible values from schema,
+            or all unique values in the data if schema doesn't specify permissible values.
+        figsize : Tuple[int, int], default=(10, 6)
+            Figure size for the plot.
+        percentiles : List[int], optional
+            List of percentiles to show as vertical lines. Defaults to [25, 50, 75].
+        save : bool, default=True
+            If True, saves plot to output directory.
+        dpi : int, default=300
+            Resolution for saved plot.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The created figure object.
+        """
+        import matplotlib.pyplot as plt
+
+        if self.df is None:
+            self.logger.warning("No dataframe to plot")
+            return None
+
+        if percentiles is None:
+            percentiles = [25, 50, 75]
+
+        # Calculate stratified ECDF
+        all_percentiles = list(set(percentiles + [5, 10, 25, 50, 75, 90, 95]))
+        ecdf_results = self.calculate_stratified_ecdf(value_column, category_column, category_values=category_values,
+                                                        percentiles=all_percentiles, save=save)
+
+        if not ecdf_results:
+            self.logger.warning("No ECDF results to plot")
+            return None
+
+        # Create plot
+        fig, ax = plt.subplots(figsize=figsize, facecolor='white')
+
+        # Use tab20 colormap for better distinction with many categories
+        if len(ecdf_results) <= 10:
+            colors = plt.cm.tab10(np.linspace(0, 1, len(ecdf_results)))
+        else:
+            colors = plt.cm.tab20(np.linspace(0, 1, len(ecdf_results)))
+
+        # Collect statistics for table
+        stats_data = []
+
+        # Plot ECDF for each category
+        for i, (category, data) in enumerate(ecdf_results.items()):
+            ax.plot(data['ecdf_x'], data['ecdf_y'] * 100,  # Convert to percentage
+                    linewidth=2, alpha=0.8, color=colors[i],
+                    label=category, linestyle='-')
+
+            # Collect stats
+            stats_data.append({
+                'Variable': category,
+                'Mean': f"{data['mean_value']:.2f}",
+                'StDev': f"{data['std_value']:.2f}",
+                'N': data['n_measurements']
+            })
+
+        # Styling for main plot
+        ax.set_xlabel(f'{value_column.replace("_", " ").title()}', fontsize=11, fontweight='normal')
+        ax.set_ylabel('Percent', fontsize=11, fontweight='normal')
+        ax.set_title(f'ECDF of {value_column.replace("_", " ").title()} by {category_column.replace("_", " ").title()}',
+                    fontsize=12, fontweight='bold', pad=10)
+
+        # Keep all spines but make them subtle
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#888888')
+            spine.set_linewidth(0.8)
+
+        # Add subtle grid
+        ax.grid(True, linestyle='-', alpha=0.2, color='#cccccc', linewidth=0.5)
+        ax.set_axisbelow(True)
+
+        # Create a single combined legend box with statistics
+        from matplotlib.lines import Line2D
+
+        # Create legend with variable names and colored lines
+        legend_elements = [Line2D([0], [0], color=colors[i], linewidth=2, label=category)
+                          for i, category in enumerate(ecdf_results.keys())]
+
+        # Build custom labels that include both variable name and stats
+        custom_labels = []
+        for i, (category, stat) in enumerate(zip(ecdf_results.keys(), stats_data)):
+            custom_labels.append(category)
+
+        # Add legend with title
+        legend = ax.legend(handles=legend_elements, labels=custom_labels,
+                          loc='upper left', frameon=True, fancybox=False, shadow=False,
+                          fontsize=9, edgecolor='black', framealpha=1, title='Variable',
+                          bbox_to_anchor=(1.02, 1.0))
+
+        # Get legend position and dimensions
+        fig.canvas.draw()
+        legend_bbox = legend.get_window_extent()
+        legend_bbox_axes = legend_bbox.transformed(ax.transAxes.inverted())
+        legend_width = legend_bbox_axes.width
+
+        # Add statistics table below, centered to match legend width
+        stats_text = "Mean  StDev    N\n"
+        for stat in stats_data:
+            stats_text += f"{stat['Mean']:>6} {stat['StDev']:>6} {stat['N']:>5}\n"
+
+        # Calculate center position to align with legend
+        legend_center_x = legend_bbox_axes.x0 + legend_width / 2
+
+        # Add stats box centered below legend
+        ax.text(legend_center_x, legend_bbox_axes.y0 - 0.005, stats_text,
+               transform=ax.transAxes, fontsize=8, verticalalignment='top',
+               horizontalalignment='center', family='monospace',
+               bbox=dict(boxstyle='square,pad=0.3', facecolor='white',
+                        edgecolor='black', linewidth=1))
+
+        plt.tight_layout()
+
+        # Save if requested
+        if save:
+            plot_filename = f'stratified_ecdf_{self.table_name}_{value_column}_by_{category_column}.png'
+            plot_path = os.path.join(self.output_directory, plot_filename)
+            fig.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+            self.logger.info(f"Saved stratified ECDF plot to {plot_path}")
+
+        self.logger.info(f"Created stratified ECDF plot for {value_column} by {category_column}")
+
+        return fig
+
+
