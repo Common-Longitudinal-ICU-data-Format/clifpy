@@ -6,7 +6,8 @@ import subprocess
 from textwrap import dedent
 from sybil import Sybil
 from sybil.parsers.markdown import PythonCodeBlockParser, CodeBlockParser, SkipParser
-
+from sybil.evaluators.doctest import NUMBER
+from sybil.parsers.doctest import DocTestParser
 
 def evaluate_bash(example):
     """
@@ -37,6 +38,7 @@ def evaluate_bash(example):
 pytest_collect_file = Sybil(
     parsers=[
         PythonCodeBlockParser(),
+        # DocTestParser(),
         CodeBlockParser(language='bash', evaluator=evaluate_bash),
         SkipParser(),
     ],
