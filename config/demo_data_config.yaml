@@ -2,5 +2,5 @@
 # Paths are resolved relative to the project root unless overridden.
 data_directory: "clifpy/data/clif_demo"
 filetype: "parquet"
-timezone: "US/Central"
+timezone: "US/Eastern"
 output_directory: "output/demo"
