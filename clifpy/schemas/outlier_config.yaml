@@ -639,9 +639,6 @@ tables:
 
   # Respiratory support table - multiple numeric columns
   respiratory_support:
-    tracheostomy:
-      min: 0
-      max: 1
     fio2_set:
       min: 0.21
       max: 1.0
