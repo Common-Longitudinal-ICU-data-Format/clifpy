@@ -42,11 +42,22 @@ wide_df = clif.create_wide_dataset(
 - **adt**: Admission, discharge, and transfer events
 
 ### Optional Tables (User-Specified)
+
+The tables available for wide dataset creation are defined in `clifpy/schemas/wide_tables_config.yaml`.
+
+**Currently Supported Tables:**
+
+**Pivot Tables** (narrow to wide conversion):
 - **vitals**: Vital signs (pivoted by `vital_category`)
 - **labs**: Laboratory results (pivoted by `lab_category`)
 - **medication_admin_continuous**: Continuous medications (pivoted by `med_category`)
+- **medication_admin_intermittent**: Intermittent medications (pivoted by `med_category`)
 - **patient_assessments**: Clinical assessments (pivoted by `assessment_category`)
-- **respiratory_support**: Respiratory support data
+
+**Wide Tables** (already in wide format):
+- **respiratory_support**: Respiratory support data (column selection)
+
+**Note:** Additional tables can be enabled by updating `clifpy/schemas/wide_tables_config.yaml`. Tables like `crrt_therapy`, `position`, `ecmo_mcs`, and `code_status` are configured but not yet enabled by default.
 
 ## Parameters
 
@@ -115,16 +126,18 @@ wide_df = clif.create_wide_dataset(
 
 ## Available Categories
 
+Category values are defined in each table's schema file (`clifpy/schemas/*_schema.yaml`).
+
 ### Vitals Categories
 Common vital sign categories include:
 - `map`, `heart_rate`, `sbp`, `dbp`, `spo2`, `respiratory_rate`, `temp_c`, `weight_kg`, `height_cm`
 
-### Labs Categories  
+### Labs Categories
 Common laboratory categories include:
 - `hemoglobin`, `wbc`, `sodium`, `potassium`, `creatinine`, `bun`, `glucose`, `lactate`
 
 ### Medication Categories
-Common continuous medication categories include:
+Common medication categories include:
 - `norepinephrine`, `epinephrine`, `phenylephrine`, `vasopressin`, `dopamine`
 - `propofol`, `fentanyl`, `midazolam`, `lorazepam`, `morphine`
 
@@ -132,6 +145,13 @@ Common continuous medication categories include:
 Common assessment categories include:
 - `gcs_total`, `rass`, `sbt_delivery_pass_fail`, `sat_delivery_pass_fail`
 - `sbt_screen_pass_fail`, `sat_screen_pass_fail`
+
+**To check available categories in your data:**
+```python
+# For any loaded table
+print(clif.vitals.df['vital_category'].unique())
+print(clif.labs.df['lab_category'].unique())
+```
 
 ## Output Structure
 
@@ -207,6 +227,62 @@ Tables are joined using a combination of:
 - Timestamp-based combo IDs for time-series data
 - Left joins to preserve all timestamps
 
+## Extending Table Support
+
+To add support for additional tables (e.g., `crrt_therapy`, `position`):
+
+### Step 1: Check the Configuration File
+Open `clifpy/schemas/wide_tables_config.yaml` and find your table:
+
+```yaml
+crrt_therapy:
+  type: wide
+  timestamp_column: recorded_dttm
+  description: "CRRT therapy data"
+  supported: false  # Change this to true
+```
+
+### Step 2: Enable the Table
+Simply change `supported: false` to `supported: true`:
+
+```yaml
+crrt_therapy:
+  type: wide
+  timestamp_column: recorded_dttm
+  description: "CRRT therapy data"
+  supported: true  # Now enabled!
+```
+
+### Step 3: Test with Your Data
+```python
+clif = CLIF(data_dir="/path/to/data")
+wide_df = clif.create_wide_dataset(
+    optional_tables=['crrt_therapy'],
+    category_filters={
+        'crrt_therapy': ['crrt_mode_category', 'blood_flow_rate']
+    }
+)
+```
+
+### Adding Completely New Tables
+
+If your table isn't in the config yet:
+
+1. Add a new entry to `clifpy/schemas/wide_tables_config.yaml`:
+```yaml
+  my_new_table:
+    type: pivot  # or 'wide'
+    timestamp_column: recorded_dttm
+    category_column: my_category  # for pivot tables
+    value_column: my_value  # for pivot tables
+    description: "Description of table"
+    supported: true
+```
+
+2. Ensure the table schema exists in `clifpy/schemas/my_new_table_schema.yaml`
+
+3. Test thoroughly with your data
+
 ## Best Practices
 
 1. **Start Small**: Use `sample=True` for initial testing
@@ -214,6 +290,7 @@ Tables are joined using a combination of:
 3. **Save Large Datasets**: Use file output for datasets > 1GB
 4. **Check Data Quality**: Validate timestamp alignment and missing values
 5. **Document Choices**: Record which categories and filters were used
+6. **Check Config**: Review `clifpy/schemas/wide_tables_config.yaml` for supported tables
 
 ## Troubleshooting
 
@@ -236,6 +313,20 @@ print(clif.vitals.df['vital_category'].unique())
 ```python
 # Verify data exists for your filters
 print(clif.hospitalization.df['hospitalization_id'].nunique())
+```
+
+**Unsupported Table Error**
+```python
+# Check if table is supported in config
+import yaml
+with open('clifpy/schemas/wide_tables_config.yaml') as f:
+    config = yaml.safe_load(f)
+    table_config = config['tables'].get('my_table')
+    if table_config:
+        print(f"Table type: {table_config.get('type')}")
+        print(f"Supported: {table_config.get('supported')}")
+    else:
+        print("Table not in config - needs to be added")
 ```
 
 ## Integration with Existing Workflow
