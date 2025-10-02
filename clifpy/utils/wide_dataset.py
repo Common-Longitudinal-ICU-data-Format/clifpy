@@ -12,12 +12,92 @@ import numpy as np
 from datetime import datetime
 import os
 import re
+import yaml
 from typing import List, Dict, Optional, Union
 from tqdm import tqdm
 import logging
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Global config cache
+_WIDE_TABLES_CONFIG = None
+
+
+def _load_wide_tables_config() -> Dict:
+    """
+    Load wide tables configuration from YAML file.
+    Config is cached globally to avoid repeated file I/O.
+
+    Returns
+    -------
+    Dict
+        Configuration dictionary with table metadata
+    """
+    global _WIDE_TABLES_CONFIG
+
+    if _WIDE_TABLES_CONFIG is None:
+        # Get path to config file relative to this module
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'schemas',
+            'wide_tables_config.yaml'
+        )
+
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(
+                f"Wide tables config not found at: {config_path}\n"
+                "Please ensure clifpy/schemas/wide_tables_config.yaml exists."
+            )
+
+        with open(config_path, 'r') as f:
+            _WIDE_TABLES_CONFIG = yaml.safe_load(f)
+
+    return _WIDE_TABLES_CONFIG
+
+
+def _get_supported_tables(table_type: Optional[str] = None) -> List[str]:
+    """
+    Get list of supported tables from config.
+
+    Parameters
+    ----------
+    table_type : str, optional
+        Filter by table type: 'pivot', 'wide', 'base', or None for all
+
+    Returns
+    -------
+    List[str]
+        List of supported table names
+    """
+    config = _load_wide_tables_config()
+    tables = config.get('tables', {})
+
+    supported = []
+    for table_name, table_config in tables.items():
+        if table_config.get('supported', False):
+            if table_type is None or table_config.get('type') == table_type:
+                supported.append(table_name)
+
+    return supported
+
+
+def _get_table_config(table_name: str) -> Optional[Dict]:
+    """
+    Get configuration for a specific table.
+
+    Parameters
+    ----------
+    table_name : str
+        Name of the table
+
+    Returns
+    -------
+    Dict or None
+        Table configuration dictionary, or None if not found
+    """
+    config = _load_wide_tables_config()
+    return config.get('tables', {}).get(table_name)
 
 
 def create_wide_dataset(
@@ -51,27 +131,23 @@ def create_wide_dataset(
 
         **PIVOT TABLES** (narrow to wide conversion):
         - Values are **category values** to filter and pivot into columns
-        - Tables: 'vitals', 'labs', 'medication_admin_continuous',
-          'medication_admin_intermittent', 'patient_assessments'
         - Example: {'vitals': ['heart_rate', 'sbp', 'spo2'],
                     'labs': ['hemoglobin', 'sodium', 'creatinine']}
-        - Acceptable values come from the category column's permissible values:
-          * vitals: vital_category (e.g., temp_c, heart_rate, sbp, dbp, spo2, map)
-          * labs: lab_category (e.g., hemoglobin, wbc, sodium, potassium, creatinine)
-          * medication_admin_continuous/intermittent: med_category
-            (e.g., norepinephrine, epinephrine, propofol, fentanyl)
-          * patient_assessments: assessment_category (e.g., RASS, gcs_total, cam_total)
+        - Acceptable values come from the category column's permissible values
+          defined in each table's schema file (clifpy/schemas/*_schema.yaml)
 
         **WIDE TABLES** (already in wide format):
         - Values are **column names** to keep from the table
-        - Tables: 'respiratory_support'
         - Example: {'respiratory_support': ['device_category', 'fio2_set', 'peep_set']}
         - Acceptable values are any column names from the table schema
-          (e.g., device_category, mode_category, tracheostomy, fio2_set, lpm_set,
-          tidal_volume_set, resp_rate_set, peep_set, etc.)
+
+        **Supported tables and their types are defined in:**
+        clifpy/schemas/wide_tables_config.yaml
 
         Table presence in this dict determines if it will be loaded.
-        See clifpy/schemas/*.yaml for complete lists of acceptable values.
+        For complete lists of acceptable category values, see:
+        - Table schemas: clifpy/schemas/*_schema.yaml
+        - Wide dataset config: clifpy/schemas/wide_tables_config.yaml
     sample : bool, default=False
         if True, randomly select 20 hospitalizations
     hospitalization_ids : List[str], optional
@@ -128,10 +204,10 @@ def create_wide_dataset(
         print(f"       - Ensuring datetime types for start_time, end_time")
         print("")
     
-    # Define tables that need pivoting vs those already wide
-    PIVOT_TABLES = ['vitals', 'labs', 'medication_admin_continuous', 'medication_admin_intermittent', 'patient_assessments']
-    WIDE_TABLES = ['respiratory_support']
-    
+    # Get table types from config
+    PIVOT_TABLES = _get_supported_tables(table_type='pivot')
+    WIDE_TABLES = _get_supported_tables(table_type='wide')
+
     # Determine which tables to load from category_filters
     if category_filters is None:
         category_filters = {}
@@ -342,18 +418,15 @@ def convert_wide_to_hourly(
 
 
 def _find_alternative_timestamp(table_name: str, columns: List[str]) -> Optional[str]:
-    """Find alternative timestamp column if the default is not found."""
-    
-    alternatives = {
-        'labs': ['lab_collect_dttm', 'recorded_dttm', 'lab_order_dttm'],
-        'vitals': ['recorded_dttm_min', 'recorded_dttm'],
-    }
-    
-    if table_name in alternatives:
-        for alt_col in alternatives[table_name]:
+    """Find alternative timestamp column if the default is not found (from config)."""
+    table_config = _get_table_config(table_name)
+
+    if table_config:
+        alternatives = table_config.get('alternative_timestamps', [])
+        for alt_col in alternatives:
             if alt_col in columns:
                 return alt_col
-    
+
     return None
 
 
@@ -380,16 +453,11 @@ def _save_dataset(
 
 
 def _get_timestamp_column(table_name: str) -> Optional[str]:
-    """Get the timestamp column name for each table type."""
-    timestamp_mapping = {
-        'vitals': 'recorded_dttm',
-        'labs': 'lab_result_dttm',
-        'medication_admin_continuous': 'admin_dttm',
-        'medication_admin_intermittent': 'admin_dttm',
-        'patient_assessments': 'recorded_dttm',
-        'respiratory_support': 'recorded_dttm'
-    }
-    return timestamp_mapping.get(table_name)
+    """Get the timestamp column name for each table type from config."""
+    table_config = _get_table_config(table_name)
+    if table_config:
+        return table_config.get('timestamp_column')
+    return None
 
 
 def _process_hourly_single_batch(
@@ -759,8 +827,9 @@ def _process_hospitalizations(
             continue
             
         # Filter by hospitalization IDs immediately
-        # Check if this is medication table with converted data
-        if table_name in ['medication_admin_continuous', 'medication_admin_intermittent']:
+        # Check if this is medication table with converted data (from config)
+        table_config = _get_table_config(table_name)
+        if table_config and table_config.get('supports_unit_conversion', False):
             # Check if converted data exists
             if hasattr(table_obj, 'df_converted') and table_obj.df_converted is not None:
                 print(f"           === SPECIAL: USING CONVERTED MEDICATION DATA ===")
@@ -916,39 +985,32 @@ def _pivot_table_duckdb(
     category_filters: Dict[str, List[str]]
 ) -> Optional[str]:
     """Pivot a table and return the pivoted table name."""
-    
-    # Get column mappings
-    category_col_mapping = {
-        'vitals': 'vital_category',
-        'labs': 'lab_category',
-        'medication_admin_continuous': 'med_category',
-        'medication_admin_intermittent': 'med_category',
-        'patient_assessments': 'assessment_category'
-    }
 
-    value_col_mapping = {
-        'vitals': 'vital_value',
-        'labs': 'lab_value_numeric',
-        'medication_admin_continuous': 'med_dose',
-        'medication_admin_intermittent': 'med_dose',
-        'patient_assessments': 'assessment_value'
-    }
-    
-    category_col = category_col_mapping.get(table_name)
-    value_col = value_col_mapping.get(table_name)
+    # Get column mappings from config
+    table_config = _get_table_config(table_name)
+
+    if not table_config:
+        print(f"Warning: No configuration found for {table_name}")
+        return None
+
+    category_col = table_config.get('category_column')
+    value_col = table_config.get('value_column')
 
     # Check if this is medication table with converted data
     has_converted_meds = False
     unit_col = None
-    if table_name in ['medication_admin_continuous', 'medication_admin_intermittent']:
+    if table_config.get('supports_unit_conversion', False):
         # Check if converted columns exist in the dataframe
-        if 'med_dose_converted' in table_df.columns and 'med_dose_unit_converted' in table_df.columns:
+        converted_value_col = table_config.get('converted_value_column')
+        converted_unit_col = table_config.get('converted_unit_column')
+
+        if (converted_value_col and converted_unit_col and
+                converted_value_col in table_df.columns and converted_unit_col in table_df.columns):
             has_converted_meds = True
-            value_col = 'med_dose_converted'
-            unit_col = 'med_dose_unit_converted'
+            value_col = converted_value_col
+            unit_col = converted_unit_col
             print(f"           - Using converted medication columns: {value_col}, {unit_col}")
         else:
-            value_col = 'med_dose'
             print(f"           - Using original medication column: {value_col}")
 
     if not category_col or not value_col:
@@ -1198,8 +1260,12 @@ def _add_missing_columns(
     if not category_filters:
         return
 
-    # Medication tables that might have unit-aware column names
-    medication_tables = ['medication_admin_continuous', 'medication_admin_intermittent']
+    # Get medication tables from config
+    config = _load_wide_tables_config()
+    medication_tables = []
+    for table_name, table_config in config.get('tables', {}).items():
+        if table_config.get('supports_unit_conversion', False):
+            medication_tables.append(table_name)
 
     for table_name, categories in category_filters.items():
         if table_name in tables_loaded and categories:
