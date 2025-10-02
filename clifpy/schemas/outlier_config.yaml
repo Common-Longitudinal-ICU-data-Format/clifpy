@@ -10,6 +10,23 @@ tables:
   # ADT table has no numeric columns
   adt: {}
 
+  crrt_therapy:
+    blood_flow_rate:
+      min: 150
+      max: 300
+    pre_filter_replacement_fluid_rate:
+      min: 0
+      max: 10000
+    post_filter_replacement_fluid_rate:
+      min: 0
+      max: 10000
+    dialysate_flow_rate:
+      min: 0
+      max: 10000
+    ultrafilteration_out:
+      min: 0
+      max: 500
+
   # Hospitalization table
   hospitalization:
     age_at_admission:
@@ -329,6 +346,89 @@ tables:
           min: 0.0
           max: 50.0
 
+  ecmo_mcs:
+    sweep:
+      VA_ECMO:
+        min: 0.5
+        max: 20.0
+      VV_ECMO:
+        min: 0.5
+        max: 20.0
+      VAV_ECMO:
+        min: 0.5
+        max: 20.0
+      LAVA_ECMO:
+        min: 0.5
+        max: 20.0
+    flow:
+      Impella_2.5:
+        min: 0.5
+        max: 10.0
+      Impella_CP:
+        min: 0.5
+        max: 10.0
+      Impella_5.0:
+        min: 0.5
+        max: 10.0
+      Impella_5.5:
+        min: 0.5
+        max: 10.0
+      Impella_LD:
+        min: 0.5
+        max: 10.0
+      Impella_RP:
+        min: 0.5
+        max: 10.0
+      Impella_RP_Flex:
+        min: 0.5
+        max: 10.0
+      TandemHeart_LV:
+        min: 0.5
+        max: 10.0
+      TandemHeart_RV:
+        min: 0.5
+        max: 10.0
+      CentriMag_LV:
+        min: 0.5
+        max: 10.0
+      CentriMag_RV:
+        min: 0.5
+        max: 10.0
+      VA_ECMO:
+        min: 1.0
+        max: 10.0
+      VV_ECMO:
+        min: 1.0
+        max: 10.0
+      VAV_ECMO:
+        min: 1.0
+        max: 10.0
+      LAVA_ECMO:
+        min: 1.0
+        max: 10.0
+      HeartWare:
+        min: 1.0
+        max: 10.0
+      HMII:
+        min: 1.0
+        max: 10.0
+      HMIII:
+        min: 1.0
+        max: 10.0
+    fdO2:
+      VA_ECMO:
+        min: 0.21
+        max: 1.0
+      VV_ECMO:
+        min: 0.21
+        max: 1.0
+      VAV_ECMO:
+        min: 0.21
+        max: 1.0
+      LAVA_ECMO:
+        min: 0.21
+        max: 1.0
+
   # Patient table has no numeric columns
   patient: {}
 
@@ -539,9 +639,6 @@ tables:
 
   # Respiratory support table - multiple numeric columns
   respiratory_support:
-    tracheostomy:
-      min: 0
-      max: 1
     fio2_set:
       min: 0.21
       max: 1.0

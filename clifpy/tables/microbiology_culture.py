@@ -72,12 +72,30 @@ class MicrobiologyCulture(BaseTable):
         self.time_order_validation_errors = []
 
         df = self.df
-        key_cols = self.schema['composite_keys']
+        key_cols = ["patient_id", "hospitalization_id", "organism_id"]
+        time_cols = ["order_dttm", "collect_dttm", "result_dttm"]
+
+        # Check for missing columns
+        missing = [col for col in time_cols if col not in df.columns]
+        if missing:
+            msg = (
+                f"Missing required timestamp columns for time order validation: {', '.join(missing)}"
+            )
+            self.time_order_validation_errors.append({
+                "type": "missing_time_order_columns",
+                "columns": missing,
+                "message": msg,
+                "table": getattr(self, "table_name", "unknown"),
+            })
+            if hasattr(self, "errors"):
+                self.errors.extend(self.time_order_validation_errors)
+            self.logger.warning(msg)
+            return None
 
         grace = pd.Timedelta(minutes=1)
 
         # Flag if order is ≥ 1 minute after collect (allow small jitter where collect ≥ order within 1 min)
-        m_order_ge_collect  = (df["order_dttm"]   - df["collect_dttm"]) >= grace
+        m_order_ge_collect = (df["order_dttm"] - df["collect_dttm"]) >= grace
 
         # Flag if collect is ≥ 1 minute after result (allow small jitter where result ≥ collect within 1 min)
         m_collect_ge_result = (df["collect_dttm"] - df["result_dttm"]) >= grace
