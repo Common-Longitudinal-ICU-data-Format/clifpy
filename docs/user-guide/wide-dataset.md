@@ -31,8 +31,9 @@ co = ClifOrchestrator(
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
-        'vitals': ['heart_rate', 'sbp', 'spo2'],
-        'labs': ['hemoglobin', 'sodium', 'glucose']
+        # Pivot tables - specify category VALUES to pivot into columns
+        'vitals': ['heart_rate', 'sbp', 'spo2'],  # vital_category values
+        'labs': ['hemoglobin', 'sodium', 'glucose']  # lab_category values
     },
     sample=True  # Use 20 random hospitalizations for testing
 )
@@ -89,6 +90,96 @@ The `create_wide_dataset()` method accepts the following parameters:
 | `threads` | int | None | Number of threads for DuckDB processing |
 | `show_progress` | bool | True | Show progress bars for long operations |
 
+## Understanding category_filters: Pivot vs Wide Tables
+
+The `category_filters` parameter behaves differently depending on the table type. Understanding this distinction is crucial for correctly specifying your data requirements.
+
+### Pivot Tables (Narrow to Wide)
+
+**Pivot tables** store data in narrow format with a category column and need to be pivoted into wide format:
+
+| Table Name | Category Column | What to Specify |
+|------------|----------------|-----------------|
+| `vitals` | `vital_category` | Category values to pivot (e.g., 'heart_rate', 'sbp') |
+| `labs` | `lab_category` | Category values to pivot (e.g., 'hemoglobin', 'sodium') |
+| `medication_admin_continuous` | `med_category` | Medication names to pivot (e.g., 'norepinephrine', 'propofol') |
+| `medication_admin_intermittent` | `med_category` | Medication names to pivot (e.g., 'norepinephrine', 'propofol') |
+| `patient_assessments` | `assessment_category` | Assessment types to pivot (e.g., 'RASS', 'gcs_total') |
+
+**Example - Pivot Tables:**
+```python
+category_filters = {
+    'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2'],      # These are CATEGORY VALUES
+    'labs': ['hemoglobin', 'wbc', 'sodium', 'creatinine'], # These are CATEGORY VALUES
+    'medication_admin_continuous': ['norepinephrine', 'propofol']  # These are CATEGORY VALUES
+}
+```
+
+**How it works:**
+- Input: Rows with different `vital_category` values (heart_rate, sbp, etc.)
+- Output: Columns for each category (`heart_rate`, `sbp`, etc.)
+
+### Wide Tables (Already Wide)
+
+**Wide tables** are already in wide format with multiple data columns:
+
+| Table Name | What to Specify |
+|------------|-----------------|
+| `respiratory_support` | Column names to keep from the table schema |
+
+**Example - Wide Tables:**
+```python
+category_filters = {
+    'respiratory_support': [                    # These are COLUMN NAMES
+        'device_category',                      # Column name
+        'fio2_set',                            # Column name
+        'peep_set',                            # Column name
+        'tidal_volume_set',                    # Column name
+        'resp_rate_set'                        # Column name
+    ]
+}
+```
+
+**How it works:**
+- Input: Table with many columns (device_category, fio2_set, peep_set, etc.)
+- Output: Only specified columns are kept in the wide dataset
+
+### Mixed Usage Example
+
+You can specify both pivot and wide tables in the same `category_filters` dictionary:
+
+```python
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs', 'respiratory_support'],
+    category_filters={
+        # PIVOT TABLES - specify category values
+        'vitals': ['heart_rate', 'sbp', 'spo2'],
+        'labs': ['hemoglobin', 'sodium', 'creatinine'],
+
+        # WIDE TABLES - specify column names
+        'respiratory_support': ['device_category', 'fio2_set', 'peep_set']
+    }
+)
+```
+
+### Finding Values in Your Data
+
+To see what category values are actually present in your loaded data:
+
+```python
+# After loading tables
+co.initialize(['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments'])
+
+# Check available categories
+print("Available vitals:", co.vitals.df['vital_category'].unique())
+print("Available labs:", co.labs.df['lab_category'].unique())
+print("Available medications:", co.medication_admin_continuous.df['med_category'].unique())
+print("Available assessments:", co.patient_assessments.df['assessment_category'].unique())
+
+# Check respiratory support columns
+print("Respiratory support columns:", co.respiratory_support.df.columns.tolist())
+```
+
 ## Best Practices: System Resource Management
 
 **Always check your system resources before running wide dataset creation on large datasets:**
@@ -130,6 +221,7 @@ Use sampling for initial development and testing:
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
+        # PIVOT TABLES - specify category values from vital_category and lab_category columns
         'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'respiratory_rate'],
         'labs': ['hemoglobin', 'wbc', 'sodium', 'potassium', 'creatinine']
     },
@@ -155,9 +247,10 @@ resources = co.get_sys_resource_info(print_summary=False)
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs', 'medication_admin_continuous'],
     category_filters={
+        # PIVOT TABLES - specify category values
         'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'temp_c'],
         'labs': ['hemoglobin', 'wbc', 'sodium', 'potassium'],
-        'medication_admin_continuous': ['norepinephrine', 'propofol', 'fentanyl']
+        'medication_admin_continuous': ['norepinephrine', 'propofol', 'fentanyl']  # med_category values
     },
     batch_size=500,  # Smaller batches for large datasets
     memory_limit="12GB",
@@ -183,9 +276,10 @@ co.create_wide_dataset(
     hospitalization_ids=target_ids,
     tables_to_load=['vitals', 'labs', 'patient_assessments'],
     category_filters={
-        'vitals': ['heart_rate', 'sbp', 'spo2'],
-        'labs': ['lactate', 'hemoglobin'],
-        'patient_assessments': ['gcs_total', 'rass']
+        # PIVOT TABLES - specify category values
+        'vitals': ['heart_rate', 'sbp', 'spo2'],  # vital_category values
+        'labs': ['lactate', 'hemoglobin'],  # lab_category values
+        'patient_assessments': ['gcs_total', 'rass']  # assessment_category values (note: case-sensitive!)
     }
 )
 
@@ -216,8 +310,9 @@ cohort_df['end_time'] = pd.to_datetime(cohort_df['end_time'])
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
-        'vitals': ['heart_rate', 'sbp'],
-        'labs': ['hemoglobin', 'sodium']
+        # PIVOT TABLES - specify category values
+        'vitals': ['heart_rate', 'sbp'],  # vital_category values
+        'labs': ['hemoglobin', 'sodium']  # lab_category values
     },
     cohort_df=cohort_df  # Only include data within specified time windows
 )
@@ -226,7 +321,36 @@ co.create_wide_dataset(
 wide_df = co.wide_df
 ```
 
-### Example 5: No Batch Processing for Small Datasets
+### Example 5: Mixed Pivot and Wide Tables
+
+Use both pivot and wide tables together:
+
+```python
+# Mixed example with both table types
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs', 'respiratory_support'],
+    category_filters={
+        # PIVOT TABLES - specify category values to pivot
+        'vitals': ['heart_rate', 'sbp', 'map'],
+        'labs': ['hemoglobin', 'creatinine'],
+
+        # WIDE TABLES - specify column names to keep
+        'respiratory_support': [
+            'device_category',      # Column name from respiratory_support table
+            'mode_category',        # Column name
+            'fio2_set',            # Column name
+            'peep_set',            # Column name
+            'tidal_volume_set'     # Column name
+        ]
+    }
+)
+
+# Access the created dataset
+wide_df = co.wide_df
+print(f"Dataset includes both pivoted categories and wide table columns")
+```
+
+### Example 6: No Batch Processing for Small Datasets
 
 Disable batching for small datasets:
 
@@ -236,6 +360,7 @@ co.create_wide_dataset(
     hospitalization_ids=small_id_list,  # < 100 hospitalizations
     tables_to_load=['vitals', 'labs'],
     category_filters={
+        # PIVOT TABLES - specify category values
         'vitals': ['heart_rate', 'sbp'],
         'labs': ['hemoglobin']
     },
