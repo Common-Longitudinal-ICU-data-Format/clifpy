@@ -238,12 +238,15 @@ def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str,
         # 2a. NULL checks -----------------------------------------------------
         if col_spec.get("required", False):
             null_cnt = int(series.isna().sum())
+            total_cnt = int(len(series))
+            null_pct = (null_cnt / total_cnt * 100) if total_cnt > 0 else 0.0
             if null_cnt:
                 errors.append({
                     "type": "null_values",
                     "column": name,
                     "count": null_cnt,
-                    "message": f"Column '{name}' has {null_cnt} null values in required field"
+                    "percent": round(null_pct, 2),
+                    "message": f"Column '{name}' has {null_cnt} null values ({null_pct:.2f}%) in required field"
                 })
 
         # 2b. Datatype checks -------------------------------------------------
