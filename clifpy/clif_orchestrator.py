@@ -430,32 +430,17 @@ class ClifOrchestrator:
             by table type:
 
             **PIVOT TABLES** (narrow to wide - category values from schema):
-
-            - **'vitals'**: vital_category values
-              Examples: temp_c, heart_rate, sbp, dbp, spo2, respiratory_rate, map,
-              height_cm, weight_kg
-
-            - **'labs'**: lab_category values
-              Examples: hemoglobin, wbc, sodium, potassium, creatinine, glucose_serum,
-              lactate, bilirubin_total, platelet_count, inr, albumin, calcium_ionized, etc.
-
-            - **'medication_admin_continuous'**: med_category values
-              Examples: norepinephrine, epinephrine, phenylephrine, vasopressin,
-              propofol, dexmedetomidine, fentanyl, midazolam, insulin, etc.
-
-            - **'medication_admin_intermittent'**: med_category values
-              Examples: same as continuous medications
-
-            - **'patient_assessments'**: assessment_category values
-              Examples: RASS, gcs_total, gcs_eye, gcs_motor, gcs_verbal, cam_total,
-              braden_total, CIWA, COWS, cpot_total, etc.
+            - Values are **category values** to filter and pivot into columns
+            - Examples:
+              * vitals: temp_c, heart_rate, sbp, dbp, spo2, respiratory_rate, map
+              * labs: hemoglobin, wbc, sodium, potassium, creatinine, glucose_serum, lactate
+              * medication_admin_continuous: norepinephrine, epinephrine, propofol, fentanyl
+              * patient_assessments: RASS, gcs_total, cam_total, braden_total
 
             **WIDE TABLES** (already wide - column names from schema):
-
-            - **'respiratory_support'**: Column names to keep
-              Examples: device_category, mode_category, tracheostomy, fio2_set,
-              lpm_set, tidal_volume_set, resp_rate_set, pressure_control_set,
-              pressure_support_set, peep_set, tidal_volume_obs, resp_rate_obs, etc.
+            - Values are **column names** to keep from the table
+            - Examples:
+              * respiratory_support: device_category, mode_category, fio2_set, peep_set
 
             Usage Example:
             ```python
@@ -466,8 +451,14 @@ class ClifOrchestrator:
             }
             ```
 
-            **Note**: See clifpy/schemas/*.yaml files for complete lists of acceptable values.
-            Use `co.vitals.df['vital_category'].unique()` to see available values in your data.
+            **Supported Tables:**
+            For complete list of supported tables and their types, see:
+            clifpy/schemas/wide_tables_config.yaml
+
+            **Category Values:**
+            For complete lists of acceptable category values, see:
+            - Table schemas: clifpy/schemas/*_schema.yaml
+            - Use `co.vitals.df['vital_category'].unique()` to see available values in your data
         sample : bool, default=False
             If True, randomly sample 20 hospitalizations for testing purposes.
         hospitalization_ids : List[str], optional
