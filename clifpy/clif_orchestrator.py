@@ -831,6 +831,10 @@ class ClifOrchestrator:
         print("\nPhase 6: Completion")
 
         if self.wide_df is not None:
+            # Convert encounter_block to int32 if it exists (memory optimization)
+            if 'encounter_block' in self.wide_df.columns:
+                self.wide_df['encounter_block'] = self.wide_df['encounter_block'].astype('Int32')
+
             print(f"  6.1: Wide dataset stored in self.wide_df")
             print(f"  6.2: Dataset shape: {self.wide_df.shape[0]} rows x {self.wide_df.shape[1]} columns")
         else:
@@ -846,13 +850,15 @@ class ClifOrchestrator:
         aggregation_config: Dict[str, List[str]],
         wide_df: Optional[pd.DataFrame] = None,
         id_name: str = 'hospitalization_id',
+        hourly_window: int = 1,
+        fill_gaps: bool = False,
         memory_limit: str = '4GB',
         temp_directory: Optional[str] = None,
         batch_size: Optional[int] = None
     ) -> pd.DataFrame:
         """
-        Convert wide dataset to hourly aggregation using DuckDB.
-        
+        Convert wide dataset to temporal aggregation using DuckDB with event-based windowing.
+
         Parameters
         ----------
         aggregation_config : Dict[str, List[str]]
@@ -874,30 +880,67 @@ class ClifOrchestrator:
             - 'hospitalization_id': Group by individual hospitalizations (default)
             - 'encounter_block': Group by encounter blocks (after encounter stitching)
             - Any other ID column present in the wide dataset
+        hourly_window : int, default=1
+            Aggregation window size in hours (1-72). Windows start from each
+            group's first event, not calendar boundaries.
+        fill_gaps : bool, default=False
+            Create rows for windows with no data (filled with NaN).
+            False = sparse output (current behavior), True = dense output.
         memory_limit : str, default='4GB'
             DuckDB memory limit (e.g., '4GB', '8GB')
         temp_directory : str, optional
             Directory for DuckDB temp files
         batch_size : int, optional
             Process in batches if specified
-            
+
         Returns
         -------
         pd.DataFrame
-            Hourly aggregated DataFrame with nth_hour column
+            Aggregated DataFrame with columns:
+            - window_number: Sequential window index (0-indexed)
+            - window_start_dttm: Window start timestamp
+            - window_end_dttm: Window end timestamp
+            - All aggregated columns per config
 
-        Examples:
-            # Using stored wide_df (after create_wide_dataset())
+        Examples
+        --------
+        Standard hourly with sparse output (only windows with data)::
+
             co.create_wide_dataset(...)
-            hourly_df = co.convert_wide_to_hourly(aggregation_config=config)
+            hourly_df = co.convert_wide_to_hourly(
+                aggregation_config=config,
+                hourly_window=1,
+                fill_gaps=False
+            )
 
-            # Using encounter blocks after stitching
+        6-hour windows with gap filling (all windows 0 to max)::
+
+            hourly_df = co.convert_wide_to_hourly(
+                aggregation_config=config,
+                hourly_window=6,
+                fill_gaps=True
+            )
+            # If data exists at windows 0, 1, 5:
+            # - fill_gaps=False creates 3 rows (0, 1, 5)
+            # - fill_gaps=True creates 6 rows (0, 1, 2, 3, 4, 5) with NaN in 2-4
+
+        Using encounter blocks after stitching::
+
             co.run_stitch_encounters()
             co.create_wide_dataset(...)
-            hourly_df = co.convert_wide_to_hourly(aggregation_config=config, id_name='encounter_block')
+            hourly_df = co.convert_wide_to_hourly(
+                aggregation_config=config,
+                id_name='encounter_block',
+                hourly_window=12
+            )
 
-            # Using explicit wide_df parameter
-            hourly_df = co.convert_wide_to_hourly(wide_df=my_df, aggregation_config=config)
+        Using explicit wide_df parameter::
+
+            hourly_df = co.convert_wide_to_hourly(
+                wide_df=my_df,
+                aggregation_config=config,
+                hourly_window=24
+            )
         """
         from clifpy.utils.wide_dataset import convert_wide_to_hourly
 
@@ -915,6 +958,8 @@ class ClifOrchestrator:
             wide_df=wide_df,
             aggregation_config=aggregation_config,
             id_name=id_name,
+            hourly_window=hourly_window,
+            fill_gaps=fill_gaps,
             memory_limit=memory_limit,
             temp_directory=temp_directory,
             batch_size=batch_size
