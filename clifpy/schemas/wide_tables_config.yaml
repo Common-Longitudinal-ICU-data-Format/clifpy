@@ -111,7 +111,7 @@ tables:
     examples:
       - "crrt_mode_category, blood_flow_rate, dialysate_flow_rate, replacement_fluid_rate, ultrafiltration_goal"
     notes: "To enable: set supported: true and test with your data"
-    supported: false
+    supported: true
 
   position:
     type: pivot
