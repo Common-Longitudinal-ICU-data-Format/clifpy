@@ -47,9 +47,31 @@ def create_wide_dataset(
     optional_tables : List[str], optional
         DEPRECATED - use category_filters to specify tables
     category_filters : Dict[str, List[str]], optional
-        Dict specifying which categories to include for each table
-        Keys are table names, values are lists of categories to filter
-        Table presence in this dict determines if it will be loaded
+        Dict specifying filtering/selection for each table. Behavior differs by table type:
+
+        **PIVOT TABLES** (narrow to wide conversion):
+        - Values are **category values** to filter and pivot into columns
+        - Tables: 'vitals', 'labs', 'medication_admin_continuous',
+          'medication_admin_intermittent', 'patient_assessments'
+        - Example: {'vitals': ['heart_rate', 'sbp', 'spo2'],
+                    'labs': ['hemoglobin', 'sodium', 'creatinine']}
+        - Acceptable values come from the category column's permissible values:
+          * vitals: vital_category (e.g., temp_c, heart_rate, sbp, dbp, spo2, map)
+          * labs: lab_category (e.g., hemoglobin, wbc, sodium, potassium, creatinine)
+          * medication_admin_continuous/intermittent: med_category
+            (e.g., norepinephrine, epinephrine, propofol, fentanyl)
+          * patient_assessments: assessment_category (e.g., RASS, gcs_total, cam_total)
+
+        **WIDE TABLES** (already in wide format):
+        - Values are **column names** to keep from the table
+        - Tables: 'respiratory_support'
+        - Example: {'respiratory_support': ['device_category', 'fio2_set', 'peep_set']}
+        - Acceptable values are any column names from the table schema
+          (e.g., device_category, mode_category, tracheostomy, fio2_set, lpm_set,
+          tidal_volume_set, resp_rate_set, peep_set, etc.)
+
+        Table presence in this dict determines if it will be loaded.
+        See clifpy/schemas/*.yaml for complete lists of acceptable values.
     sample : bool, default=False
         if True, randomly select 20 hospitalizations
     hospitalization_ids : List[str], optional
