@@ -31,6 +31,14 @@ from typing import List, Dict, Any, Optional, Tuple
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from multiprocessing import Pool, cpu_count
+from functools import partial
+
+try:
+    import polars as pl
+    HAS_POLARS = True
+except ImportError:
+    HAS_POLARS = False
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -987,6 +995,19 @@ def _validate_range(df: pd.DataFrame, mask: pd.Series, column: str,
     return int((data < min_val).sum()), int((data > max_val).sum())
 
 
+def _validate_range_polars(df_pl: 'pl.DataFrame', mask_expr: 'pl.Expr', column: str,
+                           min_val: float, max_val: float) -> Tuple[int, int]:
+    """Helper to check min/max violations for masked data using Polars."""
+    data = df_pl.filter(mask_expr).select(pl.col(column).drop_nulls())
+    if data.height == 0:
+        return 0, 0
+
+    col_data = data[column]
+    below = (col_data < min_val).sum()
+    above = (col_data > max_val).sum()
+    return int(below), int(above)
+
+
 def _validate_simple_range(
     df: pd.DataFrame,
     table_name: str,
@@ -998,6 +1019,37 @@ def _validate_simple_range(
     below, above = _validate_range(df, df.index, col_name, col_config['min'], col_config['max'])
     if below > 0 or above > 0:
         total_values = df[col_name].notna().sum()
+        results.append({
+            "type": "outlier_validation",
+            "table": table_name,
+            "column": col_name,
+            "min_expected": col_config['min'],
+            "max_expected": col_config['max'],
+            "below_min_count": below,
+            "above_max_count": above,
+            "status": "warning",
+            "message": f"Column '{col_name}' has {below} values below minimum *{col_config['min']}* & {above} values above maximum *{col_config['max']}*"
+        })
+    return results
+
+
+def _validate_simple_range_polars(
+    df_pl: 'pl.DataFrame',
+    table_name: str,
+    col_name: str,
+    col_config: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """Validate simple range pattern using Polars: {min: X, max: Y}"""
+    results = []
+    col_data = df_pl.select(pl.col(col_name).drop_nulls())
+
+    if col_data.height == 0:
+        return results
+
+    below = int((col_data[col_name] < col_config['min']).sum())
+    above = int((col_data[col_name] > col_config['max']).sum())
+
+    if below > 0 or above > 0:
         results.append({
             "type": "outlier_validation",
             "table": table_name,
@@ -1028,6 +1080,38 @@ def _validate_single_category(
         below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
         if below > 0 or above > 0:
             total_values = df.loc[mask, col_name].notna().sum()
+            results.append({
+                "type": "outlier_validation",
+                "category": category,
+                "column": col_name,
+                "min_expected": ranges['min'],
+                "max_expected": ranges['max'],
+                "below_min_count": below,
+                "above_max_count": above,
+                "status": "warning",
+                "message": f"Category {category} for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
+            })
+    return results
+
+
+def _validate_single_category_polars(
+    df_pl: 'pl.DataFrame',
+    table_name: str,
+    col_name: str,
+    col_config: Dict[str, Any],
+    category_col: str
+) -> List[Dict[str, Any]]:
+    """Validate single category pattern using Polars: {category: {min: X, max: Y}}"""
+    results = []
+    for category, ranges in col_config.items():
+        mask = pl.col(category_col).cast(pl.Utf8).str.to_lowercase() == category.lower()
+        filtered = df_pl.filter(mask)
+
+        if filtered.height == 0:
+            continue
+
+        below, above = _validate_range_polars(df_pl, mask, col_name, ranges['min'], ranges['max'])
+        if below > 0 or above > 0:
             results.append({
                 "type": "outlier_validation",
                 "category": category,
@@ -1080,6 +1164,45 @@ def _validate_double_category(
     return results
 
 
+def _validate_double_category_polars(
+    df_pl: 'pl.DataFrame',
+    table_name: str,
+    col_name: str,
+    col_config: Dict[str, Any],
+    primary_col: str,
+    secondary_col: str
+) -> List[Dict[str, Any]]:
+    """Validate double category pattern using Polars: {cat1: {cat2: {min: X, max: Y}}}"""
+    results = []
+    for cat1, sub_config in col_config.items():
+        for cat2, ranges in sub_config.items():
+            if not isinstance(ranges, dict) or 'min' not in ranges:
+                continue
+            mask = (
+                (pl.col(primary_col).cast(pl.Utf8).str.to_lowercase() == cat1.lower()) &
+                (pl.col(secondary_col).cast(pl.Utf8).str.to_lowercase() == cat2.lower())
+            )
+            filtered = df_pl.filter(mask)
+            if filtered.height == 0:
+                continue
+
+            below, above = _validate_range_polars(df_pl, mask, col_name, ranges['min'], ranges['max'])
+            if below > 0 or above > 0:
+                results.append({
+                    "type": "outlier_validation",
+                    "primary_category": cat1,
+                    "secondary_category": cat2,
+                    "column": col_name,
+                    "min_expected": ranges['min'],
+                    "max_expected": ranges['max'],
+                    "below_min_count": below,
+                    "above_max_count": above,
+                    "status": "warning",
+                    "message": f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
+                })
+    return results
+
+
 def _find_category_column(
     df: pd.DataFrame,
     col_config: Dict[str, Any],
@@ -1117,7 +1240,10 @@ def validate_numeric_ranges_from_config(
     df: pd.DataFrame,
     table_name: str,
     schema: Dict[str, Any],
-    outlier_config: Dict[str, Any]
+    outlier_config: Dict[str, Any],
+    use_polars: bool = True,
+    chunk_size: Optional[int] = None,
+    n_jobs: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
     Validate numeric ranges using outlier config with automatic pattern detection.
@@ -1137,6 +1263,14 @@ def validate_numeric_ranges_from_config(
         Table schema with column definitions
     outlier_config : dict
         Outlier configuration from outlier_config.yaml
+    use_polars : bool, default=True
+        Use Polars for faster processing if available. Falls back to pandas if False or unavailable.
+    chunk_size : int, optional
+        Process data in chunks of this size. Useful for very large datasets.
+        If None, processes entire dataset at once.
+    n_jobs : int, optional
+        Number of parallel jobs for chunk processing. Defaults to CPU count.
+        Only used when chunk_size is specified.
 
     Returns
     -------
@@ -1150,18 +1284,42 @@ def validate_numeric_ranges_from_config(
     >>> # Load config once
     >>> outlier_config = load_outlier_config()
     >>>
-    >>> # Validate multiple tables
+    >>> # Validate multiple tables with Polars (fast)
     >>> vitals_outliers = validate_numeric_ranges_from_config(
     ...     vitals_df, 'vitals', vitals_schema, outlier_config
     ... )
-    >>> ecmo_outliers = validate_numeric_ranges_from_config(
-    ...     ecmo_df, 'ecmo_mcs', ecmo_schema, outlier_config
+    >>>
+    >>> # For very large datasets, use chunking
+    >>> large_outliers = validate_numeric_ranges_from_config(
+    ...     large_df, 'vitals', vitals_schema, outlier_config,
+    ...     chunk_size=100000, n_jobs=4
     ... )
     """
-    results = []
     table_config = outlier_config.get('tables', {}).get(table_name, {})
     if not table_config:
-        return results
+        return []
+
+    # Use chunking for large datasets
+    if chunk_size and len(df) > chunk_size:
+        return _validate_with_chunking(
+            df, table_name, schema, outlier_config, chunk_size, n_jobs, use_polars
+        )
+
+    # Use Polars if available and requested
+    if use_polars and HAS_POLARS:
+        return _validate_numeric_ranges_polars(df, table_name, schema, table_config)
+    else:
+        return _validate_numeric_ranges_pandas(df, table_name, schema, table_config)
+
+
+def _validate_numeric_ranges_pandas(
+    df: pd.DataFrame,
+    table_name: str,
+    schema: Dict[str, Any],
+    table_config: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """Pandas implementation of numeric range validation."""
+    results = []
 
     # Get category columns from schema
     cat_cols = {col['name'] for col in schema.get('columns', [])
@@ -1178,12 +1336,10 @@ def validate_numeric_ranges_from_config(
             continue
 
         # Pattern 2 & 3: Category-dependent
-        # Find the primary category column
         category_col = _find_category_column(df, col_config, cat_cols)
         if not category_col:
             continue
 
-        # Determine if single or double category
         first_val = col_config[list(col_config.keys())[0]]
 
         # Pattern 2: Single category {category: {min: X, max: Y}}
@@ -1201,6 +1357,141 @@ def validate_numeric_ranges_from_config(
                 ))
 
     return results
+
+
+def _validate_numeric_ranges_polars(
+    df: pd.DataFrame,
+    table_name: str,
+    schema: Dict[str, Any],
+    table_config: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """Polars implementation of numeric range validation (much faster)."""
+    results = []
+
+    # Convert to Polars DataFrame
+    df_pl = pl.from_pandas(df)
+
+    # Get category columns from schema
+    cat_cols = {col['name'] for col in schema.get('columns', [])
+                if col.get('is_category_column')}
+
+    # Process each column in config
+    for col_name, col_config in table_config.items():
+        if col_name not in df.columns:
+            continue
+
+        # Pattern 1: Simple range {min: X, max: Y}
+        if 'min' in col_config and 'max' in col_config:
+            results.extend(_validate_simple_range_polars(df_pl, table_name, col_name, col_config))
+            continue
+
+        # Pattern 2 & 3: Category-dependent
+        category_col = _find_category_column(df, col_config, cat_cols)
+        if not category_col:
+            continue
+
+        first_val = col_config[list(col_config.keys())[0]]
+
+        # Pattern 2: Single category {category: {min: X, max: Y}}
+        if isinstance(first_val, dict) and 'min' in first_val:
+            results.extend(_validate_single_category_polars(
+                df_pl, table_name, col_name, col_config, category_col
+            ))
+
+        # Pattern 3: Double category {cat1: {cat2: {min: X, max: Y}}}
+        else:
+            sec_col = _find_secondary_category_column(df, col_config, cat_cols, category_col)
+            if sec_col:
+                results.extend(_validate_double_category_polars(
+                    df_pl, table_name, col_name, col_config, category_col, sec_col
+                ))
+
+    return results
+
+
+def _process_chunk(
+    chunk: pd.DataFrame,
+    table_name: str,
+    schema: Dict[str, Any],
+    outlier_config: Dict[str, Any],
+    use_polars: bool
+) -> List[Dict[str, Any]]:
+    """Process a single chunk of data."""
+    return validate_numeric_ranges_from_config(
+        chunk, table_name, schema, outlier_config,
+        use_polars=use_polars, chunk_size=None
+    )
+
+
+def _validate_with_chunking(
+    df: pd.DataFrame,
+    table_name: str,
+    schema: Dict[str, Any],
+    outlier_config: Dict[str, Any],
+    chunk_size: int,
+    n_jobs: Optional[int],
+    use_polars: bool
+) -> List[Dict[str, Any]]:
+    """Process large datasets in chunks with multiprocessing."""
+    if n_jobs is None:
+        n_jobs = max(1, cpu_count() - 1)
+
+    # Split dataframe into chunks
+    chunks = [df[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
+
+    # Process chunks in parallel
+    process_func = partial(
+        _process_chunk,
+        table_name=table_name,
+        schema=schema,
+        outlier_config=outlier_config,
+        use_polars=use_polars
+    )
+
+    with Pool(n_jobs) as pool:
+        chunk_results = pool.map(process_func, chunks)
+
+    # Merge results from all chunks
+    merged_results = {}
+    for chunk_result in chunk_results:
+        for result in chunk_result:
+            # Create unique key for each validation
+            if 'category' in result:
+                key = (result['column'], result.get('category'))
+            elif 'primary_category' in result:
+                key = (result['column'], result.get('primary_category'), result.get('secondary_category'))
+            else:
+                key = (result['column'],)
+
+            # Aggregate counts
+            if key in merged_results:
+                merged_results[key]['below_min_count'] += result['below_min_count']
+                merged_results[key]['above_max_count'] += result['above_max_count']
+            else:
+                merged_results[key] = result.copy()
+
+    # Update messages with merged counts
+    final_results = []
+    for result in merged_results.values():
+        below = result['below_min_count']
+        above = result['above_max_count']
+
+        if 'category' in result:
+            category = result['category']
+            col_name = result['column']
+            result['message'] = f"Category {category} for column '{col_name}' has {below} values below minimum *{result['min_expected']}* & {above} values above maximum *{result['max_expected']}*"
+        elif 'primary_category' in result:
+            cat1 = result['primary_category']
+            cat2 = result['secondary_category']
+            col_name = result['column']
+            result['message'] = f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{result['min_expected']}* & {above} values above maximum *{result['max_expected']}*"
+        else:
+            col_name = result['column']
+            result['message'] = f"Column '{col_name}' has {below} values below minimum *{result['min_expected']}* & {above} values above maximum *{result['max_expected']}*"
+
+        final_results.append(result)
+
+    return final_results
 
 
 def plot_outlier_distribution(
