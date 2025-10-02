@@ -426,12 +426,48 @@ class ClifOrchestrator:
             List of table names to include in the wide dataset (e.g., ['vitals', 'labs', 'respiratory_support']).
             If None, only base tables (patient, hospitalization, adt) are loaded.
         category_filters : Dict[str, List[str]], optional
-            Dictionary mapping table names to lists of categories to pivot into columns.
-            Example: {
+            Dictionary mapping table names to lists for filtering/selection. Behavior differs
+            by table type:
+
+            **PIVOT TABLES** (narrow to wide - category values from schema):
+
+            - **'vitals'**: vital_category values
+              Examples: temp_c, heart_rate, sbp, dbp, spo2, respiratory_rate, map,
+              height_cm, weight_kg
+
+            - **'labs'**: lab_category values
+              Examples: hemoglobin, wbc, sodium, potassium, creatinine, glucose_serum,
+              lactate, bilirubin_total, platelet_count, inr, albumin, calcium_ionized, etc.
+
+            - **'medication_admin_continuous'**: med_category values
+              Examples: norepinephrine, epinephrine, phenylephrine, vasopressin,
+              propofol, dexmedetomidine, fentanyl, midazolam, insulin, etc.
+
+            - **'medication_admin_intermittent'**: med_category values
+              Examples: same as continuous medications
+
+            - **'patient_assessments'**: assessment_category values
+              Examples: RASS, gcs_total, gcs_eye, gcs_motor, gcs_verbal, cam_total,
+              braden_total, CIWA, COWS, cpot_total, etc.
+
+            **WIDE TABLES** (already wide - column names from schema):
+
+            - **'respiratory_support'**: Column names to keep
+              Examples: device_category, mode_category, tracheostomy, fio2_set,
+              lpm_set, tidal_volume_set, resp_rate_set, pressure_control_set,
+              pressure_support_set, peep_set, tidal_volume_obs, resp_rate_obs, etc.
+
+            Usage Example:
+            ```python
+            category_filters = {
                 'vitals': ['heart_rate', 'sbp', 'spo2'],
-                'labs': ['hemoglobin', 'sodium'],
-                'respiratory_support': ['device_category']
+                'labs': ['hemoglobin', 'sodium', 'creatinine'],
+                'respiratory_support': ['device_category', 'fio2_set', 'peep_set']
             }
+            ```
+
+            **Note**: See clifpy/schemas/*.yaml files for complete lists of acceptable values.
+            Use `co.vitals.df['vital_category'].unique()` to see available values in your data.
         sample : bool, default=False
             If True, randomly sample 20 hospitalizations for testing purposes.
         hospitalization_ids : List[str], optional
