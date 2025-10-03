@@ -1,700 +1,581 @@
 # Wide Dataset Creation
 
-The wide dataset functionality enables you to create comprehensive time-series dataset by joining multiple CLIF tables with automatic pivoting and high-performance processing using DuckDB. This feature transforms narrow, category-based data (like vitals and labs) into wide format suitable for machine learning and analysis.
+Transform your CLIF data into analysis-ready datasets with automatic table joining, pivoting, and temporal aggregation.
 
-## Overview
+## What You Can Do
 
-Wide dataset creation through the ClifOrchestrator provides:
+With wide dataset functionality, you can:
 
-- **Automatic table joining** across patient, hospitalization, ADT, and optional tables
-- **Intelligent pivoting** of category-based data (vitals, labs, medications, assessments) 
-- **High-performance processing** using DuckDB for large datasets
-- **Memory-efficient batch processing** to handle datasets of any size
-- **Flexible filtering** by hospitalization IDs, time windows, and categories
-- **System resource optimization** with configurable memory and thread settings
+-   **Create event-level datasets** - Join vitals, labs, medications, and assessments into a single timeline
+-   **Aggregate to time windows** - Convert irregular measurements into hourly, daily, or custom time buckets
+-   **Prepare for machine learning** - Generate consistent time-series features with configurable aggregation methods
 
-**Important**: Wide dataset functionality is only available through the `ClifOrchestrator` and requires specific tables to be loaded.
+**Key benefit**: Turn complex, multi-table ICU data into analysis-ready DataFrames in just a few lines of code.
 
 ## Quick Start
 
-```python
+``` python
 from clifpy.clif_orchestrator import ClifOrchestrator
 
-# Initialize orchestrator
+# Initialize
 co = ClifOrchestrator(
     data_directory='/path/to/clif/data',
     filetype='parquet',
     timezone='US/Central'
 )
 
-# Create wide dataset with sample data
+# Create wide dataset
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
     category_filters={
-        # Pivot tables - specify category VALUES to pivot into columns
-        'vitals': ['heart_rate', 'sbp', 'spo2'],  # vital_category values
-        'labs': ['hemoglobin', 'sodium', 'glucose']  # lab_category values
+        'vitals': ['heart_rate', 'sbp', 'spo2'],
+        'labs': ['hemoglobin', 'sodium', 'creatinine']
     },
-    sample=True  # Use 20 random hospitalizations for testing
+    sample=True  # Start with 20 random patients
 )
 
-# Access the created wide dataset
+# Access the result
 wide_df = co.wide_df
+print(f"Created dataset: {wide_df.shape}")
 ```
 
-## Accessing Wide Dataset Results
+That's it! You now have a wide dataset with vitals and labs joined by patient and timestamp.
 
-The `create_wide_dataset()` method stores the resulting DataFrame in the orchestrator's `wide_df` property rather than returning it directly. This approach provides several benefits:
+## Understanding the Two-Step Process
 
-- **Persistent storage**: The wide dataset remains accessible throughout your session
-- **Memory management**: Avoids creating multiple copies of large DataFrames
-- **Consistent access pattern**: Aligns with other orchestrator table properties
+Wide dataset creation is a **two-step process**. You can use one or both steps depending on your needs:
 
-```python
-# Create the wide dataset (no return value)
+### Step 1: Create Wide Dataset (Event-Level Data)
+
+This joins multiple tables into a single DataFrame with **one row per measurement event**.
+
+``` python
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
-    category_filters={'vitals': ['heart_rate'], 'labs': ['hemoglobin']}
+    category_filters={
+        'vitals': ['heart_rate', 'sbp'],
+        'labs': ['hemoglobin']
+    }
 )
-
-# Access the result via the property
-wide_df = co.wide_df
-
-# Check if wide dataset exists
-if co.wide_df is not None:
-    print(f"Wide dataset shape: {co.wide_df.shape}")
-else:
-    print("No wide dataset has been created yet")
-
-# Direct access to the DataFrame
-print(f"Hospitalizations: {co.wide_df['hospitalization_id'].nunique()}")
+# Result stored in: co.wide_df
 ```
 
-## Function Parameters
+**Output**: Every measurement is a separate row - Patient has 10 heart rate measurements in hour 1 → 10 rows - Each row has timestamp, patient info, and measurement values
 
-The `create_wide_dataset()` method accepts the following parameters:
+**When to use**: - Need every individual measurement - Analyzing measurement frequency or timing - Creating custom aggregations
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `tables_to_load` | List[str] | None | Tables to include: 'vitals', 'labs', 'medication_admin_continuous', 'patient_assessments', 'respiratory_support' |
-| `category_filters` | Dict[str, List[str]] | None | Specific categories to pivot for each table |
-| `sample` | bool | False | If True, randomly select 20 hospitalizations for testing |
-| `hospitalization_ids` | List[str] | None | Specific hospitalization IDs to process |
-| `cohort_df` | DataFrame | None | DataFrame with time windows (requires 'hospitalization_id', 'start_time', 'end_time' columns) |
-| `output_format` | str | 'dataframe' | Output format: 'dataframe', 'csv', or 'parquet' |
-| `save_to_data_location` | bool | False | Save output to data directory |
-| `output_filename` | str | None | Custom filename (auto-generated if None) |
-| `return_dataframe` | bool | True | Store DataFrame in `wide_df` property even when saving to file |
-| `batch_size` | int | 1000 | Number of hospitalizations per batch (use -1 to disable batching) |
-| `memory_limit` | str | None | DuckDB memory limit (e.g., '8GB', '16GB') |
-| `threads` | int | None | Number of threads for DuckDB processing |
-| `show_progress` | bool | True | Show progress bars for long operations |
+### Step 2: Aggregate to Time Windows (Optional)
 
-## Understanding category_filters: Pivot vs Wide Tables
+Convert irregular measurements into consistent time windows with aggregation.
 
-The `category_filters` parameter behaves differently depending on the table type. Understanding this distinction is crucial for correctly specifying your data requirements.
+``` python
+hourly_df = co.convert_wide_to_hourly(
+    aggregation_config={
+        'mean': ['heart_rate', 'sbp'],
+        'median': ['hemoglobin']
+    },
+    hourly_window=1  # 1-hour windows
+)
+```
 
-### Pivot Tables (Narrow to Wide)
+**Output**: One row per time window - Patient has 10 heart rate measurements in hour 1 → 1 row with average - Consistent time intervals (hourly, 6-hour, daily, etc.)
 
-**Pivot tables** store data in narrow format with a category column and need to be pivoted into wide format:
+**When to use**: - Training machine learning models - Calculating clinical scores (SOFA, APACHE) - Analyzing trends over time - Need consistent time intervals
 
-| Table Name | Category Column | What to Specify |
-|------------|----------------|-----------------|
-| `vitals` | `vital_category` | Category values to pivot (e.g., 'heart_rate', 'sbp') |
-| `labs` | `lab_category` | Category values to pivot (e.g., 'hemoglobin', 'sodium') |
-| `medication_admin_continuous` | `med_category` | Medication names to pivot (e.g., 'norepinephrine', 'propofol') |
-| `medication_admin_intermittent` | `med_category` | Medication names to pivot (e.g., 'norepinephrine', 'propofol') |
-| `patient_assessments` | `assessment_category` | Assessment types to pivot (e.g., 'RASS', 'gcs_total') |
+## Which Approach Do I Need?
 
-**Example - Pivot Tables:**
-```python
+| Your Goal | Use This |
+|--------------------------------------|----------------------------------|
+| Explore all individual measurements | **Wide dataset only** (skip aggregation) |
+| Train ML models (LSTM, XGBoost, etc.) | **Wide dataset + hourly aggregation** |
+| Calculate SOFA or other clinical scores | **Wide dataset + hourly aggregation** |
+| Analyze daily trends | **Wide dataset + daily aggregation** (24-hour windows) |
+| Custom analysis | **Wide dataset** (then aggregate yourself) |
+
+## Choosing Your Data
+
+### What is category_filters?
+
+`category_filters` tells the function **which measurements you want** from each table.
+
+**Simple rule**: List the measurement names you care about.
+
+``` python
 category_filters = {
-    'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2'],      # These are CATEGORY VALUES
-    'labs': ['hemoglobin', 'wbc', 'sodium', 'creatinine'], # These are CATEGORY VALUES
-    'medication_admin_continuous': ['norepinephrine', 'propofol']  # These are CATEGORY VALUES
+    'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'map'],
+    'labs': ['hemoglobin', 'wbc', 'sodium', 'potassium', 'creatinine'],
+    'medication_admin_continuous': ['norepinephrine', 'propofol', 'fentanyl']
 }
 ```
 
-**How it works:**
-- Input: Rows with different `vital_category` values (heart_rate, sbp, etc.)
-- Output: Columns for each category (`heart_rate`, `sbp`, etc.)
+### How to Find Available Measurements
 
-### Wide Tables (Already Wide)
+Not sure what's in your data? Check before creating the wide dataset:
 
-**Wide tables** are already in wide format with multiple data columns:
+``` python
+# Load tables first
+co.initialize(['vitals', 'labs', 'medication_admin_continuous'])
 
-| Table Name | What to Specify |
-|------------|-----------------|
-| `respiratory_support` | Column names to keep from the table schema |
+# See what's available
+print("Vitals:", co.vitals.df['vital_category'].unique())
+print("Labs:", co.labs.df['lab_category'].unique())
+print("Medications:", co.medication_admin_continuous.df['med_category'].unique())
 
-**Example - Wide Tables:**
-```python
+# Then create wide dataset with what you found
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs'],
+    category_filters={
+        'vitals': ['heart_rate', 'sbp'],  # Pick from the list above
+        'labs': ['hemoglobin', 'sodium']
+    }
+)
+```
+
+### Special Case: Respiratory Support & Other wide tables
+
+`respiratory_support` is already in wide format, so you specify **column names** instead of categories:
+
+``` python
 category_filters = {
-    'respiratory_support': [                    # These are COLUMN NAMES
-        'device_category',                      # Column name
-        'fio2_set',                            # Column name
-        'peep_set',                            # Column name
-        'tidal_volume_set',                    # Column name
-        'resp_rate_set'                        # Column name
+    'vitals': ['heart_rate', 'spo2'],  # Category values (pivoted)
+    'respiratory_support': [            # Column names (already wide)
+        'device_category',
+        'fio2_set',
+        'peep_set',
+        'tidal_volume_set'
     ]
 }
 ```
 
-**How it works:**
-- Input: Table with many columns (device_category, fio2_set, peep_set, etc.)
-- Output: Only specified columns are kept in the wide dataset
+**How to find respiratory support columns**:
 
-### Mixed Usage Example
-
-You can specify both pivot and wide tables in the same `category_filters` dictionary:
-
-```python
-co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs', 'respiratory_support'],
-    category_filters={
-        # PIVOT TABLES - specify category values
-        'vitals': ['heart_rate', 'sbp', 'spo2'],
-        'labs': ['hemoglobin', 'sodium', 'creatinine'],
-
-        # WIDE TABLES - specify column names
-        'respiratory_support': ['device_category', 'fio2_set', 'peep_set']
-    }
-)
+``` python
+co.initialize(['respiratory_support'])
+print("Available columns:", co.respiratory_support.df.columns.tolist())
 ```
 
-### Finding Values in Your Data
+## Common Workflows
 
-To see what category values are actually present in your loaded data:
+### Workflow 1: Explore Vital Signs for Sample Patients
 
-```python
-# After loading tables
-co.initialize(['vitals', 'labs', 'medication_admin_continuous', 'patient_assessments'])
+**Goal**: Understand vital sign patterns in a small sample
 
-# Check available categories
-print("Available vitals:", co.vitals.df['vital_category'].unique())
-print("Available labs:", co.labs.df['lab_category'].unique())
-print("Available medications:", co.medication_admin_continuous.df['med_category'].unique())
-print("Available assessments:", co.patient_assessments.df['assessment_category'].unique())
-
-# Check respiratory support columns
-print("Respiratory support columns:", co.respiratory_support.df.columns.tolist())
-```
-
-## Best Practices: System Resource Management
-
-**Always check your system resources before running wide dataset creation on large datasets:**
-
-```python
-# Check system resources first
-resources = co.get_sys_resource_info()
-print(f"Available RAM: {resources['memory_available_gb']:.1f} GB")
-print(f"Recommended threads: {resources['max_recommended_threads']}")
-
-# Configure based on available resources
-memory_limit = f"{int(resources['memory_available_gb'] * 0.7)}GB"  # Use 70% of available RAM
-threads = resources['max_recommended_threads']
-
-# Create wide dataset with optimized settings
+``` python
 co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
+    tables_to_load=['vitals'],
     category_filters={
-        'vitals': ['heart_rate', 'sbp', 'spo2'],
-        'labs': ['hemoglobin', 'sodium']
+        'vitals': ['heart_rate', 'sbp', 'dbp', 'map', 'spo2', 'temp_c']
     },
-    memory_limit=memory_limit,
-    threads=threads,
-    batch_size=1000  # Adjust based on dataset size
+    sample=True  # Just 20 random patients
 )
 
-# Access the created dataset
+# Explore the data
 wide_df = co.wide_df
+print(f"Patients: {wide_df['patient_id'].nunique()}")
+print(f"Events: {len(wide_df)}")
+print(f"Date range: {wide_df['event_time'].min()} to {wide_df['event_time'].max()}")
+
+# Example analysis: measurements per patient
+measurements_per_patient = wide_df.groupby('patient_id').size()
+print(f"Average measurements per patient: {measurements_per_patient.mean():.0f}")
 ```
 
-## Usage Examples
+### Workflow 2: Prepare Hourly Data for Machine Learning
 
-### Example 1: Development and Testing
+**Goal**: Create hourly aggregated features for predictive modeling
 
-Use sampling for initial development and testing:
-
-```python
-# Sample mode for development
-co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
-    category_filters={
-        # PIVOT TABLES - specify category values from vital_category and lab_category columns
-        'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'respiratory_rate'],
-        'labs': ['hemoglobin', 'wbc', 'sodium', 'potassium', 'creatinine']
-    },
-    sample=True,  # Only 20 random hospitalizations
-    show_progress=True
-)
-
-# Access the created dataset
-wide_df = co.wide_df
-print(f"Sample dataset shape: {wide_df.shape}")
-print(f"Unique hospitalizations: {wide_df['hospitalization_id'].nunique()}")
-```
-
-### Example 2: Production Use with Resource Optimization
-
-For production use with large datasets:
-
-```python
-# Get system info and configure accordingly
-resources = co.get_sys_resource_info(print_summary=False)
-
-# Production settings
+``` python
+# Step 1: Create wide dataset
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs', 'medication_admin_continuous'],
     category_filters={
-        # PIVOT TABLES - specify category values
-        'vitals': ['heart_rate', 'sbp', 'dbp', 'spo2', 'temp_c'],
-        'labs': ['hemoglobin', 'wbc', 'sodium', 'potassium'],
-        'medication_admin_continuous': ['norepinephrine', 'propofol', 'fentanyl']  # med_category values
-    },
-    batch_size=500,  # Smaller batches for large datasets
-    memory_limit="12GB",
-    threads=resources['max_recommended_threads'],
-    save_to_data_location=True,
-    output_format='parquet',
-    output_filename='wide_dataset_production'
-)
-
-# Access the created dataset
-wide_df = co.wide_df
-```
-
-### Example 3: Targeted Analysis with Specific IDs
-
-Process specific hospitalizations:
-
-```python
-# Analyze specific patient cohort
-target_ids = ['12345', '67890', '11111', '22222']
-
-co.create_wide_dataset(
-    hospitalization_ids=target_ids,
-    tables_to_load=['vitals', 'labs', 'patient_assessments'],
-    category_filters={
-        # PIVOT TABLES - specify category values
-        'vitals': ['heart_rate', 'sbp', 'spo2'],  # vital_category values
-        'labs': ['lactate', 'hemoglobin'],  # lab_category values
-        'patient_assessments': ['gcs_total', 'rass']  # assessment_category values (note: case-sensitive!)
+        'vitals': ['heart_rate', 'sbp', 'map', 'spo2', 'temp_c'],
+        'labs': ['hemoglobin', 'wbc', 'platelet', 'creatinine', 'bilirubin'],
+        'medication_admin_continuous': ['norepinephrine', 'vasopressin', 'propofol']
     }
 )
 
-# Access the created dataset
-wide_df = co.wide_df
-print(f"Analyzed {len(target_ids)} specific hospitalizations")
-```
-
-### Example 4: Time Window Filtering with Cohort DataFrame
-
-Filter data to specific time windows:
-
-```python
-import pandas as pd
-
-# Define cohort with time windows
-cohort_df = pd.DataFrame({
-    'hospitalization_id': ['12345', '67890', '11111'],
-    'start_time': ['2023-01-01 08:00:00', '2023-01-05 12:00:00', '2023-01-10 06:00:00'],
-    'end_time': ['2023-01-03 18:00:00', '2023-01-07 20:00:00', '2023-01-12 14:00:00']
-})
-
-# Convert to datetime
-cohort_df['start_time'] = pd.to_datetime(cohort_df['start_time'])
-cohort_df['end_time'] = pd.to_datetime(cohort_df['end_time'])
-
-# Create wide dataset with time filtering
-co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
-    category_filters={
-        # PIVOT TABLES - specify category values
-        'vitals': ['heart_rate', 'sbp'],  # vital_category values
-        'labs': ['hemoglobin', 'sodium']  # lab_category values
-    },
-    cohort_df=cohort_df  # Only include data within specified time windows
-)
-
-# Access the created dataset
-wide_df = co.wide_df
-```
-
-### Example 5: Mixed Pivot and Wide Tables
-
-Use both pivot and wide tables together:
-
-```python
-# Mixed example with both table types
-co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs', 'respiratory_support'],
-    category_filters={
-        # PIVOT TABLES - specify category values to pivot
-        'vitals': ['heart_rate', 'sbp', 'map'],
-        'labs': ['hemoglobin', 'creatinine'],
-
-        # WIDE TABLES - specify column names to keep
-        'respiratory_support': [
-            'device_category',      # Column name from respiratory_support table
-            'mode_category',        # Column name
-            'fio2_set',            # Column name
-            'peep_set',            # Column name
-            'tidal_volume_set'     # Column name
-        ]
-    }
-)
-
-# Access the created dataset
-wide_df = co.wide_df
-print(f"Dataset includes both pivoted categories and wide table columns")
-```
-
-### Example 6: No Batch Processing for Small Datasets
-
-Disable batching for small datasets:
-
-```python
-# Small dataset - process all at once
-co.create_wide_dataset(
-    hospitalization_ids=small_id_list,  # < 100 hospitalizations
-    tables_to_load=['vitals', 'labs'],
-    category_filters={
-        # PIVOT TABLES - specify category values
-        'vitals': ['heart_rate', 'sbp'],
-        'labs': ['hemoglobin']
-    },
-    batch_size=-1  # Disable batching
-)
-
-# Access the created dataset
-wide_df = co.wide_df
-```
-
-
-## Memory Management and Batch Processing
-
-### Understanding Batch Processing
-
-Batch processing divides hospitalizations into smaller groups to prevent memory (larger-than-memory, OOM) issues:
-
-```python
-# Large dataset - use batching
-co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
-    category_filters={...},
-    batch_size=1000,  # Process 1000 hospitalizations at a time
-    memory_limit="8GB"
-)
-wide_df = co.wide_df
-
-# Small dataset - disable batching for better performance
-co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
-    category_filters={...},
-    batch_size=-1  # Process all at once
-)
-wide_df = co.wide_df
-```
-
-### Memory Optimization Guidelines
-
-| Dataset Size | Batch Size | Memory Limit | Threads |
-|-------------|------------|--------------|---------|
-| < 1,000 hospitalizations | -1 (no batching) | 4GB | 2-4 |
-| 1,000 - 10,000 hospitalizations | 1000 | 8GB | 4-8 |
-| > 10,000 hospitalizations | 500 | 16GB+ | 6-12 |
-
-## Hourly Aggregation
-
-The hourly aggregation feature transforms your wide time-series data into hourly buckets with configurable aggregation methods. This is essential for creating consistent time-series features for machine learning, calculating clinical scores (like SOFA), and analyzing temporal patterns.
-
-### Understanding Hourly Aggregation
-
-Hourly aggregation:
-- Groups events into hourly time buckets based on `event_time`
-- Applies specified aggregation methods (mean, max, min, etc.) to each column
-- Creates consistent time series with one row per hour per ID
-- Calculates `nth_hour` representing hours since the first event
-- Supports flexible grouping by different ID columns (hospitalization or encounter)
-
-### Function Parameters
-
-The `convert_wide_to_hourly()` method accepts:
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `aggregation_config` | Dict[str, List[str]] | Required | Maps aggregation methods to column lists |
-| `wide_df` | DataFrame | None | Input wide dataset (uses stored `co.wide_df` if None) |
-| `id_name` | str | 'hospitalization_id' | Column for grouping: 'hospitalization_id', 'encounter_block', or custom |
-| `memory_limit` | str | '4GB' | DuckDB memory limit (e.g., '8GB', '16GB') |
-| `temp_directory` | str | None | Directory for temporary files |
-| `batch_size` | int | Auto | Batch size for processing large datasets |
-
-### Aggregation Methods and Column Suffixes
-
-Each column gets a suffix based on its aggregation method:
-
-| Method | Suffix | Description | Use Case |
-|--------|--------|-------------|----------|
-| `max` | `_max` | Maximum value within hour | Worst vital signs, peak lab values |
-| `min` | `_min` | Minimum value within hour | Lowest counts, minimum scores |
-| `mean` | `_mean` | Average value within hour | Typical vital signs, average doses |
-| `median` | `_median` | Median value within hour | Robust central tendency |
-| `first` | `_first` | First value chronologically | Initial assessments, admission values |
-| `last` | `_last` | Last value chronologically | Most recent status, discharge values |
-| `boolean` | `_boolean` | 1 if any value present, 0 if absent | Medication administration, interventions |
-| (auto) | `_c` | Carry-forward for non-aggregated columns | Demographics, static values |
-
-**Note**: Columns not explicitly specified in `aggregation_config` are automatically assigned to 'first' aggregation with `_c` suffix to distinguish them from explicitly requested aggregations.
-
-### Special Columns (No Suffix)
-
-These columns maintain their original names without suffixes:
-- **`patient_id`**: Patient identifier
-- **`day_number`**: Sequential day within stay
-- **`nth_hour`**: Hours since first event (0, 1, 2, ...) - key temporal column
-- **`event_time_hour`**: Timestamp of the hour bucket
-- **`hour_bucket`**: Hour of day (0-23)
-- **ID column**: The grouping column (varies based on `id_name` parameter)
-
-### Basic Usage
-
-```python
-# Create aggregation configuration
-aggregation_config = {
-    'max': ['sbp', 'map', 'creatinine'],
-    'mean': ['heart_rate', 'respiratory_rate'],
-    'min': ['spo2', 'platelet_count'],
-    'median': ['temp_c'],
-    'first': ['gcs_total', 'rass'],
-    'last': ['assessment_value'],
-    'boolean': ['norepinephrine', 'propofol'],  # 1 if present, 0 if absent
-}
-
-# Convert to hourly (automatically uses stored wide_df)
+# Step 2: Aggregate to hourly windows
 hourly_df = co.convert_wide_to_hourly(
-    aggregation_config=aggregation_config,
-    memory_limit='8GB'
+    aggregation_config={
+        # Vital signs: mean for typical, max/min for extremes
+        'mean': ['heart_rate', 'sbp', 'map', 'temp_c'],
+        'max': ['heart_rate', 'sbp'],
+        'min': ['spo2', 'map'],
+
+        # Labs: max for values where peaks matter
+        'max': ['creatinine', 'bilirubin'],
+        'median': ['hemoglobin', 'wbc', 'platelet'],
+
+        # Medications: boolean for presence
+        'boolean': ['norepinephrine', 'vasopressin', 'propofol']
+    },
+    hourly_window=1,
+    fill_gaps=True  # Create complete time series for ML
 )
 
-print(f"Hourly dataset: {hourly_df.shape}")
-print(f"Hour range: {hourly_df['nth_hour'].min()} to {hourly_df['nth_hour'].max()}")
-print(f"Columns created: {list(hourly_df.columns)}")
+# Now ready for sklearn, PyTorch, etc.
+print(f"ML-ready dataset: {hourly_df.shape}")
+print(f"Features: {[c for c in hourly_df.columns if any(s in c for s in ['_mean', '_max', '_min', '_boolean'])]}")
 ```
 
-### Using Encounter Blocks for Aggregation
+### Workflow 3: Calculate SOFA Scores
 
-When encounter stitching is enabled, you can aggregate by `encounter_block` to treat linked hospitalizations as continuous stays:
+**Goal**: Compute hourly SOFA scores for patients
 
-```python
-# Enable encounter stitching during initialization
+``` python
+# Create wide dataset with SOFA-required variables
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs', 'medication_admin_continuous', 'respiratory_support'],
+    category_filters={
+        'vitals': ['sbp', 'map'],
+        'labs': ['platelet', 'bilirubin', 'creatinine'],
+        'medication_admin_continuous': ['norepinephrine', 'dopamine', 'epinephrine'],
+        'respiratory_support': ['fio2_set', 'pao2']
+    }
+)
+
+# Aggregate to hourly windows (SOFA typically calculated hourly)
+hourly_df = co.convert_wide_to_hourly(
+    aggregation_config={
+        'min': ['sbp', 'map', 'platelet'],  # Worst values
+        'max': ['bilirubin', 'creatinine'],  # Worst values
+        'max': ['norepinephrine', 'dopamine', 'epinephrine'],  # Maximum doses
+        'mean': ['fio2_set', 'pao2']
+    },
+    hourly_window=1
+)
+
+# Now calculate SOFA scores using hourly aggregated data
+# (Use co.compute_sofa_scores() or custom SOFA calculation)
+```
+
+### Workflow 4: Analyze Daily Summaries for Outcomes
+
+**Goal**: Daily statistics for outcome analysis
+
+``` python
+# Create wide dataset
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs'],
+    category_filters={
+        'vitals': ['heart_rate', 'sbp', 'temp_c'],
+        'labs': ['hemoglobin', 'wbc', 'creatinine']
+    }
+)
+
+# Aggregate to DAILY windows (24 hours)
+daily_df = co.convert_wide_to_hourly(
+    aggregation_config={
+        'mean': ['heart_rate', 'sbp', 'temp_c'],
+        'max': ['heart_rate', 'temp_c'],
+        'min': ['sbp'],
+        'median': ['hemoglobin', 'wbc', 'creatinine'],
+        'first': ['hemoglobin'],  # Admission value
+        'last': ['creatinine']     # Discharge value
+    },
+    hourly_window=24  # 24-hour windows = daily
+)
+
+print(f"Daily summaries: {len(daily_df)} patient-days")
+print(f"Average days per patient: {daily_df.groupby('hospitalization_id').size().mean():.1f}")
+```
+
+## Temporal Aggregation Deep Dive
+
+### Understanding Aggregation Methods
+
+When you convert to time windows, you specify **how to aggregate** multiple measurements into one value:
+
+| Method | Use For | Example |
+|----------------------|-------------------------|-------------------------|
+| `mean` | Typical vital signs, average doses | Mean heart rate over the hour |
+| `max` | Worst case, peaks | Maximum creatinine (worst kidney function) |
+| `min` | Best case, lows | Minimum SpO2 (worst oxygenation) |
+| `median` | Robust central tendency | Median hemoglobin (less affected by outliers) |
+| `first` | Initial/admission values | First GCS score of the day |
+| `last` | Final/discharge values | Last assessment before discharge |
+| `boolean` | Presence/absence | Was norepinephrine given? (1=yes, 0=no) |
+| `one_hot_encode` | Categorical variables | Convert device types to binary columns |
+
+### Choosing Window Sizes
+
+| Window Size | Use Case | Output Density |
+|------------------------|-------------------|-----------------------------|
+| **1 hour** | High-resolution analysis, ML models | \~24 rows per day per patient |
+| **6 hours** | Shift-based analysis (morning/afternoon/evening/night) | \~4 rows per day per patient |
+| **12 hours** | Bi-daily patterns | \~2 rows per day per patient |
+| **24 hours** (daily) | Daily summaries, outcome studies | \~1 row per day per patient |
+
+``` python
+# Hourly (high resolution)
+hourly = co.convert_wide_to_hourly(aggregation_config=config, hourly_window=1)
+
+# 6-hour windows (shift-based)
+shift_based = co.convert_wide_to_hourly(aggregation_config=config, hourly_window=6)
+
+# Daily summaries
+daily = co.convert_wide_to_hourly(aggregation_config=config, hourly_window=24)
+```
+
+### Gap Filling for Machine Learning
+
+By default, only windows **with data** are created (sparse output). For ML models that need complete time series:
+
+``` python
+# Dense output - ALL time windows created, gaps filled with NaN
+ml_ready = co.convert_wide_to_hourly(
+    aggregation_config={
+        'mean': ['heart_rate', 'sbp'],
+        'boolean': ['norepinephrine']
+    },
+    hourly_window=1,
+    fill_gaps=True  # Creates rows for ALL hours, even without data
+)
+
+# Now every patient has hours 0, 1, 2, 3, ..., N
+# Missing data appears as NaN (ready for imputation)
+```
+
+**When to use `fill_gaps`**: - ✅ Training LSTM, RNN, or time-series models - ✅ Need regular time intervals - ✅ Will apply imputation strategies
+
+**When NOT to use `fill_gaps`**: - ❌ Descriptive statistics (don't need empty hours) - ❌ Memory-constrained environments (denser data = more rows) - ❌ Will handle missing windows yourself
+
+### Using Encounter Blocks
+
+When encounter stitching is enabled, you can group by `encounter_block` instead of individual hospitalizations:
+
+``` python
+# Enable encounter stitching
 co = ClifOrchestrator(
     data_directory='/path/to/data',
     stitch_encounter=True,
     stitch_time_interval=6  # Link hospitalizations within 6 hours
 )
 
-# Create wide dataset (encounter_block column automatically added)
+# Create wide dataset
+co.create_wide_dataset(tables_to_load=['vitals'], category_filters={'vitals': ['heart_rate']})
+
+# Aggregate by ENCOUNTER BLOCK (treats linked hospitalizations as one continuous stay)
+hourly_encounter = co.convert_wide_to_hourly(
+    aggregation_config={'mean': ['heart_rate']},
+    id_name='encounter_block'  # Group by encounter, not hospitalization
+)
+
+# Compare: encounter blocks vs individual hospitalizations
+print(f"Encounter blocks: {hourly_encounter['encounter_block'].nunique()}")
+print(f"Max hours in encounter: {hourly_encounter.groupby('encounter_block')['window_number'].max().max()}")
+```
+
+## Performance & Optimization
+
+### When to Optimize
+
+For most use cases (\< 1,000 hospitalizations, \< 1M rows), **default settings work fine**. Only optimize if: - Processing \> 10,000 hospitalizations - Experiencing memory errors - Processing takes \> 10 minutes
+
+### Check System Resources First
+
+``` python
+# Always start here for large datasets
+resources = co.get_sys_resource_info()
+print(f"Available RAM: {resources['memory_available_gb']:.1f} GB")
+print(f"Recommended threads: {resources['max_recommended_threads']}")
+```
+
+### Optimization Strategies
+
+**1. Use Sampling for Development**
+
+``` python
+# Test with sample first
 co.create_wide_dataset(
     tables_to_load=['vitals', 'labs'],
-    category_filters={
-        'vitals': ['heart_rate', 'sbp'],
-        'labs': ['hemoglobin', 'creatinine']
-    }
-)
-
-# Aggregate by encounter blocks instead of individual hospitalizations
-hourly_df_encounter = co.convert_wide_to_hourly(
-    aggregation_config=aggregation_config,
-    id_name='encounter_block'  # Group by encounter blocks
-)
-
-# Compare with hospitalization-level aggregation
-hourly_df_hosp = co.convert_wide_to_hourly(
-    aggregation_config=aggregation_config,
-    id_name='hospitalization_id'  # Default behavior
-)
-
-print(f"Encounter blocks: {hourly_df_encounter['encounter_block'].nunique()}")
-print(f"Hospitalizations: {hourly_df_hosp['hospitalization_id'].nunique()}")
-```
-
-### Example: Comparing Aggregation Strategies
-
-```python
-# Define consistent aggregation config
-config = {
-    'mean': ['heart_rate', 'map', 'spo2'],
-    'max': ['creatinine', 'bilirubin'],
-    'boolean': ['norepinephrine', 'vasopressin']
-}
-
-# Method 1: Aggregate by hospitalization (default)
-hourly_by_hosp = co.convert_wide_to_hourly(
-    aggregation_config=config,
-    id_name='hospitalization_id'
-)
-
-# Method 2: Aggregate by encounter block (for linked stays)
-hourly_by_encounter = co.convert_wide_to_hourly(
-    aggregation_config=config,
-    id_name='encounter_block'
-)
-
-# Analysis
-print("=== Aggregation Comparison ===")
-print(f"By hospitalization: {len(hourly_by_hosp)} hourly records")
-print(f"By encounter block: {len(hourly_by_encounter)} hourly records")
-
-# Encounter blocks create longer continuous stays
-max_hours_hosp = hourly_by_hosp.groupby('hospitalization_id')['nth_hour'].max()
-max_hours_enc = hourly_by_encounter.groupby('encounter_block')['nth_hour'].max()
-print(f"Max stay duration (hospitalizations): {max_hours_hosp.max()} hours")
-print(f"Max stay duration (encounters): {max_hours_enc.max()} hours")
-```
-
-### Output Structure
-
-The hourly dataset contains:
-1. **ID column** (based on `id_name` parameter)
-2. **Temporal columns**: `nth_hour`, `event_time_hour`, `hour_bucket`, `day_number`
-3. **Patient columns**: `patient_id`
-4. **Aggregated columns** with appropriate suffixes
-5. **Carry-forward columns** with `_c` suffix
-
-Example output structure:
-```
-hospitalization_id | nth_hour | heart_rate_mean | sbp_max | norepinephrine_boolean | age_at_admission_c
-123456            | 0        | 75.5           | 130     | 0                     | 65.0
-123456            | 1        | 82.3           | 135     | 1                     | 65.0
-123456            | 2        | 79.0           | 128     | 1                     | 65.0
-```
-
-### Memory Optimization for Large Datasets
-
-```python
-# For very large datasets, use batching
-hourly_df = co.convert_wide_to_hourly(
-    aggregation_config=aggregation_config,
-    batch_size=5000,  # Process 5000 IDs at a time
-    memory_limit='16GB',
-    temp_directory='/path/to/fast/disk'  # SSD recommended
+    category_filters={...},
+    sample=True  # 20 random patients
 )
 ```
 
-### Common Patterns and Tips
+**2. Adjust Batch Size for Large Datasets**
 
-1. **Vital Signs**: Use `mean` for typical values, `max`/`min` for extremes
-2. **Medications**: Use `boolean` for presence/absence or `mean` for average doses
-3. **Lab Values**: Use `max` for values you want to catch peaks (creatinine, bilirubin)
-4. **Assessments**: Use `first` or `last` depending on clinical relevance
-5. **Demographics**: Automatically get `_c` suffix (carry-forward)
+``` python
+# For > 10,000 hospitalizations
+co.create_wide_dataset(
+    tables_to_load=['vitals'],
+    category_filters={'vitals': ['heart_rate', 'sbp']},
+    batch_size=500,  # Smaller batches = less memory per batch
+    memory_limit='8GB'
+)
+```
 
-## Output Structure
+**3. Configure Memory and Threads**
 
-The wide dataset includes:
+``` python
+# Based on system resources
+resources = co.get_sys_resource_info(print_summary=False)
 
-### Core Columns
-- `patient_id`: Patient identifier
-- `hospitalization_id`: Hospitalization identifier  
-- `event_time`: Timestamp for each event
-- `day_number`: Sequential day within hospitalization
-- `hosp_id_day_key`: Unique hospitalization-daily identifier
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs'],
+    category_filters={...},
+    memory_limit=f"{int(resources['memory_available_gb'] * 0.7)}GB",  # Use 70% of available
+    threads=resources['max_recommended_threads']
+)
+```
 
-### Patient Demographics
-- `age_at_admission`: Patient age
-- Additional patient table columns
+**4. Save Large Datasets to Disk**
 
-### ADT Information
-- Location and transfer data from ADT table
+``` python
+# Don't keep huge DataFrames in memory
+co.create_wide_dataset(
+    tables_to_load=['vitals', 'labs'],
+    category_filters={...},
+    save_to_data_location=True,
+    output_format='parquet',  # Compressed format
+    output_filename='my_wide_dataset',
+    return_dataframe=False  # Don't keep in memory if not needed
+)
+# Later, load as needed
+import pandas as pd
+wide_df = pd.read_parquet('/path/to/data/my_wide_dataset.parquet')
+```
 
-### Pivoted Data Columns
-- Individual columns for each category (e.g., `heart_rate`, `hemoglobin`, `norepinephrine`) as per use provided in `category_filters`
-- Values aligned by timestamp and hospitalization
+### Performance Guidelines
 
+| Hospitalizations | Batch Size       | Memory Limit | Expected Time |
+|------------------|------------------|--------------|---------------|
+| \< 1,000         | -1 (no batching) | 4GB          | \< 1 minute   |
+| 1,000 - 10,000   | 1000             | 8GB          | 2-10 minutes  |
+| \> 10,000        | 500              | 16GB+        | 10-60 minutes |
+
+## Quick Reference
+
+### create_wide_dataset() Parameters
+
+| Parameter | Type | Default | Description |
+|------------------|----------------|----------------|----------------------|
+| `tables_to_load` | List\[str\] | None | Tables to include: 'vitals', 'labs', 'medication_admin_continuous', 'patient_assessments', 'respiratory_support', 'crrt_therapy' |
+| `category_filters` | Dict | None | Measurements to include from each table |
+| `sample` | bool | False | Use 20 random patients for testing |
+| `hospitalization_ids` | List\[str\] | None | Specific patient IDs to process |
+| `cohort_df` | DataFrame | None | Time windows (columns: 'hospitalization_id', 'start_time', 'end_time') |
+| `batch_size` | int | 1000 | Hospitalizations per batch (-1 = no batching) |
+| `memory_limit` | str | None | DuckDB memory limit (e.g., '8GB') |
+| `threads` | int | None | Processing threads (None = auto) |
+| `output_format` | str | 'dataframe' | 'dataframe', 'csv', or 'parquet' |
+| `save_to_data_location` | bool | False | Save to file |
+
+**Access result**: `co.wide_df`
+
+### convert_wide_to_hourly() Parameters
+
+| Parameter | Type | Default | Description |
+|------------------|----------------|----------------|----------------------|
+| `aggregation_config` | Dict | Required | Maps methods to columns: `{'mean': ['hr'], 'max': ['sbp']}` |
+| `wide_df` | DataFrame | None | Input data (uses `co.wide_df` if None) |
+| `id_name` | str | 'hospitalization_id' | Grouping column: 'hospitalization_id' or 'encounter_block' |
+| `hourly_window` | int | 1 | Window size in hours (1-72) |
+| `fill_gaps` | bool | False | Create rows for all windows (True = dense, False = sparse) |
+| `memory_limit` | str | '4GB' | DuckDB memory limit |
+| `batch_size` | int | Auto | Batch size (auto-determined if None) |
+
+**Available aggregation methods**: `max`, `min`, `mean`, `median`, `first`, `last`, `boolean`, `one_hot_encode`
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Memory Errors
 
-**Memory Errors**
-```python
-# Solution: Reduce batch size and set memory limit
+**Symptom**: "Memory limit exceeded" or system crash
+
+**Solutions**:
+
+``` python
+# 1. Check available memory first
+resources = co.get_sys_resource_info()
+
+# 2. Reduce batch size
 co.create_wide_dataset(
     batch_size=250,  # Smaller batches
-    memory_limit="4GB",  # Conservative limit
-    sample=True  # Test with sample first
+    memory_limit='4GB'
 )
-wide_df = co.wide_df
-```
 
-**System Crashes**
-```python
-# Solution: Check resources first and configure accordingly
-resources = co.get_sys_resource_info()
-if resources['memory_available_gb'] < 8:
-    print("Warning: Low memory available. Consider using smaller batch_size.")
-    batch_size = 250
-else:
-    batch_size = 1000
-```
+# 3. Start with sample
+co.create_wide_dataset(sample=True)  # Test with 20 patients first
 
-**Empty Results**
-```python
-# Check if tables and categories exist
-print("Available tables:", co.get_loaded_tables())
-if hasattr(co, 'vitals') and co.vitals is not None:
-    print("Vital categories:", co.vitals.df['vital_category'].unique())
-```
-
-**Slow Performance**
-```python
-# Use optimize settings
+# 4. Save to disk instead of memory
 co.create_wide_dataset(
-    tables_to_load=['vitals'],  # Start with one table
-    category_filters={
-        'vitals': ['heart_rate', 'sbp']  # Limit categories
-    },
-    threads=co.get_sys_resource_info(print_summary=False)['max_recommended_threads']
+    save_to_data_location=True,
+    output_format='parquet',
+    return_dataframe=False
 )
-wide_df = co.wide_df
 ```
 
-### Error Messages
+### Empty or No Results
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| "Memory limit exceeded" | Dataset too large for available RAM | Reduce batch_size, set memory_limit |
-| "No event times found" | No data in specified tables/categories | Check table data and category filters |
-| "Missing required columns" | cohort_df missing required columns | Ensure 'hospitalization_id', 'start_time', 'end_time' columns exist |
+**Symptom**: `co.wide_df` is None or has no rows
 
-## Integration with Existing Workflows
+**Solutions**:
 
-Wide dataset creation integrates seamlessly with existing ClifOrchestrator workflows:
+``` python
+# 1. Check if tables are loaded
+print("Loaded tables:", co.get_loaded_tables())
 
-```python
-# Traditional approach
-co = ClifOrchestrator('/path/to/data', 'parquet', 'UTC')
-co.initialize(['patient', 'hospitalization', 'adt', 'vitals', 'labs'])
+# 2. Check if data exists
+co.initialize(['vitals'])
+print("Vitals data:", len(co.vitals.df))
+print("Available categories:", co.vitals.df['vital_category'].unique())
 
-# Enhanced with wide dataset
+# 3. Verify category names match exactly (case-sensitive!)
 co.create_wide_dataset(
-    tables_to_load=['vitals', 'labs'],
+    tables_to_load=['vitals'],
     category_filters={
-        'vitals': ['heart_rate', 'sbp'],
-        'labs': ['hemoglobin']
+        'vitals': ['heart_rate']  # Not 'Heart_Rate' or 'heartrate'
     }
 )
+```
 
-# Continue with validation and analysis
-co.validate_all()
-analysis_results = your_analysis_function(co.wide_df)
+### Slow Performance
+
+**Symptom**: Takes very long to process
+
+**Solutions**:
+
+``` python
+# 1. Use fewer tables/categories
+co.create_wide_dataset(
+    tables_to_load=['vitals'],  # Start with one table
+    category_filters={'vitals': ['heart_rate', 'sbp']}  # Just a few categories
+)
+
+# 2. Optimize threads
+resources = co.get_sys_resource_info(print_summary=False)
+co.create_wide_dataset(
+    tables_to_load=['vitals'],
+    category_filters={'vitals': ['heart_rate']},
+    threads=resources['max_recommended_threads']
+)
+
+# 3. Use sampling for testing
+co.create_wide_dataset(sample=True)  # Much faster
+```
+
+### Wrong Column Names in Output
+
+**Symptom**: Expected 'heart_rate' but got 'heart_rate_mean'
+
+**Explanation**: After temporal aggregation, columns get suffixes based on aggregation method: - `mean` → `_mean` - `max` → `_max` - `min` → `_min` - `boolean` → `_boolean`
+
+``` python
+# Wide dataset (no aggregation) - original column names
+co.create_wide_dataset(...)
+print(co.wide_df.columns)  # ['event_time', 'heart_rate', 'sbp', ...]
+
+# After hourly aggregation - columns get suffixes
+hourly = co.convert_wide_to_hourly(aggregation_config={'mean': ['heart_rate', 'sbp']})
+print(hourly.columns)  # ['window_start_dttm', 'heart_rate_mean', 'sbp_mean', ...]
 ```
 
 ## Next Steps
 
-- Learn about [data validation](validation.md) to ensure data quality
-- Explore [individual table guides](tables.md) for detailed table documentation
-- See the [orchestrator guide](orchestrator.md) for advanced orchestrator features
-- Review [timezone handling](timezones.md) for multi-site data
+-   [**Data Validation**](validation.md) - Ensure data quality
+-   [**Individual Table Guides**](tables.md) - Detailed table documentation
+-   [**Orchestrator Guide**](orchestrator.md) - Advanced orchestrator features
+-   [**Timezone Handling**](timezones.md) - Multi-site data considerations
