@@ -1059,15 +1059,22 @@ def _validate_simple_range(
     results = []
     below, above = _validate_range(df, df.index, col_name, col_config['min'], col_config['max'])
     if below > 0 or above > 0:
-        total_values = df[col_name].notna().sum()
+        total_values = int(df[col_name].notna().sum())
+        total_outliers = below + above
+
         results.append({
             "type": "outlier_validation",
             "table": table_name,
             "column": col_name,
             "min_expected": col_config['min'],
             "max_expected": col_config['max'],
+            "total_values": total_values,
             "below_min_count": below,
             "above_max_count": above,
+            "total_outliers": total_outliers,
+            "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
+            "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
+            "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
             "status": "warning",
             "message": f"Column '{col_name}' has {below} values below minimum *{col_config['min']}* & {above} values above maximum *{col_config['max']}*"
         })
@@ -1091,14 +1098,22 @@ def _validate_simple_range_polars(
     above = int((col_data[col_name] > col_config['max']).sum())
 
     if below > 0 or above > 0:
+        total_values = col_data.height
+        total_outliers = below + above
+
         results.append({
             "type": "outlier_validation",
             "table": table_name,
             "column": col_name,
             "min_expected": col_config['min'],
             "max_expected": col_config['max'],
+            "total_values": total_values,
             "below_min_count": below,
             "above_max_count": above,
+            "total_outliers": total_outliers,
+            "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
+            "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
+            "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
             "status": "warning",
             "message": f"Column '{col_name}' has {below} values below minimum *{col_config['min']}* & {above} values above maximum *{col_config['max']}*"
         })
@@ -1120,15 +1135,22 @@ def _validate_single_category(
             continue
         below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
         if below > 0 or above > 0:
-            total_values = df.loc[mask, col_name].notna().sum()
+            total_values = int(df.loc[mask, col_name].notna().sum())
+            total_outliers = below + above
+
             results.append({
                 "type": "outlier_validation",
                 "category": category,
                 "column": col_name,
                 "min_expected": ranges['min'],
                 "max_expected": ranges['max'],
+                "total_values": total_values,
                 "below_min_count": below,
                 "above_max_count": above,
+                "total_outliers": total_outliers,
+                "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
+                "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
+                "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
                 "status": "warning",
                 "message": f"Category {category} for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
             })
@@ -1153,14 +1175,22 @@ def _validate_single_category_polars(
 
         below, above = _validate_range_polars(df_pl, mask, col_name, ranges['min'], ranges['max'])
         if below > 0 or above > 0:
+            total_values = int(filtered.select(pl.col(col_name).is_not_null().sum())[0, 0])
+            total_outliers = below + above
+
             results.append({
                 "type": "outlier_validation",
                 "category": category,
                 "column": col_name,
                 "min_expected": ranges['min'],
                 "max_expected": ranges['max'],
+                "total_values": total_values,
                 "below_min_count": below,
                 "above_max_count": above,
+                "total_outliers": total_outliers,
+                "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
+                "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
+                "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
                 "status": "warning",
                 "message": f"Category {category} for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
             })
@@ -1189,7 +1219,9 @@ def _validate_double_category(
                 continue
             below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
             if below > 0 or above > 0:
-                total_values = df.loc[mask, col_name].notna().sum()
+                total_values = int(df.loc[mask, col_name].notna().sum())
+                total_outliers = below + above
+
                 results.append({
                     "type": "outlier_validation",
                     "primary_category": cat1,
@@ -1197,8 +1229,13 @@ def _validate_double_category(
                     "column": col_name,
                     "min_expected": ranges['min'],
                     "max_expected": ranges['max'],
+                    "total_values": total_values,
                     "below_min_count": below,
                     "above_max_count": above,
+                    "total_outliers": total_outliers,
+                    "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
+                    "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
+                    "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
                     "status": "warning",
                     "message": f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
                 })
@@ -1229,6 +1266,9 @@ def _validate_double_category_polars(
 
             below, above = _validate_range_polars(df_pl, mask, col_name, ranges['min'], ranges['max'])
             if below > 0 or above > 0:
+                total_values = int(filtered.select(pl.col(col_name).is_not_null().sum())[0, 0])
+                total_outliers = below + above
+
                 results.append({
                     "type": "outlier_validation",
                     "primary_category": cat1,
@@ -1236,8 +1276,13 @@ def _validate_double_category_polars(
                     "column": col_name,
                     "min_expected": ranges['min'],
                     "max_expected": ranges['max'],
+                    "total_values": total_values,
                     "below_min_count": below,
                     "above_max_count": above,
+                    "total_outliers": total_outliers,
+                    "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
+                    "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
+                    "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
                     "status": "warning",
                     "message": f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
                 })
@@ -1251,10 +1296,11 @@ def _find_category_column(
 ) -> Optional[str]:
     """Find which category column matches the config categories."""
     config_cats = set(col_config.keys())
+    config_cats_lower = {c.lower() for c in config_cats}
     for cat_col in cat_cols:
         if cat_col in df.columns:
             df_cats = {str(c).lower() for c in df[cat_col].dropna().unique()}
-            if config_cats & {c.lower() for c in df_cats}:
+            if config_cats_lower & df_cats:
                 return cat_col
     return None
 
