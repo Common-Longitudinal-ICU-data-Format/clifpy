@@ -489,46 +489,84 @@ def validate_datetime_timezone(
 
 
 def calculate_missing_stats(
-    df: pd.DataFrame, 
+    df: pd.DataFrame,
     format: str = 'long'
 ) -> pd.DataFrame:
     """
-    Report count and percentage of missing values.
-    
+    Report count and percentage of missing values as a DataFrame.
+
     Parameters
     ----------
     df : pd.DataFrame
         The dataframe to analyze
-    format : str
-        Output format ('long' or 'wide')
-        
+    format : str, default='long'
+        Output format:
+        - 'long': One row per column (better for many columns)
+        - 'wide': Transposed format (better for few columns)
+
     Returns
     -------
     pd.DataFrame
-        Missing data statistics
+        Missing data statistics with columns:
+        - column: Column name
+        - missing_count: Number of missing values
+        - missing_percent: Percentage missing
+        - total_rows: Total row count (long format only)
     """
     try:
-        missing_count = df.isnull().sum()
-        missing_percent = (missing_count / len(df)) * 100
-        
+        # Get comprehensive summary from the core function
+        summary = report_missing_data_summary(df)
+
+        # Handle error case
+        if "error" in summary:
+            return pd.DataFrame({'error': [summary['error']]})
+
+        # Convert to DataFrame format
         if format == 'long':
-            stats_df = pd.DataFrame({
-                'column': missing_count.index,
-                'missing_count': missing_count.values,
-                'missing_percent': missing_percent.values,
-                'total_rows': len(df)
-            })
-            # Sort by missing percentage descending
-            stats_df = stats_df.sort_values('missing_percent', ascending=False)
-            
+            # Include all columns (even those with no missing data)
+            all_columns_data = []
+
+            # Add columns with missing data (already sorted by missing_percent descending)
+            for item in summary['columns_with_missing']:
+                all_columns_data.append({
+                    'column': item['column'],
+                    'missing_count': item['missing_count'],
+                    'missing_percent': round(item['missing_percent'], 2),
+                    'total_rows': summary['total_rows']
+                })
+
+            # Add complete columns (no missing data)
+            for col in summary['complete_columns']:
+                all_columns_data.append({
+                    'column': col,
+                    'missing_count': 0,
+                    'missing_percent': 0.0,
+                    'total_rows': summary['total_rows']
+                })
+
+            # Create DataFrame
+            stats_df = pd.DataFrame(all_columns_data)
+
         else:  # wide format
+            # Create dict for all columns
+            missing_counts = {}
+            missing_percents = {}
+
+            for item in summary['columns_with_missing']:
+                missing_counts[item['column']] = item['missing_count']
+                missing_percents[item['column']] = round(item['missing_percent'], 2)
+
+            for col in summary['complete_columns']:
+                missing_counts[col] = 0
+                missing_percents[col] = 0.0
+
             stats_df = pd.DataFrame({
-                'missing_count': missing_count,
-                'missing_percent': missing_percent
+                'missing_count': missing_counts,
+                'missing_percent': missing_percents
             }).T
-        
+
         return stats_df
-        
+
     except Exception as e:
         return pd.DataFrame({'error': [str(e)]})
 
