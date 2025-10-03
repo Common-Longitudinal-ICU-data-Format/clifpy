@@ -324,15 +324,17 @@ def convert_wide_to_hourly(
     wide_df: pd.DataFrame,
     aggregation_config: Dict[str, List[str]],
     id_name: str = 'hospitalization_id',
+    hourly_window: int = 1,
+    fill_gaps: bool = False,
     memory_limit: str = '4GB',
     temp_directory: Optional[str] = None,
     batch_size: Optional[int] = None
 ) -> pd.DataFrame:
     """
-    Convert a wide dataset to hourly aggregation with user-defined aggregation methods.
-    
-    This function uses DuckDB for high-performance aggregation.
-    
+    Convert a wide dataset to temporal aggregation with user-defined aggregation methods.
+
+    This function uses DuckDB for high-performance aggregation with event-based windowing.
+
     Parameters
     ----------
     wide_df : pd.DataFrame
@@ -354,22 +356,85 @@ def convert_wide_to_hourly(
         - 'hospitalization_id': Group by individual hospitalizations (default)
         - 'encounter_block': Group by encounter blocks (after encounter stitching)
         - Any other ID column present in the wide dataset
+    hourly_window : int, default=1
+        Time window for aggregation in hours (1-72).
+
+        Windows are event-based (relative to each group's first event):
+        - Window 0: [first_event, first_event + hourly_window hours)
+        - Window 1: [first_event + hourly_window, first_event + 2*hourly_window)
+        - Window N: [first_event + N*hourly_window, ...)
+
+        Common values: 1 (hourly), 2 (bi-hourly), 6 (quarter-day), 12 (half-day),
+                       24 (daily), 72 (3-day - maximum)
+    fill_gaps : bool, default=False
+        Whether to create rows for time windows with no data.
+
+        - False (default): Sparse output - only windows with actual data appear
+        - True: Dense output - create ALL windows from 0 to max_window per group,
+                filling gaps with NaN values (no forward-filling)
+
+        Example with events at window 0, 1, 5:
+        - fill_gaps=False: Output has 3 rows (windows 0, 1, 5)
+        - fill_gaps=True: Output has 6 rows (windows 0, 1, 2, 3, 4, 5)
+                          Windows 2, 3, 4 have NaN for all aggregated columns
     memory_limit : str, default='4GB'
         DuckDB memory limit (e.g., '4GB', '8GB')
     temp_directory : str, optional
         Directory for temporary files (default: system temp)
     batch_size : int, optional
         Process in batches if dataset is large (auto-determined if None)
-    
+
     Returns
     -------
     pd.DataFrame
-        Hourly aggregated wide dataset with nth_hour column
+        Aggregated dataset with columns:
+
+        **Group & Window Identifiers:**
+        - {id_name}: Group identifier (hospitalization_id or encounter_block)
+        - window_number: Sequential window index (0-indexed, starts at 0 for each group)
+        - window_start_dttm: Window start timestamp (inclusive)
+        - window_end_dttm: Window end timestamp (exclusive)
+
+        **Context Columns:**
+        - patient_id: Patient identifier
+        - day_number: Day number within hospitalization
+
+        **Aggregated Columns:**
+        - All columns specified in aggregation_config with appropriate suffixes
+          (_max, _min, _mean, _median, _first, _last, _boolean, one-hot encoded)
+
+        **Notes:**
+        - Windows are relative to each group's first event, not calendar boundaries
+        - window_end_dttm - window_start_dttm = hourly_window hours (always)
+        - When fill_gaps=True, gap windows contain NaN (not forward-filled)
+        - When fill_gaps=False, only windows with data appear (sparse output)
     """
-    
-    print("Starting optimized hourly aggregation using DuckDB...")
+
+    # Validate hourly_window parameter
+    if not isinstance(hourly_window, int):
+        raise ValueError(f"hourly_window must be an integer, got: {type(hourly_window).__name__}")
+    if hourly_window < 1 or hourly_window > 72:
+        raise ValueError(f"hourly_window must be between 1 and 72 hours, got: {hourly_window}")
+
+    # Validate fill_gaps parameter
+    if not isinstance(fill_gaps, bool):
+        raise ValueError(f"fill_gaps must be a boolean, got: {type(fill_gaps).__name__}")
+
+    # Strip timezone from datetime columns (no conversion, just remove tz metadata)
+    wide_df = wide_df.copy()
+    for col in wide_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(wide_df[col]):
+            if hasattr(wide_df[col].dtype, 'tz') and wide_df[col].dtype.tz is not None:
+                wide_df[col] = wide_df[col].dt.tz_localize(None)
+
+    # Update print statements
+    window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
+    gap_handling = "with gap filling" if fill_gaps else "sparse (no gap filling)"
+    print(f"Starting optimized {window_label} aggregation using DuckDB {gap_handling}...")
     print(f"Input dataset shape: {wide_df.shape}")
     print(f"Memory limit: {memory_limit}")
+    print(f"Aggregation window: {hourly_window} hour(s)")
+    print(f"Gap filling: {'enabled' if fill_gaps else 'disabled'}")
     
     # Validate input
     required_columns = ['event_time', id_name, 'day_number']
@@ -406,11 +471,11 @@ def convert_wide_to_hourly(
         with duckdb.connect(':memory:', config=config) as conn:
             # Set additional optimization settings
             conn.execute("SET preserve_insertion_order = false")
-            
+
             if batch_size > 0:
-                return _process_hourly_in_batches(conn, wide_df, aggregation_config, id_name, batch_size)
+                return _process_hourly_in_batches(conn, wide_df, aggregation_config, id_name, batch_size, hourly_window, fill_gaps)
             else:
-                return _process_hourly_single_batch(conn, wide_df, aggregation_config, id_name)
+                return _process_hourly_single_batch(conn, wide_df, aggregation_config, id_name, hourly_window, fill_gaps)
                 
     except Exception as e:
         print(f"DuckDB processing failed: {str(e)}")
@@ -464,80 +529,87 @@ def _process_hourly_single_batch(
     conn: duckdb.DuckDBPyConnection,
     wide_df: pd.DataFrame,
     aggregation_config: Dict[str, List[str]],
-    id_name: str = 'hospitalization_id'
+    id_name: str = 'hospitalization_id',
+    hourly_window: int = 1,
+    fill_gaps: bool = False
 ) -> pd.DataFrame:
     """Process entire dataset in a single batch with progress tracking by aggregation type."""
     
     try:
         # Register the DataFrame
         conn.register('wide_data', wide_df)
-        
-        # Create base table with hourly buckets
-        print("Creating hourly buckets...")
-        conn.execute("""
-            CREATE OR REPLACE TABLE hourly_base AS
-            SELECT 
-                *,
-                date_trunc('hour', event_time) AS event_time_hour,
-                EXTRACT(hour FROM event_time) AS hour_bucket
-            FROM wide_data
-        """)
-        
-        # Calculate nth_hour
-        print("Calculating nth_hour...")
+
+        # Create window assignments with event-based windowing
+        window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
+        print(f"Creating event-based {window_label} windows...")
+        print("Calculating window boundaries...")
         conn.execute(f"""
-            CREATE OR REPLACE TABLE hourly_data AS
+            CREATE OR REPLACE TABLE windowed_data AS
             WITH first_events AS (
                 SELECT
                     {id_name},
-                    MIN(event_time_hour) AS first_event_hour
-                FROM hourly_base
+                    MIN(event_time) AS first_event_time
+                FROM wide_data
                 GROUP BY {id_name}
             )
             SELECT
-                hb.*,
-                CAST((EPOCH(hb.event_time_hour) - EPOCH(fe.first_event_hour)) / 3600 AS INTEGER) AS nth_hour
-            FROM hourly_base hb
-            JOIN first_events fe ON hb.{id_name} = fe.{id_name}
+                wd.*,
+                fe.first_event_time,
+                CAST(FLOOR((EPOCH(wd.event_time) - EPOCH(fe.first_event_time)) / ({hourly_window} * 3600)) AS INTEGER) AS window_number
+            FROM wide_data wd
+            JOIN first_events fe ON wd.{id_name} = fe.{id_name}
         """)
         
         # Build separate queries for each aggregation type
-        agg_queries = _build_aggregation_query_duckdb(conn, aggregation_config, wide_df.columns, id_name)
+        agg_queries = _build_aggregation_query_duckdb(conn, aggregation_config, wide_df.columns, id_name, hourly_window)
         
         # Execute base query first
         print("\nProcessing aggregations by type:")
         print("- Extracting base columns...")
         base_df = conn.execute(agg_queries['base']).df()
         
-        # Process each aggregation type separately
-        aggregation_results = [base_df]
-        
+        # Process each aggregation type separately and merge properly
+        result_df = base_df
+
         # Define the order of operations for better user feedback
         agg_order = ['max', 'min', 'mean', 'median', 'first', 'last', 'boolean', 'one_hot_encode']
-        
+
         for agg_type in agg_order:
             if agg_type in agg_queries and agg_type != 'base':
                 print(f"- Processing {agg_type} aggregation...")
                 try:
                     agg_result = conn.execute(agg_queries[agg_type]).df()
-                    # Drop the group by columns from aggregation results to avoid duplicates
-                    cols_to_drop = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
-                    agg_result = agg_result.drop(columns=cols_to_drop)
-                    aggregation_results.append(agg_result)
-                    print(f"  ✓ {agg_type} complete ({agg_result.shape[1]} columns)")
+                    # Merge on the keys to ensure proper row alignment
+                    result_df = result_df.merge(
+                        agg_result,
+                        on=[id_name, 'window_number'],
+                        how='left'
+                    )
+                    print(f"  ✓ {agg_type} complete ({agg_result.shape[1] - 2} columns)")
                 except Exception as e:
                     print(f"  ✗ {agg_type} failed: {str(e)}")
-        
+
         # Merge all results
         print("\nMerging aggregation results...")
-        result_df = pd.concat(aggregation_results, axis=1)
-        
-        # Sort by id_name and nth_hour
-        result_df = result_df.sort_values([id_name, 'nth_hour']).reset_index(drop=True)
-        
-        print(f"\nHourly aggregation complete: {len(result_df)} hourly records")
-        print(f"Columns in hourly dataset: {len(result_df.columns)}")
-        
+
+        # Fill gaps if requested
+        if fill_gaps:
+            print("Filling gaps in window sequence...")
+            result_df = _fill_window_gaps(conn, result_df, id_name, hourly_window)
+
+        # Sort by id_name and window_number
+        result_df = result_df.sort_values([id_name, 'window_number']).reset_index(drop=True)
+
+        # Strip timezone from datetime columns (DuckDB to_timestamp adds it back)
+        for col in result_df.columns:
+            if pd.api.types.is_datetime64_any_dtype(result_df[col]):
+                if hasattr(result_df[col].dtype, 'tz') and result_df[col].dtype.tz is not None:
+                    result_df[col] = result_df[col].dt.tz_localize(None)
+
+        window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
+        print(f"\n{window_label.capitalize()} aggregation complete: {len(result_df)} records")
+        print(f"Columns in dataset: {len(result_df.columns)}")
+
         return result_df
         
     except Exception as e:
@@ -545,12 +617,103 @@ def _process_hourly_single_batch(
         raise
 
 
+def _fill_window_gaps(
+    conn: duckdb.DuckDBPyConnection,
+    aggregated_df: pd.DataFrame,
+    id_name: str,
+    hourly_window: int
+) -> pd.DataFrame:
+    """
+    Fill gaps in window sequence by creating rows for missing windows with NaN values.
+
+    Parameters
+    ----------
+    conn : duckdb.DuckDBPyConnection
+        Active DuckDB connection
+    aggregated_df : pd.DataFrame
+        Aggregated data with window_number, window_start_dttm, window_end_dttm
+    id_name : str
+        Grouping column name
+    hourly_window : int
+        Window size in hours
+
+    Returns
+    -------
+    pd.DataFrame
+        Complete window sequence with gaps filled as NaN
+    """
+    print(f"  - Generating complete window sequences per {id_name}...")
+
+    # Register aggregated data
+    conn.register('aggregated_data', aggregated_df)
+
+    # Create complete window sequence
+    complete_df = conn.execute(f"""
+        WITH window_ranges AS (
+            SELECT
+                {id_name},
+                MIN(window_number) AS min_window,
+                MAX(window_number) AS max_window
+            FROM aggregated_data
+            GROUP BY {id_name}
+        ),
+        first_event_times AS (
+            SELECT
+                {id_name},
+                window_start_dttm
+            FROM aggregated_data
+            WHERE window_number = 0
+        ),
+        all_windows AS (
+            SELECT
+                wr.{id_name},
+                unnest(generate_series(wr.min_window, wr.max_window, 1)) AS window_number
+            FROM window_ranges wr
+        ),
+        window_timestamps AS (
+            SELECT
+                aw.{id_name},
+                aw.window_number,
+                fe.window_start_dttm + (aw.window_number * {hourly_window}) * INTERVAL '1' HOUR AS window_start_dttm,
+                fe.window_start_dttm + ((aw.window_number + 1) * {hourly_window}) * INTERVAL '1' HOUR AS window_end_dttm
+            FROM all_windows aw
+            LEFT JOIN first_event_times fe ON aw.{id_name} = fe.{id_name}
+        )
+        SELECT
+            wt.{id_name},
+            wt.window_number,
+            wt.window_start_dttm,
+            wt.window_end_dttm,
+            ad.* EXCLUDE ({id_name}, window_number, window_start_dttm, window_end_dttm)
+        FROM window_timestamps wt
+        LEFT JOIN aggregated_data ad
+            ON wt.{id_name} = ad.{id_name}
+            AND wt.window_number = ad.window_number
+        ORDER BY wt.{id_name}, wt.window_number
+    """).df()
+
+    # Cleanup
+    conn.unregister('aggregated_data')
+
+    # Report stats
+    original_rows = len(aggregated_df)
+    filled_rows = len(complete_df)
+    gap_rows = filled_rows - original_rows
+
+    print(f"  - Original: {original_rows} windows")
+    print(f"  - Filled: {filled_rows} windows (+{gap_rows} gaps filled with NaN)")
+
+    return complete_df
+
+
 def _process_hourly_in_batches(
     conn: duckdb.DuckDBPyConnection,
     wide_df: pd.DataFrame,
     aggregation_config: Dict[str, List[str]],
     id_name: str,
-    batch_size: int
+    batch_size: int,
+    hourly_window: int = 1,
+    fill_gaps: bool = False
 ) -> pd.DataFrame:
     """Process dataset in batches to manage memory usage with progress tracking."""
     
@@ -579,9 +742,9 @@ def _process_hourly_in_batches(
             batch_df = wide_df[wide_df[id_name].isin(batch_ids)].copy()
 
             print(f"\n--- Batch {batch_num}/{n_batches} ({len(batch_ids)} {id_name}s) ---")
-            
+
             # Process this batch
-            batch_result = _process_hourly_single_batch(conn, batch_df, aggregation_config.copy(), id_name)
+            batch_result = _process_hourly_single_batch(conn, batch_df, aggregation_config.copy(), id_name, hourly_window, fill_gaps)
             
             if len(batch_result) > 0:
                 batch_results.append(batch_result)
@@ -589,8 +752,7 @@ def _process_hourly_in_batches(
             
             # Clean up batch-specific tables
             try:
-                conn.execute("DROP TABLE IF EXISTS hourly_base")
-                conn.execute("DROP TABLE IF EXISTS hourly_data")
+                conn.execute("DROP TABLE IF EXISTS windowed_data")
                 conn.unregister('wide_data')
             except:
                 pass
@@ -606,9 +768,10 @@ def _process_hourly_in_batches(
     if batch_results:
         print(f"\nCombining {len(batch_results)} batch results...")
         final_df = pd.concat(batch_results, ignore_index=True)
-        final_df = final_df.sort_values([id_name, 'nth_hour']).reset_index(drop=True)
-        
-        print(f"Final hourly dataset: {len(final_df)} records from {len(batch_results)} batches")
+        final_df = final_df.sort_values([id_name, 'window_number']).reset_index(drop=True)
+
+        window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
+        print(f"Final {window_label} dataset: {len(final_df)} records from {len(batch_results)} batches")
         return final_df
     else:
         raise ValueError("No batches processed successfully")
@@ -618,22 +781,23 @@ def _build_aggregation_query_duckdb(
     conn: duckdb.DuckDBPyConnection,
     aggregation_config: Dict[str, List[str]],
     all_columns: List[str],
-    id_name: str = 'hospitalization_id'
+    id_name: str = 'hospitalization_id',
+    hourly_window: int = 1
 ) -> Dict[str, str]:
     """Build separate DuckDB aggregation queries by type for better performance and progress tracking."""
     
     # Group by columns
-    group_cols = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
-    
+    group_cols = [id_name, 'window_number', 'window_start_dttm', 'window_end_dttm']
+
     # Get columns not in aggregation config
     all_agg_columns = []
     for columns_list in aggregation_config.values():
         all_agg_columns.extend(columns_list)
-    
-    non_agg_columns = [col for col in all_columns 
-                      if col not in all_agg_columns 
+
+    non_agg_columns = [col for col in all_columns
+                      if col not in all_agg_columns
                       and col not in group_cols
-                      and col not in ['patient_id', 'day_number', 'first_event_hour', 'event_time']]
+                      and col not in ['patient_id', 'day_number', 'first_event_time', 'event_time', 'window_number']]
     
     if non_agg_columns:
         print("Columns not in aggregation_config, defaulting to 'first' with '_c' postfix:")
@@ -646,17 +810,28 @@ def _build_aggregation_query_duckdb(
     # Build separate queries for each aggregation type
     queries = {}
     
-    # Base columns query
+    # Base columns query with window calculations
     base_query = f"""
+    WITH window_aggregates AS (
+        SELECT
+            {id_name},
+            window_number,
+            MIN(first_event_time) AS first_event_time
+        FROM windowed_data
+        GROUP BY {id_name}, window_number
+    )
     SELECT
-        {id_name},
-        event_time_hour,
-        nth_hour,
-        hour_bucket,
-        FIRST(patient_id) AS patient_id,
-        FIRST(day_number) AS day_number
-    FROM hourly_data
-    GROUP BY {id_name}, event_time_hour, nth_hour, hour_bucket
+        wa.{id_name},
+        wa.window_number,
+        wa.first_event_time + (wa.window_number * {hourly_window}) * INTERVAL '1' HOUR AS window_start_dttm,
+        wa.first_event_time + ((wa.window_number + 1) * {hourly_window}) * INTERVAL '1' HOUR AS window_end_dttm,
+        FIRST(wd.patient_id ORDER BY wd.event_time) AS patient_id,
+        FIRST(wd.day_number ORDER BY wd.event_time) AS day_number
+    FROM windowed_data wd
+    JOIN window_aggregates wa
+        ON wd.{id_name} = wa.{id_name}
+        AND wd.window_number = wa.window_number
+    GROUP BY wa.{id_name}, wa.window_number, wa.first_event_time
     """
     queries['base'] = base_query
     
@@ -668,9 +843,9 @@ def _build_aggregation_query_duckdb(
         valid_columns = [col for col in columns if col in all_columns]
         if not valid_columns:
             continue
-            
-        select_parts = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
-        
+
+        select_parts = [id_name, 'window_number']
+
         for col in valid_columns:
             if agg_method == 'max':
                 select_parts.append(f"MAX({col}) AS {col}_max")
@@ -682,19 +857,19 @@ def _build_aggregation_query_duckdb(
                 select_parts.append(f"MEDIAN({col}) AS {col}_median")
             elif agg_method == 'first':
                 if col in non_agg_columns:
-                    select_parts.append(f"FIRST({col}) AS {col}_c")
+                    select_parts.append(f"FIRST({col} ORDER BY event_time) AS {col}_c")
                 else:
-                    select_parts.append(f"FIRST({col}) AS {col}_first")
+                    select_parts.append(f"FIRST({col} ORDER BY event_time) AS {col}_first")
             elif agg_method == 'last':
-                select_parts.append(f"LAST({col}) AS {col}_last")
+                select_parts.append(f"LAST({col} ORDER BY event_time) AS {col}_last")
             elif agg_method == 'boolean':
                 select_parts.append(f"CASE WHEN COUNT({col}) > 0 THEN 1 ELSE 0 END AS {col}_boolean")
-        
+
         query = f"""
         SELECT
             {', '.join(select_parts)}
-        FROM hourly_data
-        GROUP BY {id_name}, event_time_hour, nth_hour, hour_bucket
+        FROM windowed_data
+        GROUP BY {id_name}, window_number
         """
         queries[agg_method] = query
     
@@ -720,14 +895,14 @@ def _build_one_hot_encoding_query_duckdb(
     valid_columns = [col for col in one_hot_columns if col in all_columns]
     if not valid_columns:
         return None
-    
-    select_parts = [id_name, 'event_time_hour', 'nth_hour', 'hour_bucket']
-    
+
+    select_parts = [id_name, 'window_number']
+
     for col in valid_columns:
         # Get unique values for this column
         unique_vals_query = f"""
-        SELECT DISTINCT {col} 
-        FROM hourly_data 
+        SELECT DISTINCT {col}
+        FROM windowed_data
         WHERE {col} IS NOT NULL
         ORDER BY {col}
         LIMIT 100  -- Limit to prevent too many columns
@@ -754,16 +929,17 @@ def _build_one_hot_encoding_query_duckdb(
                     
         except Exception as e:
             print(f"Warning: Could not create one-hot encoding for {col}: {str(e)}")
-    
-    if len(select_parts) > 4:  # More than just the group by columns
+
+
+    if len(select_parts) > 2:  # More than just the group by columns
         query = f"""
         SELECT
             {', '.join(select_parts)}
-        FROM hourly_data
-        GROUP BY {id_name}, event_time_hour, nth_hour, hour_bucket
+        FROM windowed_data
+        GROUP BY {id_name}, window_number
         """
         return query
-    
+
     return None
 
 
