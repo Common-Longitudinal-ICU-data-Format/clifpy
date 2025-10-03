@@ -579,55 +579,73 @@ def _process_simple_range_column_pandas(table_obj, column_name: str, column_conf
 def get_outlier_summary(table_obj, outlier_config_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Get a summary of potential outliers without modifying the data.
-    
+
+    This is a convenience wrapper around validate_numeric_ranges_from_config()
+    for interactive use with table objects. It provides actual outlier counts
+    and percentages without modifying the data.
+
     Parameters
     ----------
     table_obj
-        A pyCLIF table object with .df and .table_name attributes
+        A pyCLIF table object with .df, .table_name, and .schema attributes
     outlier_config_path : str, optional
-        Path to custom outlier configuration
-        
+        Path to custom outlier configuration. If None, uses CLIF standard config.
+
     Returns
     -------
     dict
-        Summary of outliers by column and category
+        Summary of outliers with keys:
+        - table_name: Name of the table
+        - total_rows: Total number of rows
+        - config_source: "CLIF standard" or "Custom"
+        - outliers: List of outlier validation results with counts and percentages
+
+    See Also
+    --------
+    clifpy.utils.validator.validate_numeric_ranges_from_config : Core validation function
+
+    Examples
+    --------
+    >>> from clifpy.tables.vitals import Vitals
+    >>> from clifpy.utils.outlier_handler import get_outlier_summary
+    >>>
+    >>> vitals = Vitals.from_file()
+    >>> summary = get_outlier_summary(vitals)
+    >>> print(f"Found {len(summary['outliers'])} outlier patterns")
     """
     if table_obj.df is None or table_obj.df.empty:
         return {"status": "No data to analyze"}
-    
+
+    # Load outlier configuration
     config = _load_outlier_config(outlier_config_path)
     if not config:
         return {"status": "Failed to load configuration"}
-    
+
+    # Check if table has schema
+    if not hasattr(table_obj, 'schema') or table_obj.schema is None:
+        return {"status": "Table schema not available"}
+
+    # Check if table has outlier configuration
     table_config = config.get('tables', {}).get(table_obj.table_name, {})
     if not table_config:
-        return {"status": f"No configuration for table: {table_obj.table_name}"}
-    
+        return {"status": f"No outlier configuration for table: {table_obj.table_name}"}
+
+    # Use the validator to get actual outlier analysis
+    from clifpy.utils import validator
+
+    outlier_results = validator.validate_numeric_ranges_from_config(
+        table_obj.df,
+        table_obj.table_name,
+        table_obj.schema,
+        config
+    )
+
+    # Build summary
     summary = {
         "table_name": table_obj.table_name,
         "total_rows": len(table_obj.df),
-        "columns_analyzed": {},
-        "config_source": "CLIF standard" if outlier_config_path is None else "Custom"
+        "config_source": "CLIF standard" if outlier_config_path is None else "Custom",
+        "outliers": outlier_results
     }
-    
-    # Analyze each column without modifying data
-    for column_name, column_config in table_config.items():
-        if column_name not in table_obj.df.columns:
-            continue
-        
-        column_summary = _analyze_column_outliers_pandas(table_obj, column_name, column_config)
-        if column_summary:
-            summary["columns_analyzed"][column_name] = column_summary
-    
+
     return summary
-
-
-def _analyze_column_outliers_pandas(table_obj, column_name: str, _column_config: Dict[str, Any]) -> Dict[str, Any]:
-    """Analyze outliers in a column without modifying data using pandas."""
-    # This is a simplified version - could be expanded to provide detailed outlier analysis
-    total_non_null = table_obj.df[column_name].notna().sum()
-    
-    return {
-        "total_non_null_values": total_non_null,
-        "configuration_type": "category_dependent" if table_obj.table_name in ['vitals', 'labs', 'patient_assessments', 'medication_admin_continuous'] else "simple_range"
-    }
