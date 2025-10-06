@@ -121,8 +121,6 @@ Comprehensive validation functions for ensuring data quality and CLIF compliance
 
 ::: clifpy.utils.validator.validate_categorical_values
 
-::: clifpy.utils.validator.validate_numeric_ranges
-
 ## Configuration and I/O
 
 ### Configuration Management
