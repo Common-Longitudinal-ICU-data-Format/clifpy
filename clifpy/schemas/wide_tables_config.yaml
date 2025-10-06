@@ -1,0 +1,248 @@
+# Wide Dataset Table Configuration
+# This file defines how each CLIF table should be processed in wide dataset creation
+#
+# Table Types:
+#   - pivot: Tables that need to be pivoted from narrow to wide format (category-based)
+#   - wide: Tables that are already in wide format (column selection only)
+#
+# To add support for a new table:
+#   1. Add table configuration below
+#   2. Set supported: true
+#   3. Define timestamp_column and table type
+#   4. For pivot tables: specify category_column and value_column
+#   5. Update documentation if needed
+
+# Metadata
+version: "1.0.0"
+last_updated: "2025-10-02"
+
+# Table Configurations
+tables:
+
+  # ===== PIVOT TABLES (Narrow to Wide Conversion) =====
+  # These tables have a category column and need pivoting
+
+  vitals:
+    type: pivot
+    timestamp_column: recorded_dttm
+    alternative_timestamps:
+      - recorded_dttm_min
+      - recorded_dttm
+    category_column: vital_category
+    value_column: vital_value
+    description: "Vital signs (pivoted by vital_category)"
+    examples:
+      - "temp_c, heart_rate, sbp, dbp, spo2, respiratory_rate, map, height_cm, weight_kg"
+    supported: true
+
+  labs:
+    type: pivot
+    timestamp_column: lab_result_dttm
+    alternative_timestamps:
+      - lab_collect_dttm
+      - recorded_dttm
+      - lab_order_dttm
+    category_column: lab_category
+    value_column: lab_value_numeric
+    description: "Laboratory results (pivoted by lab_category)"
+    examples:
+      - "hemoglobin, wbc, sodium, potassium, creatinine, glucose_serum, lactate, bilirubin_total, platelet_count, inr"
+    supported: true
+
+  medication_admin_continuous:
+    type: pivot
+    timestamp_column: admin_dttm
+    alternative_timestamps: []
+    category_column: med_category
+    value_column: med_dose
+    converted_value_column: med_dose_converted
+    converted_unit_column: med_dose_unit_converted
+    supports_unit_conversion: true
+    description: "Continuous medications (pivoted by med_category)"
+    examples:
+      - "norepinephrine, epinephrine, phenylephrine, vasopressin, propofol, dexmedetomidine, fentanyl, midazolam, insulin"
+    notes: "Supports unit conversion - use convert_dose_units_for_continuous_meds() before creating wide dataset"
+    supported: true
+
+  medication_admin_intermittent:
+    type: pivot
+    timestamp_column: admin_dttm
+    alternative_timestamps: []
+    category_column: med_category
+    value_column: med_dose
+    converted_value_column: med_dose_converted
+    converted_unit_column: med_dose_unit_converted
+    supports_unit_conversion: true
+    description: "Intermittent medications (pivoted by med_category)"
+    examples:
+      - "acetaminophen, aspirin, heparin, insulin, antibiotics"
+    notes: "Supports unit conversion - use convert_dose_units_for_intermittent_meds() before creating wide dataset"
+    supported: true
+
+  patient_assessments:
+    type: pivot
+    timestamp_column: recorded_dttm
+    alternative_timestamps: []
+    category_column: assessment_category
+    value_column: assessment_value
+    description: "Clinical assessments (pivoted by assessment_category)"
+    examples:
+      - "RASS, gcs_total, gcs_eye, gcs_motor, gcs_verbal, cam_total, braden_total, CIWA, COWS, cpot_total"
+    supported: true
+
+  # ===== WIDE TABLES (Already in Wide Format) =====
+  # These tables are already wide - category_filters specifies which columns to keep
+
+  respiratory_support:
+    type: wide
+    timestamp_column: recorded_dttm
+    alternative_timestamps: []
+    description: "Respiratory support data (already in wide format)"
+    examples:
+      - "device_category, mode_category, tracheostomy, fio2_set, lpm_set, tidal_volume_set, resp_rate_set, peep_set"
+    notes: "Use category_filters to specify which columns to keep from the wide table"
+    supported: true
+
+  crrt_therapy:
+    type: wide
+    timestamp_column: recorded_dttm
+    alternative_timestamps: []
+    description: "Continuous renal replacement therapy data (already in wide format)"
+    examples:
+      - "crrt_mode_category, blood_flow_rate, dialysate_flow_rate, replacement_fluid_rate, ultrafiltration_goal"
+    notes: "To enable: set supported: true and test with your data"
+    supported: true
+
+  position:
+    type: pivot
+    timestamp_column: recorded_dttm
+    alternative_timestamps: []
+    category_column: position_category
+    value_column: position_category  # Position is boolean-like, category IS the value
+    description: "Patient positioning data (pivoted by position_category)"
+    examples:
+      - "prone, not_prone"
+    notes: "Special case: category_column equals value_column for boolean pivots"
+    supported: false
+
+  ecmo_mcs:
+    type: wide
+    timestamp_column: recorded_dttm
+    alternative_timestamps: []
+    description: "ECMO and mechanical circulatory support data (already in wide format)"
+    examples:
+      - "ecmo_mode_category, blood_flow_rate, sweep_gas_flow_rate"
+    notes: "To enable: set supported: true and verify timestamp column in your data"
+    supported: false
+
+  # ===== BASE TABLES (Always Included) =====
+  # These are not specified in optional_tables but are always loaded
+
+  patient:
+    type: base
+    description: "Patient demographics (always included in wide dataset)"
+    supported: true
+
+  hospitalization:
+    type: base
+    description: "Hospitalization details (always included in wide dataset)"
+    supported: true
+
+  adt:
+    type: base
+    timestamp_column: in_dttm
+    alternative_timestamps: []
+    description: "Admission, discharge, and transfer events (always included in wide dataset)"
+    supported: true
+
+  # ===== OTHER TABLES (Not Yet Configured for Wide Dataset) =====
+  # These tables exist but need additional configuration for wide dataset support
+
+  hospital_diagnosis:
+    type: undefined
+    description: "Hospital diagnosis data"
+    notes: "Not currently designed for time-series wide dataset - diagnosis is typically one-per-encounter"
+    supported: false
+
+  microbiology_culture:
+    type: undefined
+    description: "Microbiology culture data"
+    notes: "Not currently designed for time-series wide dataset - complex result structure"
+    supported: false
+
+  microbiology_susceptibility:
+    type: undefined
+    description: "Microbiology susceptibility data"
+    notes: "Not currently designed for time-series wide dataset - complex result structure"
+    supported: false
+
+  microbiology_nonculture:
+    type: undefined
+    description: "Microbiology non-culture data"
+    notes: "Not currently designed for time-series wide dataset - complex result structure"
+    supported: false
+
+  patient_procedures:
+    type: undefined
+    description: "Patient procedures data"
+    notes: "Not currently designed for time-series wide dataset - procedure is typically one-time event"
+    supported: false
+
+  code_status:
+    type: wide
+    timestamp_column: recorded_dttm
+    alternative_timestamps: []
+    description: "Code status data (already in wide format)"
+    examples:
+      - "code_status_category, resuscitation_status"
+    notes: "Could be supported - needs testing and validation"
+    supported: false
+
+# Configuration for table type grouping
+table_groups:
+  pivot_tables:
+    description: "Tables that require pivoting from narrow to wide format"
+    tables:
+      - vitals
+      - labs
+      - medication_admin_continuous
+      - medication_admin_intermittent
+      - patient_assessments
+      - position
+
+  wide_tables:
+    description: "Tables already in wide format (column selection only)"
+    tables:
+      - respiratory_support
+      - crrt_therapy
+      - ecmo_mcs
+      - code_status
+
+  base_tables:
+    description: "Tables always included in wide dataset"
+    tables:
+      - patient
+      - hospitalization
+      - adt
+
+  supported_optional_tables:
+    description: "Tables currently supported for wide dataset creation"
+    tables:
+      - vitals
+      - labs
+      - medication_admin_continuous
+      - medication_admin_intermittent
+      - patient_assessments
+      - respiratory_support
+
+# Special table features
+special_features:
+  medication_unit_conversion:
+    description: "Tables that support medication unit conversion"
+    tables:
+      - medication_admin_continuous
+      - medication_admin_intermittent
+    config_keys:
+      - converted_value_column
+      - converted_unit_column
+      - supports_unit_conversion
