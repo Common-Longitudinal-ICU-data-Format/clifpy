@@ -213,7 +213,8 @@ def compute_sofa(
     cohort_df: Optional[pd.DataFrame] = None,
     extremal_type: str = 'worst',
     id_name: str = 'encounter_block',
-    fill_na_scores_with_zero: bool = True
+    fill_na_scores_with_zero: bool = True,
+    remove_outliers: bool = True
 ) -> pd.DataFrame:
     """
     Compute SOFA scores from a wide dataset.
@@ -258,7 +259,19 @@ def compute_sofa(
         SELECT w.*
         """
         wide_df = duckdb.sql(q).df()
-        
+    
+    if remove_outliers:
+        print("Removing outliers from wide dataset...")
+        q = f"""
+        FROM wide_df
+        SELECT * REPLACE (
+            CASE WHEN po2_arterial BETWEEN 0 AND 700 THEN po2_arterial END AS po2_arterial,
+            CASE WHEN fio2_set BETWEEN 0.21 AND 1 THEN fio2_set END AS fio2_set,
+            CASE WHEN spo2 BETWEEN 50 AND 100 THEN spo2 END AS spo2
+        )
+        """
+        wide_df = duckdb.sql(q).df()
+    
     sofa_scores = (
         _impute_pao2_from_spo2(wide_df)
         .pipe(_agg_extremal_values_by_id, extremal_type, id_name)
