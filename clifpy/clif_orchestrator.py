@@ -962,7 +962,8 @@ class ClifOrchestrator:
             fill_gaps=fill_gaps,
             memory_limit=memory_limit,
             temp_directory=temp_directory,
-            batch_size=batch_size
+            batch_size=batch_size,
+            timezone=self.timezone
         )
     
     def get_sys_resource_info(self, print_summary: bool = True) -> Dict[str, Any]:

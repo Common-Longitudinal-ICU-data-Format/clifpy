@@ -231,6 +231,8 @@ def create_wide_dataset(
     
     # Use context manager for connection
     with duckdb.connect(':memory:', config=conn_config) as conn:
+        # Preserve timezone from clif_instance configuration
+        conn.execute(f"SET timezone = '{clif_instance.timezone}'")
         # Set additional optimization settings
         conn.execute("SET preserve_insertion_order = false")
         
@@ -328,7 +330,8 @@ def convert_wide_to_hourly(
     fill_gaps: bool = False,
     memory_limit: str = '4GB',
     temp_directory: Optional[str] = None,
-    batch_size: Optional[int] = None
+    batch_size: Optional[int] = None,
+    timezone: str = 'UTC'
 ) -> pd.DataFrame:
     """
     Convert a wide dataset to temporal aggregation with user-defined aggregation methods.
@@ -383,6 +386,8 @@ def convert_wide_to_hourly(
         Directory for temporary files (default: system temp)
     batch_size : int, optional
         Process in batches if dataset is large (auto-determined if None)
+    timezone : str, default='UTC'
+        Timezone for datetime operations in DuckDB (e.g., 'UTC', 'America/New_York')
 
     Returns
     -------
@@ -469,6 +474,8 @@ def convert_wide_to_hourly(
     try:
         # Create DuckDB connection with error handling
         with duckdb.connect(':memory:', config=config) as conn:
+            # Use timezone from parameter (passed from orchestrator)
+            conn.execute(f"SET timezone = '{timezone}'")
             # Set additional optimization settings
             conn.execute("SET preserve_insertion_order = false")
 
