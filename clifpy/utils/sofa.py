@@ -266,7 +266,7 @@ def compute_sofa(
         FROM wide_df
         SELECT * REPLACE (
             CASE WHEN po2_arterial BETWEEN 0 AND 700 THEN po2_arterial END AS po2_arterial,
-            CASE WHEN fio2_set BETWEEN 0.21 AND 1 THEN fio2_set END AS fio2_set
+            CASE WHEN fio2_set BETWEEN 0.21 AND 1 THEN fio2_set END AS fio2_set,
             CASE WHEN spo2 BETWEEN 50 AND 100 THEN spo2 END AS spo2
         )
         """
