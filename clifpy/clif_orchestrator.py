@@ -1208,7 +1208,8 @@ class ClifOrchestrator:
         cohort_df: Optional[pd.DataFrame] = None,
         extremal_type: str = 'worst',
         id_name: str = 'encounter_block',
-        fill_na_scores_with_zero: bool = True
+        fill_na_scores_with_zero: bool = True,
+        remove_outliers: bool = True
     ) -> pd.DataFrame:
         """
         Compute SOFA (Sequential Organ Failure Assessment) scores.
@@ -1222,6 +1223,7 @@ class ClifOrchestrator:
                     - 'encounter_block': Groups related hospitalizations (requires encounter stitching)
                     - 'hospitalization_id': Individual hospitalizations
             fill_na_scores_with_zero: If True, missing component scores default to 0
+            remove_outliers: If True, overwrite the df of the table object associated with the orchestrator with outliers nullified
 
         Returns:
             DataFrame with SOFA component scores and total score for each ID.
@@ -1266,7 +1268,7 @@ class ClifOrchestrator:
         else:
             self.logger.info("No wide dataset available, creating one...")
             # Create wide dataset with required categories for SOFA
-
+            
             self.create_wide_dataset(
                 tables_to_load=list(REQUIRED_SOFA_CATEGORIES_BY_TABLE.keys()),
                 category_filters=REQUIRED_SOFA_CATEGORIES_BY_TABLE,
@@ -1285,7 +1287,7 @@ class ClifOrchestrator:
             df = df.merge(self.encounter_mapping, on='hospitalization_id', how='left')   
             self.wide_df = df
             self.logger.debug(f"Mapped {id_name} to wide_df via encounter_mapping, with shape: {df.shape}")
-    
+            
         # Compute SOFA scores
         self.logger.debug("Calling compute_sofa function")
         sofa_scores = compute_sofa(
@@ -1293,7 +1295,8 @@ class ClifOrchestrator:
             cohort_df=cohort_df,
             extremal_type=extremal_type,
             id_name=id_name,
-            fill_na_scores_with_zero=fill_na_scores_with_zero
+            fill_na_scores_with_zero=fill_na_scores_with_zero,
+            remove_outliers=remove_outliers
         )
 
         # Store results in orchestrator
