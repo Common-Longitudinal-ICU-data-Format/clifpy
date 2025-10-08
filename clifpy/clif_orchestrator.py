@@ -1209,7 +1209,8 @@ class ClifOrchestrator:
         extremal_type: str = 'worst',
         id_name: str = 'encounter_block',
         fill_na_scores_with_zero: bool = True,
-        remove_outliers: bool = True
+        remove_outliers: bool = True,
+        create_new_wide_df: bool = True
     ) -> pd.DataFrame:
         """
         Compute SOFA (Sequential Organ Failure Assessment) scores.
@@ -1224,6 +1225,8 @@ class ClifOrchestrator:
                     - 'hospitalization_id': Individual hospitalizations
             fill_na_scores_with_zero: If True, missing component scores default to 0
             remove_outliers: If True, overwrite the df of the table object associated with the orchestrator with outliers nullified
+            create_new_wide_df: If True, create a new wide dataset for SOFA computation and save it at .wide_df_sofa. 
+                If False, use the existing .wide_df.
 
         Returns:
             DataFrame with SOFA component scores and total score for each ID.
@@ -1262,6 +1265,17 @@ class ClifOrchestrator:
         if wide_df is not None:
             self.logger.debug("Using provided wide_df")
             df = wide_df
+        elif create_new_wide_df:
+            print("Ignoring any existing .wide_df and creating a new wide dataset for SOFA computation...")
+            self.logger.info("Ignoring the existing .wide_df and creating a new one dedicated to SOFA computation...")
+            df = self.create_wide_dataset(
+                tables_to_load=list(REQUIRED_SOFA_CATEGORIES_BY_TABLE.keys()),
+                category_filters=REQUIRED_SOFA_CATEGORIES_BY_TABLE,
+                cohort_df=cohort_df,
+                return_dataframe=True
+            )
+            df = self.wide_df if df is None else df
+            self.wide_df_sofa = df
         elif hasattr(self, 'wide_df') and self.wide_df is not None:
             self.logger.debug("Using existing self.wide_df")
             df = self.wide_df
