@@ -33,6 +33,7 @@ dependencies = [
   "polars>=1.33.1",
   "pyyaml>=6.0.2",
   "psutil>=7.1.0",
+  "toml>=0.10.2",
 ]
 
 [tool.setuptools]
