@@ -23,7 +23,7 @@ tables:
     dialysate_flow_rate:
       min: 0
       max: 10000
-    ultrafilteration_out:
+    ultrafiltration_out:
       min: 0
       max: 500
 
