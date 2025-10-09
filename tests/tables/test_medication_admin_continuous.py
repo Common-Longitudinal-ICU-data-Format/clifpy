@@ -98,7 +98,7 @@ def patch_med_admin_continuous_schema_path(monkeypatch, mock_med_admin_continuou
 
 @pytest.fixture
 def patch_validator_load_schema(monkeypatch, mock_med_admin_continuous_schema_content):
-    """Patches pyclif.utils.validator.load_schema to use mocked column definitions."""
+    """Patches clifpy.utils.validator.load_schema to use mocked column definitions."""
     # This fixture targets the load_schema function used by validate_table.
     # It ensures that validate_table gets its column definitions from our mock schema.
     def mock_load_schema_for_validation(table_name, schema_dir=None):

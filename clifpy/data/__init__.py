@@ -1,5 +1,5 @@
 """
-Demo data loading module for pyCLIF.
+Demo data loading module for CLIFpy.
 
 Provides easy access to sample CLIF data for testing, learning, and demonstration.
 Similar to sklearn's datasets module.

@@ -4,7 +4,7 @@ import os
 import pytz
 from datetime import datetime
 from unittest.mock import patch, MagicMock
-from pyclif.utils.io import (
+from clifpy.utils.io import (
     _cast_id_cols_to_string,
     load_parquet_with_tz,
     load_data,
@@ -154,7 +154,7 @@ class TestLoadData:
         pd.testing.assert_frame_equal(result, mock_df)
 
     @patch('os.path.exists')
-    @patch('pyclif.utils.io.load_parquet_with_tz')
+    @patch('clifpy.utils.io.load_parquet_with_tz')
     def test_load_data_parquet(self, mock_load_parquet, mock_exists):
         """Test loading parquet data."""
         # Setup mocks

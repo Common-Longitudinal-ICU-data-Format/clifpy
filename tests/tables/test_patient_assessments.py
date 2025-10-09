@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from pyclif.tables.patient_assessments import patient_assessments
+from clifpy.tables.patient_assessments import patient_assessments
 
 # --- Mock Schema ---
 @pytest.fixture

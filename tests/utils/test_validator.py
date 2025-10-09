@@ -5,7 +5,7 @@ import json
 import tempfile
 import numpy as np
 from unittest.mock import patch, mock_open, MagicMock
-from pyclif.utils.validator import (
+from clifpy.utils.validator import (
     _is_varchar_dtype,
     _is_integer_dtype,
     _is_float_dtype,
@@ -384,7 +384,7 @@ class TestLoadSpec:
     def test_load_spec_default_dir(self, monkeypatch, tmp_path):
         """Test loading spec from default directory when spec_dir is None."""
         # Create a temporary directory and set it as the default spec directory
-        monkeypatch.setattr("pyclif.utils.validator._DEF_SPEC_DIR", str(tmp_path))
+        monkeypatch.setattr("clifpy.utils.validator._DEF_SPEC_DIR", str(tmp_path))
         
         # Create a spec file in the temporary directory
         spec_file = tmp_path / "TestModel.json"
@@ -400,8 +400,8 @@ class TestLoadSpec:
 class TestValidateTable:
     """Tests for the validate_table function."""
     
-    @patch("pyclif.utils.validator._load_spec")
-    @patch("pyclif.utils.validator.validate_dataframe")
+    @patch("clifpy.utils.validator._load_spec")
+    @patch("clifpy.utils.validator.validate_dataframe")
     def test_validate_table_calls_correct_functions(self, mock_validate_df, mock_load_spec):
         """Test that validate_table calls _load_spec and validate_dataframe with correct args."""
         # Setup mocks
@@ -460,7 +460,7 @@ class TestValidateTable:
     def test_validate_table_with_default_spec_dir(self, monkeypatch, tmp_path):
         """Test validate_table using the default spec directory."""
         # Set up a mock default spec directory
-        monkeypatch.setattr("pyclif.utils.validator._DEF_SPEC_DIR", str(tmp_path))
+        monkeypatch.setattr("clifpy.utils.validator._DEF_SPEC_DIR", str(tmp_path))
         
         # Create a spec file in the mock default directory
         spec_file = tmp_path / "PatientModel.json"
@@ -477,7 +477,7 @@ class TestValidateTable:
         errors_valid = validate_table(df_valid, "patient")
         assert not errors_valid
         
-    @patch("pyclif.utils.validator._load_spec")
+    @patch("clifpy.utils.validator._load_spec")
     def test_validate_table_error_propagation(self, mock_load_spec):
         """Test that errors from _load_spec are properly propagated."""
         mock_load_spec.side_effect = FileNotFoundError("Spec not found")
@@ -582,7 +582,7 @@ class TestValidationError:
 # Add module-level docstring tests to ensure documentation is accurate
 def test_module_docstring():
     """Test that the module has a proper docstring with usage examples."""
-    import pyclif.utils.validator as validator_module
+    import clifpy.utils.validator as validator_module
     
     # Check that module has a docstring
     assert validator_module.__doc__ is not None

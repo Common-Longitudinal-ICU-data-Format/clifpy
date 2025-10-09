@@ -9,7 +9,7 @@ import logging
 from .config import get_config_or_params
 
 # Initialize logger for this module
-logger = logging.getLogger('pyclif.utils.io')
+logger = logging.getLogger('clifpy.utils.io')
 
 # conn = duckdb.connect(database=':memory:')
 

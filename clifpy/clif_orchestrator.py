@@ -181,7 +181,7 @@ class ClifOrchestrator:
         os.makedirs(self.output_directory, exist_ok=True)
 
         # Initialize logger
-        self.logger = logging.getLogger('pyclif.ClifOrchestrator')
+        self.logger = logging.getLogger('clifpy.ClifOrchestrator')
 
         
         # Set stitching parameters

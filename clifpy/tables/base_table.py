@@ -108,7 +108,7 @@ class BaseTable:
     def _setup_logging(self):
         """Set up logging for this table."""
         # Create logger
-        self.logger = logging.getLogger(f'pyclif.{self.table_name}')
+        self.logger = logging.getLogger(f'clifpy.{self.table_name}')
         self.logger.setLevel(logging.INFO)
         
         # Remove existing handlers to avoid duplicates

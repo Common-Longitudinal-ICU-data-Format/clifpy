@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 # Initialize logger for this module
-logger = logging.getLogger('pyclif.utils.config')
+logger = logging.getLogger('clifpy.utils.config')
 
 
 def _load_config_file(config_path: str) -> Dict[str, Any]:

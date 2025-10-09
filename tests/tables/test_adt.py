@@ -6,8 +6,8 @@ import pandas as pd
 from clifpy.tables.adt import Adt
 # from datetime import datetime
 # from typing import Union, Any
-# from pyclif.tables.adt import adt
-# import pyclif.utils.validator # To patch its os module
+# from clifpy.tables.adt import adt
+# import clifpy.utils.validator # To patch its os module
 
 # --- Data Fixtures ---
 @pytest.fixture

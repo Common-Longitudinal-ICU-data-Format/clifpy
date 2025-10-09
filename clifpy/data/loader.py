@@ -119,7 +119,7 @@ def load_demo_clif(
         
     Examples
     --------
-    >>> from pyclif.data import load_demo_clif
+    >>> from clifpy.data import load_demo_clif
     >>> demo_clif = load_demo_clif()
     >>> sorted(demo_clif.get_loaded_tables())
     """
@@ -171,7 +171,7 @@ def load_demo_patient(return_raw: bool = False):
         
     Examples
     --------
-    >>> from pyclif.data import load_demo_patient
+    >>> from clifpy.data import load_demo_patient
     >>> patient_data = load_demo_patient()
     >>> print(f"Number of patients: {len(patient_data.df)}")
     >>> 
@@ -326,7 +326,7 @@ def list_demo_datasets() -> Dict[str, Dict[str, Union[int, str]]]:
         
     Examples
     --------
-    >>> from pyclif.data import list_demo_datasets
+    >>> from clifpy.data import list_demo_datasets
     >>> datasets_info = list_demo_datasets()
     >>> for name, info in datasets_info.items():
     ...     print(f"{name}: {info['rows']} rows, {info['size']}")
@@ -371,7 +371,7 @@ def get_demo_summary() -> None:
     
     Examples
     --------
-    >>> from pyclif.data import get_demo_summary
+    >>> from clifpy.data import get_demo_summary
     >>> get_demo_summary()
     """
     datasets_info = list_demo_datasets()
@@ -391,7 +391,7 @@ def get_demo_summary() -> None:
     print(f"{'Total records':30} | {total_rows:6,} rows")
     print()
     print("📖 Usage examples:")
-    print("  from pyclif.data import load_demo_clif, load_demo_patient")
+    print("  from clifpy.data import load_demo_clif, load_demo_patient")
     print("  clif_demo = load_demo_clif()  # Load all tables")
     print("  patient_data = load_demo_patient()  # Load single table")
     print("  raw_df = load_demo_labs(return_raw=True)  # Get raw DataFrame")

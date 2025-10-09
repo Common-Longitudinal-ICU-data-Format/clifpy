@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from pyclif.tables.vitals import vitals
+from clifpy.tables.vitals import vitals
 
 # --- Data Fixtures ---
 @pytest.fixture

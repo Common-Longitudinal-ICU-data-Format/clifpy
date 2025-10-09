@@ -212,7 +212,7 @@ def patch_microbiology_nonculture_schema_path(monkeypatch, mock_microbiology_non
 
 @pytest.fixture
 def patch_validator_load_schema(monkeypatch, mock_microbiology_nonculture_schema_content):
-    """Patches pyclif.utils.validator.load_schema to use mocked column definitions."""
+    """Patches clifpy.utils.validator.load_schema to use mocked column definitions."""
     def mock_load_schema_for_validation(table_name, schema_dir=None):
         if table_name == "microbiology_nonculture":
             return mock_microbiology_nonculture_schema_content

@@ -1,4 +1,4 @@
-# PyClif Package Visualization
+# CLIFpy Package Visualization
 
 This is an interactive visualization of the PyClif package structure that automatically updates when the codebase changes.
 
