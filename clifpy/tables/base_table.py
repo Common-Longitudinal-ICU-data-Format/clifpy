@@ -8,6 +8,7 @@ It handles common functionality including data loading, validation, and reportin
 import os
 import logging
 import pandas as pd
+import polars as pl
 import yaml
 import numpy as np
 from typing import Optional, List, Dict, Any, Tuple
@@ -760,10 +761,16 @@ class BaseTable:
 
         return plots
 
-    def calculate_stratified_ecdf(self, value_column: str, category_column: str, category_values: Optional[List[str]] = None, percentiles: Optional[List[int]] = None, save: bool = True) -> Dict[str, Dict[str, Any]]:
+    def calculate_stratified_ecdf(
+        self,
+        value_column: str,
+        category_column: str,
+        category_values: Optional[List[str]] = None,
+        save: bool = True
+    ) -> Optional[List['pl.DataFrame']]:
         """
-        Calculate ECDF for a continuous variable stratified by categories.
-
+        Calculate ECDF for a continuous variable stratified by categories using loaded DataFrame (self.df).
+    
         Parameters
         ----------
         value_column : str
@@ -773,39 +780,45 @@ class BaseTable:
         category_values : List[str], optional
             Specific category values to include. If None, uses permissible values from schema,
             or all unique values in the data if schema doesn't specify permissible values.
-        percentiles : List[int], optional
-            List of percentiles to compute. Defaults to [5, 10, 25, 50, 75, 90, 95].
         save : bool, default=True
-            If True, saves stratified ECDF summary to CSV.
-
+            If True, saves stratified ECDF data to CSV files (one per category).
+    
         Returns
         -------
-        Dict[str, Dict[str, Any]]
-            Dictionary where keys are category values and values are dictionaries containing:
-            - 'ecdf_x': x-values for ECDF plotting
-            - 'ecdf_y': y-values for ECDF plotting
-            - 'n_measurements': number of measurements
-            - 'percentiles': dictionary of percentiles
-            - 'min_value', 'max_value', 'mean_value', 'std_value': summary statistics
+        List[pl.DataFrame] or None
+            List of DataFrames (one per category), each with x-values and their corresponding cumulative probabilities.
+            If save=True, saves the resulting DataFrame to CSV.
         """
+        import polars as pl
+    
+        # Check if self.df is loaded
         if self.df is None:
-            self.logger.warning("No dataframe to analyze")
-            return {}
-
-        if value_column not in self.df.columns:
+            self.logger.error("Loaded dataframe (self.df) is not available.")
+            return None
+    
+        # Convert to Polars DataFrame if it's not already
+        if not isinstance(self.df, pl.DataFrame):
+            try:
+                df_pl = pl.from_pandas(self.df)
+            except Exception as e:
+                self.logger.error(f"Could not convert self.df to Polars DataFrame: {str(e)}")
+                return None
+        else:
+            df_pl = self.df
+    
+        # Check if columns exist
+        columns = df_pl.columns
+        if value_column not in columns:
             self.logger.error(f"Value column '{value_column}' not found in dataframe")
-            return {}
-
-        if category_column not in self.df.columns:
+            return None
+        if category_column not in columns:
             self.logger.error(f"Category column '{category_column}' not found in dataframe")
-            return {}
-
-        if percentiles is None:
-            percentiles = [25, 50, 75]
-
+            return None
+    
         # Determine which category values to use
         if category_values is None:
-            # Try to get permissible values from schema
+            # Try permissible values from schema
+            category_values = None
             if self.schema:
                 for col_def in self.schema.get('columns', []):
                     if col_def.get('name') == category_column:
@@ -813,80 +826,73 @@ class BaseTable:
                         if category_values:
                             self.logger.info(f"Using permissible values from schema for {category_column}")
                         break
-
-            # If no permissible values in schema, use all unique values in data
-            if category_values is None:
-                category_values = self.df[category_column].dropna().unique().tolist()
+            # Otherwise use all unique values from data
+            if not category_values:
+                category_values = (
+                    df_pl
+                    .select(pl.col(category_column).drop_nulls().unique())
+                    .to_series()
+                    .to_list()
+                )
                 self.logger.info(f"Using all unique values from data for {category_column}")
-
-        results = {}
-        categories = category_values
-
-        for category in categories:
+    
+        all_ecdf_rows = []
+    
+        for category in category_values:
             try:
                 # Filter data for this category
-                category_data = self.df[self.df[category_column] == category][value_column].dropna()
-
-                if len(category_data) == 0:
+                cat_df = (
+                    df_pl
+                    .filter(pl.col(category_column) == category)
+                    .select([pl.col(value_column)])
+                    .drop_nulls()
+                    .sort(value_column)
+                )
+    
+                n = cat_df.shape[0]
+                if n == 0:
                     self.logger.warning(f"No valid data for category '{category}'")
                     continue
-
-                values = category_data.values
-
-                # Compute percentiles
-                percentiles_dict = {}
-                for p in percentiles:
-                    percentiles_dict[f'p{p}'] = np.percentile(values, p)
-
-                # Calculate ECDF
-                x_vals = np.sort(values)
-                y_vals = np.arange(1, len(x_vals) + 1) / len(x_vals)
-
-                results[str(category)] = {
-                    'n_measurements': len(values),
-                    'percentiles': percentiles_dict,
-                    'min_value': float(np.min(values)),
-                    'max_value': float(np.max(values)),
-                    'mean_value': float(np.mean(values)),
-                    'std_value': float(np.std(values)),
-                    'ecdf_x': x_vals,
-                    'ecdf_y': y_vals
-                }
-
-                self.logger.info(f"Calculated ECDF for {category_column}={category}")
-
+    
+                # Calculate ECDF: each value gets rank = position, cumulative_probability = rank/n
+                ecdf_df = cat_df.with_columns([
+                    (pl.arange(1, n + 1) / n).alias('cumulative_probability'),
+                ])
+                # Add category for later clarity
+                ecdf_df = ecdf_df.with_columns([
+                    pl.lit(category).alias(category_column)
+                ])
+    
+                all_ecdf_rows.append(ecdf_df)
+    
+                self.logger.info(f"Calculated ECDF for {category_column}={category} with {n} measurements")
+    
             except Exception as e:
                 self.logger.error(f"Error calculating ECDF for category '{category}': {str(e)}")
                 continue
-
-        # Save combined summary if requested
-        if save and results:
-            summary_rows = []
-            for category, data in results.items():
-                row = {
-                    'category': category,
-                    'n_measurements': data['n_measurements'],
-                    'min': data['min_value'],
-                    'max': data['max_value'],
-                    'mean': data['mean_value'],
-                    'std': data['std_value']
-                }
-                for p in percentiles:
-                    row[f'p{p}'] = data['percentiles'][f'p{p}']
-                summary_rows.append(row)
-
-            summary_df = pd.DataFrame(summary_rows)
-            csv_filename = f'stratified_ecdf_{self.table_name}_{value_column}_by_{category_column}.csv'
+    
+        if not all_ecdf_rows:
+            self.logger.warning("No valid ECDF data for any category.")
+            return None
+    
+        # Concatenate all
+        all_ecdf_pl = pl.concat(all_ecdf_rows)
+    
+        if save:
+            csv_filename = f'ecdf_{self.table_name}_{value_column}_by_{category_column}.csv'
             csv_path = os.path.join(self.output_directory, csv_filename)
-            summary_df.to_csv(csv_path, index=False)
-            self.logger.info(f"Saved stratified ECDF summary to {csv_path}")
-
-        return results
+            try:
+                all_ecdf_pl.write_csv(csv_path)
+                self.logger.info(f"Saved ECDF data for all categories to {csv_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to save ECDF CSV: {str(e)}")
+    
+        return all_ecdf_rows
 
     def plot_stratified_ecdf(self, value_column: str, category_column: str, category_values: Optional[List[str]] = None,
-                            figsize: Tuple[int, int] = (10, 6), percentiles: Optional[List[int]] = None, save: bool = True, dpi: int = 300):
+                            figsize: Tuple[int, int] = (10, 6), save: bool = True, dpi: int = 300):
         """
-        Create ECDF plot showing multiple categories on the same plot.
+        Create ECDF plot showing multiple categories on the same plot using Polars with streaming.
 
         Parameters
         ----------
@@ -899,10 +905,8 @@ class BaseTable:
             or all unique values in the data if schema doesn't specify permissible values.
         figsize : Tuple[int, int], default=(10, 6)
             Figure size for the plot.
-        percentiles : List[int], optional
-            List of percentiles to show as vertical lines. Defaults to [25, 50, 75].
         save : bool, default=True
-            If True, saves plot to output directory.
+            If True, saves plot to output directory and ECDF data to CSV.
         dpi : int, default=300
             Resolution for saved plot.
 
@@ -913,19 +917,15 @@ class BaseTable:
         """
         import matplotlib.pyplot as plt
 
-        if self.df is None:
-            self.logger.warning("No dataframe to plot")
-            return None
+        # Calculate stratified ECDF using streaming (save=False to avoid duplicate saving)
+        ecdf_dfs = self.calculate_stratified_ecdf(
+            value_column,
+            category_column,
+            category_values=category_values,
+            save=False
+        )
 
-        if percentiles is None:
-            percentiles = [25, 50, 75]
-
-        # Calculate stratified ECDF
-        all_percentiles = list(set(percentiles + [5, 10, 25, 50, 75, 90, 95]))
-        ecdf_results = self.calculate_stratified_ecdf(value_column, category_column, category_values=category_values,
-                                                        percentiles=all_percentiles, save=save)
-
-        if not ecdf_results:
+        if not ecdf_dfs or len(ecdf_dfs) == 0:
             self.logger.warning("No ECDF results to plot")
             return None
 
@@ -933,26 +933,41 @@ class BaseTable:
         fig, ax = plt.subplots(figsize=figsize, facecolor='white')
 
         # Use tab20 colormap for better distinction with many categories
-        if len(ecdf_results) <= 10:
-            colors = plt.cm.tab10(np.linspace(0, 1, len(ecdf_results)))
+        num_categories = len(ecdf_dfs)
+        if num_categories <= 10:
+            colors = plt.cm.tab10(np.linspace(0, 1, num_categories))
         else:
-            colors = plt.cm.tab20(np.linspace(0, 1, len(ecdf_results)))
+            colors = plt.cm.tab20(np.linspace(0, 1, num_categories))
 
         # Collect statistics for table
         stats_data = []
 
-        # Plot ECDF for each category
-        for i, (category, data) in enumerate(ecdf_results.items()):
-            ax.plot(data['ecdf_x'], data['ecdf_y'] * 100,  # Convert to percentage
-                    linewidth=2, alpha=0.8, color=colors[i],
-                    label=category, linestyle='-')
+        # Plot ECDF for each category DataFrame
+        for i, ecdf_df in enumerate(ecdf_dfs):
+            # Extract x and y values from the Polars DataFrame
+            x_vals = ecdf_df[value_column].to_numpy()
+            y_vals = ecdf_df['cumulative_probability'].to_numpy() * 100  # Convert to percentage
 
-            # Collect stats
+            # Get category value from first row (all rows have same category)
+            # Note: We need to extract the category label somehow
+            # Since calculate_stratified_ecdf doesn't add category column, we'll use index
+            category_label = f"Category {i+1}" if category_values is None else str(category_values[i]) if i < len(category_values) else f"Category {i+1}"
+
+            # Plot the ECDF
+            ax.plot(x_vals, y_vals,
+                    linewidth=2, alpha=0.8, color=colors[i],
+                    label=category_label, linestyle='-')
+
+            # Calculate statistics for this category
+            mean_val = float(np.mean(x_vals))
+            std_val = float(np.std(x_vals))
+            n = len(x_vals)
+
             stats_data.append({
-                'Variable': category,
-                'Mean': f"{data['mean_value']:.2f}",
-                'StDev': f"{data['std_value']:.2f}",
-                'N': data['n_measurements']
+                'Variable': category_label,
+                'Mean': f"{mean_val:.2f}",
+                'StDev': f"{std_val:.2f}",
+                'N': n
             })
 
         # Styling for main plot
@@ -970,17 +985,14 @@ class BaseTable:
         ax.grid(True, linestyle='-', alpha=0.2, color='#cccccc', linewidth=0.5)
         ax.set_axisbelow(True)
 
-        # Create a single combined legend box with statistics
+        # Create legend with statistics
         from matplotlib.lines import Line2D
 
         # Create legend with variable names and colored lines
-        legend_elements = [Line2D([0], [0], color=colors[i], linewidth=2, label=category)
-                          for i, category in enumerate(ecdf_results.keys())]
+        legend_elements = [Line2D([0], [0], color=colors[i], linewidth=2)
+                          for i in range(len(stats_data))]
 
-        # Build custom labels that include both variable name and stats
-        custom_labels = []
-        for i, (category, stat) in enumerate(zip(ecdf_results.keys(), stats_data)):
-            custom_labels.append(category)
+        custom_labels = [stat['Variable'] for stat in stats_data]
 
         # Add legend with title
         legend = ax.legend(handles=legend_elements, labels=custom_labels,
@@ -1013,7 +1025,7 @@ class BaseTable:
 
         # Save if requested
         if save:
-            plot_filename = f'stratified_ecdf_{self.table_name}_{value_column}_by_{category_column}.png'
+            plot_filename = f'ecdf_plot_{self.table_name}_{value_column}_by_{category_column}.png'
             plot_path = os.path.join(self.output_directory, plot_filename)
             fig.savefig(plot_path, dpi=dpi, bbox_inches='tight')
             self.logger.info(f"Saved stratified ECDF plot to {plot_path}")
