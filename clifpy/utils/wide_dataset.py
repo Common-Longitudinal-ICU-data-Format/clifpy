@@ -17,8 +17,8 @@ from typing import List, Dict, Optional, Union
 from tqdm import tqdm
 import logging
 
-# Set up logging
-logger = logging.getLogger(__name__)
+# Set up logging - use centralized logger
+logger = logging.getLogger('clifpy.utils.wide_dataset')
 
 # Global config cache
 _WIDE_TABLES_CONFIG = None
@@ -180,9 +180,10 @@ def create_wide_dataset(
     pd.DataFrame or None
         DataFrame if return_dataframe=True, None otherwise
     """
-    
-    print("\nPhase 4: Wide Dataset Processing (utility function)")
-    print("  4.1: Starting wide dataset creation...")
+
+
+    logger.info("Phase 4: Wide Dataset Processing (utility function)")
+    logger.debug("  4.1: Starting wide dataset creation")
 
     # Validate cohort_df if provided
     if cohort_df is not None:
@@ -190,19 +191,18 @@ def create_wide_dataset(
         missing_cols = [col for col in required_cols if col not in cohort_df.columns]
         if missing_cols:
             raise ValueError(f"cohort_df must contain columns: {required_cols}. Missing: {missing_cols}")
-        
+
         # Ensure hospitalization_id is string type to match with other tables
         cohort_df['hospitalization_id'] = cohort_df['hospitalization_id'].astype(str)
-        
+
         # Ensure time columns are datetime
         for time_col in ['start_time', 'end_time']:
             if not pd.api.types.is_datetime64_any_dtype(cohort_df[time_col]):
                 cohort_df[time_col] = pd.to_datetime(cohort_df[time_col])
-        
-        print("  === SPECIAL: COHORT TIME WINDOW FILTERING ===")
-        print(f"       - Processing {len(cohort_df)} hospitalizations with time windows")
-        print(f"       - Ensuring datetime types for start_time, end_time")
-        print("")
+
+        logger.info("  === SPECIAL: COHORT TIME WINDOW FILTERING ===")
+        logger.info(f"       - Processing {len(cohort_df)} hospitalizations with time windows")
+        logger.debug(f"       - Ensuring datetime types for start_time, end_time")
     
     # Get table types from config
     PIVOT_TABLES = _get_supported_tables(table_type='pivot')
@@ -214,7 +214,7 @@ def create_wide_dataset(
     
     # For backward compatibility with optional_tables
     if optional_tables and not category_filters:
-        print("Warning: optional_tables parameter is deprecated. Converting to category_filters format.")
+        logger.warning("optional_tables parameter is deprecated. Converting to category_filters format")
         category_filters = {table: [] for table in optional_tables}
     
     tables_to_load = list(category_filters.keys())
@@ -238,25 +238,25 @@ def create_wide_dataset(
         
         # Get hospitalization IDs to process
         hospitalization_df = clif_instance.hospitalization.df.copy()
-        
+
         if hospitalization_ids is not None:
-            print(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
+            logger.info(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
             required_ids = hospitalization_ids
         elif cohort_df is not None:
             # Use hospitalization IDs from cohort_df
             required_ids = cohort_df['hospitalization_id'].unique().tolist()
-            print(f"Using {len(required_ids)} hospitalization IDs from cohort_df")
+            logger.info(f"Using {len(required_ids)} hospitalization IDs from cohort_df")
         elif sample:
-            print("Sampling 20 random hospitalizations...")
+            logger.info("Sampling 20 random hospitalizations")
             all_ids = hospitalization_df['hospitalization_id'].unique()
             required_ids = np.random.choice(all_ids, size=min(20, len(all_ids)), replace=False).tolist()
-            print(f"Selected {len(required_ids)} hospitalizations for sampling")
+            logger.info(f"Selected {len(required_ids)} hospitalizations for sampling")
         else:
             required_ids = hospitalization_df['hospitalization_id'].unique().tolist()
-            print(f"Processing all {len(required_ids)} hospitalizations")
-        
+            logger.info(f"Processing all {len(required_ids)} hospitalizations")
+
         # Filter all base tables by required IDs immediately
-        print("\nLoading and filtering base tables...")
+        logger.info("Loading and filtering base tables")
         # Only keep required columns from hospitalization table
         hosp_required_cols = ['hospitalization_id', 'patient_id', 'age_at_admission']
         hosp_available_cols = [col for col in hosp_required_cols if col in hospitalization_df.columns]
@@ -278,33 +278,33 @@ def create_wide_dataset(
                 on='hospitalization_id',
                 how='inner'
             )
-            
+
             # Ensure in_dttm column is datetime
             if not pd.api.types.is_datetime64_any_dtype(adt_df['in_dttm']):
                 adt_df['in_dttm'] = pd.to_datetime(adt_df['in_dttm'])
-            
+
             # Filter to time window
             adt_df = adt_df[
                 (adt_df['in_dttm'] >= adt_df['start_time']) &
                 (adt_df['in_dttm'] <= adt_df['end_time'])
             ].copy()
-            
+
             # Drop the time window columns
             adt_df = adt_df.drop(columns=['start_time', 'end_time'])
-            
-            print(f"  ADT time filtering: {pre_filter_count} → {len(adt_df)} records")
+
+            logger.info(f"  ADT time filtering: {pre_filter_count} → {len(adt_df)} records")
         
         # Remove duplicate columns and _name columns
         adt_cols = [col for col in adt_df.columns if not col.endswith('_name') and col != 'patient_id']
         adt_df = adt_df[adt_cols]
-        
-        print(f"       - Base tables filtered - Hospitalization: {len(hospitalization_df)}, Patient: {len(patient_df)}, ADT: {len(adt_df)}")
 
-        print("\n  4.2: Determining processing mode")
+        logger.info(f"       - Base tables filtered - Hospitalization: {len(hospitalization_df)}, Patient: {len(patient_df)}, ADT: {len(adt_df)}")
+
+        logger.info("  4.2: Determining processing mode")
         # Process in batches to avoid memory issues
         if batch_size > 0 and len(required_ids) > batch_size:
-            print(f"       - Batch mode: {len(required_ids)} hospitalizations in {len(required_ids)//batch_size + 1} batches of {batch_size}")
-            print("  4.B: === BATCH PROCESSING MODE ===")
+            logger.info(f"       - Batch mode: {len(required_ids)} hospitalizations in {len(required_ids)//batch_size + 1} batches of {batch_size}")
+            logger.info("  4.B: === BATCH PROCESSING MODE ===")
             return _process_in_batches(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
@@ -312,8 +312,8 @@ def create_wide_dataset(
                 output_format, return_dataframe, cohort_df
             )
         else:
-            print(f"       - Single mode: Processing all {len(required_ids)} hospitalizations at once")
-            print("  4.S: === SINGLE PROCESSING MODE ===")
+            logger.info(f"       - Single mode: Processing all {len(required_ids)} hospitalizations at once")
+            logger.info("  4.S: === SINGLE PROCESSING MODE ===")
             # Process all at once for small datasets
             return _process_hospitalizations(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
@@ -432,14 +432,14 @@ def convert_wide_to_hourly(
             if hasattr(wide_df[col].dtype, 'tz') and wide_df[col].dtype.tz is not None:
                 wide_df[col] = wide_df[col].dt.tz_localize(None)
 
-    # Update print statements
+    # Update log statements
     window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
     gap_handling = "with gap filling" if fill_gaps else "sparse (no gap filling)"
-    print(f"Starting optimized {window_label} aggregation using DuckDB {gap_handling}...")
-    print(f"Input dataset shape: {wide_df.shape}")
-    print(f"Memory limit: {memory_limit}")
-    print(f"Aggregation window: {hourly_window} hour(s)")
-    print(f"Gap filling: {'enabled' if fill_gaps else 'disabled'}")
+    logger.info(f"Starting optimized {window_label} aggregation using DuckDB {gap_handling}")
+    logger.info(f"Input dataset shape: {wide_df.shape}")
+    logger.debug(f"Memory limit: {memory_limit}")
+    logger.debug(f"Aggregation window: {hourly_window} hour(s)")
+    logger.debug(f"Gap filling: {'enabled' if fill_gaps else 'disabled'}")
     
     # Validate input
     required_columns = ['event_time', id_name, 'day_number']
@@ -455,8 +455,8 @@ def convert_wide_to_hourly(
         # Use batching if dataset is very large
         if n_rows > 1_000_000 or n_ids > 10_000:
             batch_size = min(5000, n_ids // 4)
-            print(f"Large dataset detected ({n_rows:,} rows, {n_ids:,} {id_name}s)")
-            print(f"Will process in batches of {batch_size} {id_name}s")
+            logger.info(f"Large dataset detected ({n_rows:,} rows, {n_ids:,} {id_name}s)")
+            logger.info(f"Will process in batches of {batch_size} {id_name}s")
         else:
             batch_size = 0  # Process all at once
     
@@ -483,9 +483,9 @@ def convert_wide_to_hourly(
                 return _process_hourly_in_batches(conn, wide_df, aggregation_config, id_name, batch_size, hourly_window, fill_gaps)
             else:
                 return _process_hourly_single_batch(conn, wide_df, aggregation_config, id_name, hourly_window, fill_gaps)
-                
+
     except Exception as e:
-        print(f"DuckDB processing failed: {str(e)}")
+        logger.error(f"DuckDB processing failed: {str(e)}")
         raise
 
 
@@ -509,19 +509,19 @@ def _save_dataset(
     output_format: str
 ):
     """Save the dataset to file."""
-    
+
     if output_filename is None:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_filename = f'wide_dataset_{timestamp}'
-    
+
     output_path = os.path.join(data_dir, f'{output_filename}.{output_format}')
-    
+
     if output_format == 'csv':
         df.to_csv(output_path, index=False)
     elif output_format == 'parquet':
         df.to_parquet(output_path, index=False)
-    
-    print(f"Wide dataset saved to: {output_path}")
+
+    logger.info(f"Wide dataset saved to: {output_path}")
 
 
 def _get_timestamp_column(table_name: str) -> Optional[str]:
@@ -548,8 +548,8 @@ def _process_hourly_single_batch(
 
         # Create window assignments with event-based windowing
         window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
-        print(f"Creating event-based {window_label} windows...")
-        print("Calculating window boundaries...")
+        logger.info(f"Creating event-based {window_label} windows")
+        logger.debug("Calculating window boundaries")
         conn.execute(f"""
             CREATE OR REPLACE TABLE windowed_data AS
             WITH first_events AS (
@@ -569,12 +569,12 @@ def _process_hourly_single_batch(
         
         # Build separate queries for each aggregation type
         agg_queries = _build_aggregation_query_duckdb(conn, aggregation_config, wide_df.columns, id_name, hourly_window)
-        
+
         # Execute base query first
-        print("\nProcessing aggregations by type:")
-        print("- Extracting base columns...")
+        logger.info("Processing aggregations by type:")
+        logger.debug("- Extracting base columns")
         base_df = conn.execute(agg_queries['base']).df()
-        
+
         # Process each aggregation type separately and merge properly
         result_df = base_df
 
@@ -583,7 +583,7 @@ def _process_hourly_single_batch(
 
         for agg_type in agg_order:
             if agg_type in agg_queries and agg_type != 'base':
-                print(f"- Processing {agg_type} aggregation...")
+                logger.info(f"- Processing {agg_type} aggregation")
                 try:
                     agg_result = conn.execute(agg_queries[agg_type]).df()
                     # Merge on the keys to ensure proper row alignment
@@ -592,16 +592,16 @@ def _process_hourly_single_batch(
                         on=[id_name, 'window_number'],
                         how='left'
                     )
-                    print(f"  ✓ {agg_type} complete ({agg_result.shape[1] - 2} columns)")
+                    logger.info(f"  ✓ {agg_type} complete ({agg_result.shape[1] - 2} columns)")
                 except Exception as e:
-                    print(f"  ✗ {agg_type} failed: {str(e)}")
+                    logger.error(f"  ✗ {agg_type} failed: {str(e)}")
 
         # Merge all results
-        print("\nMerging aggregation results...")
+        logger.debug("Merging aggregation results")
 
         # Fill gaps if requested
         if fill_gaps:
-            print("Filling gaps in window sequence...")
+            logger.info("Filling gaps in window sequence")
             result_df = _fill_window_gaps(conn, result_df, id_name, hourly_window)
 
         # Sort by id_name and window_number
@@ -614,13 +614,13 @@ def _process_hourly_single_batch(
                     result_df[col] = result_df[col].dt.tz_localize(None)
 
         window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
-        print(f"\n{window_label.capitalize()} aggregation complete: {len(result_df)} records")
-        print(f"Columns in dataset: {len(result_df.columns)}")
+        logger.info(f"{window_label.capitalize()} aggregation complete: {len(result_df)} records")
+        logger.info(f"Columns in dataset: {len(result_df.columns)}")
 
         return result_df
-        
+
     except Exception as e:
-        print(f"Single batch processing failed: {str(e)}")
+        logger.error(f"Single batch processing failed: {str(e)}")
         raise
 
 
@@ -649,7 +649,7 @@ def _fill_window_gaps(
     pd.DataFrame
         Complete window sequence with gaps filled as NaN
     """
-    print(f"  - Generating complete window sequences per {id_name}...")
+    logger.debug(f"  - Generating complete window sequences per {id_name}")
 
     # Register aggregated data
     conn.register('aggregated_data', aggregated_df)
@@ -707,8 +707,7 @@ def _fill_window_gaps(
     filled_rows = len(complete_df)
     gap_rows = filled_rows - original_rows
 
-    print(f"  - Original: {original_rows} windows")
-    print(f"  - Filled: {filled_rows} windows (+{gap_rows} gaps filled with NaN)")
+    logger.info(f"  - Original: {original_rows} windows, Filled: {filled_rows} windows (+{gap_rows} gaps filled with NaN)")
 
     return complete_df
 
@@ -723,8 +722,8 @@ def _process_hourly_in_batches(
     fill_gaps: bool = False
 ) -> pd.DataFrame:
     """Process dataset in batches to manage memory usage with progress tracking."""
-    
-    print(f"Processing in batches of {batch_size} {id_name}s...")
+
+    logger.info(f"Processing in batches of {batch_size} {id_name}s")
 
     # Get unique IDs
     unique_ids = wide_df[id_name].unique()
@@ -748,14 +747,14 @@ def _process_hourly_in_batches(
             # Filter to current batch
             batch_df = wide_df[wide_df[id_name].isin(batch_ids)].copy()
 
-            print(f"\n--- Batch {batch_num}/{n_batches} ({len(batch_ids)} {id_name}s) ---")
+            logger.debug(f"--- Batch {batch_num}/{n_batches} ({len(batch_ids)} {id_name}s) ---")
 
             # Process this batch
             batch_result = _process_hourly_single_batch(conn, batch_df, aggregation_config.copy(), id_name, hourly_window, fill_gaps)
-            
+
             if len(batch_result) > 0:
                 batch_results.append(batch_result)
-                print(f"Batch {batch_num} completed: {len(batch_result)} records")
+                logger.info(f"Batch {batch_num} completed: {len(batch_result)} records")
             
             # Clean up batch-specific tables
             try:
@@ -767,18 +766,19 @@ def _process_hourly_in_batches(
             # Explicit garbage collection between batches
             import gc
             gc.collect()
-                
+
+
         except Exception as e:
-            print(f"Error processing batch {batch_num}: {str(e)}")
+            logger.error(f"Error processing batch {batch_num}: {str(e)}")
             continue
-    
+
     if batch_results:
-        print(f"\nCombining {len(batch_results)} batch results...")
+        logger.info(f"Combining {len(batch_results)} batch results")
         final_df = pd.concat(batch_results, ignore_index=True)
         final_df = final_df.sort_values([id_name, 'window_number']).reset_index(drop=True)
 
         window_label = "hourly" if hourly_window == 1 else f"{hourly_window}-hour"
-        print(f"Final {window_label} dataset: {len(final_df)} records from {len(batch_results)} batches")
+        logger.info(f"Final {window_label} dataset: {len(final_df)} records from {len(batch_results)} batches")
         return final_df
     else:
         raise ValueError("No batches processed successfully")
@@ -807,9 +807,9 @@ def _build_aggregation_query_duckdb(
                       and col not in ['patient_id', 'day_number', 'first_event_time', 'event_time', 'window_number']]
     
     if non_agg_columns:
-        print("Columns not in aggregation_config, defaulting to 'first' with '_c' postfix:")
-        for col in non_agg_columns:
-            print(f"  - {col}")
+        logger.info(f"Columns not in aggregation_config, defaulting to 'first' with '_c' postfix: {', '.join(non_agg_columns[:5])}")
+        if len(non_agg_columns) > 5:
+            logger.debug(f"  ... and {len(non_agg_columns) - 5} more")
         if 'first' not in aggregation_config:
             aggregation_config['first'] = []
         aggregation_config['first'].extend(non_agg_columns)
@@ -919,7 +919,7 @@ def _build_one_hot_encoding_query_duckdb(
             unique_vals_result = conn.execute(unique_vals_query).fetchall()
             
             if len(unique_vals_result) > 50:
-                print(f"Warning: {col} has {len(unique_vals_result)} unique values. One-hot encoding may create many columns.")
+                logger.warning(f"{col} has {len(unique_vals_result)} unique values. One-hot encoding may create many columns")
             
             # Create conditional aggregation for each unique value
             for (val,) in unique_vals_result:
@@ -933,9 +933,10 @@ def _build_one_hot_encoding_query_duckdb(
                     select_parts.append(f"MAX(CASE WHEN {col} = '{val_escaped}' THEN 1 ELSE 0 END) AS {col_name}")
                 else:
                     select_parts.append(f"MAX(CASE WHEN {col} = {val} THEN 1 ELSE 0 END) AS {col_name}")
-                    
+
+
         except Exception as e:
-            print(f"Warning: Could not create one-hot encoding for {col}: {str(e)}")
+            logger.warning(f"Could not create one-hot encoding for {col}: {str(e)}")
 
 
     if len(select_parts) > 2:  # More than just the group by columns
@@ -966,11 +967,11 @@ def _process_hospitalizations(
 ) -> Optional[pd.DataFrame]:
     """Process hospitalizations with pivot-first approach."""
     
-    print("    4.S.1: Loading and filtering base tables")
+    logger.debug("    4.S.1: Loading and filtering base tables")
 
     # Create base cohort
     base_cohort = pd.merge(hospitalization_df, patient_df, on='patient_id', how='inner')
-    print(f"           - Base cohort created with {len(base_cohort)} records")
+    logger.info(f"           - Base cohort created with {len(base_cohort)} records")
     
     # Register base tables as proper tables, not views
     conn.register('temp_base', base_cohort)
@@ -994,19 +995,19 @@ def _process_hospitalizations(
             WHERE in_dttm IS NOT NULL
         """)
     
-    print("    4.S.3: Processing tables")
+    logger.info("    4.S.3: Processing tables")
 
     # Process tables to load
     for table_name in tables_to_load:
 
-        print(f"           - Processing {table_name}...")
-        
+        logger.info(f"           - Processing {table_name}")
+
         # Get table data - fix: use 'labs' instead of 'lab'
         table_attr = table_name  # Use table_name directly
         table_obj = getattr(clif_instance, table_attr, None)
-        
+
         if table_obj is None:
-            print(f"Warning: {table_name} not loaded in CLIF instance, skipping...")
+            logger.warning(f"{table_name} not loaded in CLIF instance, skipping")
             continue
             
         # Filter by hospitalization IDs immediately
@@ -1015,7 +1016,7 @@ def _process_hospitalizations(
         if table_config and table_config.get('supports_unit_conversion', False):
             # Check if converted data exists
             if hasattr(table_obj, 'df_converted') and table_obj.df_converted is not None:
-                print(f"           === SPECIAL: USING CONVERTED MEDICATION DATA ===")
+                logger.info(f"           === SPECIAL: USING CONVERTED MEDICATION DATA ===")
                 # Use all converted data (both successful and failed conversions)
                 all_data = table_obj.df_converted[table_obj.df_converted['hospitalization_id'].isin(required_ids)]
                 table_df = all_data.copy()
@@ -1026,19 +1027,19 @@ def _process_hospitalizations(
 
                 if failed_count > 0:
                     percentage = (failed_count / len(all_data)) * 100
-                    print(f"           - Including all {len(all_data):,} rows: {success_count:,} successful conversions, {failed_count:,} ({percentage:.1f}%) fallback to original units")
+                    logger.info(f"           - Including all {len(all_data):,} rows: {success_count:,} successful conversions, {failed_count:,} ({percentage:.1f}%) fallback to original units")
                 else:
-                    print(f"           - All {len(table_df):,} conversions successful")
+                    logger.info(f"           - All {len(table_df):,} conversions successful")
             else:
                 # Fallback to original behavior
-                print(f"           - No converted data found, using original medication data")
+                logger.info(f"           - No converted data found, using original medication data")
                 table_df = table_obj.df[table_obj.df['hospitalization_id'].isin(required_ids)].copy()
         else:
             # Original behavior for other tables
             table_df = table_obj.df[table_obj.df['hospitalization_id'].isin(required_ids)].copy()
-        
+
         if len(table_df) == 0:
-            print(f"No data found in {table_name} for selected hospitalizations")
+            logger.warning(f"No data found in {table_name} for selected hospitalizations")
             continue
         
         # For wide tables (non-pivot), filter columns based on category_filters
@@ -1056,31 +1057,31 @@ def _process_hospitalizations(
             # Filter to only available columns
             available_cols = [col for col in required_cols if col in table_df.columns]
             missing_cols = [col for col in required_cols if col not in table_df.columns]
-            
+
             if missing_cols:
-                print(f"Warning: Columns not found in {table_name}: {missing_cols}")
-            
+                logger.warning(f"Columns not found in {table_name}: {missing_cols}")
+
             if available_cols:
                 table_df = table_df[available_cols].copy()
-                print(f"Filtered {table_name} to {len(available_cols)} columns: {available_cols}")
-            
-        print(f"Loaded {len(table_df)} records from {table_name}")
-        
+                logger.debug(f"Filtered {table_name} to {len(available_cols)} columns: {available_cols}")
+
+        logger.info(f"Loaded {len(table_df)} records from {table_name}")
+
         # Get timestamp column
         timestamp_col = _get_timestamp_column(table_name)
         if timestamp_col and timestamp_col not in table_df.columns:
             timestamp_col = _find_alternative_timestamp(table_name, table_df.columns)
-        
+
         if not timestamp_col or timestamp_col not in table_df.columns:
-            print(f"Warning: No timestamp column found for {table_name}, skipping...")
+            logger.warning(f"No timestamp column found for {table_name}, skipping")
             continue
         
         # Apply time filtering if cohort_df is provided
         if cohort_df is not None:
 
-            print("           === SPECIAL: TIME FILTERING ===")
+            logger.info("           === SPECIAL: TIME FILTERING ===")
             pre_filter_count = len(table_df)
-            print(f"           - Applying cohort time windows to {table_name}")
+            logger.debug(f"           - Applying cohort time windows to {table_name}")
             # Merge with cohort_df to get time windows
             table_df = pd.merge(
                 table_df,
@@ -1102,7 +1103,7 @@ def _process_hospitalizations(
             # Drop the time window columns
             table_df = table_df.drop(columns=['start_time', 'end_time'])
 
-            print(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records after filtering")
+            logger.info(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records after filtering")
 
         # Register raw table as a proper table, not a view
         raw_table_name = f"{table_name}_raw"
@@ -1117,9 +1118,9 @@ def _process_hospitalizations(
         # Process based on table type
         if table_name in pivot_tables:
 
-            print(f"           === PIVOTING {table_name.upper()} ===")
+            logger.info(f"           === PIVOTING {table_name.upper()} ===")
             if table_name in category_filters and category_filters[table_name]:
-                print(f"           - Categories to pivot: {category_filters[table_name]}")
+                logger.debug(f"           - Categories to pivot: {category_filters[table_name]}")
             # Pivot the table first
             pivoted_name = _pivot_table_duckdb(conn, table_name, table_df, timestamp_col, category_filters)
             if pivoted_name:
@@ -1132,9 +1133,9 @@ def _process_hospitalizations(
                 """)
         else:
 
-            print(f"           === WIDE TABLE {table_name.upper()} ===")
+            logger.info(f"           === WIDE TABLE {table_name.upper()} ===")
             if table_name in category_filters and category_filters[table_name]:
-                print(f"           - Keeping columns: {category_filters[table_name]}")
+                logger.debug(f"           - Keeping columns: {category_filters[table_name]}")
             # Wide table - just add event times
             event_time_queries.append(f"""
                 SELECT DISTINCT hospitalization_id, {timestamp_col} AS event_time
@@ -1144,10 +1145,10 @@ def _process_hospitalizations(
     
     # Now create the union and join
     if event_time_queries:
-        print("    4.S.4: Creating wide dataset")
-        print("           - Building event time union from {} tables".format(len(event_time_queries)))
-        print("           - Creating combo_id keys")
-        print("           - Executing main join query")
+        logger.info("    4.S.4: Creating wide dataset")
+        logger.debug("           - Building event time union from {} tables".format(len(event_time_queries)))
+        logger.debug("           - Creating combo_id keys")
+        logger.debug("           - Executing main join query")
         final_df = _create_wide_dataset(
             conn, base_cohort, event_time_queries,
             pivoted_table_names, raw_table_names,
@@ -1156,7 +1157,7 @@ def _process_hospitalizations(
         )
         return final_df
     else:
-        print("           - No event times found, returning base cohort only")
+        logger.warning("           - No event times found, returning base cohort only")
         return base_cohort
 
 
@@ -1173,7 +1174,7 @@ def _pivot_table_duckdb(
     table_config = _get_table_config(table_name)
 
     if not table_config:
-        print(f"Warning: No configuration found for {table_name}")
+        logger.warning(f"No configuration found for {table_name}")
         return None
 
     category_col = table_config.get('category_column')
@@ -1192,16 +1193,16 @@ def _pivot_table_duckdb(
             has_converted_meds = True
             value_col = converted_value_col
             unit_col = converted_unit_col
-            print(f"           - Using converted medication columns: {value_col}, {unit_col}")
+            logger.debug(f"           - Using converted medication columns: {value_col}, {unit_col}")
         else:
-            print(f"           - Using original medication column: {value_col}")
+            logger.debug(f"           - Using original medication column: {value_col}")
 
     if not category_col or not value_col:
-        print(f"Warning: No pivot configuration for {table_name}")
+        logger.warning(f"No pivot configuration for {table_name}")
         return None
 
     if category_col not in table_df.columns or value_col not in table_df.columns:
-        print(f"Warning: Required columns {category_col} or {value_col} not found in {table_name}")
+        logger.warning(f"Required columns {category_col} or {value_col} not found in {table_name}")
         return None
     
     # Build filter clause if categories specified
@@ -1209,15 +1210,15 @@ def _pivot_table_duckdb(
     if table_name in category_filters and category_filters[table_name]:
         categories_list = "','".join(category_filters[table_name])
         filter_clause = f"AND {category_col} IN ('{categories_list}')"
-        print(f"Filtering {table_name} categories to: {category_filters[table_name]}")
-    
+        logger.debug(f"Filtering {table_name} categories to: {category_filters[table_name]}")
+
     # Create pivot query
     pivoted_table_name = f"{table_name}_pivoted"
 
     if has_converted_meds:
         # Special pivot for medications with units
-        print(f"           - Creating unit-aware pivot with columns: category_unit format")
-        print(f"           - Including both successful conversions and original units for failed conversions")
+        logger.info(f"           - Creating unit-aware pivot with columns: category_unit format")
+        logger.debug(f"           - Including both successful conversions and original units for failed conversions")
         pivot_query = f"""
         CREATE OR REPLACE TABLE {pivoted_table_name} AS
         WITH pivot_data AS (
@@ -1261,13 +1262,13 @@ def _pivot_table_duckdb(
         cols = len(conn.execute(f"SELECT * FROM {pivoted_table_name} LIMIT 0").df().columns) - 1
 
         if has_converted_meds:
-            print(f"Pivoted {table_name}: {count} combo_ids with {cols} medication_unit columns")
+            logger.info(f"Pivoted {table_name}: {count} combo_ids with {cols} medication_unit columns")
         else:
-            print(f"Pivoted {table_name}: {count} combo_ids with {cols} category columns")
+            logger.info(f"Pivoted {table_name}: {count} combo_ids with {cols} category columns")
         return pivoted_table_name
-        
+
     except Exception as e:
-        print(f"Error pivoting {table_name}: {str(e)}")
+        logger.error(f"Error pivoting {table_name}: {str(e)}")
         return None
 
 
@@ -1375,13 +1376,13 @@ def _create_wide_dataset(
                         """
     
     # Execute query
-    print("Executing join query...")
+    logger.debug("Executing join query")
     result_df = conn.execute(query).df()
-    
+
     # Apply final time filtering if cohort_df is provided
     if cohort_df is not None:
         pre_filter_count = len(result_df)
-        print("Applying cohort time window filtering to final dataset...")
+        logger.debug("Applying cohort time window filtering to final dataset")
         
         # Merge with cohort_df to get time windows
         result_df = pd.merge(
@@ -1403,8 +1404,8 @@ def _create_wide_dataset(
         
         # Drop the time window columns
         result_df = result_df.drop(columns=['start_time', 'end_time'])
-        
-        print(f"  Final time filtering: {pre_filter_count} → {len(result_df)} records")
+
+        logger.info(f"  Final time filtering: {pre_filter_count} → {len(result_df)} records")
     
     # Remove duplicate columns
     result_df = result_df.loc[:, ~result_df.columns.duplicated()]
@@ -1413,22 +1414,21 @@ def _create_wide_dataset(
     result_df['date'] = pd.to_datetime(result_df['event_time']).dt.date
     result_df = result_df.sort_values(['hospitalization_id', 'event_time']).reset_index(drop=True)
     result_df['day_number'] = result_df.groupby('hospitalization_id')['date'].rank(method='dense').astype(int)
-    result_df['hosp_id_day_key'] = (result_df['hospitalization_id'].astype(str) + '_day_' + 
+    result_df['hosp_id_day_key'] = (result_df['hospitalization_id'].astype(str) + '_day_' +
                                     result_df['day_number'].astype(str))
-    
-    print("    === SPECIAL: MISSING COLUMNS ===")
+
+    logger.info("    === SPECIAL: MISSING COLUMNS ===")
     # Add missing columns for requested categories
     _add_missing_columns(result_df, category_filters, tables_to_load)
-    print("")
-    
-    print("    4.S.6: Final cleanup")
+
+    logger.info("    4.S.6: Final cleanup")
     # Clean up
     columns_to_drop = ['combo_id', 'date']
     result_df = result_df.drop(columns=[col for col in columns_to_drop if col in result_df.columns])
-    print("           - Removing duplicate columns")
-    print("           - Dropping temporary columns (combo_id, date)")
+    logger.debug("           - Removing duplicate columns")
+    logger.debug("           - Dropping temporary columns (combo_id, date)")
 
-    print(f"           - Wide dataset created: {len(result_df)} records with {len(result_df.columns)} columns")
+    logger.info(f"           - Wide dataset created: {len(result_df)} records with {len(result_df.columns)} columns")
     
     return result_df
 
@@ -1461,15 +1461,15 @@ def _add_missing_columns(
                     if not pattern_matches and category not in df.columns:
                         # No unit-aware column or exact match found, add empty column
                         df[category] = np.nan
-                        print(f"           - Added missing column: {category}")
+                        logger.debug(f"           - Added missing column: {category}")
                     elif pattern_matches:
                         # Found unit-aware columns, don't add empty column
-                        print(f"           - Found unit-aware columns for {category}: {pattern_matches}")
+                        logger.debug(f"           - Found unit-aware columns for {category}: {pattern_matches}")
                 else:
                     # For non-medication tables, use exact matching as before
                     if category not in df.columns:
                         df[category] = np.nan
-                        print(f"           - Added missing column: {category}")
+                        logger.debug(f"           - Added missing column: {category}")
 
 
 def _process_in_batches(
@@ -1501,9 +1501,8 @@ def _process_in_batches(
     
     for batch_idx, batch_hosp_ids in enumerate(iterator):
         try:
-            print(f"    4.B.{batch_idx + 1}: Processing batch {batch_idx + 1}/{len(batches)}")
-            print(f"             - {len(batch_hosp_ids)} hospitalizations in batch")
-            print("")
+            logger.info(f"    4.B.{batch_idx + 1}: Processing batch {batch_idx + 1}/{len(batches)}")
+            logger.debug(f"             - {len(batch_hosp_ids)} hospitalizations in batch")
             
             # Filter base tables for this batch
             batch_hosp_df = hospitalization_df[hospitalization_df['hospitalization_id'].isin(batch_hosp_ids)]
@@ -1538,27 +1537,26 @@ def _process_in_batches(
             
             if batch_result is not None and len(batch_result) > 0:
                 batch_results.append(batch_result)
-                print(f"             - Batch {batch_idx + 1} completed: {len(batch_result)} records")
+                logger.info(f"             - Batch {batch_idx + 1} completed: {len(batch_result)} records")
             
             # Clean up after batch
             import gc
             gc.collect()
             
         except Exception as e:
-            logger.error(f"Error processing batch {batch_idx + 1}: {str(e)}")
-            print(f"Warning: Failed to process batch {batch_idx + 1}: {str(e)}")
+            logger.error(f"Failed to process batch {batch_idx + 1}: {str(e)}")
             continue
-    
+
     # Combine results
     if batch_results:
-        print(f"             - Combining {len(batch_results)} batch results...")
+        logger.info(f"             - Combining {len(batch_results)} batch results")
         final_df = pd.concat(batch_results, ignore_index=True)
-        print(f"             - Final dataset: {len(final_df)} records with {len(final_df.columns)} columns")
+        logger.info(f"             - Final dataset: {len(final_df)} records with {len(final_df.columns)} columns")
         
         if save_to_data_location:
             _save_dataset(final_df, clif_instance.data_directory, output_filename, output_format)
         
         return final_df if return_dataframe else None
     else:
-        print("No data processed successfully")
+        logger.error("No data processed successfully")
         return None
