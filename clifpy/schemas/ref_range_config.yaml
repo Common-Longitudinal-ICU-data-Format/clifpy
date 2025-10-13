@@ -1,0 +1,852 @@
+# Reference Range Configuration for Clinical Values
+# This configuration file defines normal reference ranges and typical dose ranges
+# Based on:
+# - CLIF lab reference ranges: https://github.com/Common-Longitudinal-ICU-data-Format/CLIF/blob/main/reference_ranges/lab_category.csv
+# - CLIF vital reference ranges: https://github.com/Common-Longitudinal-ICU-data-Format/CLIF/blob/main/reference_ranges/vital_category.csv
+# - Medication typical ranges: Lexicomp
+
+# Configuration structure:
+# Labs:
+#   - reference_unit: The standard unit of measurement
+#   - lower_limit_ref_range: Lower bound of the normal reference range
+#   - upper_limit_ref_range: Upper bound of the normal reference range
+#   - lab_order_category: Category grouping (e.g., lft, cbc, bmp, blood_gas, coags, misc)
+# Vitals:
+#   - reference_unit: The standard unit of measurement
+#   - lower_limit_ref_range: Lower bound of the normal reference range
+#   - upper_limit_ref_range: Upper bound of the normal reference range
+# Medications:
+#   - typical_units: The standard unit of measurement
+#   - lower_limit_ref_range: Typical minimum dose
+#   - upper_limit_ref_range: Typical maximum dose
+#   - reference: Source of the reference range
+
+labs:
+  albumin:
+    reference_unit: g/dL
+    lower_limit_ref_range: 3.5
+    upper_limit_ref_range: 5
+    lab_order_category: lft
+
+  alkaline_phosphatase:
+    reference_unit: U/L
+    lower_limit_ref_range: 30
+    upper_limit_ref_range: 120
+    lab_order_category: lft
+
+  alt:
+    reference_unit: U/L
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 40
+    lab_order_category: lft
+
+  ast:
+    reference_unit: U/L
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 30
+    lab_order_category: lft
+
+  basophils_absolute:
+    reference_unit: 10^3/�L
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 0.2
+    lab_order_category: cbc
+
+  basophils_percent:
+    reference_unit: "%"
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 2
+    lab_order_category: cbc
+
+  bicarbonate:
+    reference_unit: mmol/L
+    lower_limit_ref_range: 22
+    upper_limit_ref_range: 28
+    lab_order_category: bmp
+
+  bilirubin_conjugated:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 0.1
+    upper_limit_ref_range: 0.3
+    lab_order_category: lft
+
+  bilirubin_total:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 0.3
+    upper_limit_ref_range: 1.2
+    lab_order_category: lft
+
+  bilirubin_unconjugated:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 0.2
+    upper_limit_ref_range: 0.9
+    lab_order_category: lft
+
+  bun:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 8
+    upper_limit_ref_range: 23
+    lab_order_category: bmp
+
+  calcium_ionized:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 4.6
+    upper_limit_ref_range: 5.1
+    lab_order_category: misc
+
+  calcium_total:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 8.2
+    upper_limit_ref_range: 10.2
+    lab_order_category: bmp
+
+  chloride:
+    reference_unit: mmol/L
+    lower_limit_ref_range: 96
+    upper_limit_ref_range: 106
+    lab_order_category: bmp
+
+  creatinine:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 0.6
+    upper_limit_ref_range: 1.2
+    lab_order_category: bmp
+
+  crp:
+    reference_unit: mg/L
+    lower_limit_ref_range: 0.08
+    upper_limit_ref_range: 3.1
+    lab_order_category: misc
+
+  eosinophils_absolute:
+    reference_unit: 10^3/�L
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 0.5
+    lab_order_category: cbc
+
+  eosinophils_percent:
+    reference_unit: "%"
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 4
+    lab_order_category: cbc
+
+  esr:
+    reference_unit: mm/hour
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 20
+    lab_order_category: misc
+
+  ferritin:
+    reference_unit: ng/mL
+    lower_limit_ref_range: 15
+    upper_limit_ref_range: 200
+    lab_order_category: misc
+
+  glucose_fingerstick:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 70
+    upper_limit_ref_range: 110
+    lab_order_category: misc
+
+  glucose_serum:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 70
+    upper_limit_ref_range: 110
+    lab_order_category: bmp
+
+  hemoglobin:
+    reference_unit: g/dL
+    lower_limit_ref_range: 12
+    upper_limit_ref_range: 18
+    lab_order_category: cbc
+
+  inr:
+    reference_unit: (no units)
+    lower_limit_ref_range: 0.9
+    upper_limit_ref_range: 1.1
+    lab_order_category: coags
+
+  lactate:
+    reference_unit: mmol/L
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 2
+    lab_order_category: misc
+
+  ldh:
+    reference_unit: U/L
+    lower_limit_ref_range: 100
+    upper_limit_ref_range: 200
+    lab_order_category: misc
+
+  lymphocytes_absolute:
+    reference_unit: 10^3/�L
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 4
+    lab_order_category: cbc
+
+  lymphocytes_percent:
+    reference_unit: "%"
+    lower_limit_ref_range: 20
+    upper_limit_ref_range: 40
+    lab_order_category: cbc
+
+  magnesium:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 1.3
+    upper_limit_ref_range: 2.1
+    lab_order_category: bmp
+
+  monocytes_absolute:
+    reference_unit: 10^3/�L
+    lower_limit_ref_range: 0.2
+    upper_limit_ref_range: 0.8
+    lab_order_category: cbc
+
+  monocytes_percent:
+    reference_unit: "%"
+    lower_limit_ref_range: 2
+    upper_limit_ref_range: 8
+    lab_order_category: cbc
+
+  neutrophils_absolute:
+    reference_unit: 10^3/�L
+    lower_limit_ref_range: 2
+    upper_limit_ref_range: 7.5
+    lab_order_category: cbc
+
+  neutrophils_percent:
+    reference_unit: "%"
+    lower_limit_ref_range: 50
+    upper_limit_ref_range: 70
+    lab_order_category: cbc
+
+  pco2_arterial:
+    reference_unit: mmHg
+    lower_limit_ref_range: 35
+    upper_limit_ref_range: 45
+    lab_order_category: blood_gas
+
+  pco2_venous:
+    reference_unit: mmHg
+    lower_limit_ref_range: 40
+    upper_limit_ref_range: 52
+    lab_order_category: blood_gas
+
+  ph_arterial:
+    reference_unit: (no units)
+    lower_limit_ref_range: 7.35
+    upper_limit_ref_range: 7.45
+    lab_order_category: blood_gas
+
+  ph_venous:
+    reference_unit: (no units)
+    lower_limit_ref_range: 7.31
+    upper_limit_ref_range: 7.41
+    lab_order_category: blood_gas
+
+  phosphate:
+    reference_unit: mg/dL
+    lower_limit_ref_range: 2.3
+    upper_limit_ref_range: 4.7
+    lab_order_category: bmp
+
+  platelet_count:
+    reference_unit: 10^3/�L
+    lower_limit_ref_range: 150
+    upper_limit_ref_range: 350
+    lab_order_category: cbc
+
+  po2_arterial:
+    reference_unit: mmHg
+    lower_limit_ref_range: 80
+    upper_limit_ref_range: 100
+    lab_order_category: blood_gas
+
+  potassium:
+    reference_unit: mmol/L
+    lower_limit_ref_range: 3.5
+    upper_limit_ref_range: 5
+    lab_order_category: bmp
+
+  procalcitonin:
+    reference_unit: ng/mL
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 0.05
+    lab_order_category: misc
+
+  pt:
+    reference_unit: sec
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 13
+    lab_order_category: coags
+
+  ptt:
+    reference_unit: sec
+    lower_limit_ref_range: 25
+    upper_limit_ref_range: 40
+    lab_order_category: coags
+
+  so2_arterial:
+    reference_unit: "%"
+    lower_limit_ref_range: 90
+    upper_limit_ref_range: 100
+    lab_order_category: blood_gas
+
+  so2_central_venous:
+    reference_unit: "%"
+    lower_limit_ref_range: 60
+    upper_limit_ref_range: 75
+    lab_order_category: blood_gas
+
+  so2_mixed_venous:
+    reference_unit: "%"
+    lower_limit_ref_range: 60
+    upper_limit_ref_range: 75
+    lab_order_category: blood_gas
+
+  sodium:
+    reference_unit: mmol/L
+    lower_limit_ref_range: 135
+    upper_limit_ref_range: 145
+    lab_order_category: blood_gas
+
+  total_protein:
+    reference_unit: g/dL
+    lower_limit_ref_range: 6
+    upper_limit_ref_range: 8.3
+    lab_order_category: lft
+
+  troponin_i:
+    reference_unit: ng/L
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 40
+    lab_order_category: misc
+
+  troponin_t:
+    reference_unit: ng/L
+    lower_limit_ref_range: 0
+    upper_limit_ref_range: 14
+    lab_order_category: misc
+
+  wbc:
+    reference_unit: 10^3/µL
+    lower_limit_ref_range: 4.5
+    upper_limit_ref_range: 11
+    lab_order_category: cbc
+
+# Vital signs reference ranges
+vitals:
+  dbp:
+    reference_unit: mmHg
+    lower_limit_ref_range: 60
+    upper_limit_ref_range: 80
+
+  heart_rate:
+    reference_unit: beats per minute
+    lower_limit_ref_range: 60
+    upper_limit_ref_range: 100
+
+  height_cm:
+    reference_unit: cm
+    lower_limit_ref_range: 150
+    upper_limit_ref_range: 190
+
+  map:
+    reference_unit: mmHg
+    lower_limit_ref_range: 70
+    upper_limit_ref_range: 100
+
+  respiratory_rate:
+    reference_unit: breaths per minute
+    lower_limit_ref_range: 12
+    upper_limit_ref_range: 20
+
+  sbp:
+    reference_unit: mmHg
+    lower_limit_ref_range: 90
+    upper_limit_ref_range: 120
+
+  spo2:
+    reference_unit: "%"
+    lower_limit_ref_range: 95
+    upper_limit_ref_range: 100
+
+  temp_c:
+    reference_unit: celsius
+    lower_limit_ref_range: 36.5
+    upper_limit_ref_range: 37.5
+
+  weight_kg:
+    reference_unit: kg
+    lower_limit_ref_range: 50
+    upper_limit_ref_range: 100
+
+# Medication administration continuous - typical dose ranges
+medication_admin_continuous:
+  adenosine:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 50
+    upper_limit_ref_range: 150
+    reference: Lexicomp
+
+  albumin_infusion:
+    typical_units: g/kg
+    lower_limit_ref_range: 0.1
+    upper_limit_ref_range: 1
+    reference: Lexicomp
+
+  albuterol:
+    typical_units: mg/hr
+    lower_limit_ref_range: 2.5
+    upper_limit_ref_range: 20
+    reference: Lexicomp
+
+  alprostadil:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.05
+    upper_limit_ref_range: 0.4
+    reference: Lexicomp
+
+  aminocaproic:
+    typical_units: g/hr
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 4
+    reference: Lexicomp
+
+  aminophylline:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 0.3
+    upper_limit_ref_range: 0.9
+    reference: Lexicomp
+
+  amiodarone:
+    typical_units: mg/min
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 1
+    reference: Lexicomp
+
+  angiotensin:
+    typical_units: ng/kg/min
+    lower_limit_ref_range: 2
+    upper_limit_ref_range: 40
+    reference: Lexicomp
+
+  argatroban:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 10
+    reference: Lexicomp
+
+  baclofen:
+    typical_units: mcg/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 120
+    reference: Lexicomp
+
+  bivalirudin:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 0.05
+    upper_limit_ref_range: 0.2
+    reference: Lexicomp
+
+  bumetanide:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 2
+    reference: Lexicomp
+
+  bupivacaine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 15
+    reference: Lexicomp
+
+  cangrelor:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.75
+    upper_limit_ref_range: 4
+    reference: Lexicomp
+
+  cisatracurium:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 10
+    reference: Lexicomp
+
+  clevidipine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 21
+    reference: Lexicomp
+
+  cosyntropin:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.25
+    upper_limit_ref_range: 1
+    reference: Lexicomp
+
+  dexmedetomidine:
+    typical_units: mcg/kg/hr
+    lower_limit_ref_range: 0.2
+    upper_limit_ref_range: 1.5
+    reference: Lexicomp
+
+  dextrose:
+    typical_units: mL/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 100
+    reference: Lexicomp
+
+  dextrose_in_water_d5w:
+    typical_units: mL/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 100
+    reference: Lexicomp
+
+  diltiazem:
+    typical_units: mg/hr
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 15
+    reference: Lexicomp
+
+  dobutamine:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 2
+    upper_limit_ref_range: 20
+    reference: Lexicomp
+
+  dopamine:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 20
+    reference: Lexicomp
+
+  epinephrine:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.01
+    upper_limit_ref_range: 0.5
+    reference: Lexicomp
+
+  epoprostenol:
+    typical_units: ng/kg/min
+    lower_limit_ref_range: 2
+    upper_limit_ref_range: 50
+    reference: Lexicomp
+
+  eptifibatide:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 2
+    reference: Lexicomp
+
+  esmolol:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 50
+    upper_limit_ref_range: 300
+    reference: Lexicomp
+
+  esomeprazole:
+    typical_units: mg/hr
+    lower_limit_ref_range: 8
+    upper_limit_ref_range: 8
+    reference: Lexicomp
+
+  fentanyl:
+    typical_units: mcg/kg/hr
+    lower_limit_ref_range: 0.7
+    upper_limit_ref_range: 10
+    reference: Lexicomp
+
+  furosemide:
+    typical_units: mg/hr
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 40
+    reference: Lexicomp
+
+  heparin:
+    typical_units: units/kg/hr
+    lower_limit_ref_range: 12
+    upper_limit_ref_range: 18
+    reference: Lexicomp
+
+  hydromorphone:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.1
+    upper_limit_ref_range: 1
+    reference: Lexicomp
+
+  insulin:
+    typical_units: units/kg/hr
+    lower_limit_ref_range: 0.05
+    upper_limit_ref_range: 0.1
+    reference: Lexicomp
+
+  ipratropium:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 2
+    reference: Lexicomp
+
+  isoproterenol:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.01
+    upper_limit_ref_range: 0.2
+    reference: Lexicomp
+
+  ketamine:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 0.1
+    upper_limit_ref_range: 5
+    reference: Lexicomp
+
+  labetalol:
+    typical_units: mg/min
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 8
+    reference: Lexicomp
+
+  lactated_ringers_solution:
+    typical_units: mL/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 200
+    reference: Lexicomp
+
+  lidocaine:
+    typical_units: mg/min
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 5
+    reference: Lexicomp
+
+  liothyronine:
+    typical_units: mcg/hr
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 20
+    reference: Lexicomp
+
+  lorazepam:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 0.01
+    upper_limit_ref_range: 0.1
+    reference: Lexicomp
+
+  magnesium:
+    typical_units: g/hr
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 4
+    reference: Lexicomp
+
+  midazolam:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 0.02
+    upper_limit_ref_range: 0.1
+    reference: Lexicomp
+
+  milrinone:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.25
+    upper_limit_ref_range: 0.75
+    reference: Lexicomp
+
+  morphine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 10
+    reference: Lexicomp
+
+  naloxone:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.4
+    upper_limit_ref_range: 4
+    reference: Lexicomp
+
+  narcan:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.4
+    upper_limit_ref_range: 4
+    reference: Lexicomp
+
+  nicardipine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 15
+    reference: Lexicomp
+
+  nitroglycerin:
+    typical_units: mcg/min
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 200
+    reference: Lexicomp
+
+  nitroprusside:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.3
+    upper_limit_ref_range: 10
+    reference: Lexicomp
+
+  norepinephrine:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.01
+    upper_limit_ref_range: 3
+    reference: Lexicomp
+
+  octreotide:
+    typical_units: mcg/hr
+    lower_limit_ref_range: 25
+    upper_limit_ref_range: 50
+    reference: Lexicomp
+
+  oxytocin:
+    typical_units: milliunits/min
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 40
+    reference: Lexicomp
+
+  pantoprazole:
+    typical_units: mg/hr
+    lower_limit_ref_range: 8
+    upper_limit_ref_range: 8
+    reference: Lexicomp
+
+  papaverine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 30
+    upper_limit_ref_range: 120
+    reference: Lexicomp
+
+  pentobarbital:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 5
+    reference: Lexicomp
+
+  phentolamine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 20
+    reference: Lexicomp
+
+  phenylephrine:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.1
+    upper_limit_ref_range: 9
+    reference: Lexicomp
+
+  pitocin:
+    typical_units: milliunits/min
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 40
+    reference: Lexicomp
+
+  plasma_lyte:
+    typical_units: mL/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 200
+    reference: Lexicomp
+
+  procainamide:
+    typical_units: mg/min
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 6
+    reference: Lexicomp
+
+  propofol:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 80
+    reference: Lexicomp
+
+  remifentanil:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.025
+    upper_limit_ref_range: 2
+    reference: Lexicomp
+
+  repletion:
+    typical_units: mEq/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 50
+    reference: Lexicomp
+
+  rocuronium:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 12
+    reference: Lexicomp
+
+  ropivacaine:
+    typical_units: mg/hr
+    lower_limit_ref_range: 6
+    upper_limit_ref_range: 14
+    reference: Lexicomp
+
+  sodium_bicarbonate:
+    typical_units: mEq/kg/hr
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 5
+    reference: Lexicomp
+
+  sodium_chloride:
+    typical_units: mL/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 200
+    reference: Lexicomp
+
+  tacrolimus:
+    typical_units: mg/kg/day
+    lower_limit_ref_range: 0.01
+    upper_limit_ref_range: 0.04
+    reference: Lexicomp
+
+  terbutaline:
+    typical_units: mg/min
+    lower_limit_ref_range: 0.01
+    upper_limit_ref_range: 0.4
+    reference: Lexicomp
+
+  thyroid_replacement:
+    typical_units: mcg/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 100
+    reference: Lexicomp
+
+  tocolyttics:
+    typical_units: mg/min
+    lower_limit_ref_range: 0.5
+    upper_limit_ref_range: 3
+    reference: Lexicomp
+
+  torsemide:
+    typical_units: mg/hr
+    lower_limit_ref_range: 5
+    upper_limit_ref_range: 20
+    reference: Lexicomp
+
+  tpn:
+    typical_units: mL/hr
+    lower_limit_ref_range: 10
+    upper_limit_ref_range: 125
+    reference: Lexicomp
+
+  treprostinil:
+    typical_units: ng/kg/min
+    lower_limit_ref_range: 1.25
+    upper_limit_ref_range: 40
+    reference: Lexicomp
+
+  vasopressin:
+    typical_units: units/min
+    lower_limit_ref_range: 0.03
+    upper_limit_ref_range: 0.04
+    reference: Lexicomp
+
+  vecuronium:
+    typical_units: mcg/kg/min
+    lower_limit_ref_range: 0.8
+    upper_limit_ref_range: 1.7
+    reference: Lexicomp
+
+  zidovudine:
+    typical_units: mg/kg/hr
+    lower_limit_ref_range: 1
+    upper_limit_ref_range: 2
+    reference: Lexicomp

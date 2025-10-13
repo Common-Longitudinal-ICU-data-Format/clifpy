@@ -8,12 +8,12 @@ columns:
   is_group_column: false
 - name: billing_provider_id
   data_type: VARCHAR
-  required: true
+  required: false
   is_category_column: false
   is_group_column: false
 - name: performing_provider_id
   data_type: VARCHAR
-  required: true
+  required: false
   is_category_column: false
   is_group_column: false
 - name: procedure_billed_dttm
@@ -38,8 +38,6 @@ columns:
 
 required_columns:
   - hospitalization_id
-  - billing_provider_id
-  - performing_provider_id
   - procedure_billed_dttm
   - procedure_code
   - procedure_code_format
