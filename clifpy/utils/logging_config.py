@@ -20,10 +20,10 @@ from typing import Optional
 # Emoji mapping for different log levels
 EMOJI_MAP = {
     'DEBUG': '🐛',
-    'INFO': '✅',
+    'INFO': '📢',
     'WARNING': '⚠️',
     'ERROR': '❌',
-    'CRITICAL': '🔥'
+    'CRITICAL': '🆘'
 }
 
 
