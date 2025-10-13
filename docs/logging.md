@@ -10,6 +10,151 @@ The `clifpy` package uses a centralized logging system that provides:
 - **Automatic setup**: Logging initializes automatically when using ClifOrchestrator
 - **Hierarchical loggers**: Organized namespace (`clifpy.*`) for all modules
 
+## How It Works: Two Key Functions
+
+The logging system uses two functions with distinct purposes:
+
+### `setup_logging()` - Configure the System (Call Once)
+
+This function **configures** the entire logging infrastructure:
+- Creates log files (`clifpy_all.log`, `clifpy_errors.log`)
+- Sets up console output
+- Configures emoji formatting
+- Determines where and how logs are saved
+
+**Call this once** at your application's entry point.
+
+### `get_logger()` - Get a Logger (Call Anywhere)
+
+This function simply **retrieves** a logger instance. It does not configure anything.
+
+**Where Each Is Used:**
+
+| Called In | Function Used | Purpose |
+|-----------|---------------|---------|
+| `ClifOrchestrator.__init__()` | `setup_logging()` | Entry point - configures logging |
+| `BaseTable.__init__()` | `setup_logging()` | Entry point - configures logging |
+| `utils/wide_dataset.py` | `get_logger()` | Utility - just needs a logger |
+| `utils/sofa.py` | `get_logger()` | Utility - just needs a logger |
+| `utils/io.py` | `get_logger()` | Utility - just needs a logger |
+| `utils/config.py` | `get_logger()` | Utility - just needs a logger |
+
+**Why utility modules don't call `setup_logging()`:**
+
+When you create a `ClifOrchestrator`, it calls `setup_logging()` internally. By the time utility modules like `wide_dataset.py` run, logging is already configured. They just need to retrieve their logger with `get_logger()`.
+
+```python
+# User's script
+clif = ClifOrchestrator(...)  # ← setup_logging() called here
+
+# Later, when you call this:
+wide_df = clif.create_wide_dataset(...)  # ← wide_dataset.py just uses get_logger()
+```
+
+## Logger Namespaces and Why They Matter
+
+### What Are Logger Names?
+
+Each logger has a hierarchical name (like `clifpy.utils.sofa` or `clifpy.tables.labs`). Think of it like a file path - the dots create a parent-child relationship.
+
+### The Logger Hierarchy
+
+```
+clifpy                              ← Root logger (configured by setup_logging)
+├── clifpy.ClifOrchestrator         ← Inherits config from parent
+├── clifpy.tables                   ← Inherits config from parent
+│   ├── clifpy.tables.labs          ← Inherits config from grandparent
+│   ├── clifpy.tables.vitals        ← Inherits config from grandparent
+│   └── clifpy.tables.meds          ← Inherits config from grandparent
+└── clifpy.utils                    ← Inherits config from parent
+    ├── clifpy.utils.wide_dataset   ← Inherits config from grandparent
+    ├── clifpy.utils.sofa           ← Inherits config from grandparent
+    └── clifpy.utils.io             ← Inherits config from grandparent
+```
+
+**Key concept:** When `setup_logging()` configures the `'clifpy'` root logger, all child loggers (`clifpy.*`) automatically inherit that configuration. This is why utility modules don't need to call `setup_logging()` - they inherit everything from the parent.
+
+### Why Logger Names Matter
+
+Logger names provide several practical benefits:
+
+#### 1. Identify Where Logs Come From
+
+Each log message shows exactly which module generated it:
+
+```
+2025-10-13 10:30:15 | 📢 INFO | clifpy.ClifOrchestrator | Starting analysis
+2025-10-13 10:30:16 | 📢 INFO | clifpy.utils.wide_dataset | Loading tables
+2025-10-13 10:30:17 | ❌ ERROR | clifpy.tables.labs | Missing column: creatinine
+2025-10-13 10:30:18 | 📢 INFO | clifpy.utils.sofa | Computing SOFA scores
+```
+
+Without names, you'd just see messages with no indication of which file or module has a problem.
+
+#### 2. Control Verbosity for Specific Modules
+
+You can make specific parts of your code more or less verbose:
+
+```python
+import logging
+
+# Make ONLY sofa.py show detailed debug messages
+logging.getLogger('clifpy.utils.sofa').setLevel(logging.DEBUG)
+
+# Quiet down the noisy wide_dataset.py (warnings only)
+logging.getLogger('clifpy.utils.wide_dataset').setLevel(logging.WARNING)
+
+# Everything else stays at INFO level (default)
+```
+
+**Real scenario:** You're debugging SOFA calculations but don't care about all the verbose wide dataset processing logs. Just make SOFA verbose and keep everything else quiet.
+
+#### 3. Control Entire Subsystems
+
+Hierarchical names let you control entire groups at once:
+
+```python
+import logging
+
+# Silence ALL table-related logging
+logging.getLogger('clifpy.tables').setLevel(logging.ERROR)
+
+# This automatically affects all child loggers:
+#   - clifpy.tables.labs
+#   - clifpy.tables.vitals
+#   - clifpy.tables.medication_admin_continuous
+#   - All other tables
+```
+
+#### 4. Search and Filter Logs
+
+Use grep to find logs from specific modules:
+
+```bash
+# Find all SOFA calculation logs
+grep "clifpy.utils.sofa" output/logs/clifpy_all.log
+
+# Find all table loading issues
+grep "clifpy.tables" output/logs/clifpy_errors.log
+
+# Find all wide dataset processing
+grep "clifpy.utils.wide_dataset" output/logs/clifpy_all.log
+```
+
+#### 5. Trace Execution Flow
+
+Follow your code's execution path across multiple modules:
+
+```
+10:30:15 | clifpy.ClifOrchestrator      | Starting wide dataset creation
+10:30:16 | clifpy.utils.wide_dataset    | Loading labs table
+10:30:17 | clifpy.tables.labs           | Loaded 50,000 records
+10:30:18 | clifpy.utils.wide_dataset    | Pivoting labs data
+10:30:19 | clifpy.utils.wide_dataset    | ERROR: Pivot failed
+```
+
+You can see the execution flow: orchestrator → wide_dataset → labs → back to wide_dataset → error.
+
 ## Log File Structure
 
 All logs are stored in the `output/logs/` subdirectory:
@@ -57,10 +202,10 @@ Logs use emojis for quick visual parsing:
 | Level    | Emoji | When Used |
 |----------|-------|-----------|
 | DEBUG    | 🐛    | Detailed internal operations, variable values |
-| INFO     | ✅    | Normal operations, progress updates |
+| INFO     | 📢    | Normal operations, progress updates |
 | WARNING  | ⚠️    | Potential issues, missing optional data |
 | ERROR    | ❌    | Failures, validation errors |
-| CRITICAL | 🔥    | Severe failures requiring immediate attention |
+| CRITICAL | 🆘    | Severe failures requiring immediate attention |
 
 ## Usage
 
@@ -102,6 +247,37 @@ logger.info("Starting custom analysis")
 logger.warning("Missing optional parameter, using default")
 logger.error("Failed to process data")
 ```
+
+#### Understanding `get_logger()` vs `logging.getLogger()`
+
+The `get_logger()` function is a convenience wrapper that ensures your logger inherits the centralized configuration. Here's what it does:
+
+```python
+# Using our wrapper (recommended) ✅
+from clifpy.utils.logging_config import get_logger
+logger = get_logger('my_analysis')
+# → Creates logger named 'clifpy.my_analysis' (automatically prefixed!)
+# → Inherits all configuration (log files, console, emojis)
+
+# Direct call with full prefix ✅
+import logging
+logger = logging.getLogger('clifpy.my_analysis')
+# → Creates logger named 'clifpy.my_analysis' (manual prefix)
+# → Inherits all configuration
+
+# Direct call WITHOUT prefix ❌
+import logging
+logger = logging.getLogger('my_analysis')
+# → Creates logger named 'my_analysis' (root level, no prefix)
+# → Does NOT inherit clifpy configuration
+# → Uses Python's default logging (no files, no emojis)
+```
+
+**Why the prefix matters:**
+
+Only loggers whose names start with `'clifpy.'` inherit the centralized configuration. The `get_logger()` wrapper automatically adds this prefix, so you don't have to remember it.
+
+**Best practice:** Use `get_logger()` to ensure your logger is properly configured.
 
 ### Configuration Options
 
