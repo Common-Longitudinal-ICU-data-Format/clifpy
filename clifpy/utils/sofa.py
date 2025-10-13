@@ -1,6 +1,10 @@
 import pandas as pd
 from typing import Dict, List, Optional
 import duckdb
+import logging
+
+# Set up logging - use centralized logger
+logger = logging.getLogger('clifpy.utils.sofa')
 
 REQUIRED_SOFA_CATEGORIES_BY_TABLE = {
     'labs': ['creatinine','platelet_count','po2_arterial','bilirubin_total'],
@@ -261,7 +265,7 @@ def compute_sofa(
         wide_df = duckdb.sql(q).df()
     
     if remove_outliers:
-        print("Removing outliers from wide dataset...")
+        logger.info("Removing outliers from wide dataset")
         q = f"""
         FROM wide_df
         SELECT * REPLACE (
