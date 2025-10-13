@@ -17,6 +17,7 @@ from datetime import datetime
 from ..utils.io import load_data
 from ..utils import validator
 from ..utils.config import get_config_or_params
+from ..utils.logging_config import setup_logging
 
 
 class BaseTable:
@@ -83,11 +84,14 @@ class BaseTable:
             output_directory = os.path.join(os.getcwd(), 'output')
         self.output_directory = output_directory
         os.makedirs(self.output_directory, exist_ok=True)
-        
+
+        # Initialize centralized logging
+        setup_logging(output_directory=self.output_directory)
+
         # Derive snake_case table name from PascalCase class name
         # Example: Adt -> adt, RespiratorySupport -> respiratory_support
         self.table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in self.__class__.__name__]).lstrip('_')
-        
+
         # Initialize data and validation state
         self.df: Optional[pd.DataFrame] = data
         self.errors: List[Dict[str, Any]] = []
@@ -95,7 +99,7 @@ class BaseTable:
         self.outlier_config: Optional[Dict[str, Any]] = None
         self._validated: bool = False
 
-        # Setup logging
+        # Setup table-specific logging
         self._setup_logging()
 
         # Load schema
@@ -104,33 +108,32 @@ class BaseTable:
         # Load outlier config
         self._load_outlier_config()
         
-    
+
     def _setup_logging(self):
-        """Set up logging for this table."""
-        # Create logger
-        self.logger = logging.getLogger(f'clifpy.{self.table_name}')
-        self.logger.setLevel(logging.INFO)
-        
-        # Remove existing handlers to avoid duplicates
-        self.logger.handlers = []
-        
-        # Create file handler
-        log_file = os.path.join(
-            self.output_directory, 
-            f'validation_log_{self.table_name}.log'
-        )
-        file_handler = logging.FileHandler(log_file, mode='w')
-        file_handler.setLevel(logging.INFO)
-        
-        # Create formatter
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        file_handler.setFormatter(formatter)
-        
-        # Add handler to logger
-        self.logger.addHandler(file_handler)
-        
+        """Set up table-specific logging (supplementary to centralized logs)."""
+        # Get logger from centralized system
+        self.logger = logging.getLogger(f'clifpy.tables.{self.table_name}')
+
+        # Add supplementary file handler for table-specific validation logs
+        # These go to output/logs/validation_log_{table}.log in addition to main logs
+        log_dir = os.path.join(self.output_directory, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+
+        log_file = os.path.join(log_dir, f'validation_log_{self.table_name}.log')
+
+        # Check if this handler already exists (avoid duplicates)
+        existing_handlers = [h for h in self.logger.handlers
+                           if isinstance(h, logging.FileHandler) and h.baseFilename == log_file]
+
+        if not existing_handlers:
+            file_handler = logging.FileHandler(log_file, mode='w')
+            file_handler.setLevel(logging.INFO)
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+
         # Log initialization
         self.logger.info(f"Initialized {self.table_name} table")
         self.logger.info(f"Data directory: {self.data_directory}")
@@ -264,9 +267,9 @@ class BaseTable:
     def validate(self):
         """
         Run comprehensive validation on the data.
-        
+
         This method runs all validation checks including:
-        
+
         - Schema validation (required columns, data types, categories)
         - Missing data analysis
         - Duplicate checking
@@ -275,42 +278,39 @@ class BaseTable:
         """
         if self.df is None:
             self.logger.warning("No dataframe to validate")
-            print("No dataframe to validate.")
             return
-        
+
         self.logger.info("Starting validation")
         self.errors = []
         self._validated = True
-        
+
         try:
             # Run basic schema validation
             if self.schema:
                 self.logger.info("Running schema validation")
                 schema_errors = validator.validate_dataframe(self.df, self.schema)
                 self.errors.extend(schema_errors)
-                
+
                 if schema_errors:
                     self.logger.warning(f"Schema validation found {len(schema_errors)} errors")
                 else:
                     self.logger.info("Schema validation passed")
-            
+
             # Run enhanced validations (these will be implemented in Phase 3)
             self._run_enhanced_validations()
-            
+
             # Run table-specific validations (can be overridden in child classes)
             self._run_table_specific_validations()
-            
+
             # Log validation results
             if not self.errors:
                 self.logger.info("Validation completed successfully")
-                print("Validation completed successfully.")
             else:
-                self.logger.warning(f"Validation completed with {len(self.errors)} error(s)")
-                print(f"Validation completed with {len(self.errors)} error(s). See `errors` attribute.")
-                
+                self.logger.warning(f"Validation completed with {len(self.errors)} error(s). See `errors` attribute.")
+
                 # Save errors to CSV
                 self._save_validation_errors()
-                
+
         except Exception as e:
             self.logger.error(f"Error during validation: {str(e)}")
             self.errors.append({
@@ -487,13 +487,13 @@ class BaseTable:
     def isvalid(self) -> bool:
         """
         Check if the data is valid based on the last validation run.
-        
+
         Returns:
             bool: True if validation has been run and no errors were found,
                   False if validation found errors or hasn't been run yet
         """
         if not self._validated:
-            print("Validation has not been run yet. Please call validate() first.")
+            self.logger.warning("Validation has not been run yet. Please call validate() first.")
             return False
         return not self.errors
     

@@ -17,8 +17,8 @@ from typing import List, Dict, Optional, Union
 from tqdm import tqdm
 import logging
 
-# Set up logging
-logger = logging.getLogger(__name__)
+# Set up logging - use centralized logger
+logger = logging.getLogger('clifpy.utils.wide_dataset')
 
 # Global config cache
 _WIDE_TABLES_CONFIG = None
@@ -180,9 +180,10 @@ def create_wide_dataset(
     pd.DataFrame or None
         DataFrame if return_dataframe=True, None otherwise
     """
-    
-    print("\nPhase 4: Wide Dataset Processing (utility function)")
-    print("  4.1: Starting wide dataset creation...")
+
+
+    logger.info("Phase 4: Wide Dataset Processing (utility function)")
+    logger.debug("  4.1: Starting wide dataset creation")
 
     # Validate cohort_df if provided
     if cohort_df is not None:
@@ -190,19 +191,18 @@ def create_wide_dataset(
         missing_cols = [col for col in required_cols if col not in cohort_df.columns]
         if missing_cols:
             raise ValueError(f"cohort_df must contain columns: {required_cols}. Missing: {missing_cols}")
-        
+
         # Ensure hospitalization_id is string type to match with other tables
         cohort_df['hospitalization_id'] = cohort_df['hospitalization_id'].astype(str)
-        
+
         # Ensure time columns are datetime
         for time_col in ['start_time', 'end_time']:
             if not pd.api.types.is_datetime64_any_dtype(cohort_df[time_col]):
                 cohort_df[time_col] = pd.to_datetime(cohort_df[time_col])
-        
-        print("  === SPECIAL: COHORT TIME WINDOW FILTERING ===")
-        print(f"       - Processing {len(cohort_df)} hospitalizations with time windows")
-        print(f"       - Ensuring datetime types for start_time, end_time")
-        print("")
+
+        logger.info("  === SPECIAL: COHORT TIME WINDOW FILTERING ===")
+        logger.info(f"       - Processing {len(cohort_df)} hospitalizations with time windows")
+        logger.debug(f"       - Ensuring datetime types for start_time, end_time")
     
     # Get table types from config
     PIVOT_TABLES = _get_supported_tables(table_type='pivot')
@@ -214,7 +214,7 @@ def create_wide_dataset(
     
     # For backward compatibility with optional_tables
     if optional_tables and not category_filters:
-        print("Warning: optional_tables parameter is deprecated. Converting to category_filters format.")
+        logger.warning("optional_tables parameter is deprecated. Converting to category_filters format")
         category_filters = {table: [] for table in optional_tables}
     
     tables_to_load = list(category_filters.keys())
@@ -238,25 +238,25 @@ def create_wide_dataset(
         
         # Get hospitalization IDs to process
         hospitalization_df = clif_instance.hospitalization.df.copy()
-        
+
         if hospitalization_ids is not None:
-            print(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
+            logger.info(f"Filtering to specific hospitalization IDs: {len(hospitalization_ids)} encounters")
             required_ids = hospitalization_ids
         elif cohort_df is not None:
             # Use hospitalization IDs from cohort_df
             required_ids = cohort_df['hospitalization_id'].unique().tolist()
-            print(f"Using {len(required_ids)} hospitalization IDs from cohort_df")
+            logger.info(f"Using {len(required_ids)} hospitalization IDs from cohort_df")
         elif sample:
-            print("Sampling 20 random hospitalizations...")
+            logger.info("Sampling 20 random hospitalizations")
             all_ids = hospitalization_df['hospitalization_id'].unique()
             required_ids = np.random.choice(all_ids, size=min(20, len(all_ids)), replace=False).tolist()
-            print(f"Selected {len(required_ids)} hospitalizations for sampling")
+            logger.info(f"Selected {len(required_ids)} hospitalizations for sampling")
         else:
             required_ids = hospitalization_df['hospitalization_id'].unique().tolist()
-            print(f"Processing all {len(required_ids)} hospitalizations")
-        
+            logger.info(f"Processing all {len(required_ids)} hospitalizations")
+
         # Filter all base tables by required IDs immediately
-        print("\nLoading and filtering base tables...")
+        logger.info("Loading and filtering base tables")
         # Only keep required columns from hospitalization table
         hosp_required_cols = ['hospitalization_id', 'patient_id', 'age_at_admission']
         hosp_available_cols = [col for col in hosp_required_cols if col in hospitalization_df.columns]

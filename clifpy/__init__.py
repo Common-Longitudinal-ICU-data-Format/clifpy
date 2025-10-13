@@ -31,6 +31,7 @@ from .utils.comorbidity import calculate_cci
 from .utils.outlier_handler import apply_outlier_handling, get_outlier_summary
 from .utils.config import load_config
 from .utils.io import load_data
+from .utils.logging_config import setup_logging, get_logger
 
 # Version info
 try:
@@ -74,4 +75,6 @@ __all__ = [
     "get_outlier_summary",
     "load_config",
     "load_data",
+    "setup_logging",
+    "get_logger",
 ]
