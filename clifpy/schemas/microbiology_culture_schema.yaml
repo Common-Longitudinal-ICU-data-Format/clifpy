@@ -98,7 +98,7 @@ columns:
   is_group_column: false
   permissible_values:
   - culture
-  - gram stain
+  - gram_stain
   - smear
 - name: organism_category
   data_type: VARCHAR
@@ -176,6 +176,7 @@ columns:
   - bacillus_simplex
   - bacillus_sp
   - bacillus_subtilis
+  - bacteria_other
   - bacteroides_caccae
   - bacteroides_capillosus
   - bacteroides_eggerthii
@@ -202,11 +203,15 @@ columns:
   - brevibacterium_luteolum
   - brevibacterium_sp
   - brevundimonas_diminuta
+  - brevundimonas_sp
   - brevundimonas_vesicularis
   - brucella_intermedia
   - burkholderia_cepacia
   - burkholderia_gladioli
   - burkholderia_sp
+  - campylobacter_coli
+  - campylobacter_jejuni
+  - campylobacter_sp
   - campylobacter_ureolyticus
   - candida_albicans
   - candida_auris
@@ -236,6 +241,7 @@ columns:
   - capnocytophaga_gingivalis
   - capnocytophaga_sp
   - cardiobacterium_hominis
+  - cardiobacterium_sp
   - cellulosimicrobium_cellulans
   - chaetomium_sp
   - chryseobacterium_indologenes
@@ -271,6 +277,7 @@ columns:
   - corynebacterium_aurimucosum
   - corynebacterium_bovis
   - corynebacterium_coyleae
+  - corynebacterium_diptheriae
   - corynebacterium_durum
   - corynebacterium_freneyi
   - corynebacterium_glucuronolyticum
@@ -286,6 +293,7 @@ columns:
   - corynebacterium_urealyticum
   - cronobacter_malonaticus
   - cronobacter_sakazakii
+  - cronobacter_sp
   - cryptococcus_albidus
   - cryptococcus_neoformans
   - cunninghamella_sp
@@ -298,10 +306,11 @@ columns:
   - dematiaceous_sp
   - dermabacter_hominis
   - dermacoccus_nishinomiyaensis
-  - desulfovibri_sp
+  - desulfovibrio_sp
   - dialister_pneumosintes
   - dialister_sp
   - dietzia_cinnamea
+  - dietzia_sp
   - dolosigranulum_pigrum
   - edwardsiella_tarda
   - eggerthella_lenta
@@ -341,6 +350,7 @@ columns:
   - facklamia_sp
   - finegoldia_magna
   - francisella_tularensis
+  - fungus_other
   - fusarium_proliferatum
   - fusarium_solani
   - fusarium_sp
@@ -354,6 +364,7 @@ columns:
   - geotrichum_sp
   - globicatella_sanguinis
   - gordonia_bronchialis
+  - gordonia_sp
   - gram_negative_diplococci
   - gram_negative_rod
   - gram_positive_cocci
@@ -363,6 +374,7 @@ columns:
   - haemophilus_haemolyticus
   - haemophilus_influenzae
   - haemophilus_parainfluenzae
+  - haemophilus_sp
   - hafnia_alvei
   - hafnia_sp
   - histoplasma_capsulatum
@@ -387,9 +399,8 @@ columns:
   - legionella_feeleii
   - legionella_pneumophila
   - legionella_sp
-  - lelliottia_amnigena
+  - lelliottia_amigena
   - leptotrichia_buccalis
-  - lettiottia_amnigena
   - leuconostoc_sp
   - lichtheimia_sp
   - listeria_monocytogenes
@@ -402,11 +413,13 @@ columns:
   - micrococcus_luteus
   - micrococcus_sp
   - microsporum_gypseum
+  - microsporum_sp
   - moraxella_catarrhalis
   - moraxella_nonliquefaciens
   - moraxella_osloensis
   - moraxella_sp
   - morganella_morganii
+  - morganella_sp
   - mucor_circinelloides
   - mucor_sp
   - mycobacterium_abscessus
@@ -420,6 +433,7 @@ columns:
   - mycobacterium_lentiflavum
   - mycobacterium_llatzerense
   - mycobacterium_malmoense
+  - mycobacterium_marinum
   - mycobacterium_mucogenicum
   - mycobacterium_neoaurum
   - mycobacterium_paraffinicum
@@ -452,8 +466,6 @@ columns:
   - odoribacter_splanchnicus
   - oligella_ureolytica
   - oligella_urethralis
-  - other bacteria
-  - other fungus
   - paecilomyces_lilacinus
   - paecilomyces_sp
   - paenibacillus_sp
@@ -498,7 +510,9 @@ columns:
   - proteus_penneri
   - proteus_sp
   - proteus_vulgaris
+  - providencia_alcalifaciens
   - providencia_rettgeri
+  - providencia_sp
   - providencia_stuartii
   - pseudallescheria_boydii
   - pseudoglutamicibacter_cumminsii
@@ -515,13 +529,16 @@ columns:
   - psychrobacter_sp
   - purpureocillium_lilacinum
   - rahnella_aquatilis
+  - rahnella_sp
   - ralstonia_mannitolilytica
   - ralstonia_pickettii
+  - ralstonia_sp
   - raoultella_ornithinolytica
   - raoultella_planticola
   - raoultella_sp
   - rhinocladiella_sp
   - rhizobium_radiobacter
+  - rhizobium_sp
   - rhizomucor_pusillus
   - rhizomucor_sp
   - rhizopus_sp
@@ -531,6 +548,7 @@ columns:
   - roseomonas_sp
   - rothia_dentocariosa
   - rothia_mucilaginosa
+  - rothia_sp
   - saccharomyces_cerevisiae
   - saccharomyces_sp
   - salmonella_enterica
@@ -540,7 +558,6 @@ columns:
   - saprochaete_capitata
   - saprochaete_sp
   - scedosporium_apiospermum
-  - scopulariopsi_sp
   - scopulariopsis_brevicaulis
   - scopulariopsis_sp
   - serratia_fonticola
@@ -556,7 +573,7 @@ columns:
   - sphingomonas_paucimobilis
   - sphingomonas_sp
   - sporobolomyces_salmonicolor
-  - staphyloccous_coagneg
+  - staphyloccocus_coagneg
   - staphylococcus_aureus
   - staphylococcus_auricularis
   - staphylococcus_capitis
@@ -581,8 +598,7 @@ columns:
   - staphylococcus_xylosus
   - stenotrophomonas_maltophilia
   - stenotrophomonas_rhizophila
-  - streptcoccus_gallolyticus
-  - streptcoccus_pyogenes
+  - stenotrophomonas_sp
   - streptococcus_agalactiae
   - streptococcus_alphahemolytic
   - streptococcus_anginosus
@@ -619,14 +635,18 @@ columns:
   - trichosporon_asahii
   - trichosporon_sp
   - trueperella_bernardiae
+  - trueperella_sp
   - tuberculosis_nos_afb_kochbacillus
   - turicella_otitidis
   - vagococcus_fluvialis
   - veillonella_sp
   - verticillium_sp
   - vibrio_sp
+  - virus_other
+  - weeksella_sp
   - weeksella_virosa
   - weissella_confusa
+  - weissella_sp
   - xanthomonas_sp
   - yeast
   - zygomycete_sp

@@ -84,6 +84,7 @@ columns:
       - neutrophils_percent
       - neutrophils_absolute
       - pco2_arterial
+      - po2_arterial
       - pco2_venous
       - ph_arterial
       - ph_venous
@@ -122,7 +123,7 @@ columns:
     is_group_column: false
   - name: lab_specimen_category
     data_type: VARCHAR
-    required: true
+    required: false
     is_category_column: true
     is_group_column: false
     permissible_values:

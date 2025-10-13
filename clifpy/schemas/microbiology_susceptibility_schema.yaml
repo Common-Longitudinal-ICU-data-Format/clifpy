@@ -201,7 +201,7 @@ columns:
   is_group_column: false
   permissible_values:
   - susceptible
-  - non susceptible
+  - non_susceptible
   - intermediate
   - NA
 
