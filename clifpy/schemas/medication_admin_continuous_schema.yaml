@@ -51,7 +51,7 @@ columns:
       - torsemide
       - heparin
       - argatroban
-      - bivalirudin alteplase
+      - bivalirudin
       - cangrelor
       - eptifibatide
       - amiodarone
@@ -72,13 +72,13 @@ columns:
       - treprostinil
       - epoprostenol
       - alprostadil
+      - nitric_oxide
       - octreotide
       - pantoprazole
       - esomeprazole
       - albuterol
       - terbutaline
       - ipratropium
-      - narcan
       - insulin
       - thyroid replacement
       - oxytocin
@@ -86,14 +86,13 @@ columns:
       - repletion
       - sodium bicarbonate
       - tpn
-      - tocolytics
+      - tocolyttics
       - magnesium
       - pitocin
       - dextrose
       - sodium chloride
       - aminocaproic
       - aminophylline
-      - terbutaline
       - naloxone
       - phentolamine
       - liothyronine
@@ -119,9 +118,9 @@ columns:
       - cardiac
       - paralytics
       - pulmonary vasodilators (IV)
+      - pulmonary vasodilators (inhaled)
       - gastrointestinal
-      - inhaled
-      - analgesia
+      - Inhaled
       - endocrine
       - fluids_electrolytes
       - others
@@ -203,7 +202,7 @@ med_category_to_group_mapping:
   torsemide: diuretics
   heparin: anticoagulation
   argatroban: anticoagulation
-  bivalirudin alteplase: anticoagulation
+  bivalirudin: anticoagulation
   cangrelor: anticoagulation
   eptifibatide: anticoagulation
   amiodarone: cardiac
@@ -223,14 +222,15 @@ med_category_to_group_mapping:
   rocuronium: paralytics
   treprostinil: pulmonary vasodilators (IV)
   epoprostenol: pulmonary vasodilators (IV)
+  epoprostenol_inhaled: pulmonary vasodilators (inhaled)
   alprostadil: pulmonary vasodilators (IV)
+  nitric_oxide: pulmonary vasodilators (inhaled)
   octreotide: gastrointestinal
   pantoprazole: gastrointestinal
   esomeprazole: gastrointestinal
-  albuterol: inhaled
-  terbutaline: inhaled
-  ipratropium: inhaled
-  narcan: analgesia
+  albuterol: Inhaled
+  terbutaline: Inhaled
+  ipratropium: Inhaled
   insulin: endocrine
   thyroid replacement: endocrine
   oxytocin: endocrine
@@ -238,6 +238,22 @@ med_category_to_group_mapping:
   repletion: fluids_electrolytes
   sodium bicarbonate: fluids_electrolytes
   tpn: fluids_electrolytes
+  tocolyttics: others
+  magnesium: others
+  pitocin: others
+  dextrose: others
+  sodium chloride: others
+  aminocaproic: others
+  aminophylline: others
+  terbutaline_others: others
+  naloxone: others
+  phentolamine: others
+  liothyronine: others
+  zidovudine: others
+  tacrolimus: others
+  ropivacaine: others
+  bupivacaine: others
+  baclofen: others
   lactated_ringers_solution: fluids_electrolytes
   albumin_infusion: fluids_electrolytes
   plasma_lyte: fluids_electrolytes
