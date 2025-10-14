@@ -115,7 +115,8 @@ def create_wide_dataset(
     batch_size: int = 1000,
     memory_limit: Optional[str] = None,
     threads: Optional[int] = None,
-    show_progress: bool = True
+    show_progress: bool = True,
+    use_locf_at_start_time: bool = True
 ) -> Optional[pd.DataFrame]:
     """
     Create a wide dataset by joining multiple CLIF tables with pivoting support.
@@ -174,7 +175,18 @@ def create_wide_dataset(
         Number of threads for DuckDB to use
     show_progress : bool, default=True
         Show progress bars for long operations
-    
+    use_locf_at_start_time : bool, default=True
+        Enable Last Observation Carried Forward (LOCF) when using cohort_df time windows.
+        If True and no observations exist within [start_time, end_time], includes the
+        most recent observation before start_time. If False, uses strict time window
+        filtering (only observations within the window).
+
+        Example: If cohort window is 6:00-9:00 AM but last observation was at 5:58 AM,
+        - use_locf_at_start_time=True: Includes the 5:58 AM observation
+        - use_locf_at_start_time=False: Returns no data for this window
+
+        Only applies when cohort_df parameter is provided.
+
     Returns
     -------
     pd.DataFrame or None
@@ -309,7 +321,7 @@ def create_wide_dataset(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
                 batch_size, show_progress, save_to_data_location, output_filename,
-                output_format, return_dataframe, cohort_df
+                output_format, return_dataframe, cohort_df, use_locf_at_start_time
             )
         else:
             logger.info(f"       - Single mode: Processing all {len(required_ids)} hospitalizations at once")
@@ -318,7 +330,7 @@ def create_wide_dataset(
             return _process_hospitalizations(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
-                show_progress, cohort_df
+                show_progress, cohort_df, use_locf_at_start_time
             )
 
 
@@ -963,7 +975,8 @@ def _process_hospitalizations(
     pivot_tables: List[str],
     wide_tables: List[str],
     show_progress: bool,
-    cohort_df: Optional[pd.DataFrame] = None
+    cohort_df: Optional[pd.DataFrame] = None,
+    use_locf_at_start_time: bool = True
 ) -> Optional[pd.DataFrame]:
     """Process hospitalizations with pivot-first approach."""
     
@@ -1082,28 +1095,91 @@ def _process_hospitalizations(
             logger.info("           === SPECIAL: TIME FILTERING ===")
             pre_filter_count = len(table_df)
             logger.debug(f"           - Applying cohort time windows to {table_name}")
-            # Merge with cohort_df to get time windows
-            table_df = pd.merge(
-                table_df,
-                cohort_df[['hospitalization_id', 'start_time', 'end_time']],
-                on='hospitalization_id',
-                how='inner'
-            )
 
-            # Ensure timestamp column is datetime
-            if not pd.api.types.is_datetime64_any_dtype(table_df[timestamp_col]):
-                table_df[timestamp_col] = pd.to_datetime(table_df[timestamp_col])
+            if use_locf_at_start_time:
+                logger.info(f"           - LOCF enabled: including last observation before start_time")
 
-            # Filter to time window
-            table_df = table_df[
-                (table_df[timestamp_col] >= table_df['start_time']) &
-                (table_df[timestamp_col] <= table_df['end_time'])
-            ].copy()
+                # Register dataframes for DuckDB query
+                temp_table_name = f'temp_{table_name}_locf'
+                temp_cohort_name = f'temp_cohort_{table_name}'
+                conn.register(temp_table_name, table_df)
+                conn.register(temp_cohort_name, cohort_df[['hospitalization_id', 'start_time', 'end_time']])
 
-            # Drop the time window columns
-            table_df = table_df.drop(columns=['start_time', 'end_time'])
+                # Build LOCF query
+                locf_query = f"""
+                WITH in_window AS (
+                    -- Get all observations within the time window
+                    SELECT t.*
+                    FROM {temp_table_name} t
+                    INNER JOIN {temp_cohort_name} c ON t.hospitalization_id = c.hospitalization_id
+                    WHERE t.{timestamp_col} >= c.start_time
+                      AND t.{timestamp_col} <= c.end_time
+                ),
+                last_before_window AS (
+                    -- Get the most recent observation before start_time for each hospitalization
+                    SELECT t.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY t.hospitalization_id
+                               ORDER BY t.{timestamp_col} DESC
+                           ) as rn
+                    FROM {temp_table_name} t
+                    INNER JOIN {temp_cohort_name} c ON t.hospitalization_id = c.hospitalization_id
+                    WHERE t.{timestamp_col} < c.start_time
+                ),
+                locf_candidates AS (
+                    -- Keep only the most recent observation before window (rn = 1)
+                    SELECT * EXCLUDE (rn)
+                    FROM last_before_window
+                    WHERE rn = 1
+                ),
+                hosp_with_in_window_data AS (
+                    -- Track which hospitalizations already have data in window
+                    SELECT DISTINCT hospitalization_id
+                    FROM in_window
+                )
+                -- Combine in-window data with LOCF for hospitalizations with no in-window data
+                SELECT * FROM in_window
+                UNION ALL
+                SELECT l.*
+                FROM locf_candidates l
+                WHERE l.hospitalization_id NOT IN (SELECT * FROM hosp_with_in_window_data)
+                """
 
-            logger.info(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records after filtering")
+                table_df = conn.execute(locf_query).df()
+
+                # Cleanup temp tables
+                conn.unregister(temp_table_name)
+                conn.unregister(temp_cohort_name)
+
+                locf_count = len(table_df) - pre_filter_count
+                if locf_count > 0:
+                    logger.info(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records ({locf_count} LOCF rows added)")
+                else:
+                    logger.info(f"           - {table_name}: {len(table_df)} records (no LOCF needed)")
+            else:
+                # Original pandas filtering (no LOCF) - strict time window only
+                logger.info(f"           - LOCF disabled: strict time window filtering")
+                table_df = pd.merge(
+                    table_df,
+                    cohort_df[['hospitalization_id', 'start_time', 'end_time']],
+                    on='hospitalization_id',
+                    how='inner'
+                )
+
+                # Ensure timestamp column is datetime
+                if not pd.api.types.is_datetime64_any_dtype(table_df[timestamp_col]):
+                    table_df[timestamp_col] = pd.to_datetime(table_df[timestamp_col])
+
+                # Filter to time window
+                table_df = table_df[
+                    (table_df[timestamp_col] >= table_df['start_time']) &
+                    (table_df[timestamp_col] <= table_df['end_time'])
+                ].copy()
+
+                # Drop the time window columns
+                table_df = table_df.drop(columns=['start_time', 'end_time'])
+
+                logger.info(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records after filtering")
 
         # Register raw table as a proper table, not a view
         raw_table_name = f"{table_name}_raw"
@@ -1489,7 +1565,8 @@ def _process_in_batches(
     output_filename: Optional[str],
     output_format: str,
     return_dataframe: bool,
-    cohort_df: Optional[pd.DataFrame] = None
+    cohort_df: Optional[pd.DataFrame] = None,
+    use_locf_at_start_time: bool = True
 ) -> Optional[pd.DataFrame]:
     """Process hospitalizations in batches using the new approach."""
     
@@ -1532,7 +1609,7 @@ def _process_in_batches(
             batch_result = _process_hospitalizations(
                 conn, clif_instance, batch_hosp_ids, patient_df, batch_hosp_df, batch_adt_df,
                 tables_to_load, category_filters, pivot_tables, wide_tables,
-                show_progress=False, cohort_df=batch_cohort_df
+                show_progress=False, cohort_df=batch_cohort_df, use_locf_at_start_time=use_locf_at_start_time
             )
             
             if batch_result is not None and len(batch_result) > 0:
