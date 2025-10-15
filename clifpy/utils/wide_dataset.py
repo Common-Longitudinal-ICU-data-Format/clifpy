@@ -1102,7 +1102,7 @@ def _process_hospitalizations(
             logger.debug(f"           - Applying cohort time windows to {table_name}")
 
             if use_locf_at_start_time:
-                logger.info(f"           - LOCF enabled: including last observation before start_time")
+                logger.info(f"           - LOCF enabled: column-level LOCF (carries forward last value before start_time for columns with no in-window data)")
 
                 # Register dataframes for DuckDB query
                 temp_table_name = f'temp_{table_name}_locf'
@@ -1136,31 +1136,37 @@ def _process_hospitalizations(
                     SELECT * EXCLUDE (rn)
                     FROM last_before_window
                     WHERE rn = 1
-                ),
-                hosp_with_in_window_data AS (
-                    -- Track which hospitalizations already have data in window
-                    SELECT DISTINCT hospitalization_id
-                    FROM in_window
                 )
-                -- Combine in-window data with LOCF for hospitalizations with no in-window data
+                -- Combine in-window data with LOCF observation for all hospitalizations
+                -- This enables column-level LOCF: columns with no in-window values use LOCF values
                 SELECT * FROM in_window
                 UNION ALL
-                SELECT l.*
-                FROM locf_candidates l
-                WHERE l.hospitalization_id NOT IN (SELECT * FROM hosp_with_in_window_data)
+                SELECT * FROM locf_candidates
                 """
 
+                # First count in-window records only
+                in_window_count_query = f"""
+                SELECT COUNT(*) as cnt
+                FROM {temp_table_name} t
+                INNER JOIN {temp_cohort_name} c ON t.hospitalization_id = c.hospitalization_id
+                WHERE t.{timestamp_col} >= c.start_time
+                  AND t.{timestamp_col} <= c.end_time
+                """
+                in_window_count = conn.execute(in_window_count_query).fetchone()[0]
+
+                # Execute full LOCF query
                 table_df = conn.execute(locf_query).df()
 
                 # Cleanup temp tables
                 conn.unregister(temp_table_name)
                 conn.unregister(temp_cohort_name)
 
-                locf_count = len(table_df) - pre_filter_count
-                if locf_count > 0:
-                    logger.info(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records ({locf_count} LOCF rows added)")
+                post_locf_count = len(table_df)
+                locf_added = post_locf_count - in_window_count
+                if locf_added > 0:
+                    logger.info(f"           - {table_name}: {in_window_count} in-window + {locf_added} LOCF rows = {post_locf_count} total records")
                 else:
-                    logger.info(f"           - {table_name}: {len(table_df)} records (no LOCF needed)")
+                    logger.info(f"           - {table_name}: {post_locf_count} records (no observations before start_time for LOCF)")
             else:
                 # Original pandas filtering (no LOCF) - strict time window only
                 logger.info(f"           - LOCF disabled: strict time window filtering")
