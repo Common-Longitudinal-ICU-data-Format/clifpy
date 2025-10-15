@@ -218,7 +218,8 @@ def compute_sofa(
     extremal_type: str = 'worst',
     id_name: str = 'encounter_block',
     fill_na_scores_with_zero: bool = True,
-    remove_outliers: bool = True
+    remove_outliers: bool = True,
+    use_locf_at_start_time: bool = True
 ) -> pd.DataFrame:
     """
     Compute SOFA scores from a wide dataset.
@@ -233,6 +234,10 @@ def compute_sofa(
         extremal_type: 'worst' (default) or 'latest' (future feature)
         id_name: Grouping column ('hospitalization_id', 'encounter_block', etc.)
         fill_na_scores_with_zero: If True, fill missing component scores with 0
+        remove_outliers: If True, remove physiologically implausible values
+        use_locf_at_start_time: If True, use Last Observation Carried Forward when
+                               creating wide dataset with cohort_df. This parameter is
+                               only used when calling compute_sofa via ClifOrchestrator.
 
     Returns:
         DataFrame with SOFA component scores and total score for each ID

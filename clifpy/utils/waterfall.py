@@ -2,7 +2,11 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from typing import Union
-import duckdb 
+import duckdb
+import logging
+
+# Set up logging - use centralized logger
+logger = logging.getLogger('clifpy.utils.waterfall') 
 
 
 def process_resp_support_waterfall(
@@ -48,7 +52,9 @@ def process_resp_support_waterfall(
     calling if needed.
     """
 
-    p = print if verbose else (lambda *_, **__: None)
+    # Set up logging function based on verbose flag
+    # verbose=True: INFO level (shows in console), verbose=False: DEBUG level (files only)
+    log = logger.info if verbose else logger.debug
 
     # ------------------------------------------------------------------ #
     # Helper: forward-fill only or forward + back depending on flag      #
@@ -67,7 +73,7 @@ def process_resp_support_waterfall(
         try:
             # local import so package doesn't hard-depend on it
             if verbose:
-                p("  • Building hourly scaffold via DuckDB")
+                log("  • Building hourly scaffold via DuckDB")
 
             con = duckdb.connect()
             # Only need id + timestamps for bounds
@@ -106,8 +112,8 @@ def process_resp_support_waterfall(
             return scaffold
 
         except Exception as e:
-            if verbose:
-                p(f"  • DuckDB scaffold unavailable ({type(e).__name__}: {e}). Falling back to pandas...")
+            # Log DuckDB fallback as warning (regardless of verbose flag)
+            logger.warning(f"DuckDB scaffold unavailable ({type(e).__name__}: {e}). Falling back to pandas")
             # ---- Original pandas scaffold (ground truth) ----
             rs_copy = rs.copy()
             rs_copy["recorded_date"] = rs_copy["recorded_dttm"].dt.date
@@ -140,7 +146,7 @@ def process_resp_support_waterfall(
     # ------------------------------------------------------------------ #
     # Phase 0 – set-up & hourly scaffold                                 #
     # ------------------------------------------------------------------ #
-    p("✦ Phase 0: initialise & create hourly scaffold")
+    log("✦ Phase 0: initialise & create hourly scaffold")
     rs = resp_support.copy()
 
     # Lower-case categorical strings
@@ -163,12 +169,12 @@ def process_resp_support_waterfall(
         fio2_mean = rs["fio2_set"].mean(skipna=True)
         if pd.notna(fio2_mean) and fio2_mean > 1.0:
             rs.loc[rs["fio2_set"] > 1, "fio2_set"] /= 100
-            p("  • Scaled FiO₂ values > 1 down by /100")
+            log("  • Scaled FiO₂ values > 1 down by /100")
 
     # Build hourly scaffold (DuckDB if available, else pandas)
     scaffold = _build_hourly_scaffold(rs)
     if verbose:
-        p(f"  • Scaffold rows created: {len(scaffold):,}")
+        log(f"  • Scaffold rows created: {len(scaffold):,}")
 
     # We keep recorded_date/hour on rs only for temporary ops below
     rs["recorded_date"] = rs["recorded_dttm"].dt.date
@@ -177,7 +183,7 @@ def process_resp_support_waterfall(
     # ------------------------------------------------------------------ #
     # Phase 1 – heuristic device / mode inference                        #
     # ------------------------------------------------------------------ #
-    p("✦ Phase 1: heuristic inference of device & mode")
+    log("✦ Phase 1: heuristic inference of device & mode")
 
     # Most-frequent fall-back labels
     device_counts = rs[["device_name", "device_category"]].value_counts().reset_index()
@@ -238,7 +244,7 @@ def process_resp_support_waterfall(
         mask_bad_nc = (rs["device_category"] == "nasal cannula") & rs["peep_set"].gt(0)
         if mask_bad_nc.any():
             rs.loc[mask_bad_nc, "device_category"] = np.nan
-            p(f"{mask_bad_nc.sum():,} rows had PEEP>0 on nasal cannula device_category reset")
+            logger.warning(f"{mask_bad_nc.sum():,} rows had PEEP>0 on nasal cannula device_category reset")
 
     # Drop rows with nothing useful
     all_na_cols = [
@@ -261,7 +267,7 @@ def process_resp_support_waterfall(
     # ------------------------------------------------------------------ #
     # Phase 2 – hierarchical IDs                                         #
     # ------------------------------------------------------------------ #
-    p("✦ Phase 2: build hierarchical IDs")
+    log("✦ Phase 2: build hierarchical IDs")
 
     def change_id(col: pd.Series, by: pd.Series) -> pd.Series:
         return (
@@ -302,7 +308,7 @@ def process_resp_support_waterfall(
     # Phase 3 – numeric waterfall                                        #
     # ------------------------------------------------------------------ #
     fill_type = "bi-directional" if bfill else "forward-only"
-    p(f"✦ Phase 3: {fill_type} numeric fill inside mode_name_id blocks")
+    log(f"✦ Phase 3: {fill_type} numeric fill inside mode_name_id blocks")
 
     # FiO₂ default for room-air
     if "fio2_set" in rs.columns:
@@ -331,7 +337,7 @@ def process_resp_support_waterfall(
             return g.groupby(breaker)[num_cols_fill].apply(fb)
         return fb(g[num_cols_fill])
 
-    p(f"  • applying waterfall fill to {rs[id_col].nunique():,} encounters")
+    log(f"  • applying waterfall fill to {rs[id_col].nunique():,} encounters")
     tqdm.pandas(disable=not verbose, desc="Waterfall fill by mode_name_id")
     rs[num_cols_fill] = (
         rs.groupby([id_col, "mode_name_id"], group_keys=False, sort=False)
@@ -349,7 +355,7 @@ def process_resp_support_waterfall(
     # ------------------------------------------------------------------ #
     # Phase 4 – final tidy-up                                            #
     # ------------------------------------------------------------------ #
-    p("✦ Phase 4: final dedup & ordering")
+    log("✦ Phase 4: final dedup & ordering")
     rs = (
         rs.drop_duplicates()
           .sort_values([id_col, "recorded_dttm"])
@@ -359,5 +365,5 @@ def process_resp_support_waterfall(
     # Drop helper cols
     rs = rs.drop(columns=[c for c in ["recorded_date", "recorded_hour"] if c in rs.columns])
 
-    p("[OK] Respiratory-support waterfall complete.")
+    log("✅ Respiratory-support waterfall complete")
     return rs
