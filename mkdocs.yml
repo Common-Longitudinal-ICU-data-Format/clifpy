@@ -1,9 +1,9 @@
 site_name: CLIFpy Documentation
 site_description: Python Client for Common Longitudinal ICU data Format
 site_author: CLIF Consortium
-site_url: https://common-longitudinal-icu-data-format.github.io/CLIFpy/
-repo_url: https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy
-repo_name: CLIFpy
+site_url: https://common-longitudinal-icu-data-format.github.io/clifpy/
+repo_url: https://github.com/Common-Longitudinal-ICU-data-Format/clifpy
+repo_name: clifpy
 
 theme:
   name: material
