@@ -838,6 +838,14 @@ class ClifOrchestrator:
         self.logger.info("✅ WIDE DATASET CREATION COMPLETED")
         self.logger.info("=" * 50)
 
+        if return_dataframe:
+            self.logger.info("  6.3: Directly returning the wide dataset")
+            return self.wide_df
+        else:
+            return None
+
+
+
     def convert_wide_to_hourly(
         self,
         aggregation_config: Dict[str, List[str]],

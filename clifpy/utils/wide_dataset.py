@@ -315,11 +315,16 @@ def create_wide_dataset(
             logger.info(f"       - Single mode: Processing all {len(required_ids)} hospitalizations at once")
             logger.info("  4.S: === SINGLE PROCESSING MODE ===")
             # Process all at once for small datasets
-            return _process_hospitalizations(
+            result_df = _process_hospitalizations(
                 conn, clif_instance, required_ids, patient_df, hospitalization_df, adt_df,
                 tables_to_load, category_filters, PIVOT_TABLES, WIDE_TABLES,
                 show_progress, cohort_df
             )
+
+            if save_to_data_location:
+                _save_dataset(result_df, clif_instance.data_directory, output_filename, output_format)
+
+            return result_df if return_dataframe else None
 
 
 def convert_wide_to_hourly(
