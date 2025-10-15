@@ -1241,8 +1241,9 @@ class ClifOrchestrator:
         id_name: str = 'encounter_block',
         fill_na_scores_with_zero: bool = True,
         remove_outliers: bool = True,
-        create_new_wide_df: bool = True
-    ) -> pd.DataFrame:
+        create_new_wide_df: bool = True,
+        return_dataframe: bool = True
+    ) -> Union[pd.DataFrame, None]:
         """
         Compute SOFA (Sequential Organ Failure Assessment) scores.
 
@@ -1348,4 +1349,7 @@ class ClifOrchestrator:
         self.sofa_df = sofa_scores
         self.logger.info(f"SOFA computation completed. Results stored in self.sofa_df with shape: {sofa_scores.shape}")
 
-        return sofa_scores
+        if return_dataframe:
+            return sofa_scores.df()
+        else:
+            return None
