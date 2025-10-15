@@ -576,6 +576,6 @@ print(hourly.columns)  # ['window_start_dttm', 'heart_rate_mean', 'sbp_mean', ..
 ## Next Steps
 
 -   [**Data Validation**](validation.md) - Ensure data quality
--   [**Individual Table Guides**](tables.md) - Detailed table documentation
--   [**Orchestrator Guide**](orchestrator.md) - Advanced orchestrator features
+-   [**Individual Table Guides**](../api/tables.md) - Detailed table documentation
+-   [**Orchestrator Guide**](../api/orchestrator.md) - Advanced orchestrator features
 -   [**Timezone Handling**](timezones.md) - Multi-site data considerations

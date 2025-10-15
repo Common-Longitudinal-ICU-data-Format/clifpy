@@ -398,8 +398,8 @@ else:
 
 ## See Also
 
-- [ClifOrchestrator](orchestrator.md) - Main interface for CLIF data operations
-- [Hospitalization Table](tables.md#hospitalization) - Structure of hospitalization data
-- [ADT Table](tables.md#adt-admission-discharge-transfer) - Structure of ADT data
+- [ClifOrchestrator](../api/orchestrator.md) - Main interface for CLIF data operations
+- [Hospitalization Table](../api/tables.md#hospitalization) - Structure of hospitalization data
+- [ADT Table](../api/tables.md#adt-admission-discharge-transfer) - Structure of ADT data
 - [Wide Dataset Creation](wide-dataset.md) - Creating analysis-ready datasets
 - [Examples Notebook](https://github.com/clif-consortium/CLIFpy/blob/main/examples/stitching_encounters_demo.ipynb) - Interactive examples

@@ -4,7 +4,7 @@
 
 <div class="grid cards" markdown>
 
-- 🚀 [**Getting Started**](getting-started/installation.md)
+- 🚀 [**Getting Started**](user-guide/installation.md)
 
     ---
 
