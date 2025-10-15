@@ -2,90 +2,82 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/contributing/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
+    </url>
+    <url>
+         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/logging/</loc>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/api/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/api/base-table/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/api/orchestrator/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/api/tables/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/api/utilities/</loc>
-         <lastmod>2025-09-24</lastmod>
-    </url>
-    <url>
-         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/getting-started/basic-usage/</loc>
-         <lastmod>2025-09-24</lastmod>
-    </url>
-    <url>
-         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/getting-started/installation/</loc>
-         <lastmod>2025-09-24</lastmod>
-    </url>
-    <url>
-         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/getting-started/quickstart/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/comorbidity-index/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/encounter-stitching/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
+    </url>
+    <url>
+         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/installation/</loc>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/med-unit-conversion/</loc>
-         <lastmod>2025-09-24</lastmod>
-    </url>
-    <url>
-         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/orchestrator/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/outlier-handling/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
+    </url>
+    <url>
+         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/quickstart/</loc>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/sofa/</loc>
-         <lastmod>2025-09-24</lastmod>
-    </url>
-    <url>
-         <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/tables/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/timezones/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/validation/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/waterfall/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
     <url>
          <loc>https://common-longitudinal-icu-data-format.github.io/CLIFpy/user-guide/wide-dataset/</loc>
-         <lastmod>2025-09-24</lastmod>
+         <lastmod>2025-10-15</lastmod>
     </url>
 </urlset>
