@@ -1460,33 +1460,34 @@ def _create_wide_dataset(
     logger.debug("Executing join query")
     result_df = conn.execute(query).df()
 
-    # Apply final time filtering if cohort_df is provided
-    if cohort_df is not None:
-        pre_filter_count = len(result_df)
-        logger.debug("Applying cohort time window filtering to final dataset")
+    # comment out for now to test LOCF
+    # # Apply final time filtering if cohort_df is provided
+    # if cohort_df is not None:
+    #     pre_filter_count = len(result_df)
+    #     logger.debug("Applying cohort time window filtering to final dataset")
         
-        # Merge with cohort_df to get time windows
-        result_df = pd.merge(
-            result_df,
-            cohort_df[['hospitalization_id', 'start_time', 'end_time']],
-            on='hospitalization_id',
-            how='inner'
-        )
+    #     # Merge with cohort_df to get time windows
+    #     result_df = pd.merge(
+    #         result_df,
+    #         cohort_df[['hospitalization_id', 'start_time', 'end_time']],
+    #         on='hospitalization_id',
+    #         how='inner'
+    #     )
         
-        # Ensure event_time column is datetime
-        if not pd.api.types.is_datetime64_any_dtype(result_df['event_time']):
-            result_df['event_time'] = pd.to_datetime(result_df['event_time'])
+    #     # Ensure event_time column is datetime
+    #     if not pd.api.types.is_datetime64_any_dtype(result_df['event_time']):
+    #         result_df['event_time'] = pd.to_datetime(result_df['event_time'])
         
-        # Filter to time window
-        result_df = result_df[
-            (result_df['event_time'] >= result_df['start_time']) &
-            (result_df['event_time'] <= result_df['end_time'])
-        ].copy()
+    #     # Filter to time window
+    #     result_df = result_df[
+    #         (result_df['event_time'] >= result_df['start_time']) &
+    #         (result_df['event_time'] <= result_df['end_time'])
+    #     ].copy()
         
-        # Drop the time window columns
-        result_df = result_df.drop(columns=['start_time', 'end_time'])
+    #     # Drop the time window columns
+    #     result_df = result_df.drop(columns=['start_time', 'end_time'])
 
-        logger.info(f"  Final time filtering: {pre_filter_count} → {len(result_df)} records")
+    #     logger.info(f"  Final time filtering: {pre_filter_count} → {len(result_df)} records")
     
     # Remove duplicate columns
     result_df = result_df.loc[:, ~result_df.columns.duplicated()]
