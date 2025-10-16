@@ -84,7 +84,7 @@ tables:
     timestamp_column: recorded_dttm
     alternative_timestamps: []
     category_column: assessment_category
-    value_column: assessment_value
+    value_column: numerical_value
     description: "Clinical assessments (pivoted by assessment_category)"
     examples:
       - "RASS, gcs_total, gcs_eye, gcs_motor, gcs_verbal, cam_total, braden_total, CIWA, COWS, cpot_total"
