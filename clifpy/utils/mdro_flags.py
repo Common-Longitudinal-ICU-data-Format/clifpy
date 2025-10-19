@@ -218,17 +218,47 @@ def calculate_mdro_flags(
         results.append(flags)
 
     # -------------------------------------------------------------------------
-    # 9. Create Results DataFrame
+    # 9. Create Results DataFrame with Wide Format
     # -------------------------------------------------------------------------
     if not results:
         return pd.DataFrame(columns=['hospitalization_id', 'organism_id'])
 
-    result_df = pd.DataFrame(results)
+    # Create flags DataFrame
+    flags_df = pd.DataFrame(results)
 
-    # Reorder columns: hospitalization_id, organism_id, then flags
+    # Create antimicrobial columns (wide format with individual susceptibility values)
+    antimicrobial_df = _pivot_susceptibility_data(merged_df, organism_config)
+    logger.info(f"Created {len(antimicrobial_df.columns) - 2} antimicrobial columns")
+
+    # Create group columns (binary 0/1 for each antimicrobial group)
+    group_df = _create_group_columns(merged_df, antimicrobial_groups, resistant_categories)
+    logger.info(f"Created {len(group_df.columns) - 2} antimicrobial group columns")
+
+    # Merge all components: flags + antimicrobial columns + group columns
+    result_df = flags_df.merge(
+        antimicrobial_df,
+        on=['hospitalization_id', 'organism_id'],
+        how='left'
+    )
+    result_df = result_df.merge(
+        group_df,
+        on=['hospitalization_id', 'organism_id'],
+        how='left'
+    )
+
+    # Organize columns in logical order:
+    # 1. IDs
+    # 2. Antimicrobial columns (individual agents)
+    # 3. Group columns
+    # 4. MDRO flags
     id_cols = ['hospitalization_id', 'organism_id']
-    flag_cols = [col for col in result_df.columns if col not in id_cols]
-    result_df = result_df[id_cols + sorted(flag_cols)]
+    flag_cols = [col for col in flags_df.columns if col not in id_cols]
+    group_cols = [col for col in group_df.columns if col not in id_cols]
+    antimicrobial_cols = [col for col in antimicrobial_df.columns if col not in id_cols]
+
+    # Final column order
+    column_order = id_cols + sorted(antimicrobial_cols) + sorted(group_cols) + sorted(flag_cols)
+    result_df = result_df[column_order]
 
     logger.info(f"Calculated MDRO flags for {len(result_df)} organism cultures")
 
@@ -424,3 +454,135 @@ def _calculate_flags_for_organism(
                 flags[column_name] = 0
 
     return flags
+
+
+def _prioritize_susceptibility(susceptibility_value: str) -> int:
+    """
+    Assign priority ranking to susceptibility values for duplicate handling.
+
+    Lower numbers = higher priority (more resistant).
+    Priority order: non_susceptible (1) > intermediate (2) > susceptible (3) > NA (4)
+
+    Parameters
+    ----------
+    susceptibility_value : str
+        Susceptibility category value
+
+    Returns
+    -------
+    int
+        Priority rank (1 = highest priority/most resistant)
+    """
+    priority_map = {
+        'non_susceptible': 1,
+        'intermediate': 2,
+        'susceptible': 3,
+        'NA': 4
+    }
+
+    # Default to lowest priority for unknown values
+    return priority_map.get(susceptibility_value, 5)
+
+
+def _pivot_susceptibility_data(
+    merged_df: pd.DataFrame,
+    organism_config: Dict[str, Any]
+) -> pd.DataFrame:
+    """
+    Pivot susceptibility data to create wide format with antimicrobial columns.
+
+    Creates one column per antimicrobial_category with susceptibility_category as values.
+    Handles duplicate tests by keeping the most resistant result.
+
+    Parameters
+    ----------
+    merged_df : pd.DataFrame
+        Merged culture and susceptibility data with columns:
+        hospitalization_id, organism_id, antimicrobial_category, susceptibility_category
+    organism_config : dict
+        Organism configuration with antimicrobial groups
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide format DataFrame with columns:
+        hospitalization_id, organism_id, [antimicrobial columns...]
+    """
+    # Add priority column for handling duplicates
+    merged_df = merged_df.copy()
+    merged_df['_priority'] = merged_df['susceptibility_category'].apply(_prioritize_susceptibility)
+
+    # Sort by priority (lower = more resistant) to handle duplicates
+    merged_df = merged_df.sort_values('_priority')
+
+    # Remove duplicates, keeping the most resistant (lowest priority value)
+    deduplicated = merged_df.drop_duplicates(
+        subset=['hospitalization_id', 'organism_id', 'antimicrobial_category'],
+        keep='first'
+    )
+
+    # Pivot to wide format
+    pivoted = deduplicated.pivot_table(
+        index=['hospitalization_id', 'organism_id'],
+        columns='antimicrobial_category',
+        values='susceptibility_category',
+        aggfunc='first'  # Should only be one value after deduplication
+    )
+
+    # Reset index to make hospitalization_id and organism_id regular columns
+    pivoted = pivoted.reset_index()
+
+    return pivoted
+
+
+def _create_group_columns(
+    merged_df: pd.DataFrame,
+    antimicrobial_groups: Dict[str, List[str]],
+    resistant_categories: List[str]
+) -> pd.DataFrame:
+    """
+    Create binary group columns indicating resistance in antimicrobial groups.
+
+    For each antimicrobial group, creates a column with value:
+    - 1 if ANY agent in that group is resistant (non_susceptible or intermediate)
+    - 0 if all tested agents in group are susceptible OR group not tested
+
+    Parameters
+    ----------
+    merged_df : pd.DataFrame
+        Merged culture and susceptibility data with antimicrobial_group column
+    antimicrobial_groups : dict
+        Dictionary mapping group names to lists of antimicrobial categories
+    resistant_categories : list
+        List of susceptibility categories considered resistant
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns: hospitalization_id, organism_id, [group columns...]
+    """
+    # Identify resistant results
+    merged_df = merged_df.copy()
+    merged_df['is_resistant'] = merged_df['susceptibility_category'].isin(resistant_categories)
+
+    # Group by hospitalization_id, organism_id, and antimicrobial_group
+    # Check if ANY agent in each group is resistant
+    group_resistance = merged_df.groupby(
+        ['hospitalization_id', 'organism_id', 'antimicrobial_group']
+    )['is_resistant'].any().reset_index()
+
+    # Pivot to create one column per group
+    group_pivoted = group_resistance.pivot_table(
+        index=['hospitalization_id', 'organism_id'],
+        columns='antimicrobial_group',
+        values='is_resistant',
+        aggfunc='any'
+    )
+
+    # Convert boolean to int (1/0)
+    group_pivoted = group_pivoted.fillna(False).astype(int)
+
+    # Reset index
+    group_pivoted = group_pivoted.reset_index()
+
+    return group_pivoted
