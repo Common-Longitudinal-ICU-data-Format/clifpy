@@ -1,0 +1,98 @@
+# MDRO (Multi-Drug Resistant Organism) Configuration
+# Defines antimicrobial groupings and resistance criteria for organisms
+
+organisms:
+  pseudomonas_aeruginosa:
+    display_name: "Pseudomonas aeruginosa"
+
+    # Antimicrobial groups: map antimicrobial_category values to groups
+    # Based on CLSI and CDC guidelines for P. aeruginosa
+    antimicrobial_groups:
+      aminoglycosides:
+        - gentamicin
+        - tobramycin
+        - amikacin
+        - netilmicin
+
+      antipseudomonal_carbapenems:
+        - imipenem
+        - meropenem
+        - doripenem
+
+      antipseudomonal_cephalosporins:
+        - ceftazidime
+        - cefepime
+
+      antipseudomonal_fluoroquinolones:
+        - ciprofloxacin
+        - levofloxacin
+
+      antipseudomonal_penicillins_beta_lactamase_inhibitors:
+        - ticarcillin_clavulanate
+        - piperacillin_tazobactam
+
+      monobactams:
+        - aztreonam
+
+      phosphonic_acids:
+        - fosfomycin
+
+      polymyxins:
+        - colistin
+        - polymyxin_b
+
+    # Define what susceptibility categories count as "resistant"
+    # Both intermediate and non_susceptible are treated as resistant
+    resistant_categories:
+      - non_susceptible
+      - intermediate
+
+    # Resistance level definitions
+    resistance_definitions:
+      mdr:
+        name: "Multi-Drug Resistant"
+        description: "Non-susceptible to ≥1 agent in ≥3 antimicrobial categories"
+        criteria:
+          type: "min_groups_resistant"
+          min_groups: 3
+        column_name: "mdro_psar_mdr"
+
+      xdr:
+        name: "Extensively Drug Resistant"
+        description: "Non-susceptible to ≥1 agent in all but ≤2 antimicrobial categories"
+        criteria:
+          type: "max_groups_susceptible"
+          max_groups_susceptible: 2
+        column_name: "mdro_psar_xdr"
+
+      pdr:
+        name: "Pandrug Resistant"
+        description: "Non-susceptible to all antimicrobial agents tested"
+        criteria:
+          type: "all_tested_resistant"
+        column_name: "mdro_psar_pdr"
+
+      dlr:
+        name: "Difficult to Treat Resistance"
+        description: "Exhibits nonsusceptibility to all of: piperacillin-tazobactam, ceftazidime, cefepime, aztreonam, meropenem, imipenem, ciprofloxacin, and levofloxacin"
+        criteria:
+          type: "specific_agents_resistant"
+          required_agents:
+            - piperacillin_tazobactam
+            - ceftazidime
+            - cefepime
+            - aztreonam
+            - meropenem
+            - imipenem
+            - ciprofloxacin
+            - levofloxacin
+        column_name: "mdro_psar_dlr"
+
+# Additional organisms can be added here following the same structure
+# Example:
+# acinetobacter_baumannii:
+#   display_name: "Acinetobacter baumannii"
+#   antimicrobial_groups:
+#     ...
+#   resistance_definitions:
+#     ...
