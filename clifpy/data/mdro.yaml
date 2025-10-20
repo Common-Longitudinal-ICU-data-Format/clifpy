@@ -68,9 +68,9 @@ organisms:
           type: "all_tested_resistant"
         column_name: "mdro_psar_pdr"
 
-      dlr:
+      dtr:
         name: "Difficult to Treat Resistance"
-        description: "Exhibits nonsusceptibility to all of: piperacillin-tazobactam, ceftazidime, cefepime, aztreonam, meropenem, imipenem, ciprofloxacin, and levofloxacin"
+        description: "All 8 required agents tested and all exhibit nonsusceptibility: piperacillin-tazobactam, ceftazidime, cefepime, aztreonam, meropenem, imipenem, ciprofloxacin, and levofloxacin"
         criteria:
           type: "specific_agents_resistant"
           required_agents:
@@ -79,10 +79,10 @@ organisms:
             - cefepime
             - aztreonam
             - meropenem
-            - imipenem
+            #- imipenem
             - ciprofloxacin
             - levofloxacin
-        column_name: "mdro_psar_dlr"
+        column_name: "mdro_psar_dtr"
 
 # Additional organisms can be added here following the same structure
 # Example:
