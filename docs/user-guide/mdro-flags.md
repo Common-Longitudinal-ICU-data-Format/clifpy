@@ -159,7 +159,7 @@ The function returns a wide-format DataFrame designed for easy verification and 
 
 ```python
 # Example output columns
-hospitalization_id | organism_id | amikacin | ciprofloxacin | ... | aminoglycosides | fluoroquinolones | ... | mdro_psar_mdr | mdro_psar_xdr
+hospitalization_id | organism_id | amikacin_agent | ciprofloxacin_agent | ... | aminoglycosides_group | fluoroquinolones_group | ... | mdro_psar_mdr | mdro_psar_xdr
 ```
 
 ### Column Types
@@ -169,14 +169,15 @@ hospitalization_id | organism_id | amikacin | ciprofloxacin | ... | aminoglycosi
 - `organism_id` - Unique organism culture identifier
 
 **2. Individual Antimicrobial Columns**
-- One column per antimicrobial agent tested
+- One column per antimicrobial agent tested (with `_agent` suffix)
 - Values: 'susceptible', 'intermediate', 'non_susceptible', 'NA', or None (not tested)
-- Example columns: `amikacin`, `ciprofloxacin`, `ceftazidime`, `meropenem`
+- Example columns: `amikacin_agent`, `ciprofloxacin_agent`, `ceftazidime_agent`, `meropenem_agent`
 
 **3. Antimicrobial Group Columns**
-- One column per antimicrobial group (e.g., aminoglycosides, carbapenems)
+- One column per antimicrobial group (with `_group` suffix)
 - Binary values: 1 (resistant to ≥1 agent in group), 0 (susceptible to all tested agents)
 - Allows quick identification of which drug classes are affected
+- Example columns: `aminoglycosides_group`, `carbapenems_group`, `fluoroquinolones_group`
 
 **4. MDRO Flag Columns**
 - `mdro_psar_mdr` - Multi-Drug Resistant flag (0/1)
@@ -257,12 +258,7 @@ print(high_risk)
 
 ```python
 # Check which antimicrobial groups are most commonly resistant
-group_cols = [col for col in mdro.columns if col in [
-    'aminoglycosides', 'antipseudomonal_carbapenems',
-    'antipseudomonal_cephalosporins', 'antipseudomonal_fluoroquinolones',
-    'antipseudomonal_penicillins_beta_lactamase_inhibitors',
-    'monobactams', 'polymyxins'
-]]
+group_cols = [col for col in mdro.columns if col.endswith('_group')]
 
 resistance_by_group = mdro[group_cols].sum().sort_values(ascending=False)
 print("Organisms resistant to each antimicrobial group:")
@@ -276,11 +272,8 @@ print(resistance_by_group)
 organism_id = 'ORG123'
 org_data = mdro[mdro['organism_id'] == organism_id]
 
-# Get all antimicrobial columns (individual agents)
-antimicrobial_cols = [col for col in org_data.columns
-                     if col not in ['hospitalization_id', 'organism_id']
-                     and not col.startswith('mdro_')
-                     and col not in group_cols]
+# Get all antimicrobial columns (individual agents with _agent suffix)
+antimicrobial_cols = [col for col in org_data.columns if col.endswith('_agent')]
 
 # Show only tested antimicrobials
 tested = org_data[antimicrobial_cols].iloc[0]

@@ -344,6 +344,9 @@ def _pivot_susceptibility_data(merged_df, organism_config):
         aggfunc='first'
     )
 
+    # Add _agent suffix to antimicrobial column names
+    pivoted.columns = [f"{col}_agent" for col in pivoted.columns]
+
     return pivoted.reset_index()
 ```
 
@@ -373,6 +376,9 @@ def _create_group_columns(merged_df, antimicrobial_groups, resistant_categories)
 
     # Convert boolean to int (1/0)
     group_pivoted = group_pivoted.fillna(False).astype(int)
+
+    # Add _group suffix to group column names
+    group_pivoted.columns = [f"{col}_group" for col in group_pivoted.columns]
 
     return group_pivoted.reset_index()
 ```
