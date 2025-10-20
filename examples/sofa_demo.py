@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.16.0"
+__generated_with = "0.16.1"
 app = marimo.App()
 
 
@@ -31,11 +31,11 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
+def _():
     from clifpy.clif_orchestrator import ClifOrchestrator
 
     # Initialize orchestrator
-    co = ClifOrchestrator(config_path='config/config.yaml')
+    co = ClifOrchestrator(config_path='config/demo_data_config.yaml')
 
     preferred_units_for_sofa = {
         "norepinephrine": "mcg/kg/min",
@@ -47,9 +47,9 @@ def _(mo):
     co.convert_dose_units_for_continuous_meds(preferred_units_for_sofa)
 
     # Compute SOFA scores (default: by encounter_block)
-    sofa_scores = co.compute_sofa_scores(id_name='hospitalization_id')
+    # sofa_scores = co.compute_sofa_scores(id_name='hospitalization_id')
 
-    mo.show_code()
+    # mo.show_code()
     return (co,)
 
 
@@ -117,21 +117,21 @@ def _(mo):
 
 
 @app.cell
-def _():
-    # # Define a cohort with specific time windows
-    # cohort_df = pd.DataFrame({
-    #     'hospitalization_id': ['23559586', '20626031'],
-    #     'start_time': pd.to_datetime(['2137-01-01 14:29:00+00:00', '2132-12-14 21:00:00+00:00']),
-    #     'end_time': pd.to_datetime(['2137-08-25 14:00:00+00:00', '2132-12-15 09:00:00+00:00'])
-    # })
+def _(co, mo, pd):
+    # Define a cohort with specific time windows
+    cohort_df = pd.DataFrame({
+        'hospitalization_id': ['23559586', '20626031'],
+        'start_time': pd.to_datetime(['2137-01-01 14:29:00+00:00', '2132-12-14 21:00:00+00:00']),
+        'end_time': pd.to_datetime(['2137-08-25 14:00:00+00:00', '2132-12-15 09:00:00+00:00'])
+    })
 
-    # # Compute SOFA for specific time windows
-    # sofa_filtered = co.compute_sofa_scores(
-    #     cohort_df=cohort_df,
-    #     id_name='hospitalization_id'
-    # )
+    # Compute SOFA for specific time windows
+    sofa_filtered = co.compute_sofa_scores(
+        cohort_df=cohort_df,
+        id_name='hospitalization_id'
+    )
 
-    # mo.show_code()
+    mo.show_code()
     return
 
 
@@ -192,7 +192,7 @@ def _import():
 
     # Add parent directory to path for development
     sys.path.append(str(Path().absolute().parent))
-    return (mo,)
+    return mo, pd
 
 
 @app.cell
