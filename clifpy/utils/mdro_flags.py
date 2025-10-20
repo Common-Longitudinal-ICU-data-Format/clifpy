@@ -1,7 +1,7 @@
 """
 MDRO (Multi-Drug Resistant Organism) Flag Calculation Utility
 
-This module provides functionality to calculate MDR, XDR, PDR, and DLR flags
+This module provides functionality to calculate MDR, XDR, PDR, and DTR flags
 for organisms based on antimicrobial susceptibility testing results.
 """
 
@@ -23,7 +23,7 @@ def calculate_mdro_flags(
     config_path: Optional[str] = None
 ) -> pd.DataFrame:
     """
-    Calculate MDRO flags (MDR, XDR, PDR, DLR) for a specified organism.
+    Calculate MDRO flags (MDR, XDR, PDR, DTR) for a specified organism.
 
     This function analyzes antimicrobial susceptibility data to determine if
     organisms meet criteria for multi-drug resistance classifications.
@@ -66,7 +66,7 @@ def calculate_mdro_flags(
         - mdro_[organism]_mdr: Multi-Drug Resistant flag (0/1)
         - mdro_[organism]_xdr: Extensively Drug Resistant flag (0/1)
         - mdro_[organism]_pdr: Pandrug Resistant flag (0/1)
-        - mdro_[organism]_dlr: Difficult to Treat Resistance flag (0/1)
+        - mdro_[organism]_dtr: Difficult to Treat Resistance flag (0/1)
           (if applicable for the organism)
 
     Raises
@@ -399,7 +399,7 @@ def _check_missing_antimicrobials(
     Check for antimicrobials defined in config but missing from dataset.
 
     Prints warnings for missing antimicrobials, with special attention to
-    critical agents required for specific resistance flags (e.g., DLR).
+    critical agents required for specific resistance flags (e.g., DTR).
 
     Parameters
     ----------
@@ -558,21 +558,17 @@ def _calculate_flags_for_organism(
             flags[column_name] = 1 if (all_defined_tested and all_defined_resistant) else 0
 
         elif criteria_type == 'specific_agents_resistant':
-            # DLR: specific agents must all be resistant (if tested)
-            required_agents = criteria['required_agents']
+            # DTR: ALL required agents must be tested AND all must be resistant
+            required_agents = set(criteria['required_agents'])
 
-            # Check which required agents were tested
-            tested_required = [a for a in required_agents if a in tested_agents]
+            # Check if ALL required agents were tested
+            all_required_tested = required_agents.issubset(tested_agents)
 
-            # Check which of those are resistant
-            resistant_required = [a for a in tested_required if a in resistant_agents]
+            # Check if ALL required agents are resistant
+            all_required_resistant = required_agents.issubset(resistant_agents)
 
-            # Flag as DLR if all tested required agents are resistant
-            # (and at least some were tested)
-            if len(tested_required) > 0:
-                flags[column_name] = 1 if len(resistant_required) == len(tested_required) else 0
-            else:
-                flags[column_name] = 0
+            # DTR = 1 only if ALL required agents are tested AND resistant
+            flags[column_name] = 1 if (all_required_tested and all_required_resistant) else 0
 
     return flags
 

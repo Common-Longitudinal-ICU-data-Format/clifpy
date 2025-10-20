@@ -21,7 +21,7 @@ clifpy/
 
 **Configuration (`mdro.yaml`)**
 - Defines antimicrobial groupings for each organism
-- Specifies resistance classification criteria (MDR/XDR/PDR/DLR)
+- Specifies resistance classification criteria (MDR/XDR/PDR/DTR)
 - Provides extensibility for adding new organisms
 
 **Utility Module (`mdro_flags.py`)**
@@ -108,7 +108,7 @@ sequenceDiagram
     MainFunc->>MainFunc: Identify resistant results
 
     loop For each (hospitalization_id, organism_id)
-        MainFunc->>FlagCalc: Calculate MDR/XDR/PDR/DLR
+        MainFunc->>FlagCalc: Calculate MDR/XDR/PDR/DTR
         FlagCalc-->>MainFunc: Return flags dict
     end
 
@@ -255,9 +255,9 @@ flowchart LR
     L -->|All tested resistant| M[PDR = 1]
     L -->|Any susceptible| N[PDR = 0]
 
-    E --> O{DLR Check}
-    O -->|All required resistant| P[DLR = 1]
-    O -->|Any required susceptible| Q[DLR = 0]
+    E --> O{DTR Check}
+    O -->|All required resistant| P[DTR = 1]
+    O -->|Any required susceptible| Q[DTR = 0]
 ```
 
 #### MDR (Multi-Drug Resistant)
@@ -286,23 +286,21 @@ elif criteria_type == 'all_tested_resistant':
     flags[column_name] = 1 if num_resistant_agents == num_tested_agents else 0
 ```
 
-#### DLR (Difficult to Treat)
+#### DTR (Difficult to Treat)
 
 ```python
 elif criteria_type == 'specific_agents_resistant':
-    required_agents = criteria['required_agents']  # List of 8 agents for P. aeruginosa
+    # DTR: ALL required agents must be tested AND all must be resistant
+    required_agents = set(criteria['required_agents'])  # 8 agents for P. aeruginosa
 
-    # Check which required agents were tested
-    tested_required = [a for a in required_agents if a in tested_agents]
+    # Check if ALL required agents were tested
+    all_required_tested = required_agents.issubset(tested_agents)
 
-    # Check which of those are resistant
-    resistant_required = [a for a in tested_required if a in resistant_agents]
+    # Check if ALL required agents are resistant
+    all_required_resistant = required_agents.issubset(resistant_agents)
 
-    # Flag as DLR if all tested required agents are resistant
-    if len(tested_required) > 0:
-        flags[column_name] = 1 if len(resistant_required) == len(tested_required) else 0
-    else:
-        flags[column_name] = 0
+    # DTR = 1 only if ALL required agents are tested AND resistant
+    flags[column_name] = 1 if (all_required_tested and all_required_resistant) else 0
 ```
 
 ### Step 7: Wide Format Transformation
@@ -458,10 +456,10 @@ organisms:
 - Logic: `num_resistant_agents == num_tested_agents`
 
 **4. specific_agents_resistant**
-- Used for: DLR classification
+- Used for: DTR classification
 - Parameters:
-  - `required_agents` (list): Specific antimicrobials that must all be resistant
-- Logic: All tested required agents must be resistant
+  - `required_agents` (list): Specific antimicrobials that must all be tested and resistant
+- Logic: ALL required agents must be tested AND all must be resistant
 
 ## Adding New Organisms
 

@@ -18,7 +18,7 @@ The MDRO flag calculator automates the classification of organisms into standard
 - **MDR (Multi-Drug Resistant)** - Non-susceptible to ≥1 agent in ≥3 antimicrobial categories
 - **XDR (Extensively Drug Resistant)** - Non-susceptible to ≥1 agent in all but ≤2 categories
 - **PDR (Pandrug Resistant)** - Non-susceptible to all antimicrobial agents tested
-- **DLR (Difficult to Treat Resistance)** - Non-susceptible to specific key antimicrobials (organism-specific)
+- **DTR (Difficult to Treat Resistance)** - Non-susceptible to specific key antimicrobials (organism-specific)
 
 ### Currently Supported Organisms
 
@@ -42,7 +42,7 @@ flowchart TD
     F --> G
     G --> H[Map Antimicrobials to Groups]
     H --> I[Identify Resistant Results]
-    I --> J[Calculate MDR/XDR/PDR/DLR Flags]
+    I --> J[Calculate MDR/XDR/PDR/DTR Flags]
     J --> K[Create Antimicrobial Columns]
     K --> L[Create Group Columns]
     L --> M[Merge into Wide Format]
@@ -56,7 +56,7 @@ flowchart TD
 3. **Susceptibility Join** - LEFT JOIN preserves all organism cultures, even without susceptibility data
 4. **Group Mapping** - Maps individual antimicrobials (e.g., ciprofloxacin) to groups (e.g., fluoroquinolones)
 5. **Resistance Classification** - Identifies resistant results (both 'intermediate' and 'non_susceptible')
-6. **Flag Calculation** - Applies organism-specific criteria to determine MDR/XDR/PDR/DLR status
+6. **Flag Calculation** - Applies organism-specific criteria to determine MDR/XDR/PDR/DTR status
 7. **Wide Format Creation** - Pivots results to include individual antimicrobial and group columns for verification
 
 ## Basic Usage
@@ -183,7 +183,7 @@ hospitalization_id | organism_id | amikacin_agent | ciprofloxacin_agent | ... | 
 - `mdro_psar_mdr` - Multi-Drug Resistant flag (0/1)
 - `mdro_psar_xdr` - Extensively Drug Resistant flag (0/1)
 - `mdro_psar_pdr` - Pandrug Resistant flag (0/1)
-- `mdro_psar_dlr` - Difficult to Treat Resistance flag (0/1)
+- `mdro_psar_dtr` - Difficult to Treat Resistance flag (0/1)
 
 ### Interpreting Results
 
@@ -195,12 +195,12 @@ mdro_flags = calculate_mdro_flags(culture, susceptibility, 'pseudomonas_aerugino
 mdr_count = mdro_flags['mdro_psar_mdr'].sum()
 xdr_count = mdro_flags['mdro_psar_xdr'].sum()
 pdr_count = mdro_flags['mdro_psar_pdr'].sum()
-dlr_count = mdro_flags['mdro_psar_dlr'].sum()
+dtr_count = mdro_flags['mdro_psar_dtr'].sum()
 
 print(f"MDR organisms: {mdr_count}")
 print(f"XDR organisms: {xdr_count}")
 print(f"PDR organisms: {pdr_count}")
-print(f"DLR organisms: {dlr_count}")
+print(f"DTR organisms: {dtr_count}")
 
 # View a specific organism's results
 organism_detail = mdro_flags[mdro_flags['organism_id'] == 'ORG123']
@@ -235,7 +235,7 @@ summary = pd.DataFrame({
     'MDR (%)': [f"{mdro['mdro_psar_mdr'].sum()} ({mdro['mdro_psar_mdr'].mean()*100:.1f}%)"],
     'XDR (%)': [f"{mdro['mdro_psar_xdr'].sum()} ({mdro['mdro_psar_xdr'].mean()*100:.1f}%)"],
     'PDR (%)': [f"{mdro['mdro_psar_pdr'].sum()} ({mdro['mdro_psar_pdr'].mean()*100:.1f}%)"],
-    'DLR (%)': [f"{mdro['mdro_psar_dlr'].sum()} ({mdro['mdro_psar_dlr'].mean()*100:.1f}%)"]
+    'DTR (%)': [f"{mdro['mdro_psar_dtr'].sum()} ({mdro['mdro_psar_dtr'].mean()*100:.1f}%)"]
 })
 
 print("P. aeruginosa Resistance Summary")
@@ -345,8 +345,8 @@ The function uses 8 antimicrobial groups for *P. aeruginosa* classification:
 - Non-susceptible to ALL antimicrobial agents tested
 - Most severe classification
 
-**DLR (Difficult to Treat Resistance)**
-- Non-susceptible to ALL of these specific agents:
+**DTR (Difficult to Treat Resistance)**
+- ALL 8 specific agents must be tested AND all must be non-susceptible:
   - Piperacillin-tazobactam
   - Ceftazidime
   - Cefepime

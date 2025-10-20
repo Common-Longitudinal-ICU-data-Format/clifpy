@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.16.1"
-app = marimo.App(width="medium")
+app = marimo.App(width="full")
 
 
 @app.cell
@@ -12,49 +12,17 @@ def _():
     from pathlib import Path
 
     # Add the clifpy package to the path
-    sys.path.insert(0, str(Path(__file__).parent.parent))
+    project_root = Path(__file__).parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
-    mo.md("""
-    # MDRO Flag Calculation Demo
-
-    **Multi-Drug Resistant Organism (MDRO) Detection**
-
-    This notebook demonstrates how to use clifpy's MDRO flag calculation utility to identify:
-    - **MDR** (Multi-Drug Resistant): Non-susceptible to ≥1 agent in ≥3 antimicrobial categories
-    - **XDR** (Extensively Drug Resistant): Non-susceptible to ≥1 agent in all but ≤2 categories
-    - **PDR** (Pandrug Resistant): Non-susceptible to all antimicrobial agents tested
-    - **DLR** (Difficult to Treat Resistance): Non-susceptible to specific high-priority agents
-
-    ## What is MDRO?
-
-    MDRO classification helps identify organisms with concerning resistance patterns,
-    guiding clinical decision-making and infection control practices.
-
-    This demo focuses on **Pseudomonas aeruginosa**, a common healthcare-associated pathogen.
-    """)
-    return mo, pd
+    from clifpy.tables import MicrobiologyCulture, MicrobiologySusceptibility
+    return MicrobiologyCulture, MicrobiologySusceptibility, Path, mo, pd
 
 
 @app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 1. Understanding the MDRO Configuration
-
-    The MDRO detection system uses a YAML configuration file that defines:
-    1. **Antimicrobial groups** - Which drugs belong to which categories
-    2. **Resistance definitions** - Criteria for MDR/XDR/PDR/DLR classification
-
-    Let's look at the configuration:
-    """
-    )
-    return
-
-
-@app.cell
-def _():
+def _(Path):
     import yaml
-    from pathlib import Path
 
     # Load the MDRO configuration
     config_path = Path(__file__).parent.parent / "clifpy" / "data" / "mdro.yaml"
@@ -65,26 +33,6 @@ def _():
     # Extract P. aeruginosa configuration
     psar_config = mdro_config['organisms']['pseudomonas_aeruginosa']
     return (psar_config,)
-
-
-@app.cell
-def _(mo, pd, psar_config):
-    # Show antimicrobial groups
-    mo.md("""
-    ### Antimicrobial Groups for *Pseudomonas aeruginosa*
-
-    The following antimicrobial groups are used for MDRO classification:
-    """)
-
-    group_summary = []
-    for group_name, agents in psar_config['antimicrobial_groups'].items():
-        group_summary.append({
-            'Group': group_name.replace('_', ' ').title(),
-            'Agents': ', '.join(agents[:3]) + (f' (+{len(agents)-3} more)' if len(agents) > 3 else '')
-        })
-
-    pd.DataFrame(group_summary)
-    return
 
 
 @app.cell
@@ -103,152 +51,29 @@ def _(mo, psar_config):
 
 
 @app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 2. Loading Microbiology Data
+def _(MicrobiologyCulture, MicrobiologySusceptibility):
+    # Initialize tables from data files
+    # TODO: Update the data_directory in clif_config.json to point to your CLIF data location
 
-    To calculate MDRO flags, we need two tables:
-    1. **Culture table** - Contains organism identification and hospitalization linkage
-    2. **Susceptibility table** - Contains antimicrobial susceptibility test results
-
-    ### Sample Data Structure
-
-    For this demo, we'll create sample data. In practice, you would load your own data:
-
-    ```python
-    from clifpy.tables import MicrobiologyCulture, MicrobiologySusceptibility
-
-    culture = MicrobiologyCulture(
-        data_directory="/path/to/data",
-        filetype="parquet"
+    culture = MicrobiologyCulture.from_file(
+        config_path='clif_config.json'
     )
 
-    susceptibility = MicrobiologySusceptibility(
-        data_directory="/path/to/data",
-        filetype="parquet"
+    susceptibility = MicrobiologySusceptibility.from_file(
+        config_path='clif_config.json'
     )
-    ```
-    """
-    )
-    return
-
-
-@app.cell
-def _(pd):
-    # Create sample culture data
-    sample_culture_data = pd.DataFrame({
-        'patient_id': ['P001', 'P001', 'P002', 'P003'],
-        'hospitalization_id': ['H001', 'H001', 'H002', 'H003'],
-        'organism_id': ['ORG001', 'ORG002', 'ORG003', 'ORG004'],
-        'organism_category': ['pseudomonas_aeruginosa', 'escherichia_coli',
-                             'pseudomonas_aeruginosa', 'pseudomonas_aeruginosa'],
-        'organism_name': ['Pseudomonas aeruginosa', 'Escherichia coli',
-                         'Pseudomonas aeruginosa', 'Pseudomonas aeruginosa'],
-        'result_dttm': pd.to_datetime(['2024-01-15', '2024-01-16',
-                                       '2024-02-10', '2024-03-05']),
-        'fluid_category': ['blood_buffy', 'genito_urinary_tract',
-                          'respiratory_tract_lower', 'blood_buffy'],
-        'organism_group': ['pseudomonas_wo_cepacia_maltophilia', 'escherichia',
-                          'pseudomonas_wo_cepacia_maltophilia',
-                          'pseudomonas_wo_cepacia_maltophilia']
-    })
-
-    sample_culture_data
-    return (sample_culture_data,)
-
-
-@app.cell
-def _(pd):
-    # Create sample susceptibility data
-    # This represents susceptibility testing results for the organisms
-    sample_susceptibility_data = pd.DataFrame({
-        'organism_id': [
-            # ORG001 - MDR P. aeruginosa (resistant to 3+ groups)
-            'ORG001', 'ORG001', 'ORG001', 'ORG001', 'ORG001', 'ORG001',
-            # ORG003 - XDR P. aeruginosa (resistant to all but 1 group)
-            'ORG003', 'ORG003', 'ORG003', 'ORG003', 'ORG003', 'ORG003', 'ORG003',
-            # ORG004 - Susceptible P. aeruginosa
-            'ORG004', 'ORG004', 'ORG004', 'ORG004'
-        ],
-        'antimicrobial_category': [
-            # ORG001 - MDR (resistant to carbapenems, cephalosporins, fluoroquinolones)
-            'meropenem', 'imipenem', 'ceftazidime', 'cefepime',
-            'ciprofloxacin', 'piperacillin_tazobactam',
-            # ORG003 - XDR (resistant to most agents, susceptible only to colistin)
-            'meropenem', 'ceftazidime', 'cefepime', 'ciprofloxacin',
-            'piperacillin_tazobactam', 'aztreonam', 'tobramycin',
-            # ORG004 - Susceptible
-            'meropenem', 'ceftazidime', 'ciprofloxacin', 'piperacillin_tazobactam'
-        ],
-        'susceptibility_category': [
-            # ORG001
-            'non_susceptible', 'non_susceptible', 'non_susceptible', 'intermediate',
-            'non_susceptible', 'susceptible',
-            # ORG003
-            'non_susceptible', 'non_susceptible', 'non_susceptible', 'non_susceptible',
-            'non_susceptible', 'intermediate', 'non_susceptible',
-            # ORG004
-            'susceptible', 'susceptible', 'susceptible', 'susceptible'
-        ]
-    })
-
-    sample_susceptibility_data
-    return (sample_susceptibility_data,)
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 3. Creating Table Objects
-
-    Now we'll create MicrobiologyCulture and MicrobiologySusceptibility objects
-    from our sample data:
-    """
-    )
-    return
-
-
-@app.cell
-def _(sample_culture_data, sample_susceptibility_data):
-    from clifpy.tables import MicrobiologyCulture, MicrobiologySusceptibility
-
-    # Create table objects from sample data
-    culture = MicrobiologyCulture(data=sample_culture_data)
-    susceptibility = MicrobiologySusceptibility(data=sample_susceptibility_data)
     return culture, susceptibility
 
 
 @app.cell
-def _(culture, mo, susceptibility):
-    mo.md(
-        f"""
-    **Tables loaded successfully!**
-
-    - Culture table: {len(culture.df)} organisms
-    - Susceptibility table: {len(susceptibility.df)} test results
-    - P. aeruginosa cultures: {(culture.df['organism_category'] == 'pseudomonas_aeruginosa').sum()}
-    """
-    )
+def _(culture):
+    culture.df
     return
 
 
 @app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 4. Calculate MDRO Flags
-
-    Now we'll use the `calculate_mdro_flags()` function to identify MDR/XDR/PDR/DLR organisms.
-
-    The function will:
-    1. Filter culture table to P. aeruginosa only
-    2. LEFT JOIN with susceptibility data (preserves all cultures)
-    3. Map antimicrobial agents to groups
-    4. Calculate resistance flags based on criteria
-    """
-    )
+def _(susceptibility):
+    susceptibility.df
     return
 
 
@@ -262,164 +87,233 @@ def _(culture, susceptibility):
         susceptibility=susceptibility,
         organism_name="pseudomonas_aeruginosa"
     )
-    return calculate_mdro_flags, mdro_results
+    return (mdro_results,)
 
 
 @app.cell
-def _(mdro_results, mo):
-    mo.md("""
-    ### MDRO Flag Results
+def _():
+    # 17 must be tested
+    # 4 are not tested
 
-    Here are the calculated flags for each P. aeruginosa organism:
-    """)
+    # so 13 
 
+    # for PDR all MUST MUST be tested 
+
+    # for XDR 
+
+
+    # For PDR must be non-susceptible to all the antimicrobial agents (17 - 4 = 13)
+    # For XDR must be non susceptible to 1 or more agent in 6 of the categories / groups. If a pseudomonas is only tested for antimicrobials in 5 categories/groups, then it cant be an XDR. That is the "MDR, possible XDR" from FIgure 2. For us, we classify as MDR
+    # For MDR, it must have been tested in 3 or more categories (which I suspect will always be the case)
+    return
+
+
+@app.cell
+def _(mdro_results):
     mdro_results
     return
 
 
 @app.cell
-def _(mdro_results, mo):
-    # Calculate summary statistics
+def _(mo):
+    mo.md(
+        """
+    ## Validation: Check Flag Logic
+
+    Let's verify that each MDRO flag is calculated correctly by checking the underlying resistance patterns.
+    """
+    )
+    return
+
+
+@app.cell
+def _(mdro_results):
+    # MDR Validation: Should have ≥3 resistant groups
+    mdr_organisms = mdro_results[mdro_results['mdro_psar_mdr'] == 1]
+
+    if len(mdr_organisms) > 0:
+        # Get group columns
+        mdr_group_cols = [col for col in mdro_results.columns if col.endswith('_group')]
+
+        # Count resistant groups for each MDR organism
+        mdr_resistant_group_counts = mdr_organisms[mdr_group_cols].sum(axis=1)
+
+        # Check if all have ≥3 resistant groups
+        mdr_all_valid = (mdr_resistant_group_counts >= 3).all()
+        mdr_min_groups = mdr_resistant_group_counts.min()
+        mdr_max_groups = mdr_resistant_group_counts.max()
+
+        if mdr_all_valid:
+            print(f"""
+    ✓ MDR Validation PASSED
+    - Total MDR organisms: {len(mdr_organisms)}
+    - All have ≥3 resistant groups
+    - Range: {mdr_min_groups}-{mdr_max_groups} resistant groups
+    """)
+        else:
+            mdr_violations = mdr_organisms[mdr_resistant_group_counts < 3]
+            print(f"""
+    ✗ MDR Validation FAILED
+    - {len(mdr_violations)} organisms flagged as MDR but have <3 resistant groups
+    """)
+    else:
+        print("MDR Validation: No MDR organisms found")
+    return
+
+
+@app.cell
+def _(mdro_results):
+    # XDR Validation: Should have resistance in all but ≤2 groups
+    # For P. aeruginosa with 8 groups: ≥6 resistant groups
+    xdr_organisms = mdro_results[mdro_results['mdro_psar_xdr'] == 1]
+
+    if len(xdr_organisms) > 0:
+        xdr_group_cols = [col for col in mdro_results.columns if col.endswith('_group')]
+        xdr_total_groups = len(xdr_group_cols)
+
+        # Count resistant groups
+        xdr_resistant_group_counts = xdr_organisms[xdr_group_cols].sum(axis=1)
+
+        # For XDR: should have ≥ (total_groups - 2) resistant groups
+        xdr_min_required = xdr_total_groups - 2
+        xdr_all_valid = (xdr_resistant_group_counts >= xdr_min_required).all()
+        xdr_min_groups = xdr_resistant_group_counts.min()
+        xdr_max_groups = xdr_resistant_group_counts.max()
+
+        if xdr_all_valid:
+            print(f"""
+    ✓ XDR Validation PASSED
+    - Total XDR organisms: {len(xdr_organisms)}
+    - All have ≥{xdr_min_required} resistant groups (out of {xdr_total_groups})
+    - Range: {xdr_min_groups}-{xdr_max_groups} resistant groups
+    """)
+        else:
+            xdr_violations = xdr_organisms[xdr_resistant_group_counts < xdr_min_required]
+            print(f"""
+    ✗ XDR Validation FAILED
+    - {len(xdr_violations)} organisms flagged as XDR but have <{xdr_min_required} resistant groups
+    """)
+    else:
+        print("XDR Validation: No XDR organisms found")
+    return
+
+
+@app.cell
+def _(mdro_results):
+    # PDR Validation: Should be resistant to ALL tested agents
+    pdr_organisms = mdro_results[mdro_results['mdro_psar_pdr'] == 1]
+
+    if len(pdr_organisms) > 0:
+        pdr_agent_cols = [col for col in mdro_results.columns if col.endswith('_agent')]
+
+        pdr_validation_results = []
+        for pdr_idx, pdr_row in pdr_organisms.iterrows():
+            # Get tested agents (non-null values)
+            pdr_tested_agents = pdr_row[pdr_agent_cols].dropna()
+
+            # Check if all are resistant (intermediate or non_susceptible)
+            pdr_resistant_agents = pdr_tested_agents[pdr_tested_agents.isin(['intermediate', 'non_susceptible'])]
+
+            pdr_all_resistant = len(pdr_resistant_agents) == len(pdr_tested_agents)
+            pdr_validation_results.append(pdr_all_resistant)
+
+        pdr_all_valid = all(pdr_validation_results)
+
+        if pdr_all_valid:
+            pdr_avg_tested = pdr_organisms[pdr_agent_cols].notna().sum(axis=1).mean()
+            print(f"""
+    ✓ PDR Validation PASSED
+    - Total PDR organisms: {len(pdr_organisms)}
+    - All are resistant to 100% of tested agents
+    - Average agents tested: {pdr_avg_tested:.1f}
+    """)
+        else:
+            pdr_violations = sum(not v for v in pdr_validation_results)
+            print(f"""
+    ✗ PDR Validation FAILED
+    - {pdr_violations} organisms flagged as PDR but not resistant to all tested agents
+    """)
+    else:
+        print("PDR Validation: No PDR organisms found")
+    return
+
+
+@app.cell
+def _(mdro_results, pd):
+    # DLR Validation: Should be resistant to all 8 specific agents
+    dlr_organisms = mdro_results[mdro_results['mdro_psar_dtr'] == 1]
+
+    if len(dlr_organisms) > 0:
+        # The 8 required agents for DLR
+        dlr_required_agents = [
+            'piperacillin_tazobactam_agent',
+            'ceftazidime_agent',
+            'cefepime_agent',
+            'aztreonam_agent',
+            'meropenem_agent',
+            'imipenem_agent',
+            'ciprofloxacin_agent',
+            'levofloxacin_agent'
+        ]
+
+        dlr_validation_results = []
+        for dlr_idx, dlr_row in dlr_organisms.iterrows():
+            # Check if all required agents are resistant
+            dlr_tested_required = {agent: dlr_row.get(agent) for agent in dlr_required_agents if pd.notna(dlr_row.get(agent))}
+
+            if len(dlr_tested_required) > 0:
+                dlr_all_resistant = all(
+                    val in ['intermediate', 'non_susceptible']
+                    for val in dlr_tested_required.values()
+                )
+                dlr_validation_results.append((dlr_all_resistant, len(dlr_tested_required)))
+            else:
+                dlr_validation_results.append((False, 0))
+
+        dlr_all_valid = all(v[0] for v in dlr_validation_results)
+        dlr_avg_tested = sum(v[1] for v in dlr_validation_results) / len(dlr_validation_results) if dlr_validation_results else 0
+
+        if dlr_all_valid:
+            print(f"""
+    ✓ DLR Validation PASSED
+    - Total DLR organisms: {len(dlr_organisms)}
+    - All are resistant to all tested required agents
+    - Average required agents tested: {dlr_avg_tested:.1f} / 8
+    """)
+        else:
+            dlr_violations = sum(not v[0] for v in dlr_validation_results)
+            print(f"""
+    ✗ DLR Validation FAILED
+    - {dlr_violations} organisms flagged as DLR but not resistant to all required agents
+    """)
+    else:
+        print("DLR Validation: No DLR organisms found")
+    return
+
+
+@app.cell
+def _(mdro_results):
+    # Summary
     total_organisms = len(mdro_results)
+    mdr_count = mdro_results['mdro_psar_mdr'].sum()
+    xdr_count = mdro_results['mdro_psar_xdr'].sum()
+    pdr_count = mdro_results['mdro_psar_pdr'].sum()
+    dlr_count = mdro_results['mdro_psar_dtr'].sum()
 
-    mdr_count = mdro_results['mdro_psar_mdr'].sum() if 'mdro_psar_mdr' in mdro_results.columns else 0
-    xdr_count = mdro_results['mdro_psar_xdr'].sum() if 'mdro_psar_xdr' in mdro_results.columns else 0
-    pdr_count = mdro_results['mdro_psar_pdr'].sum() if 'mdro_psar_pdr' in mdro_results.columns else 0
-    dlr_count = mdro_results['mdro_psar_dlr'].sum() if 'mdro_psar_dlr' in mdro_results.columns else 0
+    print(f"""
+    ## Summary
 
-    mo.md(f"""
-    ### Summary Statistics
+    Total P. aeruginosa organisms analyzed: {total_organisms}
 
-    **Total P. aeruginosa with susceptibility data:** {total_organisms}
+    Classification                        Count    Percentage
+    ---------------------------------------------------------
+    MDR (Multi-Drug Resistant)            {mdr_count}      {mdr_count/total_organisms*100:.1f}%
+    XDR (Extensively Drug Resistant)      {xdr_count}      {xdr_count/total_organisms*100:.1f}%
+    PDR (Pandrug Resistant)               {pdr_count}      {pdr_count/total_organisms*100:.1f}%
+    DLR (Difficult to Treat)              {dlr_count}      {dlr_count/total_organisms*100:.1f}%
 
-    **Resistance Classifications:**
-    - MDR (Multi-Drug Resistant): {mdr_count} ({mdr_count/total_organisms*100:.1f}%)
-    - XDR (Extensively Drug Resistant): {xdr_count} ({xdr_count/total_organisms*100:.1f}%)
-    - PDR (Pandrug Resistant): {pdr_count} ({pdr_count/total_organisms*100:.1f}%)
-    - DLR (Difficult to Treat): {dlr_count} ({dlr_count/total_organisms*100:.1f}%)
+    Note: An organism can have multiple classifications (e.g., an XDR organism is also MDR).
     """)
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 5. Filter to Specific Hospitalizations
-
-    You can also calculate MDRO flags for specific hospitalizations:
-    """
-    )
-    return
-
-
-@app.cell
-def _(calculate_mdro_flags, culture, susceptibility):
-    # Calculate flags for specific hospitalizations
-    specific_hosps = ['H001', 'H003']
-
-    mdro_filtered = calculate_mdro_flags(
-        culture=culture,
-        susceptibility=susceptibility,
-        organism_name="pseudomonas_aeruginosa",
-        hospitalization_ids=specific_hosps
-    )
-    return mdro_filtered, specific_hosps
-
-
-@app.cell
-def _(mdro_filtered, mo, specific_hosps):
-    mo.md(f"""
-    ### Results for Hospitalizations: {', '.join(specific_hosps)}
-    """)
-
-    mdro_filtered
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 6. Interpreting Results
-
-    ### Understanding the Flags
-
-    Each organism gets a binary flag (0 or 1) for each resistance level:
-
-    - **mdro_psar_mdr = 1**: Organism is Multi-Drug Resistant
-    - **mdro_psar_xdr = 1**: Organism is Extensively Drug Resistant
-    - **mdro_psar_pdr = 1**: Organism is Pandrug Resistant
-    - **mdro_psar_dlr = 1**: Organism shows Difficult to Treat Resistance
-
-    ### Clinical Implications
-
-    - **MDR organisms** may require consultation with infectious disease specialists
-    - **XDR organisms** have very limited treatment options
-    - **PDR organisms** are resistant to all tested agents - may require novel therapies
-    - **DLR organisms** are resistant to all standard anti-pseudomonal agents
-
-    ### Important Notes
-
-    1. Flags are calculated based on **tested agents only**
-    2. Both 'intermediate' and 'non_susceptible' results count as resistant
-    3. Organisms without susceptibility testing are excluded from results
-    4. Results should be interpreted in conjunction with clinical context
-    """
-    )
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        """
-    ## 7. Advanced Usage
-
-    ### With Cohort Date Filtering (Not shown in this demo)
-
-    You can filter organisms by date range using a cohort DataFrame:
-
-    ```python
-    cohort_df = pd.DataFrame({
-        'hospitalization_id': ['H001', 'H002'],
-        'start_dttm': ['2024-01-01', '2024-02-01'],
-        'end_dttm': ['2024-01-31', '2024-02-28']
-    })
-
-    mdro_flags = calculate_mdro_flags(
-        culture=culture,
-        susceptibility=susceptibility,
-        organism_name="pseudomonas_aeruginosa",
-        cohort=cohort_df
-    )
-    ```
-
-    This filters to only include cultures with `result_dttm` within the specified date ranges.
-
-    ### Adding Other Organisms
-
-    The MDRO configuration supports multiple organisms. To add a new organism:
-
-    1. Add organism configuration to `clifpy/data/mdro.yaml`
-    2. Define antimicrobial groups
-    3. Define resistance criteria
-    4. Call `calculate_mdro_flags()` with the new organism name
-
-    ## Next Steps
-
-    - Load your own culture and susceptibility data
-    - Calculate MDRO flags for your patient population
-    - Track resistance trends over time
-    - Integrate with infection control surveillance
-
-    ## Resources
-
-    - [CLIF Specification](https://clif-consortium.github.io/website/)
-    - [CDC MDRO Guidelines](https://www.cdc.gov/hai/organisms/organisms.html)
-    - Magiorakos AP, et al. Multidrug-resistant, extensively drug-resistant and pandrug-resistant bacteria. Clin Microbiol Infect. 2012.
-    """
-    )
     return
 
 
