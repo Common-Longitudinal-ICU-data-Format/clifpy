@@ -242,9 +242,23 @@ columns:
   is_group_column: false
 - name: mar_action_category
   data_type: VARCHAR
-  required: false
+  required: true
   is_category_column: true
   is_group_column: false
+  permissible_values:
+   - given
+   - bolus
+   - not_given 
+   - other
+- name: mar_action_group
+    required: true
+    is_category_column: false
+    is_group_column: true
+    permissible_values: 
+    - administered
+    - not_administered
+    - other
+
 
 required_columns:
   - hospitalization_id
@@ -254,6 +268,8 @@ required_columns:
   - med_route_category
   - med_dose
   - med_dose_unit
+  - mar_action_category
+  - mar_action_group
 
 
 category_columns:
@@ -263,3 +279,4 @@ category_columns:
 
 group_columns:
   - med_group
+  - mar_action_group
