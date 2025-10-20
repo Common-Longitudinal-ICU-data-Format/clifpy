@@ -1350,6 +1350,6 @@ class ClifOrchestrator:
         self.logger.info(f"SOFA computation completed. Results stored in self.sofa_df with shape: {sofa_scores.shape}")
 
         if return_dataframe:
-            return sofa_scores.df()
+            return sofa_scores
         else:
             return None
