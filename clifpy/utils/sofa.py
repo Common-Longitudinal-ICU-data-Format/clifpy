@@ -98,6 +98,18 @@ def _agg_extremal_values_by_id(
     Returns:
         DataFrame with one row per ID containing worst values for SOFA computation
     """
+    # rename columns for missing meds to unit-aware format e.g. norepinephrine_mcg_kg_min
+    rename_dict = {
+        'norepinephrine': 'norepinephrine_mcg_kg_min',
+        'epinephrine': 'epinephrine_mcg_kg_min',
+        'dopamine': 'dopamine_mcg_kg_min',
+        'dobutamine': 'dobutamine_mcg_kg_min',
+    }
+    # keep only mapping for columns that are in wide_df
+    rename_dict = {k: v for k, v in rename_dict.items() if k in wide_df.columns}
+    wide_df = wide_df.rename(columns=rename_dict)
+    
+    
     if extremal_type == 'worst':
         q = f"""
         FROM wide_df
