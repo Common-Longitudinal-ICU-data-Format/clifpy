@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import duckdb
 import logging
 
@@ -50,9 +50,51 @@ DEVICE_RANK_MAPPING = pd.DataFrame({
     'device_rank': DEVICE_RANK_DICT.values()
 })
 
+def _ensure_unit_suffix_for_med_columns(
+    df: Union[pd.DataFrame, duckdb.DuckDBPyRelation]
+) -> duckdb.DuckDBPyRelation:
+    """
+    Rename medication columns to include unit suffixes (e.g., _mcg_kg_min).
+
+    Returns a DuckDB relation without materializing to pandas.
+    This allows downstream functions to continue working with lazy evaluation.
+
+    Parameters:
+        df: DataFrame or DuckDB relation containing medication columns
+
+    Returns:
+        DuckDB relation with renamed medication columns
+    """
+    # Get column list to check what needs renaming
+    available_columns = df.columns
+
+    # Build rename mapping for medication columns
+    rename_dict = {
+        'norepinephrine': 'norepinephrine_mcg_kg_min',
+        'epinephrine': 'epinephrine_mcg_kg_min',
+        'dopamine': 'dopamine_mcg_kg_min',
+        'dobutamine': 'dobutamine_mcg_kg_min',
+    }
+
+    # Filter to only columns that actually exist
+    existing_renames = {k: v for k, v in rename_dict.items() if k in available_columns}
+
+    if not existing_renames:
+        # Nothing to rename, return as-is (as relation)
+        return duckdb.sql("SELECT * FROM df")
+
+    # Build RENAME clause for SQL (DuckDB syntax for column renaming)
+    rename_clauses = [f"{old} AS {new}" for old, new in existing_renames.items()]
+
+    q = f"""
+    SELECT * RENAME ({', '.join(rename_clauses)})
+    FROM df
+    """
+    return duckdb.sql(q)
+
 def _impute_pao2_from_spo2(
-    wide_df: pd.DataFrame
-) -> pd.DataFrame:
+    wide_df: Union[pd.DataFrame, duckdb.DuckDBPyRelation]
+) -> duckdb.DuckDBPyRelation:
     """
     Impute PaO2 from SpO2 using Severinghaus equation for SOFA respiratory scoring.
 
@@ -63,26 +105,26 @@ def _impute_pao2_from_spo2(
         wide_df: Wide dataset containing spo2 and po2_arterial columns
 
     Returns:
-        DataFrame with added pao2_imputed column
+        DuckDB relation with added pao2_imputed column (intermediate columns excluded)
     """
     q = f"""
     FROM wide_df
-    SELECT *
+    SELECT * 
         , _s: spo2 / 100
         , _a: 11700.0 / ( (1/_s) - 1 )
         , _b: sqrt(50^3 + (_a)^2)
-        , pao2_imputed: CASE 
+        , pao2_imputed: CASE
             WHEN spo2 < 97 THEN ( _b + _a)^(1.0/3.0) - (_b - _a)^(1.0/3.0)
             END
     """
     # print(q)
-    return duckdb.sql(q).df()
+    return duckdb.sql(q)
 
 def _agg_extremal_values_by_id(
-    wide_df: pd.DataFrame,
+    wide_df: Union[pd.DataFrame, duckdb.DuckDBPyRelation],
     extremal_type: str,
     id_name: str
-) -> pd.DataFrame:
+) -> duckdb.DuckDBPyRelation:
     """
     Aggregate extremal (worst) values by ID for SOFA score calculation.
 
@@ -90,26 +132,17 @@ def _agg_extremal_values_by_id(
     - MAX for medications and other 'worse-when-higher' variables
     - MIN for vitals and labs where lower values indicate worse organ function
 
+    Note: Expects medication columns to already have unit suffixes (e.g., norepinephrine_mcg_kg_min).
+    Use _ensure_unit_suffix_for_med_columns() before calling this function if needed.
+
     Parameters:
         wide_df: Wide dataset with SOFA variables
         extremal_type: 'worst' (implemented) or 'latest' (future feature)
         id_name: Grouping column ('hospitalization_id', 'encounter_block', etc.)
 
     Returns:
-        DataFrame with one row per ID containing worst values for SOFA computation
+        DuckDB relation with one row per ID containing worst values for SOFA computation
     """
-    # rename columns for missing meds to unit-aware format e.g. norepinephrine_mcg_kg_min
-    rename_dict = {
-        'norepinephrine': 'norepinephrine_mcg_kg_min',
-        'epinephrine': 'epinephrine_mcg_kg_min',
-        'dopamine': 'dopamine_mcg_kg_min',
-        'dobutamine': 'dobutamine_mcg_kg_min',
-    }
-    # keep only mapping for columns that are in wide_df
-    rename_dict = {k: v for k, v in rename_dict.items() if k in wide_df.columns}
-    wide_df = wide_df.rename(columns=rename_dict)
-    
-    
     if extremal_type == 'worst':
         q = f"""
         FROM wide_df
@@ -120,7 +153,7 @@ def _agg_extremal_values_by_id(
             , device_rank: MIN(device_rank)
         GROUP BY {id_name}
         """
-        return duckdb.sql(q).df()
+        return duckdb.sql(q)
     elif extremal_type == 'latest':
         raise NotImplementedError("this is a future feature and currently unavailable")
         # TODO: Future feature - implement latest value extraction
@@ -132,15 +165,15 @@ def _agg_extremal_values_by_id(
             , device_rank: MIN(device_rank)
         GROUP BY {id_name}
         """
-        return duckdb.sql(q).df()
-        
+        return duckdb.sql(q)
+
     else:
         raise ValueError(f"Invalid extremal type: {extremal_type}")
 
 def _compute_sofa_from_extremal_values(
-    extremal_df: pd.DataFrame,
+    extremal_df: Union[pd.DataFrame, duckdb.DuckDBPyRelation],
     id_name: str
-) -> pd.DataFrame:
+) -> duckdb.DuckDBPyRelation:
     """
     Calculate SOFA component scores from aggregated extremal values.
 
@@ -153,11 +186,11 @@ def _compute_sofa_from_extremal_values(
     - Renal: Based on creatinine levels
 
     Parameters:
-        extremal_df: DataFrame with one row per ID containing worst values
+        extremal_df: DataFrame or DuckDB relation with one row per ID containing worst values
         id_name: Grouping column name
 
     Returns:
-        DataFrame with SOFA component scores and total score
+        DuckDB relation with SOFA component scores and total score
     """
     q = f"""
     FROM extremal_df df
@@ -165,7 +198,7 @@ def _compute_sofa_from_extremal_values(
     SELECT {id_name}
         , p_f: po2_arterial / fio2_set
         , p_f_imputed: pao2_imputed / fio2_set
-        , sofa_cv_97: CASE 
+        , sofa_cv_97: CASE
             WHEN dopamine_mcg_kg_min > 15 OR epinephrine_mcg_kg_min > 0.1 OR norepinephrine_mcg_kg_min > 0.1 THEN 4
             WHEN dopamine_mcg_kg_min > 5 OR epinephrine_mcg_kg_min <= 0.1 OR norepinephrine_mcg_kg_min <= 0.1 THEN 3
             WHEN dopamine_mcg_kg_min <= 5 OR dobutamine_mcg_kg_min > 0 THEN 2
@@ -175,13 +208,13 @@ def _compute_sofa_from_extremal_values(
             WHEN platelet_count < 50 THEN 3
             WHEN platelet_count < 100 THEN 2
             WHEN platelet_count < 150 THEN 1
-            WHEN platelet_count >= 150 THEN 0 END 
+            WHEN platelet_count >= 150 THEN 0 END
         , sofa_liver: CASE WHEN bilirubin_total >= 12 THEN 4
             WHEN bilirubin_total < 12 AND bilirubin_total >= 6 THEN 3
             WHEN bilirubin_total < 6 AND bilirubin_total >= 2 THEN 2
             WHEN bilirubin_total < 2 AND bilirubin_total >= 1.2 THEN 1
             WHEN bilirubin_total < 1.2 THEN 0 END
-        , sofa_resp: CASE WHEN p_f < 100 AND m.device_category IN ('IMV', 'NIPPV', 'CPAP') THEN 4 
+        , sofa_resp: CASE WHEN p_f < 100 AND m.device_category IN ('IMV', 'NIPPV', 'CPAP') THEN 4
             WHEN p_f >= 100 and p_f < 200 AND m.device_category IN ('IMV', 'NIPPV', 'CPAP') THEN 3
             WHEN p_f >= 200 AND p_f < 300 THEN 2
             WHEN p_f >= 300 AND p_f < 400 THEN 1
@@ -198,7 +231,7 @@ def _compute_sofa_from_extremal_values(
             WHEN creatinine < 1.2 THEN 0 END
         , sofa_total: sofa_cv_97 + sofa_coag + sofa_liver + sofa_resp + sofa_renal + sofa_cns
     """
-    return duckdb.sql(q).df()
+    return duckdb.sql(q)
 
 def _fill_na_scores(
     sofa_df: pd.DataFrame
@@ -274,7 +307,7 @@ def compute_sofa(
             AND c.end_time >= w.event_time
         SELECT w.*
         """
-        wide_df = duckdb.sql(q).df()
+        wide_df = duckdb.sql(q)
     
     if remove_outliers:
         logger.info("Removing outliers from wide dataset")
@@ -286,13 +319,17 @@ def compute_sofa(
             CASE WHEN spo2 BETWEEN 50 AND 100 THEN spo2 END AS spo2
         )
         """
-        wide_df = duckdb.sql(q).df()
-    
-    sofa_scores = (
-        _impute_pao2_from_spo2(wide_df)
-        .pipe(_agg_extremal_values_by_id, extremal_type, id_name)
-        .pipe(_compute_sofa_from_extremal_values, id_name)
-    )
+        wide_df = duckdb.sql(q)
+
+    # Process through the pipeline, keeping DuckDB relations until the end
+    # Note: Can't use .pipe() with DuckDB relations, call functions directly
+    imputed = _impute_pao2_from_spo2(wide_df)
+    renamed = _ensure_unit_suffix_for_med_columns(imputed)
+    aggregated = _agg_extremal_values_by_id(renamed, extremal_type, id_name)
+    sofa_scores_relation = _compute_sofa_from_extremal_values(aggregated, id_name)
+
+    # Materialize to pandas DataFrame only once at the end
+    sofa_scores = sofa_scores_relation.df()
 
     if fill_na_scores_with_zero:
         sofa_scores = _fill_na_scores(sofa_scores)
