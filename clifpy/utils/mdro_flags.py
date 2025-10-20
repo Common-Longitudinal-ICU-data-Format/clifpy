@@ -55,9 +55,14 @@ def calculate_mdro_flags(
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns:
+        Wide format DataFrame with columns:
         - hospitalization_id: Hospital encounter identifier
         - organism_id: Organism culture identifier
+        - [antimicrobial]_agent: Individual antimicrobial susceptibility results
+          (e.g., amikacin_agent, ciprofloxacin_agent)
+          Values: 'susceptible', 'intermediate', 'non_susceptible', 'NA', or None
+        - [group]_group: Binary group resistance flags (0/1)
+          (e.g., aminoglycosides_group, carbapenems_group)
         - mdro_[organism]_mdr: Multi-Drug Resistant flag (0/1)
         - mdro_[organism]_xdr: Extensively Drug Resistant flag (0/1)
         - mdro_[organism]_pdr: Pandrug Resistant flag (0/1)
@@ -200,10 +205,24 @@ def calculate_mdro_flags(
     merged_df['antimicrobial_group'] = merged_df['antimicrobial_category'].map(category_to_group)
 
     # -------------------------------------------------------------------------
+    # 6a. Filter to Only Include Antimicrobials Defined in Config
+    # -------------------------------------------------------------------------
+    # Filter to keep ONLY antimicrobials defined in config
+    num_rows_before = len(merged_df)
+    merged_df = merged_df[merged_df['antimicrobial_group'].notna()].copy()
+    num_rows_after = len(merged_df)
+    logger.info(f"Filtered antimicrobials: {num_rows_before} -> {num_rows_after} rows ({num_rows_before - num_rows_after} excluded)")
+
+    # -------------------------------------------------------------------------
     # 7. Identify Resistant Results
     # -------------------------------------------------------------------------
     resistant_categories = organism_config.get('resistant_categories', ['non_susceptible', 'intermediate'])
     merged_df['is_resistant'] = merged_df['susceptibility_category'].isin(resistant_categories)
+
+    # -------------------------------------------------------------------------
+    # 7a. Check for Missing Antimicrobials (Data Quality)
+    # -------------------------------------------------------------------------
+    _check_missing_antimicrobials(merged_df, organism_config, organism_name)
 
     # -------------------------------------------------------------------------
     # 8. Calculate MDRO Flags for Each (hospitalization_id, organism_id)
@@ -371,6 +390,94 @@ def _apply_cohort_filter_to_culture(
     return filtered
 
 
+def _check_missing_antimicrobials(
+    merged_df: pd.DataFrame,
+    organism_config: Dict[str, Any],
+    organism_name: str
+) -> None:
+    """
+    Check for antimicrobials defined in config but missing from dataset.
+
+    Prints warnings for missing antimicrobials, with special attention to
+    critical agents required for specific resistance flags (e.g., DLR).
+
+    Parameters
+    ----------
+    merged_df : pd.DataFrame
+        Merged culture and susceptibility data with antimicrobial_category column
+    organism_config : dict
+        Organism configuration containing antimicrobial_groups and resistance_definitions
+    organism_name : str
+        Name of the organism being analyzed (for display in warnings)
+
+    Returns
+    -------
+    None
+        Prints warnings directly to console
+    """
+    # Get all antimicrobials defined in config
+    antimicrobial_groups = organism_config['antimicrobial_groups']
+    all_defined_antimicrobials = set()
+    for group_name, agents in antimicrobial_groups.items():
+        all_defined_antimicrobials.update(agents)
+
+    # Get antimicrobials actually present in dataset
+    tested_antimicrobials = set(merged_df['antimicrobial_category'].dropna().unique())
+
+    # Find missing antimicrobials
+    missing_antimicrobials = all_defined_antimicrobials - tested_antimicrobials
+
+    if not missing_antimicrobials:
+        return  # All defined antimicrobials are present
+
+    # Identify critical missing antimicrobials (required for specific flags)
+    critical_missing = set()
+    resistance_defs = organism_config.get('resistance_definitions', {})
+
+    for flag_name, flag_def in resistance_defs.items():
+        criteria = flag_def.get('criteria', {})
+        if criteria.get('type') == 'specific_agents_resistant':
+            required_agents = set(criteria.get('required_agents', []))
+            critical_for_this_flag = required_agents & missing_antimicrobials
+            if critical_for_this_flag:
+                critical_missing.update(critical_for_this_flag)
+
+    # Print warnings for critical missing antimicrobials
+    if critical_missing:
+        print(f"\n⚠️  CRITICAL WARNING: Missing required antimicrobials for {organism_name}")
+        print("=" * 70)
+        for agent in sorted(critical_missing):
+            # Find which flag(s) require this agent
+            flags_requiring = []
+            for flag_name, flag_def in resistance_defs.items():
+                criteria = flag_def.get('criteria', {})
+                if criteria.get('type') == 'specific_agents_resistant':
+                    if agent in criteria.get('required_agents', []):
+                        flags_requiring.append(flag_def.get('name', flag_name.upper()))
+
+            print(f"  • {agent}")
+            if flags_requiring:
+                print(f"    Required for: {', '.join(flags_requiring)}")
+        print("=" * 70)
+        print("Note: Organisms missing these agents will NOT be flagged for the")
+        print("      resistance categories listed above, even if otherwise resistant.")
+        print()
+
+    # Print non-critical missing antimicrobials
+    non_critical_missing = missing_antimicrobials - critical_missing
+    if non_critical_missing:
+        print(f"\nℹ️  Missing antimicrobials from {organism_name} dataset:")
+        for agent in sorted(non_critical_missing):
+            # Find which group this belongs to
+            group = None
+            for group_name, agents in antimicrobial_groups.items():
+                if agent in agents:
+                    group = group_name
+                    break
+            print(f"  • {agent} (group: {group})")
+        print()
+
+
 def _calculate_flags_for_organism(
     group_data: pd.DataFrame,
     resistance_defs: Dict[str, Any],
@@ -427,14 +534,28 @@ def _calculate_flags_for_organism(
 
         elif criteria_type == 'max_groups_susceptible':
             # XDR: resistant to all but <= max_groups_susceptible
-            # i.e., num_resistant_groups >= (num_tested_groups - max_groups_susceptible)
+            # Based on TOTAL defined groups, not just tested groups
+            # For P. aeruginosa: 8 total groups, so XDR = resistant to ≥6 groups (8-2)
             max_groups_susceptible = criteria['max_groups_susceptible']
-            min_resistant_for_xdr = num_tested_groups - max_groups_susceptible
+            total_defined_groups = len(antimicrobial_groups)
+            min_resistant_for_xdr = total_defined_groups - max_groups_susceptible
             flags[column_name] = 1 if num_resistant_groups >= min_resistant_for_xdr else 0
 
         elif criteria_type == 'all_tested_resistant':
-            # PDR: all tested agents are resistant
-            flags[column_name] = 1 if num_resistant_agents == num_tested_agents else 0
+            # PDR: ALL defined agents must be tested AND all must be resistant
+            # Get all defined antimicrobials from config
+            all_defined_agents = set()
+            for group_name, agents in antimicrobial_groups.items():
+                all_defined_agents.update(agents)
+
+            # Check if ALL defined agents were tested
+            all_defined_tested = all_defined_agents.issubset(tested_agents)
+
+            # Check if ALL defined agents are resistant
+            all_defined_resistant = all_defined_agents.issubset(resistant_agents)
+
+            # PDR = 1 only if ALL defined agents are tested AND resistant
+            flags[column_name] = 1 if (all_defined_tested and all_defined_resistant) else 0
 
         elif criteria_type == 'specific_agents_resistant':
             # DLR: specific agents must all be resistant (if tested)
@@ -493,6 +614,7 @@ def _pivot_susceptibility_data(
 
     Creates one column per antimicrobial_category with susceptibility_category as values.
     Handles duplicate tests by keeping the most resistant result.
+    Adds '_agent' suffix to all antimicrobial column names.
 
     Parameters
     ----------
@@ -506,7 +628,8 @@ def _pivot_susceptibility_data(
     -------
     pd.DataFrame
         Wide format DataFrame with columns:
-        hospitalization_id, organism_id, [antimicrobial columns...]
+        hospitalization_id, organism_id, [antimicrobial_agent columns...]
+        Example: amikacin_agent, ciprofloxacin_agent, etc.
     """
     # Add priority column for handling duplicates
     merged_df = merged_df.copy()
@@ -529,8 +652,15 @@ def _pivot_susceptibility_data(
         aggfunc='first'  # Should only be one value after deduplication
     )
 
+    # Add _agent suffix to antimicrobial column names
+    pivoted.columns = [f"{col}_agent" for col in pivoted.columns]
+
     # Reset index to make hospitalization_id and organism_id regular columns
     pivoted = pivoted.reset_index()
+
+    # Fill NaN values with "not_tested" for antimicrobials not in susceptibility data
+    agent_cols = [col for col in pivoted.columns if col.endswith('_agent')]
+    pivoted[agent_cols] = pivoted[agent_cols].fillna("not_tested")
 
     return pivoted
 
@@ -546,6 +676,7 @@ def _create_group_columns(
     For each antimicrobial group, creates a column with value:
     - 1 if ANY agent in that group is resistant (non_susceptible or intermediate)
     - 0 if all tested agents in group are susceptible OR group not tested
+    Adds '_group' suffix to all group column names.
 
     Parameters
     ----------
@@ -560,6 +691,7 @@ def _create_group_columns(
     -------
     pd.DataFrame
         DataFrame with columns: hospitalization_id, organism_id, [group columns...]
+        Example: aminoglycosides_group, carbapenems_group, etc.
     """
     # Identify resistant results
     merged_df = merged_df.copy()
@@ -580,7 +712,10 @@ def _create_group_columns(
     )
 
     # Convert boolean to int (1/0)
-    group_pivoted = group_pivoted.fillna(False).astype(int)
+    group_pivoted = group_pivoted.astype(object).fillna(False).astype(int)
+
+    # Add _group suffix to group column names
+    group_pivoted.columns = [f"{col}_group" for col in group_pivoted.columns]
 
     # Reset index
     group_pivoted = group_pivoted.reset_index()
