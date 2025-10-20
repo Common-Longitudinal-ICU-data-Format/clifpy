@@ -418,7 +418,8 @@ class ClifOrchestrator:
         batch_size: int = 1000,
         memory_limit: Optional[str] = None,
         threads: Optional[int] = None,
-        show_progress: bool = True
+        show_progress: bool = True,
+        use_locf_at_start_time: bool = True
     ) -> None:
         """
         Create wide time-series dataset using DuckDB for high performance.
@@ -497,7 +498,18 @@ class ClifOrchestrator:
             Number of threads for DuckDB to use. If None, uses all available cores.
         show_progress : bool, default=True
             If True, display progress bars during processing.
-            
+        use_locf_at_start_time : bool, default=True
+            Enable Last Observation Carried Forward (LOCF) when using cohort_df time windows.
+            If True and no observations exist within [start_time, end_time], includes the
+            most recent observation before start_time. If False, uses strict time window
+            filtering (only observations within the window).
+
+            Example: If cohort window is 6:00-9:00 AM but last observation was at 5:58 AM,
+            - use_locf_at_start_time=True: Includes the 5:58 AM observation
+            - use_locf_at_start_time=False: Returns no data for this window
+
+            Only applies when cohort_df parameter is provided.
+
         Returns
         -------
         None
@@ -701,7 +713,8 @@ class ClifOrchestrator:
             batch_size=batch_size,
             memory_limit=memory_limit,
             threads=threads,
-            show_progress=show_progress
+            show_progress=show_progress,
+            use_locf_at_start_time=use_locf_at_start_time
         )
 
         self.logger.info("Phase 5: Post-Processing")
@@ -837,6 +850,14 @@ class ClifOrchestrator:
         self.logger.info("=" * 50)
         self.logger.info("✅ WIDE DATASET CREATION COMPLETED")
         self.logger.info("=" * 50)
+
+        if return_dataframe:
+            self.logger.info("  6.3: Directly returning the wide dataset")
+            return self.wide_df
+        else:
+            return None
+
+
 
     def convert_wide_to_hourly(
         self,
@@ -1233,8 +1254,10 @@ class ClifOrchestrator:
         id_name: str = 'encounter_block',
         fill_na_scores_with_zero: bool = True,
         remove_outliers: bool = True,
-        create_new_wide_df: bool = True
-    ) -> pd.DataFrame:
+        create_new_wide_df: bool = True,
+        use_locf_at_start_time: bool = True,
+        return_dataframe: bool = True
+    ) -> pd.DataFrame | None:
         """
         Compute SOFA (Sequential Organ Failure Assessment) scores.
 
@@ -1248,8 +1271,12 @@ class ClifOrchestrator:
                     - 'hospitalization_id': Individual hospitalizations
             fill_na_scores_with_zero: If True, missing component scores default to 0
             remove_outliers: If True, overwrite the df of the table object associated with the orchestrator with outliers nullified
-            create_new_wide_df: If True, create a new wide dataset for SOFA computation and save it at .wide_df_sofa. 
+            create_new_wide_df: If True, create a new wide dataset for SOFA computation and save it at .wide_df_sofa.
                 If False, use the existing .wide_df.
+            use_locf_at_start_time: If True, use Last Observation Carried Forward when creating
+                wide dataset with cohort_df. Includes most recent observation before start_time
+                when no observations exist within the time window. Only applies when cohort_df
+                is provided and create_new_wide_df=True.
 
         Returns:
             DataFrame with SOFA component scores and total score for each ID.
@@ -1294,7 +1321,8 @@ class ClifOrchestrator:
                 tables_to_load=list(REQUIRED_SOFA_CATEGORIES_BY_TABLE.keys()),
                 category_filters=REQUIRED_SOFA_CATEGORIES_BY_TABLE,
                 cohort_df=cohort_df,
-                return_dataframe=True
+                return_dataframe=True,
+                use_locf_at_start_time=use_locf_at_start_time
             )
             df = self.wide_df if df is None else df
             self.wide_df_sofa = df
@@ -1308,7 +1336,8 @@ class ClifOrchestrator:
             self.create_wide_dataset(
                 tables_to_load=list(REQUIRED_SOFA_CATEGORIES_BY_TABLE.keys()),
                 category_filters=REQUIRED_SOFA_CATEGORIES_BY_TABLE,
-                cohort_df=cohort_df
+                cohort_df=cohort_df,
+                use_locf_at_start_time=use_locf_at_start_time
             )
             df = self.wide_df
             self.logger.debug(f"Created wide dataset with shape: {df.shape}")
@@ -1340,4 +1369,7 @@ class ClifOrchestrator:
         self.sofa_df = sofa_scores
         self.logger.info(f"SOFA computation completed. Results stored in self.sofa_df with shape: {sofa_scores.shape}")
 
-        return sofa_scores
+        if return_dataframe:
+            return sofa_scores
+        else:
+            return None
