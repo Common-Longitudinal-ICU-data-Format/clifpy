@@ -12,12 +12,10 @@ organisms:
         - gentamicin
         - tobramycin
         - amikacin
-        - netilmicin
 
       antipseudomonal_carbapenems:
         - imipenem
         - meropenem
-        - doripenem
 
       antipseudomonal_cephalosporins:
         - ceftazidime
@@ -28,7 +26,6 @@ organisms:
         - levofloxacin
 
       antipseudomonal_penicillins_beta_lactamase_inhibitors:
-        - ticarcillin_clavulanate
         - piperacillin_tazobactam
 
       monobactams:
@@ -39,7 +36,6 @@ organisms:
 
       polymyxins:
         - colistin
-        - polymyxin_b
 
     # Define what susceptibility categories count as "resistant"
     # Both intermediate and non_susceptible are treated as resistant
@@ -67,7 +63,7 @@ organisms:
 
       pdr:
         name: "Pandrug Resistant"
-        description: "Non-susceptible to all antimicrobial agents tested"
+        description: "All defined antimicrobial agents tested and all are non-susceptible"
         criteria:
           type: "all_tested_resistant"
         column_name: "mdro_psar_pdr"
