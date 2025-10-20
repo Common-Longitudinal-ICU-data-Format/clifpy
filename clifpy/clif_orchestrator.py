@@ -1039,6 +1039,7 @@ class ClifOrchestrator:
         self,
         preferred_units: Dict[str, str],
         vitals_df: pd.DataFrame = None,
+        hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = False,
         save_to_table: bool = True
@@ -1052,6 +1053,10 @@ class ClifOrchestrator:
             Dict of preferred units for each medication category
         vitals_df : pd.DataFrame, optional
             Vitals DataFrame for extracting patient weights
+        hospitalization_ids : List[str], optional
+            List of specific hospitalization IDs to filter and process. When provided,
+            only medication and vitals data for these hospitalizations will be loaded
+            and processed, improving performance for targeted analyses.
         show_intermediate : bool, default=False
             If True, includes intermediate calculation columns in output
         override : bool, default=False
@@ -1070,24 +1075,34 @@ class ClifOrchestrator:
 
         # Log function entry with parameters
         self.logger.info(f"Starting dose unit conversion for continuous medications with parameters: "
-                        f"preferred_units={preferred_units}, show_intermediate={show_intermediate}, "
-                        f"override={override}, overwrite_table_df={save_to_table}")
+                        f"preferred_units={preferred_units}, hospitalization_ids={'provided' if hospitalization_ids else 'None'}, "
+                        f"show_intermediate={show_intermediate}, override={override}, save_to_table={save_to_table}")
 
-        # use the vitals df loaded to the table instance if no stand-alone vitals_df is provided
+        # Load medication table with optional hospitalization_ids filter
+        if self.medication_admin_continuous is None:
+            self.logger.info("Loading medication_admin_continuous table...")
+            if hospitalization_ids is not None:
+                self.logger.info(f"Filtering for {len(hospitalization_ids)} hospitalization(s)")
+                self.load_table('medication_admin_continuous', filters={'hospitalization_id': hospitalization_ids})
+            else:
+                self.load_table('medication_admin_continuous')
+            self.logger.debug("medication_admin_continuous table loaded successfully")
+
+        # Determine hospitalization_ids for vitals loading if not provided
+        if hospitalization_ids is None:
+            hospitalization_ids = self.medication_admin_continuous.df['hospitalization_id'].unique().tolist()
+            self.logger.debug(f"Extracted {len(hospitalization_ids)} unique hospitalization_id(s) from medication data")
+
+        # Load vitals df with filters for weight_kg only
         if vitals_df is None:
-            self.logger.debug("No vitals_df provided, checking existing vitals table")
+            self.logger.debug("No vitals_df provided, loading filtered vitals table")
             if (self.vitals is None) or (self.vitals.df is None):
-                self.logger.info("Loading vitals table...")
-                self.load_table('vitals')
+                self.logger.info(f"Loading vitals table for {len(hospitalization_ids)} hospitalization(s), vital_category='weight_kg'")
+                self.load_table('vitals', filters={'hospitalization_id': hospitalization_ids, 'vital_category': ['weight_kg']})
             vitals_df = self.vitals.df
             self.logger.debug(f"Using vitals data with shape: {vitals_df.shape}")
         else:
             self.logger.debug(f"Using provided vitals_df with shape: {vitals_df.shape}")
-        
-        if self.medication_admin_continuous is None:
-            self.logger.info("Loading medication_admin_continuous table...")
-            self.load_table('medication_admin_continuous')
-            self.logger.debug("medication_admin_continuous table loaded successfully")
 
         # Call the conversion function with all parameters
         self.logger.info("Starting dose unit conversion")
@@ -1119,6 +1134,7 @@ class ClifOrchestrator:
         self,
         preferred_units: Dict[str, str],
         vitals_df: pd.DataFrame = None,
+        hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = False,
         save_to_table: bool = True
@@ -1132,6 +1148,10 @@ class ClifOrchestrator:
             Dict of preferred units for each medication category
         vitals_df : pd.DataFrame, optional
             Vitals DataFrame for extracting patient weights
+        hospitalization_ids : List[str], optional
+            List of specific hospitalization IDs to filter and process. When provided,
+            only medication and vitals data for these hospitalizations will be loaded
+            and processed, improving performance for targeted analyses.
         show_intermediate : bool, default=False
             If True, includes intermediate calculation columns in output
         override : bool, default=False
@@ -1150,24 +1170,34 @@ class ClifOrchestrator:
 
         # Log function entry with parameters
         self.logger.info(f"Starting dose unit conversion for intermittent medications with parameters: "
-                        f"preferred_units={preferred_units}, show_intermediate={show_intermediate}, "
-                        f"override={override}, save_to_table={save_to_table}")
+                        f"preferred_units={preferred_units}, hospitalization_ids={'provided' if hospitalization_ids else 'None'}, "
+                        f"show_intermediate={show_intermediate}, override={override}, save_to_table={save_to_table}")
 
-        # use the vitals df loaded to the table instance if no stand-alone vitals_df is provided
+        # Load medication table with optional hospitalization_ids filter
+        if self.medication_admin_intermittent is None:
+            self.logger.info("Loading medication_admin_intermittent table...")
+            if hospitalization_ids is not None:
+                self.logger.info(f"Filtering for {len(hospitalization_ids)} hospitalization(s)")
+                self.load_table('medication_admin_intermittent', filters={'hospitalization_id': hospitalization_ids})
+            else:
+                self.load_table('medication_admin_intermittent')
+            self.logger.debug("medication_admin_intermittent table loaded successfully")
+
+        # Determine hospitalization_ids for vitals loading if not provided
+        if hospitalization_ids is None:
+            hospitalization_ids = self.medication_admin_intermittent.df['hospitalization_id'].unique().tolist()
+            self.logger.debug(f"Extracted {len(hospitalization_ids)} unique hospitalization_id(s) from medication data")
+
+        # Load vitals df with filters for weight_kg only
         if vitals_df is None:
-            self.logger.debug("No vitals_df provided, checking existing vitals table")
+            self.logger.debug("No vitals_df provided, loading filtered vitals table")
             if (self.vitals is None) or (self.vitals.df is None):
-                self.logger.info("Loading vitals table...")
-                self.load_table('vitals')
+                self.logger.info(f"Loading vitals table for {len(hospitalization_ids)} hospitalization(s), vital_category='weight_kg'")
+                self.load_table('vitals', filters={'hospitalization_id': hospitalization_ids, 'vital_category': ['weight_kg']})
             vitals_df = self.vitals.df
             self.logger.debug(f"Using vitals data with shape: {vitals_df.shape}")
         else:
             self.logger.debug(f"Using provided vitals_df with shape: {vitals_df.shape}")
-
-        if self.medication_admin_intermittent is None:
-            self.logger.info("Loading medication_admin_intermittent table...")
-            self.load_table('medication_admin_intermittent')
-            self.logger.debug("medication_admin_intermittent table loaded successfully")
 
         # Call the conversion function with all parameters
         self.logger.info("Starting dose unit conversion")
