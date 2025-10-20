@@ -132,7 +132,7 @@ def _load_mdro_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     Loads YAML configuration defining:
     - Antimicrobial groups (mapping antimicrobial_category -> group)
     - Resistant categories (what counts as resistant)
-    - Resistance definitions (MDR/XDR/PDR/DLR criteria)
+    - Resistance definitions (MDR/XDR/PDR/DTR criteria)
     """
     if config_path is None:
         # Use default: clifpy/data/mdro.yaml
@@ -432,7 +432,7 @@ organisms:
         criteria:
           type: "min_groups_resistant"
           min_groups: 3
-        column_name: "mdro_psar_mdr"
+        column_name: "MDR"
       # ... more definitions
 ```
 
@@ -515,7 +515,7 @@ organisms:
         criteria:
           type: "min_groups_resistant"
           min_groups: 3
-        column_name: "mdro_abau_mdr"
+        column_name: "MDR"
 
       xdr:
         name: "Extensively Drug Resistant"
@@ -523,14 +523,14 @@ organisms:
         criteria:
           type: "max_groups_susceptible"
           max_groups_susceptible: 2
-        column_name: "mdro_abau_xdr"
+        column_name: "XDR"
 
       pdr:
         name: "Pandrug Resistant"
         description: "Non-susceptible to all antimicrobial agents"
         criteria:
           type: "all_tested_resistant"
-        column_name: "mdro_abau_pdr"
+        column_name: "PDR"
 ```
 
 ### Step 3: Test the Configuration
@@ -551,8 +551,8 @@ flags = calculate_mdro_flags(
 )
 
 # Verify output
-assert 'mdro_abau_mdr' in flags.columns
-assert 'mdro_abau_xdr' in flags.columns
+assert 'MDR' in flags.columns
+assert 'XDR' in flags.columns
 print(f"Successfully configured: {flags.shape[0]} organisms classified")
 ```
 
@@ -626,7 +626,7 @@ def test_calculate_flags_mdr():
     })
 
     flags = _calculate_flags_for_organism(test_data, resistance_defs, antimicrobial_groups)
-    assert flags['mdro_psar_mdr'] == 1
+    assert flags['MDR'] == 1
 ```
 
 ### Integration Tests
@@ -647,7 +647,7 @@ def test_end_to_end_pseudomonas():
     # Verify structure
     assert 'hospitalization_id' in result.columns
     assert 'organism_id' in result.columns
-    assert 'mdro_psar_mdr' in result.columns
+    assert 'MDR' in result.columns
     assert len(result) > 0
 ```
 

@@ -1,6 +1,6 @@
 # MDRO Flag Calculation
 
-The MDRO (Multi-Drug Resistant Organism) flag calculation utility identifies and classifies organisms based on antimicrobial susceptibility testing results. It automatically calculates MDR, XDR, PDR, and DLR flags according to standardized clinical criteria.
+The MDRO (Multi-Drug Resistant Organism) flag calculation utility identifies and classifies organisms based on antimicrobial susceptibility testing results. It automatically calculates MDR, XDR, PDR, and DTR flags according to standardized clinical criteria.
 
 ## Overview
 
@@ -159,7 +159,7 @@ The function returns a wide-format DataFrame designed for easy verification and 
 
 ```python
 # Example output columns
-hospitalization_id | organism_id | amikacin_agent | ciprofloxacin_agent | ... | aminoglycosides_group | fluoroquinolones_group | ... | mdro_psar_mdr | mdro_psar_xdr
+hospitalization_id | organism_id | amikacin_agent | ciprofloxacin_agent | ... | aminoglycosides_group | fluoroquinolones_group | ... | MDR | XDR
 ```
 
 ### Column Types
@@ -180,10 +180,10 @@ hospitalization_id | organism_id | amikacin_agent | ciprofloxacin_agent | ... | 
 - Example columns: `aminoglycosides_group`, `carbapenems_group`, `fluoroquinolones_group`
 
 **4. MDRO Flag Columns**
-- `mdro_psar_mdr` - Multi-Drug Resistant flag (0/1)
-- `mdro_psar_xdr` - Extensively Drug Resistant flag (0/1)
-- `mdro_psar_pdr` - Pandrug Resistant flag (0/1)
-- `mdro_psar_dtr` - Difficult to Treat Resistance flag (0/1)
+- `MDR` - Multi-Drug Resistant flag (0/1)
+- `XDR` - Extensively Drug Resistant flag (0/1)
+- `PDR` - Pandrug Resistant flag (0/1)
+- `DTR` - Difficult to Treat Resistance flag (0/1)
 
 ### Interpreting Results
 
@@ -192,10 +192,10 @@ hospitalization_id | organism_id | amikacin_agent | ciprofloxacin_agent | ... | 
 mdro_flags = calculate_mdro_flags(culture, susceptibility, 'pseudomonas_aeruginosa')
 
 # Count resistance patterns
-mdr_count = mdro_flags['mdro_psar_mdr'].sum()
-xdr_count = mdro_flags['mdro_psar_xdr'].sum()
-pdr_count = mdro_flags['mdro_psar_pdr'].sum()
-dtr_count = mdro_flags['mdro_psar_dtr'].sum()
+mdr_count = mdro_flags['MDR'].sum()
+xdr_count = mdro_flags['XDR'].sum()
+pdr_count = mdro_flags['PDR'].sum()
+dtr_count = mdro_flags['DTR'].sum()
 
 print(f"MDR organisms: {mdr_count}")
 print(f"XDR organisms: {xdr_count}")
@@ -232,10 +232,10 @@ mdro = calculate_mdro_flags(culture, susceptibility, 'pseudomonas_aeruginosa')
 # Create surveillance summary
 summary = pd.DataFrame({
     'Total Organisms': [len(mdro)],
-    'MDR (%)': [f"{mdro['mdro_psar_mdr'].sum()} ({mdro['mdro_psar_mdr'].mean()*100:.1f}%)"],
-    'XDR (%)': [f"{mdro['mdro_psar_xdr'].sum()} ({mdro['mdro_psar_xdr'].mean()*100:.1f}%)"],
-    'PDR (%)': [f"{mdro['mdro_psar_pdr'].sum()} ({mdro['mdro_psar_pdr'].mean()*100:.1f}%)"],
-    'DTR (%)': [f"{mdro['mdro_psar_dtr'].sum()} ({mdro['mdro_psar_dtr'].mean()*100:.1f}%)"]
+    'MDR (%)': [f"{mdro['MDR'].sum()} ({mdro['MDR'].mean()*100:.1f}%)"],
+    'XDR (%)': [f"{mdro['XDR'].sum()} ({mdro['XDR'].mean()*100:.1f}%)"],
+    'PDR (%)': [f"{mdro['PDR'].sum()} ({mdro['PDR'].mean()*100:.1f}%)"],
+    'DTR (%)': [f"{mdro['DTR'].sum()} ({mdro['DTR'].mean()*100:.1f}%)"]
 })
 
 print("P. aeruginosa Resistance Summary")
@@ -247,8 +247,8 @@ print(summary.to_string(index=False))
 ```python
 # Find hospitalizations with XDR or PDR organisms
 high_risk = mdro[
-    (mdro['mdro_psar_xdr'] == 1) | (mdro['mdro_psar_pdr'] == 1)
-][['hospitalization_id', 'organism_id', 'mdro_psar_xdr', 'mdro_psar_pdr']]
+    (mdro['XDR'] == 1) | (mdro['PDR'] == 1)
+][['hospitalization_id', 'organism_id', 'XDR', 'PDR']]
 
 print(f"High-risk encounters: {high_risk['hospitalization_id'].nunique()}")
 print(high_risk)
@@ -283,7 +283,7 @@ tested = tested[tested.notna()]
 resistant = tested[tested.isin(['intermediate', 'non_susceptible'])]
 
 print(f"Organism {organism_id}:")
-print(f"MDR Status: {org_data['mdro_psar_mdr'].iloc[0]}")
+print(f"MDR Status: {org_data['MDR'].iloc[0]}")
 print(f"\nResistant to {len(resistant)} antimicrobials:")
 print(resistant)
 ```
@@ -303,13 +303,13 @@ mdro_with_dates['year_month'] = pd.to_datetime(
 # Calculate monthly MDR rates
 monthly_trends = mdro_with_dates.groupby('year_month').agg({
     'organism_id': 'count',
-    'mdro_psar_mdr': 'sum',
-    'mdro_psar_xdr': 'sum',
-    'mdro_psar_pdr': 'sum'
+    'MDR': 'sum',
+    'XDR': 'sum',
+    'PDR': 'sum'
 }).rename(columns={'organism_id': 'total_organisms'})
 
 monthly_trends['mdr_rate'] = (
-    monthly_trends['mdro_psar_mdr'] / monthly_trends['total_organisms'] * 100
+    monthly_trends['MDR'] / monthly_trends['total_organisms'] * 100
 )
 
 print("Monthly MDR Trends:")
@@ -396,8 +396,8 @@ metadata = {
     'total_cultures': len(culture.df),
     'total_psar': (culture.df['organism_category'] == 'pseudomonas_aeruginosa').sum(),
     'psar_with_susceptibility': len(mdro),
-    'mdr_count': mdro['mdro_psar_mdr'].sum(),
-    'xdr_count': mdro['mdro_psar_xdr'].sum(),
+    'mdr_count': mdro['MDR'].sum(),
+    'xdr_count': mdro['XDR'].sum(),
     'config_used': 'clifpy/data/mdro.yaml'
 }
 
