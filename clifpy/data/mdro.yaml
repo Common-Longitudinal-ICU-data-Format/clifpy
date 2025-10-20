@@ -14,7 +14,7 @@ organisms:
         - amikacin
 
       antipseudomonal_carbapenems:
-        - imipenem
+        #- imipenem
         - meropenem
 
       antipseudomonal_cephalosporins:
@@ -51,7 +51,7 @@ organisms:
         criteria:
           type: "min_groups_resistant"
           min_groups: 3
-        column_name: "mdro_psar_mdr"
+        column_name: "MDR"
 
       xdr:
         name: "Extensively Drug Resistant"
@@ -59,18 +59,18 @@ organisms:
         criteria:
           type: "max_groups_susceptible"
           max_groups_susceptible: 2
-        column_name: "mdro_psar_xdr"
+        column_name: "XDR"
 
       pdr:
         name: "Pandrug Resistant"
         description: "All defined antimicrobial agents tested and all are non-susceptible"
         criteria:
           type: "all_tested_resistant"
-        column_name: "mdro_psar_pdr"
+        column_name: "PDR"
 
       dtr:
         name: "Difficult to Treat Resistance"
-        description: "All 8 required agents tested and all exhibit nonsusceptibility: piperacillin-tazobactam, ceftazidime, cefepime, aztreonam, meropenem, imipenem, ciprofloxacin, and levofloxacin"
+        description: "All 7 required agents tested and all exhibit nonsusceptibility: piperacillin-tazobactam, ceftazidime, cefepime, aztreonam, meropenem, ciprofloxacin, and levofloxacin"
         criteria:
           type: "specific_agents_resistant"
           required_agents:
@@ -82,7 +82,7 @@ organisms:
             #- imipenem
             - ciprofloxacin
             - levofloxacin
-        column_name: "mdro_psar_dtr"
+        column_name: "DTR"
 
 # Additional organisms can be added here following the same structure
 # Example:
