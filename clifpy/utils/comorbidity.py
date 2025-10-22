@@ -124,6 +124,11 @@ def calculate_elix(
 
     df_with_score = df_with_score.select(cast_exprs)
 
+    # Ensure hospitalization_id is string type
+    df_with_score = df_with_score.with_columns([
+        pl.col("hospitalization_id").cast(pl.Utf8).alias("hospitalization_id")
+    ])
+
     # Convert to pandas DataFrame before returning
     return df_with_score.to_pandas()
 
@@ -237,6 +242,11 @@ def calculate_cci(
             cast_exprs.append(pl.col(col))
 
     df_with_score = df_with_score.select(cast_exprs)
+
+    # Ensure hospitalization_id is string type
+    df_with_score = df_with_score.with_columns([
+        pl.col("hospitalization_id").cast(pl.Utf8).alias("hospitalization_id")
+    ])
 
     # Convert to pandas DataFrame before returning
     return df_with_score.to_pandas()
