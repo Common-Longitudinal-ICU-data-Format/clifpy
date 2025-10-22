@@ -624,25 +624,43 @@ def report_missing_data_summary(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def validate_categorical_values(
-    df: pd.DataFrame, 
-    schema: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    detect_invalid_values: bool = False,
+    return_invalid_df: bool = False
+) -> List[Dict[str, Any]] | Tuple[List[Dict[str, Any]], pd.DataFrame]:
     """
     Check values against permitted categories.
-    
+
     Parameters
     ----------
     df : pd.DataFrame
         The dataframe to validate
     schema : dict
         Schema containing category definitions
-        
+    detect_invalid_values : bool, optional
+        If True, detect and report values in data that are not in permissible_values list.
+        If False (default), only check for missing expected values (backward compatible).
+    return_invalid_df : bool, optional
+        If True and detect_invalid_values=True, return a tuple of (errors, invalid_values_df).
+        The invalid_values_df contains all rows with invalid categorical values.
+        Default is False for backward compatibility.
+
     Returns
     -------
-    List[dict]
-        List of invalid category value errors
+    List[dict] or Tuple[List[dict], pd.DataFrame]
+        If return_invalid_df=False: List of validation errors (backward compatible)
+        If return_invalid_df=True: Tuple of (errors_list, invalid_values_dataframe)
+
+    Notes
+    -----
+    Categorical matching is case-insensitive (e.g., "Male" matches "MALE").
+
+    For backward compatibility, set detect_invalid_values=False (default).
+    This will only report missing expected values, not invalid values in the data.
     """
     errors = []
+    invalid_rows_indices = []  # Track rows with invalid values
 
     try:
         category_columns = schema.get("category_columns") or []
@@ -654,12 +672,20 @@ def validate_categorical_values(
                 continue
             
             if col_spec.get("permissible_values"):
+                # Original permissible values from schema
                 allowed = set(col_spec["permissible_values"])
-                
-                # Get unique values in the column (excluding NaN)
-                unique_values = set(df[name].dropna().unique())
-                # Check for missing expected values (permissible values not present in data)
-                missing_values = [v for v in allowed if v not in unique_values]
+                # Convert to lowercase for case-insensitive comparison
+                allowed_lower = {str(v).lower() for v in allowed}
+
+                # Get actual unique values from data
+                unique_values_raw = df[name].dropna().unique()
+                unique_values_lower = {str(v).lower() for v in unique_values_raw}
+
+                # 1. Check for missing expected values (case-insensitive)
+                # This check is always performed for backward compatibility
+                missing_values = [v for v in allowed if str(v).lower() not in unique_values_lower]
+
+                # Report missing expected values
                 if missing_values:
                     errors.append({
                                 "type": "missing_categorical_values",
@@ -668,6 +694,49 @@ def validate_categorical_values(
                                 "total_missing": len(missing_values),
                                 "message": f"Column '{name}' is missing {len(missing_values)} expected category values: {missing_values}"
                             })
+
+                # 2. Check for INVALID values (ONLY if detect_invalid_values=True)
+                if detect_invalid_values:
+                    invalid_values = []
+                    invalid_value_counts = {}
+
+                    # Identify and count occurrences of each invalid value
+                    for val in unique_values_raw:
+                        if str(val).lower() not in allowed_lower:
+                            invalid_values.append(val)
+                            # Count how many times this invalid value appears
+                            count = int((df[name] == val).sum())
+                            invalid_value_counts[str(val)] = count
+
+                            # Track row indices for creating invalid_df later
+                            if return_invalid_df:
+                                invalid_mask = (df[name] == val)
+                                invalid_rows_indices.extend(df[invalid_mask].index.tolist())
+
+                    # Sort invalid values by frequency (most common first)
+                    invalid_values_sorted = sorted(invalid_values,
+                                                   key=lambda x: invalid_value_counts.get(str(x), 0),
+                                                   reverse=True)
+
+                    # Report INVALID values found in data
+                    if invalid_values:
+                        # Show top 10 most common invalid values with their counts
+                        top_invalid_display = []
+                        for val in invalid_values_sorted[:10]:
+                            count = invalid_value_counts[str(val)]
+                            top_invalid_display.append(f"{val} ({count:,} occurrences)")
+
+                        errors.append({
+                            "type": "invalid_categorical_values",
+                            "column": name,
+                            "invalid_values": invalid_values_sorted[:20],  # Store top 20 for reference
+                            "invalid_value_counts": invalid_value_counts,  # Full counts for analysis
+                            "total_invalid_unique": len(invalid_values),
+                            "total_invalid_rows": sum(invalid_value_counts.values()),
+                            "permissible_values": list(allowed),  # Include what IS allowed for reference
+                            "status": "error",
+                            "message": f"Column '{name}' contains {len(invalid_values)} unique invalid categorical values affecting {sum(invalid_value_counts.values()):,} rows. Top invalid: {', '.join(top_invalid_display[:5])}"
+                        })
                     
     except Exception as e:
         errors.append({
@@ -676,8 +745,22 @@ def validate_categorical_values(
             "error_message": str(e),
             "message": f"Error validating categorical values: {str(e)}"
         })
-    
-    return errors
+
+    # Return based on parameters
+    if return_invalid_df and detect_invalid_values:
+        # Create DataFrame of rows with invalid categorical values
+        if invalid_rows_indices:
+            # Remove duplicates and sort
+            unique_indices = sorted(set(invalid_rows_indices))
+            invalid_df = df.loc[unique_indices].copy()
+        else:
+            # Return empty DataFrame with same columns if no invalid rows
+            invalid_df = pd.DataFrame(columns=df.columns)
+
+        return errors, invalid_df
+    else:
+        # Backward compatible return
+        return errors
 
 
 def check_for_duplicates(
