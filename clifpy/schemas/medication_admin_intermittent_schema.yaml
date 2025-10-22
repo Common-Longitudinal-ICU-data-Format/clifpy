@@ -251,10 +251,11 @@ columns:
    - not_given 
    - other
 - name: mar_action_group
-    required: true
-    is_category_column: false
-    is_group_column: true
-    permissible_values: 
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: true
+  permissible_values: 
     - administered
     - not_administered
     - other
