@@ -68,9 +68,9 @@ def calculate_elix(
     # Filter to only ICD10CM codes (discard other formats)
     df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
 
-    # Preprocess diagnosis codes: remove decimal parts (e.g., "I21.45" -> "I21")
+    # Preprocess diagnosis codes: remove decimal parts (e.g., "I21.45" -> "I21") and uppercase
     df_processed = df_filtered.with_columns([
-        pl.col("diagnosis_code").str.split(".").list.get(0).alias("diagnosis_code_clean")
+        pl.col("diagnosis_code").str.to_uppercase().str.split(".").list.get(0).alias("diagnosis_code_clean")
     ])
 
     # Map diagnosis codes to Elixhauser conditions
@@ -187,9 +187,9 @@ def calculate_cci(
     # Filter to only ICD10CM codes (discard other formats)
     df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
 
-    # Preprocess diagnosis codes: remove decimal parts (e.g., "I21.45" -> "I21")
+    # Preprocess diagnosis codes: remove decimal parts (e.g., "I21.45" -> "I21") and uppercase
     df_processed = df_filtered.with_columns([
-        pl.col("diagnosis_code").str.split(".").list.get(0).alias("diagnosis_code_clean")
+        pl.col("diagnosis_code").str.to_uppercase().str.split(".").list.get(0).alias("diagnosis_code_clean")
     ])
 
     # Map diagnosis codes to CCI conditions
