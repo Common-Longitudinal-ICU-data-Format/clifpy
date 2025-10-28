@@ -268,9 +268,9 @@ cohort = cohort[
     (cohort['event_time'] <= cohort['out_dttm'])
 ]
 
-# Calculate aggregate medication doses
+# Calculate aggregate medication doses (max across sedation types)
 sedation_cols = ['propofol', 'midazolam', 'fentanyl', 'lorazepam']
-cohort['min_sedation_dose_2'] = cohort[sedation_cols].min(axis=1)
+cohort['min_sedation_dose_2'] = cohort[sedation_cols].max(axis=1)
 
 paralytic_cols = ['cisatracurium', 'vecuronium', 'rocuronium']
 cohort['max_paralytics'] = cohort[paralytic_cols].max(axis=1)
@@ -343,7 +343,12 @@ Norepinephrine Equivalent (NEE) combines multiple vasopressors:
 NEE = norepinephrine + epinephrine + (phenylephrine/10) + (vasopressin*2.5) + (dopamine/100)
 ```
 
-All doses in mcg/kg/min (vasopressin converted from units/min).
+Where:
+- norepinephrine: dose in mcg/kg/min
+- epinephrine: dose in mcg/kg/min
+- phenylephrine: dose in mcg/kg/min (divided by 10 for equivalence)
+- vasopressin: dose in units/min (multiplied by 2.5 for mcg/kg/min equivalence)
+- dopamine: dose in mcg/kg/min (divided by 100 for equivalence)
 
 Default threshold: NEE ≤ 0.1 mcg/kg/min
 

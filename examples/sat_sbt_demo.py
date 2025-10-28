@@ -42,7 +42,7 @@ def create_sample_data():
             'propofol': 20.0 if i < 8 else 0.0,  # Sedation reduced after 8 hours
             'fentanyl': 100.0 if i < 8 else 0.0,
             'midazolam': 0.0,
-            'min_sedation_dose_2': 20.0 if i < 8 else 0.0,  # Aggregate sedation
+            'min_sedation_dose_2': 20.0 if i < 8 else 0.0,  # Combined sedation indicator
             # Paralytics
             'cisatracurium': 0.0,
             'vecuronium': 0.0,
@@ -199,10 +199,15 @@ def main():
     print()
     
     # Show example usage in real workflow
+    print_integration_example()
+
+
+def print_integration_example():
+    """Print example of integration with CLIF Orchestrator."""
     print("=" * 80)
     print("Example: Integration with CLIF Orchestrator")
     print("=" * 80)
-    print("""
+    example_code = '''
 # In a real workflow, you would:
 
 from clifpy import ClifOrchestrator
@@ -250,7 +255,8 @@ sbt_eligible = identify_sbt_events(
 # Use results for analysis
 print(f"Total SAT events: {len(sat_events)}")
 print(f"Total SBT eligible days: {sbt_eligible['eligible_day'].sum()}")
-    """)
+    '''
+    print(example_code)
 
 
 if __name__ == "__main__":
