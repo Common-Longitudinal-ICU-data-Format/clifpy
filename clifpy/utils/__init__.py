@@ -14,6 +14,7 @@ from .validator import (
 from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
+from .sepsis import compute_sepsis
 
 __all__ = [
       # io
@@ -39,6 +40,8 @@ __all__ = [
       'compute_sofa',
       '_compute_sofa_from_extremal_values',
       '_agg_extremal_values_by_id',
+      # sepsis
+      'compute_sepsis',
       # validator (add main functions)
       'validate_dataframe',
       'validate_table',
