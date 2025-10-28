@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clifpy"  
-version = "0.2.9"
+version = "0.3.0"
 description = "A Python package for working with CLIF EHR data"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -50,7 +50,8 @@ include = ["clifpy*"]
 clifpy = [
     "data/clif_demo/*.parquet", 
     "schemas/*.yaml",
-    "data/comorbidity/*.yaml"
+    "data/comorbidity/*.yaml",
+    "data/mdro.yaml"
 ]
 
 [tool.pytest.ini_options]
