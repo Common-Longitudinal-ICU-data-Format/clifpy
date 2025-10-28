@@ -17,6 +17,10 @@ def create_sample_data():
     """Create sample CLIF data for demonstration."""
     base_time = datetime(2024, 1, 1, 12, 0, 0)
     
+    # Constants for consistency
+    BLOOD_CULTURE_FLUID_CATEGORY = 'blood/buffy coat'
+    QUALIFYING_ABX_GROUP = 'CMS_sepsis_qualifying_antibiotics'
+    
     # Sample blood culture data
     # Patient with sepsis will have blood culture drawn
     blood_cultures = pd.DataFrame({
@@ -26,7 +30,7 @@ def create_sample_data():
             base_time + timedelta(hours=6),
             base_time + timedelta(days=1)
         ],
-        'fluid_category': ['blood/buffy coat'] * 3
+        'fluid_category': [BLOOD_CULTURE_FLUID_CATEGORY] * 3
     })
     
     # Sample antibiotic administration data
@@ -39,21 +43,21 @@ def create_sample_data():
         antibiotics_data.append({
             'hospitalization_id': 'H001',
             'admin_dttm': base_time + timedelta(days=day, hours=8),
-            'med_group': 'CMS_sepsis_qualifying_antibiotics'
+            'med_group': QUALIFYING_ABX_GROUP
         })
     
     for day in range(2):
         antibiotics_data.append({
             'hospitalization_id': 'H002',
             'admin_dttm': base_time + timedelta(hours=6) + timedelta(days=day, hours=8),
-            'med_group': 'CMS_sepsis_qualifying_antibiotics'
+            'med_group': QUALIFYING_ABX_GROUP
         })
     
     for day in range(4):
         antibiotics_data.append({
             'hospitalization_id': 'H003',
             'admin_dttm': base_time + timedelta(days=1) + timedelta(days=day, hours=8),
-            'med_group': 'CMS_sepsis_qualifying_antibiotics'
+            'med_group': QUALIFYING_ABX_GROUP
         })
     
     antibiotics = pd.DataFrame(antibiotics_data)
@@ -168,16 +172,14 @@ def main():
         print(sepsis_results.to_string(index=False))
         print()
         
-        # Summary statistics
-        if 'ase_flag' in sepsis_results.columns:
-            n_sepsis = sepsis_results['ase_flag'].sum()
-            print(f"\nTotal sepsis cases: {n_sepsis}")
+        # Summary statistics - these columns are guaranteed to exist in output
+        n_sepsis = sepsis_results['ase_flag'].sum()
+        print(f"\nTotal sepsis cases: {n_sepsis}")
         
-        if 'organ_dysfunction_type' in sepsis_results.columns:
-            print("\nOrgan dysfunction types:")
-            dysfunction_counts = sepsis_results['organ_dysfunction_type'].value_counts()
-            for dtype, count in dysfunction_counts.items():
-                print(f"  - {dtype}: {count}")
+        print("\nOrgan dysfunction types:")
+        dysfunction_counts = sepsis_results['organ_dysfunction_type'].value_counts()
+        for dtype, count in dysfunction_counts.items():
+            print(f"  - {dtype}: {count}")
     
     print()
     print("=" * 80)
