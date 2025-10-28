@@ -259,7 +259,7 @@ wheels = [
 
 [[package]]
 name = "clifpy"
-version = "0.2.5"
+version = "0.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "build" },
