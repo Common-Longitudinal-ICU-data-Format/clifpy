@@ -346,6 +346,29 @@ tables:
           min: 0.0
           max: 50.0
 
+  medication_admin_intermittent:
+    med_dose:
+      propofol:
+        "mg":
+          min: 0.0
+          max: 400.0     # Typical bolus 10–200 mg; 400 mg upper bound for induction/extreme cases
+      midazolam:
+        "mg":
+          min: 0.0
+          max: 20.0      # Typical bolus 1–5 mg; 20 mg upper bound for tolerance or cumulative error
+      fentanyl:
+        "mcg":
+          min: 0.0
+          max: 500.0     # Typical bolus 25–200 mcg; 500 mcg upper bound for highly tolerant patients
+      hydromorphone:
+        "mg":
+          min: 0.0
+          max: 4.0       # Typical bolus 0.2–2 mg; 4 mg upper bound for opioid-tolerant ICU patients
+      lorazepam:
+        "mg":
+          min: 0.0
+          max: 10.0      # Typical bolus 1–4 mg; 10 mg upper bound for severe agitation or error tolerance
+
   ecmo_mcs:
     sweep:
       VA_ECMO:

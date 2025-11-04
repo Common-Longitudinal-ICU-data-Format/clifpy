@@ -157,7 +157,7 @@ def _build_column_expression(table_obj, column_name: str, column_config: Dict[st
         return _build_category_dependent_expression(table_obj, column_name, column_config)
 
     # Medication dose column
-    elif (table_obj.table_name == 'medication_admin_continuous' and column_name == 'med_dose'):
+    elif (table_obj.table_name in ['medication_admin_continuous', 'medication_admin_intermittent'] and column_name == 'med_dose'):
         return _build_medication_expression(table_obj, column_config)
 
     # Simple range columns
@@ -281,7 +281,7 @@ def _compute_all_statistics_fast(table_obj, column_configs: Dict[str, Any]) -> D
                 }
 
         # Medication dose column
-        elif (table_obj.table_name == 'medication_admin_continuous' and column_name == 'med_dose'):
+        elif (table_obj.table_name in ['medication_admin_continuous', 'medication_admin_intermittent'] and column_name == 'med_dose'):
             stats[column_name] = _get_medication_statistics_pandas(table_obj.df)
 
         # Simple range columns
@@ -331,7 +331,7 @@ def _print_detailed_statistics(table_obj, before_stats: Dict[str, Any], after_st
                     print(f"  {category:<20}: {before_count:>6} values → {nullified:>6} nullified (  0.0%)")
 
         # Medication dose column
-        elif (table_obj.table_name == 'medication_admin_continuous' and column_name == 'med_dose'):
+        elif (table_obj.table_name in ['medication_admin_continuous', 'medication_admin_intermittent'] and column_name == 'med_dose'):
             before_med_stats = before_stats.get(column_name, {})
             after_med_stats = after_stats.get(column_name, {})
 
