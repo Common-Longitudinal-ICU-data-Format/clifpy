@@ -13,6 +13,10 @@ import pandas as pd
 import duckdb
 from typing import Set, Tuple, List
 
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.unit_converter')
+
 UNIT_NAMING_VARIANTS = {
     # time
     '/hr': '/h(r|our)?$',
@@ -400,7 +404,7 @@ def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
         return f"WHEN regexp_matches(_preferred_unit, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
-def _convert_clean_units_to_base_units(med_df: pd.DataFrame) -> pd.DataFrame:
+def _convert_clean_units_to_base_units(med_df: pd.DataFrame | duckdb.DuckDBPyRelation) -> duckdb.DuckDBPyRelation:
     """Convert clean dose units to base units.
 
     Core conversion function that transforms various dose units into a base
@@ -509,7 +513,7 @@ def _convert_clean_units_to_base_units(med_df: pd.DataFrame) -> pd.DataFrame:
             END
     FROM med_df 
     """
-    return duckdb.sql(q).to_df()
+    return duckdb.sql(q)
 
 def _create_unit_conversion_counts_table(
     med_df: pd.DataFrame,
@@ -584,7 +588,29 @@ def _create_unit_conversion_counts_table(
     ORDER BY {order_by_clause}
     """
     return duckdb.sql(q).to_df()
-    
+
+def find_most_recent_weight(
+    med_df: pd.DataFrame,
+    vitals_df: pd.DataFrame
+    ) -> duckdb.DuckDBPyRelation:
+    """Find the most recent weight for each medication administration."""
+    q = """
+    with weights as (
+        SELECT hospitalization_id, recorded_dttm, vital_value
+        FROM vitals_df
+        WHERE vital_category = 'weight_kg' AND vital_value IS NOT NULL
+    )
+    SELECT m.*
+        , v.vital_value as weight_kg
+        , v.recorded_dttm as _weight_recorded_dttm
+    FROM med_df m
+    AS OF LEFT JOIN weights v
+        ON m.hospitalization_id = v.hospitalization_id 
+        AND v.recorded_dttm <= m.admin_dttm 
+    ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category
+    """
+    return duckdb.sql(q)
+
 
 def standardize_dose_to_base_units(
     med_df: pd.DataFrame,
@@ -667,25 +693,8 @@ def standardize_dose_to_base_units(
     Unrecognized units are flagged but preserved in the output.
     """
     if 'weight_kg' not in med_df.columns:
-        print("No weight_kg column found, adding the most recent from vitals")
-        query = """
-        SELECT m.*
-            , v.vital_value as weight_kg
-            , v.recorded_dttm as _weight_recorded_dttm
-            , ROW_NUMBER() OVER (
-                PARTITION BY m.hospitalization_id, m.admin_dttm, m.med_category
-                ORDER BY v.recorded_dttm DESC
-                ) as _rn
-        FROM med_df m
-        LEFT JOIN vitals_df v 
-            ON m.hospitalization_id = v.hospitalization_id 
-            AND v.vital_category = 'weight_kg' AND v.vital_value IS NOT NULL
-            AND v.recorded_dttm <= m.admin_dttm  -- only past weights
-        -- rn = 1 for the weight w/ the latest recorded_dttm (and thus most recent)
-        QUALIFY (_rn = 1 OR _rn IS NULL) 
-        ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category, _rn
-        """
-        med_df = duckdb.sql(query).to_df()
+        logger.info("pulling the most recent weight from the vitals table since no `weight_kg` column exists in the medication table")
+        med_df = find_most_recent_weight(med_df, vitals_df).to_df()
     
     # check if the required columns are present
     required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
@@ -707,9 +716,9 @@ def standardize_dose_to_base_units(
     return med_df_base, convert_counts_df
     
 def _convert_base_units_to_preferred_units(
-    med_df: pd.DataFrame,
+    med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
     override: bool = False
-    ) -> pd.DataFrame:
+    ) -> duckdb.DuckDBPyRelation:
     """Convert base standardized units to user-preferred units.
 
     Performs the second stage of unit conversion, transforming from standardized
@@ -784,7 +793,7 @@ def _convert_base_units_to_preferred_units(
     if unacceptable_preferred_units:
         error_msg = f"Cannot accommodate the conversion to the following preferred units: {unacceptable_preferred_units}. Consult the function documentation for a list of acceptable units."
         if override:
-            print(error_msg)
+            logger.warning(error_msg)
         else:
             raise ValueError(error_msg)
     
@@ -871,7 +880,7 @@ def _convert_base_units_to_preferred_units(
             END
     FROM med_df l
     """
-    return duckdb.sql(q).to_df()
+    return duckdb.sql(q)
 
 def convert_dose_units_by_med_category(
     med_df: pd.DataFrame,
@@ -988,7 +997,7 @@ def convert_dose_units_by_med_category(
     if extra_med_categories:
         error_msg = f"The following med_categories are given a preferred unit but not found in the input med_df: {extra_med_categories}"
         if override:
-            print(error_msg)
+            logger.warning(error_msg)
         else:
             raise ValueError(error_msg)
     
@@ -1026,7 +1035,6 @@ def convert_dose_units_by_med_category(
         # the default (detailed_output=False) is to drop multiplier columns which likely are not useful for the user
         multiplier_cols = [col for col in med_df_converted.columns if 'multiplier' in col]
         qa_cols = [
-            '_rn',
             '_weight_recorded_dttm',
             '_weighted', '_weighted_preferred',
             '_base_dose', '_base_unit',

@@ -1089,7 +1089,7 @@ class ClifOrchestrator:
             self.logger.debug("medication_admin_continuous table loaded successfully")
 
         # Determine hospitalization_ids for vitals loading if not provided
-        if hospitalization_ids is None:
+        if hospitalization_ids is None and self.medication_admin_continuous is not None:
             hospitalization_ids = self.medication_admin_continuous.df['hospitalization_id'].unique().tolist()
             self.logger.debug(f"Extracted {len(hospitalization_ids)} unique hospitalization_id(s) from medication data")
 
