@@ -627,13 +627,12 @@ def find_most_recent_weight(
         , v.vital_value as weight_kg
         , v.recorded_dttm as _weight_recorded_dttm
     FROM med_df m
-    AS OF LEFT JOIN weights v
+    ASOF LEFT JOIN weights v
         ON m.hospitalization_id = v.hospitalization_id 
         AND v.recorded_dttm <= m.admin_dttm 
     ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category
     """
     return duckdb.sql(q)
-
 
 def standardize_dose_to_base_units(
     med_df: pd.DataFrame,
@@ -810,7 +809,12 @@ def _convert_base_units_to_preferred_units(
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
     # check user-defined _preferred_unit are in the set of acceptable units
-    unacceptable_preferred_units = set(med_df['_preferred_unit']) - ALL_ACCEPTABLE_UNITS - {None}
+    q = f"""
+    SELECT DISTINCT _preferred_unit
+    FROM med_df
+    """
+    all_preferred_units = set(duckdb.sql(q).to_df()['_preferred_unit'])
+    unacceptable_preferred_units = all_preferred_units - ALL_ACCEPTABLE_UNITS - {None}
     if unacceptable_preferred_units:
         error_msg = f"Cannot accommodate the conversion to the following preferred units: {unacceptable_preferred_units}. Consult the function documentation for a list of acceptable units."
         if override:
