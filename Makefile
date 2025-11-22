@@ -8,3 +8,6 @@ docs:
 
 mo:
 	uv run marimo edit --watch
+
+test_med_unit_conversion:
+	uv run pytest tests/utils/test_unit_converter.py -vv
