@@ -1,5 +1,6 @@
 from typing import Optional, Dict, List, Union
 import os
+import re
 import pandas as pd
 from .base_table import BaseTable
 
@@ -135,90 +136,220 @@ class Labs(BaseTable):
             return {'all': self.df['reference_unit'].value_counts().to_dict()}
 
 
-    # def fix_lab_reference_units(self):
-    #     """
-    #     Standardize reference unit string formats for mild variations (e.g., mm[hg] -> mmHg, 10*3/ul -> 10^3/ul, second(s) -> sec).
-    #     Does NOT perform conversions for different metrics (e.g., mg/dL to mmol/L). Warns user for such needed conversions.
-    #     Modifies self.df in place.
-    #     """
-    #     import warnings
+    def _normalize_unit(self, unit: str) -> str:
+        """
+        Normalize a unit string for comparison by removing special characters,
+        standardizing common variations, and lowercasing.
+        """
+        if not isinstance(unit, str):
+            return ""
 
-    #     if self.df is None or self._lab_reference_units is None:
-    #         return
+        normalized = unit.lower().strip()
 
-    #     if 'lab_category' not in self.df.columns or 'reference_unit' not in self.df.columns:
-    #         return
+        # Remove brackets, parentheses, and trailing annotations like "(calc)"
+        normalized = re.sub(r'[\[\]\(\)]', '', normalized)
+        normalized = re.sub(r'\s*calc\s*$', '', normalized)
 
-    #     # Map of common unit string fixes (case insensitive matching)
-    #     unit_string_fixes = {
-    #         r"mm\[?hg\]?": "mmHg",
-    #         r"\b10\s*\*\s*3\s*/\s*ul\b": "10^3/ul",
-    #         r"\biu/l\b": "U/L",
-    #         r"\biu\/l\b": "U/L",
-    #         r"\bsecond\(s\)": "sec",
-    #         r"\bseconds\b": "sec",
-    #         r"\bsecond\b": "sec"
-    #         # add more as needed
-    #     }
+        # Standardize common variations
+        replacements = [
+            (r'\s+', ''),           # Remove whitespace
+            (r'μ|µ', 'u'),          # Greek mu (U+03BC) and micro sign (U+00B5) to u
+            (r'\^', ''),            # Remove caret
+            (r'\*', ''),            # Remove asterisk
+            (r'hours?', 'hr'),      # hour/hours -> hr
+            (r'seconds?', 'sec'),   # second/seconds -> sec
+            (r'^s$', 'sec'),        # lone 's' -> sec
+            (r'minutes?', 'min'),   # minute/minutes -> min
+            (r'iu', 'u'),           # iU -> U
+            (r'\bgm\b', 'g'),       # gm -> g (gram)
+            (r'k/ul', '103/ul'),    # k/uL -> 10^3/uL
+            (r'10e3', '103'),       # 10e3 -> 10^3
+            (r'x10e3', '103'),      # x10E3 -> 10^3
+            (r'x103', '103'),       # x10^3 -> 10^3
+            (r'\bpg\b', 'ng'),      # pg -> ng (picogram to nanogram context)
+            (r',', ''),             # Remove commas
+        ]
 
-    #     import re
+        for pattern, repl in replacements:
+            normalized = re.sub(pattern, repl, normalized)
 
-    #     def clean_unit_string(from_unit):
-    #         u = from_unit.strip() if isinstance(from_unit, str) else from_unit
-    #         if not isinstance(u, str):
-    #             return u
-    #         for pattern, repl in unit_string_fixes.items():
-    #             u_new = re.sub(pattern, repl, u, flags=re.IGNORECASE)
-    #             if u_new != u:
-    #                 return u_new
-    #         return u
+        return normalized
 
-    #     # Inference for which units are "string-fixable" versus conversion-needed
-    #     conversion_warnings = set()
+    def _find_matching_target_unit(
+        self,
+        source_unit: str,
+        target_units: List[str]
+    ) -> Optional[str]:
+        """
+        Find the best matching target unit for a source unit using normalized comparison.
 
-    #     def convert_row(row):
-    #         lab = row['lab_category']
-    #         from_unit = row['reference_unit']
-    #         value = row['lab_value_numeric']
-    #         lab_unit_map = self._lab_reference_units.get(lab, {})
+        Parameters
+        ----------
+        source_unit : str
+            The unit string from the data
+        target_units : List[str]
+            List of acceptable target units from schema (first is preferred)
 
-    #         if from_unit in lab_unit_map:
-    #             unit_entry = lab_unit_map[from_unit]
-    #             if (
-    #                 isinstance(unit_entry, dict)
-    #                 and "target_unit" in unit_entry
-    #                 and "factor" in unit_entry
-    #             ):
-    #                 target_unit = unit_entry["target_unit"]
-    #                 conversion_factor = unit_entry["factor"]
-    #                 if (
-    #                     from_unit.strip().lower() != target_unit.strip().lower()
-    #                 ):
-    #                     # Fix if this is a simple string formatting change (case, punct, super/subscripts, etc)
-    #                     cleaned_from_unit = clean_unit_string(from_unit)
-    #                     cleaned_target_unit = clean_unit_string(target_unit)
-    #                     # Only "convert" if string-clean can match the target after cleaning
-    #                     if cleaned_from_unit.lower() == cleaned_target_unit.lower():
-    #                         return pd.Series([value, cleaned_target_unit])
-    #                     else:
-    #                         # Only string standardization is supported; warn user if more complex
-    #                         conversion_warnings.add(
-    #                             f"Lab '{lab}': Unit '{from_unit}' differs from target '{target_unit}'. "
-    #                             f"No automatic conversion performed. Please review!"
-    #                         )
-    #                         return pd.Series([value, from_unit])
-    #                 else:
-    #                     # Already matches (possible only case difference)
-    #                     return pd.Series([value, target_unit])
-    #         # If there is no mapping or nonstandard entry, fallback to string cleaning for typical cases
-    #         cleaned = clean_unit_string(from_unit)
-    #         return pd.Series([value, cleaned])
+        Returns
+        -------
+        Optional[str]
+            The matching target unit, or None if no match found
+        """
+        if not source_unit or not target_units:
+            return None
 
-    #     self.df[['lab_value_numeric', 'reference_unit']] = self.df.apply(convert_row, axis=1)
+        normalized_source = self._normalize_unit(source_unit)
 
-    #     # Show warnings for users if conversion-warranting units have been found
-    #     for msg in conversion_warnings:
-    #         warnings.warn(msg)
+        # Check for exact match first
+        if source_unit in target_units:
+            return source_unit
+
+        # Check normalized matches against all target units
+        for target in target_units:
+            if self._normalize_unit(target) == normalized_source:
+                # Return the preferred (first) target unit
+                return target_units[0]
+
+        return None
+
+    def standardize_reference_units(
+        self,
+        inplace: bool = True,
+        save_mapping: bool = False,
+        lowercase: bool = False
+    ) -> Optional[pd.DataFrame]:
+        """
+        Standardize reference unit strings to match the schema's target units.
+
+        Uses fuzzy matching to detect similar unit strings (e.g., 'mmhg' -> 'mmHg',
+        '10*3/ul' -> '10^3/μL', 'hr' -> 'hour') and converts them to the preferred
+        target unit defined in the schema.
+
+        This does NOT perform value conversions between different unit types
+        (e.g., mg/dL to mmol/L). Units that don't match any target will be logged
+        as warnings.
+
+        Parameters
+        ----------
+        inplace : bool, default True
+            If True, modify self.df in place. If False, return a copy.
+        save_mapping : bool, default False
+            If True, save a CSV of the unit mappings applied to the output directory.
+        lowercase : bool, default False
+            If True, convert all reference units to lowercase instead of using
+            the schema's original casing (e.g., 'mg/dl' instead of 'mg/dL').
+
+        Returns
+        -------
+        Optional[pd.DataFrame]
+            If inplace=False, returns the modified DataFrame. Otherwise None.
+        """
+        if self.df is None:
+            self.logger.warning("No data loaded")
+            return None
+
+        if 'lab_category' not in self.df.columns or 'reference_unit' not in self.df.columns:
+            self.logger.warning("Required columns 'lab_category' and/or 'reference_unit' not found")
+            return None
+
+        if not self._lab_reference_units:
+            self.logger.warning("No lab reference units defined in schema")
+            return None
+
+        df = self.df if inplace else self.df.copy()
+
+        # Track mappings for logging/saving
+        mappings_applied = []
+        unmatched_units = []
+
+        # Get unique lab_category + reference_unit combinations
+        unique_combos = df[['lab_category', 'reference_unit']].drop_duplicates()
+
+        # Build mapping dictionary
+        unit_mapping = {}
+
+        for _, row in unique_combos.iterrows():
+            lab_cat = row['lab_category']
+            source_unit = row['reference_unit']
+
+            if pd.isna(source_unit):
+                continue
+
+            target_units = self._lab_reference_units.get(lab_cat, [])
+
+            if not target_units:
+                continue
+
+            matched_target = self._find_matching_target_unit(source_unit, target_units)
+
+            if matched_target:
+                # Apply lowercase if requested
+                final_target = matched_target.lower() if lowercase else matched_target
+
+                if final_target != source_unit:
+                    unit_mapping[(lab_cat, source_unit)] = final_target
+
+                    # Check if the only difference is mu character (µ vs μ) or case
+                    source_normalized_mu = source_unit.replace('µ', 'μ')
+                    is_mu_only_diff = source_normalized_mu == matched_target
+                    is_case_only_diff = source_unit.lower() == matched_target.lower()
+
+                    mappings_applied.append({
+                        'lab_category': lab_cat,
+                        'source_unit': source_unit,
+                        'target_unit': final_target,
+                        'silent': is_mu_only_diff or (lowercase and is_case_only_diff)
+                    })
+
+                    if not (is_mu_only_diff or (lowercase and is_case_only_diff)):
+                        self.logger.info(
+                            f"Mapping '{source_unit}' -> '{final_target}' for {lab_cat}"
+                        )
+            elif matched_target is None and source_unit not in target_units:
+                unmatched_units.append({
+                    'lab_category': lab_cat,
+                    'source_unit': source_unit,
+                    'expected_units': target_units
+                })
+
+        # Apply mappings
+        if unit_mapping:
+            def apply_mapping(row):
+                key = (row['lab_category'], row['reference_unit'])
+                return unit_mapping.get(key, row['reference_unit'])
+
+            df['reference_unit'] = df.apply(apply_mapping, axis=1)
+
+            # Count actual vs silent (mu-only) mappings
+            actual_mappings = [m for m in mappings_applied if not m.get('silent')]
+            if actual_mappings:
+                self.logger.info(f"Applied {len(actual_mappings)} unit standardizations")
+
+        # Apply lowercase to all reference units if requested (including unmatched ones)
+        if lowercase:
+            df['reference_unit'] = df['reference_unit'].str.lower()
+
+        if not unit_mapping and not lowercase:
+            self.logger.info("No unit standardizations needed")
+
+        # Warn about unmatched units
+        for item in unmatched_units:
+            self.logger.warning(
+                f"Unmatched unit '{item['source_unit']}' for {item['lab_category']}. "
+                f"Expected one of: {item['expected_units']}"
+            )
+
+        # Save mapping if requested
+        if save_mapping and mappings_applied:
+            mapping_df = pd.DataFrame(mappings_applied)
+            csv_path = os.path.join(self.output_directory, 'lab_unit_mappings.csv')
+            mapping_df.to_csv(csv_path, index=False)
+            self.logger.info(f"Saved unit mappings to {csv_path}")
+
+        if not inplace:
+            return df
+
+        return None
 
     # ------------------------------------------------------------------
     # Labs Specific Methods
