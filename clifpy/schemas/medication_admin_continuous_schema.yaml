@@ -26,85 +26,83 @@ columns:
     required: true
     is_category_column: true
     is_group_column: false
+    # There are 75 permissible values.
     permissible_values:
-      - norepinephrine
-      - epinephrine
-      - phenylephrine
-      - angiotensin
-      - vasopressin
-      - dopamine
-      - dobutamine
-      - milrinone
-      - isoproterenol
-      - propofol
-      - dexmedetomidine
-      - ketamine
-      - midazolam
-      - fentanyl
-      - hydromorphone
-      - morphine
-      - remifentanil
-      - pentobarbital
-      - lorazepam
-      - furosemide
-      - bumetanide
-      - torsemide
-      - heparin
-      - argatroban
-      - bivalirudin
-      - cangrelor
-      - eptifibatide
+      - albumin
+      - albuterol
+      - alprostadil
+      - aminocaproic_acid
+      - aminophylline
       - amiodarone
-      - lidocaine
-      - nicardipine
+      - angiotensin
+      - argatroban
+      - baclofen
+      - bivalirudin
+      - bumetanide
+      - bupivacaine
+      - cangrelor
+      - cisatracurium
       - clevidipine
+      - dexmedetomidine
+      - dextrose_10_water
+      - dextrose_5_water
+      - dextrose_other
+      - diltiazem
+      - dobutamine
+      - dopamine
+      - epinephrine
+      - epoprostenol
+      - eptifibatide
+      - esmolol
+      - esomeprazole
+      - fentanyl
+      - furosemide
+      - heparin
+      - hydromorphone
+      - insulin
+      - ipratropium
+      - isoproterenol
+      - ketamine
+      - labetalol
+      - lactated_ringers_solution
+      - levothyroxine
+      - lidocaine
+      - liothyronine
+      - lorazepam
+      - magnesium_sulfate
+      - midazolam
+      - milrinone
+      - morphine
+      - naloxone
+      - nicardipine
+      - nitric_oxide
       - nitroglycerin
       - nitroprusside
-      - esmolol
-      - diltiazem
-      - labetalol
-      - procainamide
-      - papaverine
-      - adenosine
-      - cisatracurium
-      - vecuronium
-      - rocuronium
-      - treprostinil
-      - epoprostenol
-      - alprostadil
-      - nitric_oxide
+      - norepinephrine
       - octreotide
-      - pantoprazole
-      - esomeprazole
-      - albuterol
-      - terbutaline
-      - ipratropium
-      - insulin
-      - thyroid replacement
       - oxytocin
-      - cosyntropin
-      - repletion
-      - sodium bicarbonate
-      - tpn
-      - tocolyttics
-      - magnesium
-      - pitocin
-      - dextrose
-      - sodium chloride
-      - aminocaproic
-      - aminophylline
-      - naloxone
+      - pantoprazole
+      - papaverine
+      - pentobarbital
       - phentolamine
-      - liothyronine
-      - zidovudine
-      - tacrolimus
-      - ropivacaine
-      - bupivacaine
-      - baclofen
-      - lactated_ringers_solution
-      - albumin_infusion
+      - phenylephrine
+      - pitocin
       - plasma_lyte
-      - dextrose_in_water_d5w
+      - procainamide
+      - propofol
+      - remifentanil
+      - rocuronium
+      - ropivacaine
+      - sodium_bicarbonate
+      - sodium_chloride
+      - tacrolimus
+      - terbutaline
+      - torsemide
+      - tpn
+      - treprostinil
+      - vasopressin
+      - vecuronium
+      - zidovudine
   - name: med_group
     data_type: VARCHAR
     required: true
@@ -195,84 +193,80 @@ category_columns:
 group_columns: 
   - mar_action_group
 
+#to fix multi mapping for epoprostenol and terbutaline
 med_category_to_group_mapping:
-  norepinephrine: vasoactives
-  epinephrine: vasoactives
-  phenylephrine: vasoactives
-  angiotensin: vasoactives
-  vasopressin: vasoactives
-  dopamine: vasoactives
-  dobutamine: vasoactives
-  milrinone: vasoactives
-  isoproterenol: vasoactives
-  propofol: sedation
-  dexmedetomidine: sedation
-  ketamine: sedation
-  midazolam: sedation
-  fentanyl: sedation
-  hydromorphone: sedation
-  morphine: sedation
-  remifentanil: sedation
-  pentobarbital: sedation
-  lorazepam: sedation
-  furosemide: diuretics
-  bumetanide: diuretics
-  torsemide: diuretics
-  heparin: anticoagulation
-  argatroban: anticoagulation
-  bivalirudin: anticoagulation
-  cangrelor: anticoagulation
-  eptifibatide: anticoagulation
+  albumin: fluids_electrolytes
+  albuterol: Inhaled
+  alprostadil: pulmonary vasodilators (IV)
+  aminocaproic_acid: others
+  aminophylline: others
   amiodarone: cardiac
-  lidocaine: cardiac
-  nicardipine: cardiac
+  angiotensin: vasoactives
+  argatroban: anticoagulation
+  baclofen: others
+  bivalirudin: anticoagulation
+  bumetanide: diuretics
+  bupivacaine: others
+  cangrelor: anticoagulation
+  cisatracurium: paralytics
   clevidipine: cardiac
+  dexmedetomidine: sedation
+  dextrose_10_water: fluids_electrolytes
+  dextrose_5_water: fluids_electrolytes
+  dextrose_other: others
+  diltiazem: cardiac
+  dobutamine: vasoactives
+  dopamine: vasoactives
+  epinephrine: vasoactives
+  epoprostenol: pulmonary vasodilators (IV)
+  eptifibatide: anticoagulation
+  esmolol: cardiac
+  esomeprazole: gastrointestinal
+  fentanyl: sedation
+  furosemide: diuretics
+  heparin: anticoagulation
+  hydromorphone: sedation
+  insulin: endocrine
+  ipratropium: Inhaled
+  isoproterenol: vasoactives
+  ketamine: sedation
+  labetalol: cardiac
+  lactated_ringers_solution: fluids_electrolytes
+  levothyroxine: endocrine
+  lidocaine: cardiac
+  liothyronine: endocrine
+  lorazepam: sedation
+  magnesium_sulfate: others
+  midazolam: sedation
+  milrinone: vasoactives
+  morphine: sedation
+  naloxone: others
+  nicardipine: cardiac
+  nitric_oxide: pulmonary vasodilators (inhaled)
   nitroglycerin: cardiac
   nitroprusside: cardiac
-  esmolol: cardiac
-  diltiazem: cardiac
-  labetalol: cardiac
-  procainamide: cardiac
-  papaverine: cardiac
-  adenosine: cardiac
-  cisatracurium: paralytics
-  vecuronium: paralytics
-  rocuronium: paralytics
-  treprostinil: pulmonary vasodilators (IV)
-  epoprostenol: pulmonary vasodilators (IV)
-  epoprostenol_inhaled: pulmonary vasodilators (inhaled)
-  alprostadil: pulmonary vasodilators (IV)
-  nitric_oxide: pulmonary vasodilators (inhaled)
+  norepinephrine: vasoactives
   octreotide: gastrointestinal
-  pantoprazole: gastrointestinal
-  esomeprazole: gastrointestinal
-  albuterol: Inhaled
-  terbutaline: Inhaled
-  ipratropium: Inhaled
-  insulin: endocrine
-  thyroid replacement: endocrine
   oxytocin: endocrine
-  cosyntropin: endocrine
-  repletion: fluids_electrolytes
-  sodium bicarbonate: fluids_electrolytes
-  tpn: fluids_electrolytes
-  tocolyttics: others
-  magnesium: others
-  pitocin: others
-  dextrose: others
-  sodium chloride: others
-  aminocaproic: others
-  aminophylline: others
-  terbutaline_others: others
-  naloxone: others
+  pantoprazole: gastrointestinal
+  papaverine: cardiac
+  pentobarbital: sedation
   phentolamine: others
-  liothyronine: others
-  zidovudine: others
-  tacrolimus: others
-  ropivacaine: others
-  bupivacaine: others
-  baclofen: others
-  lactated_ringers_solution: fluids_electrolytes
-  albumin_infusion: fluids_electrolytes
+  phenylephrine: vasoactives
+  pitocin: others
   plasma_lyte: fluids_electrolytes
-  dextrose_in_water_d5w: fluids_electrolytes
+  procainamide: cardiac
+  propofol: sedation
+  remifentanil: sedation
+  rocuronium: paralytics
+  ropivacaine: others
+  sodium_bicarbonate: fluids_electrolytes
+  sodium_chloride: fluids_electrolytes
+  tacrolimus: others
+  terbutaline: Inhaled
+  torsemide: diuretics
+  tpn: fluids_electrolytes
+  treprostinil: pulmonary vasodilators (IV)
+  vasopressin: vasoactives
+  vecuronium: paralytics
+  zidovudine: others

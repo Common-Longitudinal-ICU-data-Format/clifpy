@@ -190,6 +190,7 @@ lab_reference_units:
   neutrophils_percent: ['%']
   neutrophils_absolute: [10^3/uL, 10^3/μL]
   pco2_arterial: [mmHg]
+  po2_arterial: [mmHg]
   pco2_venous: [mmHg]
   ph_arterial: [(no units)]
   ph_venous: [(no units)]
