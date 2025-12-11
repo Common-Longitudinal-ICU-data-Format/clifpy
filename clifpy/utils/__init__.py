@@ -14,6 +14,12 @@ from .validator import (
 from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
+from .sat_sbt_flags import (
+      identify_sat_events,
+      identify_sbt_events,
+      calculate_respiratory_stability,
+      calculate_hemodynamic_stability
+  )
 
 __all__ = [
       # io
@@ -39,6 +45,11 @@ __all__ = [
       'compute_sofa',
       '_compute_sofa_from_extremal_values',
       '_agg_extremal_values_by_id',
+      # sat_sbt_flags
+      'identify_sat_events',
+      'identify_sbt_events',
+      'calculate_respiratory_stability',
+      'calculate_hemodynamic_stability',
       # validator (add main functions)
       'validate_dataframe',
       'validate_table',
