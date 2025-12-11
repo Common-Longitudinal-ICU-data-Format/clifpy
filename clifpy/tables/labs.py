@@ -23,7 +23,7 @@ _UNIT_REPLACEMENTS = [
     (re.compile(r'10e3'), '103'),       # 10e3 -> 10^3
     (re.compile(r'x10e3'), '103'),      # x10E3 -> 10^3
     (re.compile(r'x103'), '103'),       # x10^3 -> 10^3
-    (re.compile(r'\bpg\b'), 'ng'),      # pg -> ng
+    (re.compile(r'\bpg/ml\b'), 'ng/l'),  # if it's only 'pg/ml', then it becomes 'ng/l'
     (re.compile(r','), ''),             # Remove commas
 ]
 
