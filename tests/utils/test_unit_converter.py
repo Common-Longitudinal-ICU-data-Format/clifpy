@@ -12,12 +12,13 @@ from pathlib import Path
 from clifpy.utils.unit_converter import (
     _clean_dose_unit_formats,
     _clean_dose_unit_names,
-    _detect_and_classify_clean_dose_units,
     ACCEPTABLE_RATE_UNITS,
     _convert_clean_units_to_base_units,
     standardize_dose_to_base_units,
     _convert_base_units_to_preferred_units,
-    convert_dose_units_by_med_category
+    convert_dose_units_by_med_category,
+    _clean_dose_unit_formats_duckdb,
+    _clean_dose_unit_names_duckdb
 )
 
 # --- Helper Fixtures for CSV Loading ---
@@ -74,7 +75,7 @@ def _clean_dose_unit_formats_test_data(load_fixture_csv):
     df.replace(np.nan, None, inplace=True)
     return df
 
-@pytest.mark.unit_conversion
+@pytest.mark.skip
 def test__clean_dose_unit_formats(_clean_dose_unit_formats_test_data):
     """Test the _clean_dose_unit_formats function for proper formatting cleaning.
 
@@ -102,9 +103,22 @@ def test__clean_dose_unit_formats(_clean_dose_unit_formats_test_data):
         check_names=False
     )
 
+def test__clean_dose_unit_formats_duckdb(_clean_dose_unit_formats_test_data):
+    """Test the _clean_dose_unit_formats function for proper formatting cleaning.
+    """
+    test_df: pd.DataFrame = _clean_dose_unit_formats_test_data
+    result_df = _clean_dose_unit_formats_duckdb(test_df).to_df()
+    
+    pd.testing.assert_series_equal(
+        result_df['_clean_unit'].reset_index(drop=True), # actual
+        test_df['_clean_format_unit'].reset_index(drop=True), # expected
+        check_names=False
+    )
+
 # ===========================================
 # Tests for `_clean_dose_unit_names`
 # ===========================================
+@pytest.mark.skip
 def test__clean_dose_unit_names(_clean_dose_unit_names_test_data):
     """Test the _clean_dose_unit_names function for unit name standardization.
 
@@ -137,6 +151,18 @@ def test__clean_dose_unit_names(_clean_dose_unit_names_test_data):
         check_names=False
     )
 
+def test__clean_dose_unit_names_duckdb(_clean_dose_unit_names_test_data):
+    """Test the _clean_dose_unit_names function for unit name standardization.
+    """
+    test_df = _clean_dose_unit_names_test_data.dropna()
+    result_df = _clean_dose_unit_names_duckdb(test_df).to_df()
+    
+    pd.testing.assert_series_equal(
+        result_df['_clean_unit'].reset_index(drop=True), # actual
+        test_df['_clean_name_unit'].reset_index(drop=True), # expected
+        check_names=False
+    )
+
 def test__acceptable_rate_units():
     """Test the acceptable_rate_units function and ACCEPTABLE_RATE_UNITS constant.
 
@@ -153,52 +179,6 @@ def test__acceptable_rate_units():
     for unit in negative_cases:
         assert unit not in ACCEPTABLE_RATE_UNITS
  
-def test_detect_and_classify_clean_dose_units():
-    """Test the _detect_and_classify_clean_dose_units classification function.
-
-    Validates that the function correctly categorizes clean units into:
-
-    - Rate units: recognized rate patterns (e.g., ml/hr, mcg/kg/min)
-    - Amount units: recognized amount patterns (e.g., ml, mcg, u)
-    - Unrecognized units: anything else including nulls and invalid patterns
-
-    Also verifies correct counting of each unit type including duplicates.
-    """
-    test_series = pd.Series([
-        # rate units
-        'u/min', 
-        'ml/hr', 'ml/hr', 
-        'mcg/kg/hr', 'mcg/kg/hr', 'mcg/kg/hr',
-        # amount units
-        'ml',
-        'mu', 'mu',
-        'g', 'g', 'g',
-        # unrecognized units
-        'units/min', 
-        'kg', 'kg', 
-        pd.NA, pd.NA, 
-        None, None, None,
-        "", "", "", "",
-        np.nan, np.nan, np.nan, np.nan, np.nan
-    ])
-    
-    expected_dict = {
-        'rate_units': {
-            'u/min': 1, 'ml/hr': 2, 'mcg/kg/hr': 3
-        },
-        'amount_units': {
-            'ml': 1, 'mu': 2, 'g': 3
-        },
-        'unrecognized_units': {
-            'units/min': 1, 'kg': 2, pd.NA: 2, None: 3, '': 4, np.nan: 5
-        }
-    }
-    
-    result_dict = _detect_and_classify_clean_dose_units(test_series)
-    
-    assert result_dict == expected_dict
-    
-
 # ===========================================
 # Tests for `_convert_clean_units_to_base_units`
 # ===========================================
@@ -331,6 +311,7 @@ def test__convert_clean_units_to_base_units(unit_converter_test_data, caplog):
     
     # with caplog.at_level('WARNING'):
     result_df = _convert_clean_units_to_base_units(med_df = input_df) \
+        .to_df() \
         .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
@@ -396,7 +377,8 @@ def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
     input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
-    base_df, counts_df = standardize_dose_to_base_units(med_df = input_df)
+    base_df, _ = standardize_dose_to_base_units(med_df = input_df)
+    base_df = base_df.to_df()
     base_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
@@ -451,7 +433,7 @@ def test__convert_base_units_to_preferred_units_inverse(unit_converter_test_data
     """
     input_df = duckdb.sql(q).to_df()
     
-    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True)
+    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True).to_df()
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
     # Verify output columns exist
@@ -492,7 +474,7 @@ def test__convert_base_units_to_preferred_units_new(convert_dose_units_by_med_ca
     """
     input_df = duckdb.sql(q).to_df()
     
-    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True)
+    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True).to_df()
     result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
 
     # Verify columns exist

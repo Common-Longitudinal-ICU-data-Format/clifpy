@@ -11,7 +11,11 @@ as well as unrecognized units.
 from types import NoneType
 import pandas as pd
 import duckdb
-from typing import Set, Tuple, List
+from typing import Any, Set, Tuple, List
+
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.unit_converter')
 
 UNIT_NAMING_VARIANTS = {
     # time
@@ -182,8 +186,45 @@ def _clean_dose_unit_formats(s: pd.Series) -> pd.Series:
     -----
     This function is typically used as the first step in the cleaning
     pipeline, followed by _clean_dose_unit_names().
+
+    .. deprecated::
+        Use _clean_dose_unit_formats_duckdb for better performance.
     """
     return s.str.replace(r'\s+', '', regex=True).str.lower().replace('', None, regex=False)
+
+def _clean_dose_unit_formats_duckdb(
+    relation: pd.DataFrame | duckdb.DuckDBPyRelation,
+    col: str = 'med_dose_unit'
+) -> duckdb.DuckDBPyRelation:
+    """Clean dose unit formatting using DuckDB to avoid pandas materialization.
+
+    Removes whitespace, converts to lowercase, and replaces empty strings with NULL.
+
+    Parameters
+    ----------
+    relation : pd.DataFrame | duckdb.DuckDBPyRelation
+        Input data containing the column to clean.
+    col : str, default 'med_dose_unit'
+        Name of the column containing dose unit strings.
+
+    Returns
+    -------
+    duckdb.DuckDBPyRelation
+        Relation with new '_clean_unit' column added.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({'med_dose_unit': ['mL / hr', 'MCG/KG/MIN', ' Mg/Hr ']})
+    >>> result = _clean_dose_unit_formats_duckdb(df).to_df()
+    >>> list(result['_clean_unit'])
+    ['ml/hr', 'mcg/kg/min', 'mg/hr']
+    """
+    return duckdb.sql(f"""
+        SELECT *,
+            NULLIF(lower(regexp_replace({col}, '\\s+', '', 'g')), '') as _clean_unit
+        FROM relation
+    """)
     
 def _clean_dose_unit_names(s: pd.Series) -> pd.Series:
     """Clean dose unit name variants to standard abbreviations.
@@ -220,68 +261,54 @@ def _clean_dose_unit_names(s: pd.Series) -> pd.Series:
     - Mass: µg/ug -> mcg, gram -> g
 
     This function should be applied after _clean_dose_unit_formats().
+
+    .. deprecated::
+        Use _clean_dose_unit_names_duckdb for better performance.
     """
     for repl, pattern in UNIT_NAMING_VARIANTS.items():
         s = s.str.replace(pattern, repl, regex=True)
     return s
 
-def _detect_and_classify_clean_dose_units(s: pd.Series) -> dict:
-    """Classify and count clean dose units by category.
+def _clean_dose_unit_names_duckdb(
+    relation: duckdb.DuckDBPyRelation,
+    col: str = '_clean_unit'
+) -> duckdb.DuckDBPyRelation:
+    """Clean dose unit name variants using DuckDB to avoid pandas materialization.
 
-    Analyzes a series of clean dose units and classifies them into
-    rate units, amount units, or unrecognized units, providing counts for each.
+    Applies regex patterns to convert various unit name variants to their
+    standard abbreviated forms.
 
     Parameters
     ----------
-    s : pd.Series
-        Series containing clean dose unit strings.
+    relation : duckdb.DuckDBPyRelation
+        Input relation containing the column to clean.
+    col : str, default '_clean_unit'
+        Name of the column containing dose unit strings.
 
     Returns
     -------
-    dict
-        Dictionary with three keys:
-
-        - 'rate_units': dict of recognized rate units and their counts
-        - 'amount_units': dict of recognized amount units and their counts
-        - 'unrecognized_units': dict of unrecognized units and their counts
+    duckdb.DuckDBPyRelation
+        Relation with the column replaced by cleaned values.
 
     Examples
     --------
     >>> import pandas as pd
-    >>> s = pd.Series(['ml/hr', 'ml/hr', 'mcg', 'unknown_unit', None])
-    >>> result = _detect_and_classify_clean_dose_units(s)
-    >>> result['rate_units']
-    {'ml/hr': 2}
-    >>> result['amount_units']
-    {'mcg': 1}
-    >>> result['unrecognized_units']
-    {'unknown_unit': 1, None: 1}
-
-    Notes
-    -----
-    This function includes NaN/None values in the unrecognized category.
-    Consider using the more comprehensive _create_unit_conversion_counts_table
-    for production use.
-
-    .. deprecated::
-        Consider using _create_unit_conversion_counts_table instead.
+    >>> import duckdb
+    >>> df = pd.DataFrame({'_clean_unit': ['milliliter/hour', 'units/minute', 'µg/kg/h']})
+    >>> rel = duckdb.sql("SELECT * FROM df")
+    >>> result = _clean_dose_unit_names_duckdb(rel).to_df()
+    >>> list(result['_clean_unit'])
+    ['ml/hr', 'u/min', 'mcg/kg/hr']
     """
-    counts_dict = s.value_counts(dropna=False).to_dict()
-    rate_units_counts = {
-        k: v for k, v in counts_dict.items() if k in ACCEPTABLE_RATE_UNITS
-    }
-    amount_units_counts = {
-        k: v for k, v in counts_dict.items() if k in ACCEPTABLE_AMOUNT_UNITS
-    }
-    unrecognized_units_counts = {
-        k: v for k, v in counts_dict.items() 
-        if k not in ACCEPTABLE_RATE_UNITS and k not in ACCEPTABLE_AMOUNT_UNITS
-    }
-    return {
-        'rate_units': rate_units_counts,
-        'amount_units': amount_units_counts,
-        'unrecognized_units': unrecognized_units_counts
-    }
+    # Build nested regexp_replace calls for all patterns
+    expr = col
+    for repl, pattern in UNIT_NAMING_VARIANTS.items():
+        expr = f"regexp_replace({expr}, '{pattern}', '{repl}', 'g')"
+
+    return duckdb.sql(f"""
+        SELECT * EXCLUDE ({col}), {expr} as {col}
+        FROM relation
+    """)
 
 def _concat_builders_by_patterns(builder: callable, patterns: list, else_case: str = '1') -> str:
     """Concatenate multiple SQL CASE WHEN statements from patterns.
@@ -400,7 +427,7 @@ def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
         return f"WHEN regexp_matches(_preferred_unit, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
-def _convert_clean_units_to_base_units(med_df: pd.DataFrame) -> pd.DataFrame:
+def _convert_clean_units_to_base_units(med_df: pd.DataFrame | duckdb.DuckDBPyRelation) -> duckdb.DuckDBPyRelation:
     """Convert clean dose units to base units.
 
     Core conversion function that transforms various dose units into a base
@@ -509,12 +536,12 @@ def _convert_clean_units_to_base_units(med_df: pd.DataFrame) -> pd.DataFrame:
             END
     FROM med_df 
     """
-    return duckdb.sql(q).to_df()
+    return duckdb.sql(q)
 
 def _create_unit_conversion_counts_table(
-    med_df: pd.DataFrame,
+    med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
     group_by: List[str]
-    ) -> pd.DataFrame:
+    ) -> duckdb.DuckDBPyRelation:
     """Create summary table of unit conversion counts.
 
     Generates a grouped summary showing the frequency of each unit conversion
@@ -583,13 +610,34 @@ def _create_unit_conversion_counts_table(
     GROUP BY {cols_enum_str}
     ORDER BY {order_by_clause}
     """
-    return duckdb.sql(q).to_df()
-    
+    return duckdb.sql(q)
+
+def find_most_recent_weight(
+    med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
+    vitals_df: pd.DataFrame | duckdb.DuckDBPyRelation
+    ) -> duckdb.DuckDBPyRelation:
+    """Find the most recent weight for each medication administration."""
+    q = """
+    with weights as (
+        SELECT hospitalization_id, recorded_dttm, vital_value
+        FROM vitals_df
+        WHERE vital_category = 'weight_kg' AND vital_value IS NOT NULL
+    )
+    SELECT m.*
+        , v.vital_value as weight_kg
+        , v.recorded_dttm as _weight_recorded_dttm
+    FROM med_df m
+    ASOF LEFT JOIN weights v
+        ON m.hospitalization_id = v.hospitalization_id 
+        AND v.recorded_dttm <= m.admin_dttm 
+    ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category
+    """
+    return duckdb.sql(q)
 
 def standardize_dose_to_base_units(
     med_df: pd.DataFrame,
     vitals_df: pd.DataFrame = None
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> Tuple[duckdb.DuckDBPyRelation, duckdb.DuckDBPyRelation]:
     """Standardize medication dose units to a base set of standard units.
 
     Main public API function that performs complete dose unit standardization
@@ -667,25 +715,8 @@ def standardize_dose_to_base_units(
     Unrecognized units are flagged but preserved in the output.
     """
     if 'weight_kg' not in med_df.columns:
-        print("No weight_kg column found, adding the most recent from vitals")
-        query = """
-        SELECT m.*
-            , v.vital_value as weight_kg
-            , v.recorded_dttm as _weight_recorded_dttm
-            , ROW_NUMBER() OVER (
-                PARTITION BY m.hospitalization_id, m.admin_dttm, m.med_category
-                ORDER BY v.recorded_dttm DESC
-                ) as _rn
-        FROM med_df m
-        LEFT JOIN vitals_df v 
-            ON m.hospitalization_id = v.hospitalization_id 
-            AND v.vital_category = 'weight_kg' AND v.vital_value IS NOT NULL
-            AND v.recorded_dttm <= m.admin_dttm  -- only past weights
-        -- rn = 1 for the weight w/ the latest recorded_dttm (and thus most recent)
-        QUALIFY (_rn = 1 OR _rn IS NULL) 
-        ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category, _rn
-        """
-        med_df = duckdb.sql(query).to_df()
+        logger.info("pulling the most recent weight from the vitals table since no `weight_kg` column exists in the medication table")
+        med_df = find_most_recent_weight(med_df, vitals_df)#.to_df()
     
     # check if the required columns are present
     required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
@@ -693,23 +724,21 @@ def standardize_dose_to_base_units(
     if missing_columns:
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
-    med_df['_clean_unit'] = (
-        med_df['med_dose_unit'].pipe(_clean_dose_unit_formats)
-        .pipe(_clean_dose_unit_names)
-    )
-    
-    med_df_base = _convert_clean_units_to_base_units(med_df)
+    # Clean dose units using DuckDB to avoid pandas materialization
+    med_df_cleaned = _clean_dose_unit_formats_duckdb(med_df)
+    med_df_cleaned = _clean_dose_unit_names_duckdb(med_df_cleaned)
+    med_df_base = _convert_clean_units_to_base_units(med_df_cleaned)
     convert_counts_df = _create_unit_conversion_counts_table(
-        med_df_base, 
+        med_df_base,
         group_by=['med_dose_unit', '_clean_unit', '_base_unit', '_unit_class']
         )
-    
+
     return med_df_base, convert_counts_df
     
 def _convert_base_units_to_preferred_units(
-    med_df: pd.DataFrame,
+    med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
     override: bool = False
-    ) -> pd.DataFrame:
+    ) -> duckdb.DuckDBPyRelation:
     """Convert base standardized units to user-preferred units.
 
     Performs the second stage of unit conversion, transforming from standardized
@@ -780,11 +809,16 @@ def _convert_base_units_to_preferred_units(
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
     
     # check user-defined _preferred_unit are in the set of acceptable units
-    unacceptable_preferred_units = set(med_df['_preferred_unit']) - ALL_ACCEPTABLE_UNITS - {None}
+    q = f"""
+    SELECT DISTINCT _preferred_unit
+    FROM med_df
+    """
+    all_preferred_units = set(duckdb.sql(q).to_df()['_preferred_unit'])
+    unacceptable_preferred_units = all_preferred_units - ALL_ACCEPTABLE_UNITS - {None}
     if unacceptable_preferred_units:
         error_msg = f"Cannot accommodate the conversion to the following preferred units: {unacceptable_preferred_units}. Consult the function documentation for a list of acceptable units."
         if override:
-            print(error_msg)
+            logger.warning(error_msg)
         else:
             raise ValueError(error_msg)
     
@@ -871,7 +905,7 @@ def _convert_base_units_to_preferred_units(
             END
     FROM med_df l
     """
-    return duckdb.sql(q).to_df()
+    return duckdb.sql(q)
 
 def convert_dose_units_by_med_category(
     med_df: pd.DataFrame,
@@ -977,20 +1011,20 @@ def convert_dose_units_by_med_category(
     ----
     Implement config file parsing for default preferred_units.
     """
+    # check if the requested med_categories are in the input med_df
+    requested_med_categories = set(preferred_units.keys())
+    extra_med_categories = requested_med_categories - set(med_df['med_category'])
+    if extra_med_categories:
+        error_msg = f"The following med_categories are given a preferred unit but not found in the input med_df: {extra_med_categories}"
+        if override:
+            logger.warning(error_msg)
+        else:
+            raise ValueError(error_msg)
+    
     try:
         med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df)
     except ValueError as e:
         raise ValueError(f"Error standardizing dose units to base units: {e}")
-    
-    # check if the requested med_categories are in the input med_df
-    requested_med_categories = set(preferred_units.keys())
-    extra_med_categories = requested_med_categories - set(med_df_base['med_category'])
-    if extra_med_categories:
-        error_msg = f"The following med_categories are given a preferred unit but not found in the input med_df: {extra_med_categories}"
-        if override:
-            print(error_msg)
-        else:
-            raise ValueError(error_msg)
     
     try:
         # join the preferred units to the df
@@ -1002,9 +1036,9 @@ def convert_dose_units_by_med_category(
         FROM med_df_base l
         LEFT JOIN preferred_units_df r USING (med_category)
         """
-        med_df_preferred = duckdb.sql(q).to_df()
-        
-        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override)
+        med_df_preferred = duckdb.sql(q)
+
+        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override).to_df()
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
@@ -1026,7 +1060,6 @@ def convert_dose_units_by_med_category(
         # the default (detailed_output=False) is to drop multiplier columns which likely are not useful for the user
         multiplier_cols = [col for col in med_df_converted.columns if 'multiplier' in col]
         qa_cols = [
-            '_rn',
             '_weight_recorded_dttm',
             '_weighted', '_weighted_preferred',
             '_base_dose', '_base_unit',
@@ -1037,6 +1070,6 @@ def convert_dose_units_by_med_category(
         
         cols_to_drop = [c for c in multiplier_cols + qa_cols if c in med_df_converted.columns]
         
-        return med_df_converted.drop(columns=cols_to_drop), convert_counts_df
+        return med_df_converted.drop(columns=cols_to_drop), convert_counts_df.to_df()
     
     
