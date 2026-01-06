@@ -45,111 +45,109 @@ class TestCastIdColsToString:
 
 
 class TestLoadParquetWithTz:
-    @patch('duckdb.connect')
-    def test_load_parquet_basic(self, mock_connect):
+    @patch('clifpy.utils.io.duckdb')
+    def test_load_parquet_basic(self, mock_duckdb):
         """Test basic loading of parquet file."""
         # Setup mock
-        mock_con = MagicMock()
-        mock_connect.return_value = mock_con
         mock_df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
-        mock_con.execute().fetchdf.return_value = mock_df
-        
+        mock_rel = MagicMock()
+        mock_rel.df.return_value = mock_df
+        mock_duckdb.sql.return_value = mock_rel
+
         # Call function
         result = load_parquet_with_tz("test.parquet")
-        
-        # Verify calls
-        mock_connect.assert_called_once()
-        mock_con.execute.assert_any_call("SET timezone = 'UTC';")
-        mock_con.execute.assert_any_call("SET pandas_analyze_sample=0;")
-        mock_con.execute.assert_any_call("SELECT * FROM parquet_scan('test.parquet')")
-        mock_con.close.assert_called_once()
-        
+
+        # Verify settings were applied
+        mock_duckdb.execute.assert_any_call("SET timezone = 'UTC';")
+        mock_duckdb.execute.assert_any_call("SET pandas_analyze_sample=0;")
+
+        # Verify SQL query
+        mock_duckdb.sql.assert_called_once_with("SELECT * FROM parquet_scan('test.parquet')")
+
         # Verify result
         pd.testing.assert_frame_equal(result, mock_df)
 
-    @patch('duckdb.connect')
-    def test_load_parquet_with_columns(self, mock_connect):
+    @patch('clifpy.utils.io.duckdb')
+    def test_load_parquet_with_columns(self, mock_duckdb):
         """Test loading specific columns from parquet file."""
         # Setup mock
-        mock_con = MagicMock()
-        mock_connect.return_value = mock_con
         mock_df = pd.DataFrame({"col1": [1, 2]})
-        mock_con.execute().fetchdf.return_value = mock_df
-        
+        mock_rel = MagicMock()
+        mock_rel.df.return_value = mock_df
+        mock_duckdb.sql.return_value = mock_rel
+
         # Call function
         result = load_parquet_with_tz("test.parquet", columns=["col1"])
-        
-        # Verify calls
-        mock_con.execute.assert_any_call("SELECT col1 FROM parquet_scan('test.parquet')")
-        
+
+        # Verify SQL query
+        mock_duckdb.sql.assert_called_once_with("SELECT col1 FROM parquet_scan('test.parquet')")
+
         # Verify result
         pd.testing.assert_frame_equal(result, mock_df)
 
-    @patch('duckdb.connect')
-    def test_load_parquet_with_filters(self, mock_connect):
+    @patch('clifpy.utils.io.duckdb')
+    def test_load_parquet_with_filters(self, mock_duckdb):
         """Test loading parquet file with filters."""
         # Setup mock
-        mock_con = MagicMock()
-        mock_connect.return_value = mock_con
         mock_df = pd.DataFrame({"col1": [1], "col2": ["a"]})
-        mock_con.execute().fetchdf.return_value = mock_df
-        
+        mock_rel = MagicMock()
+        mock_rel.df.return_value = mock_df
+        mock_duckdb.sql.return_value = mock_rel
+
         # Call function
         result = load_parquet_with_tz(
-            "test.parquet", 
+            "test.parquet",
             filters={"col1": 1, "col2": ["a", "b"]}
         )
-        
-        # Verify calls
-        mock_con.execute.assert_any_call(
+
+        # Verify SQL query
+        mock_duckdb.sql.assert_called_once_with(
             "SELECT * FROM parquet_scan('test.parquet') WHERE col1 = '1' AND col2 IN ('a', 'b')"
         )
-        
+
         # Verify result
         pd.testing.assert_frame_equal(result, mock_df)
 
-    @patch('duckdb.connect')
-    def test_load_parquet_with_sample_size(self, mock_connect):
+    @patch('clifpy.utils.io.duckdb')
+    def test_load_parquet_with_sample_size(self, mock_duckdb):
         """Test loading parquet file with sample size limit."""
         # Setup mock
-        mock_con = MagicMock()
-        mock_connect.return_value = mock_con
         mock_df = pd.DataFrame({"col1": [1], "col2": ["a"]})
-        mock_con.execute().fetchdf.return_value = mock_df
-        
+        mock_rel = MagicMock()
+        mock_rel.df.return_value = mock_df
+        mock_duckdb.sql.return_value = mock_rel
+
         # Call function
         result = load_parquet_with_tz("test.parquet", sample_size=100)
-        
-        # Verify calls
-        mock_con.execute.assert_any_call(
+
+        # Verify SQL query
+        mock_duckdb.sql.assert_called_once_with(
             "SELECT * FROM parquet_scan('test.parquet') LIMIT 100"
         )
-        
+
         # Verify result
         pd.testing.assert_frame_equal(result, mock_df)
 
 
 class TestLoadData:
     @patch('os.path.exists')
-    @patch('duckdb.connect')
-    def test_load_data_csv(self, mock_connect, mock_exists):
+    @patch('clifpy.utils.io.duckdb')
+    def test_load_data_csv(self, mock_duckdb, mock_exists):
         """Test loading CSV data."""
         # Setup mocks
         mock_exists.return_value = True
-        mock_con = MagicMock()
-        mock_connect.return_value = mock_con
         mock_df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
-        mock_con.execute().fetchdf.return_value = mock_df
-        
+        mock_rel = MagicMock()
+        mock_rel.df.return_value = mock_df
+        mock_duckdb.sql.return_value = mock_rel
+
         # Call function
         result = load_data("test_table", "/path/to/dir", "csv")
-        
+
         # Verify calls
         mock_exists.assert_called_with("/path/to/dir/clif_test_table.csv")
-        mock_connect.assert_called_once()
-        mock_con.execute.assert_called_with("SELECT * FROM read_csv_auto('/path/to/dir/clif_test_table.csv')")
-        mock_con.close.assert_called_once()
-        
+        mock_duckdb.sql.assert_called_once_with("SELECT * FROM read_csv_auto('/path/to/dir/clif_test_table.csv')")
+
         # Verify result
         pd.testing.assert_frame_equal(result, mock_df)
 
@@ -168,7 +166,7 @@ class TestLoadData:
         # Verify calls
         mock_exists.assert_called_with("/path/to/dir/clif_test_table.parquet")
         mock_load_parquet.assert_called_with(
-            "/path/to/dir/clif_test_table.parquet", None, None, None
+            "/path/to/dir/clif_test_table.parquet", None, None, None, None, False, False
         )
         
         # Verify result
@@ -191,33 +189,33 @@ class TestLoadData:
             load_data("test_table", "/path/to/dir", "csv")
 
     @patch('os.path.exists')
-    @patch('duckdb.connect')
-    def test_load_data_with_filters_and_columns(self, mock_connect, mock_exists):
+    @patch('clifpy.utils.io.duckdb')
+    def test_load_data_with_filters_and_columns(self, mock_duckdb, mock_exists):
         """Test loading CSV data with filters and columns."""
         # Setup mocks
         mock_exists.return_value = True
-        mock_con = MagicMock()
-        mock_connect.return_value = mock_con
         mock_df = pd.DataFrame({"col1": [1]})
-        mock_con.execute().fetchdf.return_value = mock_df
-        
+        mock_rel = MagicMock()
+        mock_rel.df.return_value = mock_df
+        mock_duckdb.sql.return_value = mock_rel
+
         # Call function
         result = load_data(
-            "test_table", 
-            "/path/to/dir", 
+            "test_table",
+            "/path/to/dir",
             "csv",
             columns=["col1"],
             filters={"status": ["active", "pending"], "type": "urgent"},
             sample_size=10
         )
-        
+
         # Verify calls
         expected_query = (
             "SELECT col1 FROM read_csv_auto('/path/to/dir/clif_test_table.csv') "
             "WHERE status IN ('active', 'pending') AND type = 'urgent' LIMIT 10"
         )
-        mock_con.execute.assert_called_with(expected_query)
-        
+        mock_duckdb.sql.assert_called_once_with(expected_query)
+
         # Verify result
         pd.testing.assert_frame_equal(result, mock_df)
 
@@ -278,12 +276,12 @@ class TestConvertDatetimeColumnsToSiteTz:
             'fake_dttm': ['not a date', 'still not a date'],
             'value': [1, 2]
         })
-        
+
         # Should not raise errors
         result = convert_datetime_columns_to_site_tz(df, 'US/Central', verbose=False)
-        
-        # Column should be unchanged
-        assert result['fake_dttm'].tolist() == ['not a date', 'still not a date']
+
+        # Invalid date strings are coerced to NaT (errors='coerce' behavior)
+        assert pd.isna(result['fake_dttm']).all()
 
     def test_mixed_timezone_columns(self):
         """Test handling mixed timezone columns."""
