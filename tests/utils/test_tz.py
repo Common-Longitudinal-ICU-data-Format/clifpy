@@ -273,3 +273,132 @@ class TestLoadDataTimezone:
         # Check that datetime columns exist and are converted
         dttm_cols = [c for c in df.columns if 'dttm' in c.lower()]
         assert len(dttm_cols) > 0, "Expected at least one dttm column"
+
+
+# ===========================================
+# Tests for return_rel parameter
+# ===========================================
+@pytest.mark.tz_conversion
+class TestReturnRelation:
+    """Tests for return_rel parameter returning DuckDBPyRelation."""
+
+    def test_returns_relation(self, demo_vitals_path):
+        """Test that return_rel=True returns DuckDBPyRelation."""
+        rel = load_parquet_with_tz(
+            demo_vitals_path,
+            sample_size=5,
+            return_rel=True
+        )
+
+        assert isinstance(rel, duckdb.DuckDBPyRelation)
+
+        # Verify we can convert to DataFrame
+        df = rel.df()
+        assert len(df) == 5
+        # No connection cleanup needed - uses default connection
+
+    def test_relation_with_timezone_conversion(self, demo_vitals_path):
+        """Test timezone conversion works in returned relation."""
+        # Get UTC version first
+        df_utc = load_parquet_with_tz(
+            demo_vitals_path,
+            sample_size=5,
+            site_tz=None
+        )
+
+        # Get Eastern version via relation
+        rel = load_parquet_with_tz(
+            demo_vitals_path,
+            sample_size=5,
+            site_tz='US/Eastern',
+            return_rel=True
+        )
+        df_eastern = rel.df()
+
+        # Verify timezone was converted (hour offset)
+        utc_hour = df_utc['recorded_dttm'].dt.hour.iloc[0]
+        eastern_hour = df_eastern['recorded_dttm'].dt.hour.iloc[0]
+        hour_diff = utc_hour - eastern_hour
+
+        assert hour_diff in [4, 5], f"Expected 4-5 hour diff, got {hour_diff}"
+
+    def test_relation_lazy_evaluation(self, demo_vitals_path):
+        """Test that relation is lazily evaluated and supports chaining."""
+        rel = load_parquet_with_tz(
+            demo_vitals_path,
+            return_rel=True
+        )
+
+        # Can chain operations before execution
+        filtered_rel = rel.filter("vital_value > 0")
+        df = filtered_rel.df()
+
+        assert len(df) > 0
+
+    def test_relation_with_column_filter(self, demo_vitals_path):
+        """Test relation with column filter."""
+        columns = ['hospitalization_id', 'recorded_dttm', 'vital_value']
+        rel = load_parquet_with_tz(
+            demo_vitals_path,
+            columns=columns,
+            sample_size=5,
+            return_rel=True
+        )
+
+        df = rel.df()
+        assert list(df.columns) == columns
+        assert len(df) == 5
+
+    def test_load_data_returns_relation(self, demo_data_dir):
+        """Test load_data with return_rel=True for parquet."""
+        rel = load_data(
+            table_name='vitals',
+            table_path=str(demo_data_dir),
+            table_format_type='parquet',
+            sample_size=5,
+            return_rel=True
+        )
+
+        assert isinstance(rel, duckdb.DuckDBPyRelation)
+
+        df = rel.df()
+        assert len(df) == 5
+
+    def test_load_data_relation_with_timezone(self, demo_data_dir):
+        """Test timezone conversion in relation from load_data."""
+        # Get UTC version
+        df_utc = load_data(
+            table_name='vitals',
+            table_path=str(demo_data_dir),
+            table_format_type='parquet',
+            sample_size=5,
+            site_tz=None
+        )
+
+        # Get Eastern version via relation
+        rel = load_data(
+            table_name='vitals',
+            table_path=str(demo_data_dir),
+            table_format_type='parquet',
+            sample_size=5,
+            site_tz='US/Eastern',
+            return_rel=True
+        )
+        df_eastern = rel.df()
+
+        # Verify hour offset
+        utc_hour = df_utc['recorded_dttm'].dt.hour.iloc[0]
+        eastern_hour = df_eastern['recorded_dttm'].dt.hour.iloc[0]
+        hour_diff = utc_hour - eastern_hour
+
+        assert hour_diff in [4, 5], f"Expected 4-5 hour diff, got {hour_diff}"
+
+    def test_default_returns_dataframe(self, demo_vitals_path):
+        """Test that default (return_rel=False) returns DataFrame."""
+        result = load_parquet_with_tz(
+            demo_vitals_path,
+            sample_size=5
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 5
