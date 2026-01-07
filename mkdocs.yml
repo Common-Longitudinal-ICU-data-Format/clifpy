@@ -91,12 +91,15 @@ nav:
         - SOFA Score Computation: user-guide/sofa.md
         - Respiratory Support Waterfall: user-guide/waterfall.md
         - Comorbidity Index: user-guide/comorbidity-index.md
+        - MDRO Flags: user-guide/mdro-flags.md
   - API Reference:
       - Overview: api/index.md
       - Orchestrator: api/orchestrator.md
       - Base Table: api/base-table.md
       - Tables: api/tables.md
       - Utilities: api/utilities.md
+  - Logging: logging.md
+  - Contributing: contributing.md
 
 extra:
   social:
