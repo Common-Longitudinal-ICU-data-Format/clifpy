@@ -33,6 +33,15 @@ from .utils.config import load_config
 from .utils.io import load_data
 from .utils.logging_config import setup_logging, get_logger
 
+# Re-export Polars-based utilities at package root
+from .utils.sofa_polars import compute_sofa_polars
+from .utils.datetime_polars import (
+    standardize_datetime_columns as standardize_datetime_columns_polars,
+    ensure_datetime_precision_match as ensure_datetime_precision_match_polars,
+    convert_datetime_columns_to_site_tz as convert_datetime_columns_to_site_tz_polars,
+)
+from .utils.io_polars import load_data_polars, load_clif_table_polars
+
 # Version info
 try:
     from importlib.metadata import version
@@ -77,4 +86,11 @@ __all__ = [
     "load_data",
     "setup_logging",
     "get_logger",
+    # Polars-based utilities
+    "compute_sofa_polars",
+    "standardize_datetime_columns_polars",
+    "ensure_datetime_precision_match_polars",
+    "convert_datetime_columns_to_site_tz_polars",
+    "load_data_polars",
+    "load_clif_table_polars",
 ]

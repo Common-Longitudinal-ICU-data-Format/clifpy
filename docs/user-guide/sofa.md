@@ -115,3 +115,154 @@ Higher scores indicate worse organ dysfunction. Total score ranges from 0-24.
 - **Medication units**: Ensure medications are pre-converted to mcg/kg/min using the unit converter
 - **PaO2 imputation**: When PaO2 is missing but SpO2 < 97%, PaO2 is estimated using the Severinghaus equation
 - **Missing data philosophy**: Absence of monitoring data suggests the organ wasn't failing enough to warrant close observation (score = 0)
+
+---
+
+## High-Performance SOFA with Polars
+
+For large datasets or performance-critical applications, CLIFpy provides `compute_sofa_polars()`, an optimized implementation using Polars that loads data directly from files.
+
+### Quick Start (Polars)
+
+```python
+import polars as pl
+from datetime import datetime
+from clifpy import compute_sofa_polars
+
+# Define cohort with time windows
+cohort_df = pl.DataFrame({
+    'hospitalization_id': ['H001', 'H002', 'H003'],
+    'start_dttm': [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+    'end_dttm': [datetime(2024, 1, 2), datetime(2024, 1, 3), datetime(2024, 1, 4)]
+})
+
+# Compute SOFA scores
+sofa_scores = compute_sofa_polars(
+    data_directory='/path/to/clif/data',
+    cohort_df=cohort_df,
+    filetype='parquet',
+    timezone='US/Central'
+)
+```
+
+### Parameters (Polars)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `data_directory` | str | required | Path to directory containing CLIF data files |
+| `cohort_df` | pl.DataFrame | required | Cohort with hospitalization_id, start_dttm, end_dttm |
+| `filetype` | str | 'parquet' | File format ('parquet' or 'csv') |
+| `id_name` | str | 'hospitalization_id' | Column name for grouping scores |
+| `extremal_type` | str | 'worst' | Aggregation type ('worst' for min/max) |
+| `fill_na_scores_with_zero` | bool | True | Fill missing component scores with 0 |
+| `remove_outliers` | bool | True | Remove physiologically implausible values |
+| `timezone` | str | None | Target timezone (e.g., 'US/Central') |
+
+### With Encounter Blocks
+
+```python
+import polars as pl
+from datetime import datetime
+from clifpy import compute_sofa_polars
+
+# Cohort with encounter blocks
+cohort_df = pl.DataFrame({
+    'hospitalization_id': ['H001', 'H002', 'H003'],
+    'encounter_block': [1, 1, 2],  # H001 and H002 are same encounter
+    'start_dttm': [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 5)],
+    'end_dttm': [datetime(2024, 1, 2), datetime(2024, 1, 3), datetime(2024, 1, 6)]
+})
+
+# Group by encounter_block instead of hospitalization_id
+sofa_scores = compute_sofa_polars(
+    data_directory='/path/to/clif/data',
+    cohort_df=cohort_df,
+    filetype='parquet',
+    id_name='encounter_block',
+    timezone='US/Central'
+)
+```
+
+### Integration with Pandas Workflow
+
+If you have a pandas cohort DataFrame, convert it to Polars:
+
+```python
+import pandas as pd
+import polars as pl
+from clifpy import compute_sofa_polars
+
+# Pandas cohort
+cohort_pd = pd.DataFrame({
+    'hospitalization_id': ['H001', 'H002'],
+    'start_dttm': pd.to_datetime(['2024-01-01', '2024-01-02']),
+    'end_dttm': pd.to_datetime(['2024-01-02', '2024-01-03'])
+})
+
+# Convert to Polars
+cohort_pl = pl.from_pandas(cohort_pd)
+
+# Compute SOFA
+sofa_scores_pl = compute_sofa_polars(
+    data_directory='/path/to/clif/data',
+    cohort_df=cohort_pl,
+    timezone='US/Central'
+)
+
+# Convert result back to pandas if needed
+sofa_scores_pd = sofa_scores_pl.to_pandas()
+```
+
+### Performance Benefits
+
+The Polars implementation offers significant performance improvements:
+
+- **Lazy evaluation**: Uses `scan_parquet()` for memory-efficient loading
+- **Predicate pushdown**: Filters are applied at the file level
+- **Parallel execution**: Polars automatically parallelizes operations
+- **Memory efficiency**: Processes data in chunks, avoiding memory exhaustion
+
+Recommended for:
+- Large cohorts (>10,000 hospitalizations)
+- Memory-constrained environments
+- Production pipelines requiring fast execution
+
+### Polars vs Orchestrator Comparison
+
+| Feature | `ClifOrchestrator.compute_sofa_scores()` | `compute_sofa_polars()` |
+|---------|------------------------------------------|-------------------------|
+| Backend | Pandas + DuckDB | Polars |
+| Data loading | Requires pre-loaded tables | Loads directly from files |
+| Memory usage | Higher (full tables in memory) | Lower (lazy evaluation) |
+| Speed | Good | Faster for large datasets |
+| Integration | Works with orchestrator workflow | Standalone function |
+| Output | pandas DataFrame | polars DataFrame |
+
+### Additional Polars Utilities
+
+CLIFpy also exports Polars-based utilities for loading and datetime handling:
+
+```python
+from clifpy import (
+    load_data_polars,
+    load_clif_table_polars,
+    standardize_datetime_columns_polars,
+)
+
+# Load any CLIF table as Polars LazyFrame
+labs = load_data_polars(
+    table_name='labs',
+    table_path='/path/to/clif/data',
+    table_format_type='parquet',
+    site_tz='US/Central',
+    lazy=True  # Returns LazyFrame for deferred execution
+)
+
+# Convenience function with filtering
+vitals = load_clif_table_polars(
+    data_directory='/path/to/clif/data',
+    table_name='vitals',
+    hospitalization_ids=['H001', 'H002'],
+    site_tz='US/Central'
+)
+```
