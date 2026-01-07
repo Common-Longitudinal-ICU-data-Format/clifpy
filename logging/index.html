@@ -15,6 +15,10 @@
         <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/clifpy/logging/">
       
       
+        <link rel="prev" href="../api/utilities/">
+      
+      
+        <link rel="next" href="../contributing/">
       
       
       <link rel="icon" href="../images/clif_logo_red_no_text.png">
@@ -22,7 +26,7 @@
     
     
       
-        <title>Logging System Documentation - CLIFpy Documentation</title>
+        <title>Logging - CLIFpy Documentation</title>
       
     
     
@@ -115,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Logging System Documentation
+              Logging
             
           </span>
         </div>
@@ -278,6 +282,46 @@
         </a>
       </li>
     
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Logging
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
   
 
       
@@ -819,6 +863,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/mdro-flags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MDRO Flags
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -997,6 +1064,587 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Logging
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Logging
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works-two-key-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      How It Works: Two Key Functions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How It Works: Two Key Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup_logging-configure-the-system-call-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      setup_logging() - Configure the System (Call Once)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_logger-get-a-logger-call-anywhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_logger() - Get a Logger (Call Anywhere)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logger-namespaces-and-why-they-matter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logger Namespaces and Why They Matter
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logger Namespaces and Why They Matter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-are-logger-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      What Are Logger Names?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-logger-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      The Logger Hierarchy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-logger-names-matter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why Logger Names Matter
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why Logger Names Matter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-identify-where-logs-come-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Identify Where Logs Come From
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-control-verbosity-for-specific-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Control Verbosity for Specific Modules
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-control-entire-subsystems" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Control Entire Subsystems
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-search-and-filter-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Search and Filter Logs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-trace-execution-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Trace Execution Flow
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#log-file-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Log File Structure
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Log File Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#log-file-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Log File Contents
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Log File Contents">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#clifpy_alllog" class="md-nav__link">
+    <span class="md-ellipsis">
+      clifpy_all.log
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clifpy_errorslog" class="md-nav__link">
+    <span class="md-ellipsis">
+      clifpy_errors.log
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emoji-legend" class="md-nav__link">
+    <span class="md-ellipsis">
+      Emoji Legend
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-setup-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Setup (Recommended)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      Manual Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Manual Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#understanding-get_logger-vs-logginggetlogger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Understanding get_logger() vs logging.getLogger()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration Options
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#log-levels-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Log Levels Guide
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Log Levels Guide">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-each-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Use Each Level
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Workflows
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reviewing-processing-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reviewing Processing Results
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging Issues
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adjusting-log-verbosity" class="md-nav__link">
+    <span class="md-ellipsis">
+      Adjusting Log Verbosity
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-table-validation-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Per-Table Validation Logs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Best Practices
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Best Practices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-use-appropriate-log-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Use Appropriate Log Levels
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-include-context-in-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Include Context in Messages
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-log-important-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Log Important Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-use-structured-sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Use Structured Sections
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-clean-up-logs-between-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Clean Up Logs Between Runs
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integration-with-existing-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Integration with Existing Code
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#logs-not-appearing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logs Not Appearing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#console-output-missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Console Output Missing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#too-verbose-too-quiet" class="md-nav__link">
+    <span class="md-ellipsis">
+      Too Verbose / Too Quiet
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duplicate-log-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Duplicate Log Messages
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-1-basic-analysis-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 1: Basic Analysis Script
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-custom-processing-with-detailed-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 2: Custom Processing with Detailed Logging
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-quiet-mode-errors-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 3: Quiet Mode (Errors Only)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
