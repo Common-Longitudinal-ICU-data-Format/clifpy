@@ -1,5 +1,5 @@
 conversion:
-  
+
 
 unit_variants:  
   "10^3/µl":
@@ -25,18 +25,13 @@ unit_variants:
     - "k/µl"
     - "k/μl"
     - "k/ul"
+    - "k/mcl"
 
   "10^9/l":
     - "10^9/l"
     - "10*9/l"
     - "x10^9/l"
     - "10e9/l"
-
-  "k/µl":
-    - "k/µl"
-    - "k/μl"
-    - "k/ul"
-    - "k/mcl"
 
   "thousand/µl":
     - "thousand/µl"
@@ -83,8 +78,6 @@ unit_variants:
     - "iu.l"
     - "u_l"
     - "iu_l"
-
-  "units/l":
     - "units/l"
     - "unit/l"
     - "units per liter"
@@ -217,6 +210,8 @@ unit_variants:
 
   "mmhg":
     - "mmhg"
+    - "mm[hg]"
+    - "mm [hg]"
     - "mm hg"
     - "mm.hg"
     - "mm of hg"

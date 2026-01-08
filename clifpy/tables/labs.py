@@ -1,31 +1,8 @@
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict
 import os
-import re
 import pandas as pd
+import polars as pl
 from .base_table import BaseTable
-
-# Pre-compiled regex patterns for unit normalization (compiled once at import)
-_BRACKET_RE = re.compile(r'[\[\]\(\)]')
-_CALC_RE = re.compile(r'\s*calc\s*$')
-_UNIT_REPLACEMENTS = [
-    (re.compile(r'\s+'), ''),           # Remove whitespace
-    (re.compile(r'μ|µ'), 'u'),          # Greek mu to u
-    (re.compile(r'\^'), ''),            # Remove caret
-    (re.compile(r'\*'), ''),            # Remove asterisk
-    (re.compile(r'hours?'), 'hr'),      # hour/hours -> hr
-    (re.compile(r'seconds?'), 'sec'),   # second/seconds -> sec
-    (re.compile(r'^s$'), 'sec'),        # lone 's' -> sec
-    (re.compile(r'minutes?'), 'min'),   # minute/minutes -> min
-    (re.compile(r'iu'), 'u'),           # iU -> U
-    (re.compile(r'\bgrams?\b'), 'g'),   # gram/grams -> g
-    (re.compile(r'\bgm\b'), 'g'),       # gm -> g
-    (re.compile(r'k/ul'), '103/ul'),    # k/uL -> 10^3/uL
-    (re.compile(r'10e3'), '103'),       # 10e3 -> 10^3
-    (re.compile(r'x10e3'), '103'),      # x10E3 -> 10^3
-    (re.compile(r'x103'), '103'),       # x10^3 -> 10^3
-    (re.compile(r'\bpg/ml\b'), 'ng/l'),  # if it's only 'pg/ml', then it becomes 'ng/l'
-    (re.compile(r','), ''),             # Remove commas
-]
 
 
 class Labs(BaseTable):
@@ -83,9 +60,36 @@ class Labs(BaseTable):
         self._load_labs_schema_data()
 
     def _load_labs_schema_data(self):
-        """Load lab reference units from the YAML schema."""
+        """Load lab reference units from the YAML schema and unit variants."""
         if self.schema:
             self._lab_reference_units = self.schema.get('lab_reference_units', {})
+
+        # Load unit variants from labs_standardization.yaml
+        self._unit_variant_lookup = {}
+        try:
+            import yaml
+            schema_dir = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'schemas'
+            )
+            standardization_file = os.path.join(schema_dir, 'labs_standardization.yaml')
+
+            if os.path.exists(standardization_file):
+                with open(standardization_file, 'r') as f:
+                    standardization_data = yaml.safe_load(f)
+
+                # Build reverse lookup: lowercase variant -> canonical unit (lowercase)
+                unit_variants = standardization_data.get('unit_variants', {})
+                for canonical_unit, variants in unit_variants.items():
+                    # Remove whitespace for normalization
+                    canonical_normalized = canonical_unit.lower().replace(' ', '')
+                    for variant in variants:
+                        variant_normalized = variant.lower().replace(' ', '')
+                        self._unit_variant_lookup[variant_normalized] = canonical_normalized
+
+                self.logger.debug(f"Loaded {len(self._unit_variant_lookup)} unit variants")
+        except Exception as e:
+            self.logger.warning(f"Could not load unit variants: {e}")
 
     def _validate_required_columns(self, required: set) -> set:
         """Check for required columns, return set of missing columns."""
@@ -218,61 +222,6 @@ class Labs(BaseTable):
 
         return result_df
 
-
-    def _normalize_unit(self, unit: str) -> str:
-        """
-        Normalize a unit string for comparison by removing special characters,
-        standardizing common variations, and lowercasing.
-        """
-        if not isinstance(unit, str):
-            return ""
-
-        normalized = unit.lower().strip()
-        normalized = _BRACKET_RE.sub('', normalized)
-        normalized = _CALC_RE.sub('', normalized)
-
-        for pattern, repl in _UNIT_REPLACEMENTS:
-            normalized = pattern.sub(repl, normalized)
-
-        return normalized
-
-    def _find_matching_target_unit(
-        self,
-        source_unit: str,
-        target_units: List[str]
-    ) -> Optional[str]:
-        """
-        Find the best matching target unit for a source unit using normalized comparison.
-
-        Parameters
-        ----------
-        source_unit : str
-            The unit string from the data
-        target_units : List[str]
-            List of acceptable target units from schema (first is preferred)
-
-        Returns
-        -------
-        Optional[str]
-            The matching target unit, or None if no match found
-        """
-        if not source_unit or not target_units:
-            return None
-
-        normalized_source = self._normalize_unit(source_unit)
-
-        # Check for exact match first
-        if source_unit in target_units:
-            return source_unit
-
-        # Check normalized matches against all target units
-        for target in target_units:
-            if self._normalize_unit(target) == normalized_source:
-                # Return the preferred (first) target unit
-                return target_units[0]
-
-        return None
-
     def _build_unit_mapping(
         self,
         unique_combos_df: pd.DataFrame,
@@ -281,6 +230,9 @@ class Labs(BaseTable):
         """
         Build unit mapping dictionary from unique lab_category + reference_unit combinations.
 
+        Uses the unit variants lookup from labs_standardization.yaml to match source units
+        to their canonical forms, then maps to the target unit from labs_schema.yaml.
+
         Returns tuple of (unit_mapping dict, mappings_applied list, unmatched_units list)
         """
         unit_mapping = {}
@@ -288,26 +240,51 @@ class Labs(BaseTable):
         unmatched_units = []
         loggable_mappings = []  # Batch logging at the end
 
+        # Acceptable values for unitless labs
+        unitless_acceptable = {'', '(no units)', 'no units', 'none', 'unitless'}
+
         for lab_cat, source_unit in unique_combos_df.itertuples(index=False):
             if pd.isna(source_unit):
                 continue
 
-            target_units = self._lab_reference_units.get(lab_cat, [])
-            if not target_units:
+            # Strip whitespace from source unit
+            source_unit_stripped = source_unit.strip() if source_unit else ''
+
+            # Get target unit from schema (now a single string, not a list)
+            target_unit = self._lab_reference_units.get(lab_cat)
+            if not target_unit:
+                # Unitless lab - warn if source has an unexpected unit
+                source_lower = source_unit_stripped.lower()
+                if source_lower and source_lower not in unitless_acceptable:
+                    unmatched_units.append({
+                        'lab_category': lab_cat,
+                        'source_unit': source_unit,
+                        'expected_unit': '(no units)'
+                    })
                 continue
 
-            matched_target = self._find_matching_target_unit(source_unit, target_units)
+            # Normalize source for lookup (lowercase, no whitespace)
+            source_normalized = source_unit_stripped.lower().replace(' ', '')
 
-            if matched_target:
-                final_target = matched_target.lower() if lowercase else matched_target
+            # Look up source unit's canonical form
+            source_canonical = self._unit_variant_lookup.get(source_normalized)
+
+            # Get target unit's canonical form (lowercase, no whitespace)
+            target_normalized = target_unit.lower().replace(' ', '')
+            target_canonical = self._unit_variant_lookup.get(target_normalized, target_normalized)
+
+            # Check if source matches target's canonical form
+            is_match = (source_canonical == target_canonical) if source_canonical else (source_normalized == target_normalized)
+
+            if is_match:
+                final_target = target_unit.lower() if lowercase else target_unit
 
                 if final_target != source_unit:
                     unit_mapping[(lab_cat, source_unit)] = final_target
 
-                    # Check if change is cosmetic (mu char or case only)
-                    is_mu_only_diff = source_unit.replace('µ', 'μ') == matched_target
-                    is_case_only_diff = source_unit.lower() == matched_target.lower()
-                    is_silent = is_mu_only_diff or (lowercase and is_case_only_diff)
+                    # Check if change is cosmetic (case/whitespace only)
+                    is_case_only_diff = source_normalized == target_normalized
+                    is_silent = lowercase and is_case_only_diff
 
                     mappings_applied.append({
                         'lab_category': lab_cat,
@@ -319,11 +296,11 @@ class Labs(BaseTable):
                     if not is_silent:
                         loggable_mappings.append((source_unit, final_target, lab_cat))
 
-            elif source_unit not in target_units:
+            else:
                 unmatched_units.append({
                     'lab_category': lab_cat,
                     'source_unit': source_unit,
-                    'expected_units': target_units
+                    'expected_unit': target_unit
                 })
 
         # Batch log all mappings at once
@@ -530,7 +507,7 @@ class Labs(BaseTable):
         for item in unmatched_units:
             self.logger.warning(
                 f"Unmatched unit '{item['source_unit']}' for {item['lab_category']}. "
-                f"Expected one of: {item['expected_units']}"
+                f"Expected: {item['expected_unit']}"
             )
 
         # Save mapping if requested
