@@ -1,0 +1,297 @@
+conversion:
+  
+
+unit_variants:  
+  "10^3/µl":
+    - "10^3/µl"
+    - "10^3/μl"
+    - "10^3/ul"
+    - "10*3/µl"
+    - "10*3/μl"
+    - "10*3/ul"
+    - "x10^3/µl"
+    - "x10^3/μl"
+    - "x10^3/ul"
+    - "10ˆ3/µl"
+    - "10ˆ3/μl"
+    - "10ˆ3/ul"
+    - "x10ˆ3/ul"
+    - "x10e3/µl"
+    - "x10e3/μl"
+    - "x10e3/ul"
+    - "10e3/µl"
+    - "10e3/μl"
+    - "10e3/ul"
+    - "k/µl"
+    - "k/μl"
+    - "k/ul"
+
+  "10^9/l":
+    - "10^9/l"
+    - "10*9/l"
+    - "x10^9/l"
+    - "10e9/l"
+
+  "k/µl":
+    - "k/µl"
+    - "k/μl"
+    - "k/ul"
+    - "k/mcl"
+
+  "thousand/µl":
+    - "thousand/µl"
+    - "thousand/μl"
+    - "thousand/ul"
+    - "thous/µl"
+    - "thous/μl"
+    - "thous/ul"
+
+  "k/cu mm":
+    - "k/cu mm"
+    - "k/cumm"
+    - "k/cu.mm"
+    - "k/mm3"
+    - "k/mm^3"
+    - "x10^3/mm3"
+    - "x10^3/mm^3"
+    - "10^3/mm3"
+    - "10^3/mm^3"
+    - "/cu mm"
+    - "/cumm"
+    - "/mm3"
+    - "/mm^3"
+    - "per cu mm"
+    - "per cumm"
+    - "per mm3"
+    - "per mm^3"
+
+  "cells/µl":
+    - "cells/µl"
+    - "cells/μl"
+    - "cells/ul"
+    - "cells per microliter"
+    - "cell/µl"
+    - "cell/μl"
+    - "cell/ul"
+
+  "u/l":
+    - "u/l"
+    - "iu/l"
+    - "u per l"
+    - "iu per l"
+    - "u.l"
+    - "iu.l"
+    - "u_l"
+    - "iu_l"
+
+  "units/l":
+    - "units/l"
+    - "unit/l"
+    - "units per liter"
+    - "units per litre"
+    - "unit per liter"
+
+  "g/dl":
+    - "g/dl"
+    - "gm/dl"
+    - "g per dl"
+    - "gm per dl"
+    - "g/dl."
+    - "gm/dl."
+    - "grams/dl"
+    - "gram/dl"
+    - "grams per deciliter"
+    - "gram per deciliter"
+    - "g per decilitre"
+    - "gm per decilitre"
+    - "grams/deciliter"
+    - "gram/deciliter"
+    - "g/deciliter"
+    - "gm/deciliter"
+
+
+  "g/100ml":
+    - "g/100ml"
+    - "g per 100ml"
+
+  "g/l":
+    - "g/l"
+    - "g per l"
+    - "grams per liter"
+    - "grams per litre"
+    - "g/liter"
+    - "g/litre"
+
+  "mg/dl":
+    - "mg/dl"
+    - "mg per dl"
+    - "mg/dl."
+    - "milligrams per deciliter"
+    - "milligrams per decilitre"
+    - "mg per deciliter"
+    - "mg per decilitre"
+    - "mg.dl"
+    - "mg_dl"
+
+  "mg/100ml":
+    - "mg/100ml"
+    - "mg per 100ml"
+
+  "mg/l":
+    - "mg/l"
+    - "mg per l"
+    - "mg per liter"
+    - "mg per litre"
+    - "milligrams per liter"
+    - "milligrams per litre"
+    - "milligram per liter"
+    - "milligram per litre"
+    - "mg/l."
+    - "mg per l."
+    - "mg per liter."
+    - "mg per litre."
+    - "mg.l"
+    - "mg.l."
+    - "mg_l"
+    - "mg_l."
+    - "mg l^-1"
+    - "mg l-1"
+    - "mg·l^-1"
+    - "mg·l−1"
+    - "mg·l-1"
+    - "mg·l"
+
+  "µg/ml":
+    - "µg/ml"
+    - "μg/ml"
+    - "ug/ml"
+    - "mcg/ml"
+    - "micrograms per milliliter"
+
+  "µg/dl":
+    - "µg/dl"
+    - "μg/dl"
+    - "ug/dl"
+    - "mcg/dl"
+    - "micrograms per deciliter"
+
+  "µg/l":
+    - "µg/l"
+    - "μg/l"
+    - "ug/l"
+    - "mcg/l"
+    - "micrograms per liter"
+
+  "ng/ml":
+    - "ng/ml"
+    - "ng per ml"
+    - "ng/ml."
+    - "nanograms per milliliter"
+    - "nanograms per millilitre"
+    - "ng per milliliter"
+    - "ng per millilitre"
+    - "ng.ml"
+    - "ng_ml"
+
+  "ng/l":
+    - "ng/l"
+    - "ng per l"
+    - "nanograms per liter"
+    - "pg/ml"
+    - "pg per ml"
+    - "picograms per milliliter"
+
+  "ng/dl":
+    - "ng/dl"
+    - "ng per dl"
+    - "nanograms per deciliter"
+
+  "pg/ml":
+    - "pg/ml"
+    - "pg per ml"
+    - "picograms per milliliter"
+
+  "pg/l":
+    - "pg/l"
+    - "picograms per liter"
+
+  "mmhg":
+    - "mmhg"
+    - "mm hg"
+    - "mm.hg"
+    - "mm of hg"
+    - "millimeters of mercury"
+    - "millimetres of mercury"
+
+  "kpa":
+    - "kpa"
+    - "kilopascal"
+    - "kilopascals"
+
+  "torr":
+    - "torr"
+
+  "pa":
+    - "pa"
+    - "pascal"
+
+  "mmol/l":
+    - "mmol/l"
+    - "mmoles/l"
+    - "millimoles per liter"
+    - "millimoles per litre"
+
+  "meq/l":
+    - "meq/l"
+    - "milliequivalents per liter"
+
+  "µmol/l":
+    - "µmol/l"
+    - "μmol/l"
+    - "umol/l"
+    - "micromoles per liter"
+
+  "nmol/l":
+    - "nmol/l"
+    - "nanomoles per liter"
+
+  "pmol/l":
+    - "pmol/l"
+    - "picomoles per liter"
+
+  "mol/l":
+    - "mol/l"
+    - "moles per liter"
+
+  "%":
+    - "%"
+    - "percent"
+    - "pct"
+    - "pct."
+
+  "fraction":
+    - "decimal"
+    - "fraction"
+
+  "sec":
+    - "sec"
+    - "secs"
+    - "s"
+    - "s."
+    - "sec."
+    - "second"
+    - "seconds"
+    - "second(s)"
+    - "second (s)"
+
+  "min":
+    - "min"
+    - "mins"
+    - "minute"
+    - "minutes"
+
+  "mm/hour":
+    - "mm/hour"
+    - "mm/hr"
+    - "mm/h"
+    - "mm/hours" 
