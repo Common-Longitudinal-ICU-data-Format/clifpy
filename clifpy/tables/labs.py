@@ -64,8 +64,10 @@ class Labs(BaseTable):
         if self.schema:
             self._lab_reference_units = self.schema.get('lab_reference_units', {})
 
-        # Load unit variants from labs_standardization.yaml
+        # Load unit variants and conversions from labs_standardization.yaml
         self._unit_variant_lookup = {}
+        self._unit_conversions = {}
+        self._lab_molecular_weights = {}
         try:
             import yaml
             schema_dir = os.path.join(
@@ -78,7 +80,7 @@ class Labs(BaseTable):
                 with open(standardization_file, 'r') as f:
                     standardization_data = yaml.safe_load(f)
 
-                # Build reverse lookup: lowercase variant -> canonical unit (lowercase)
+                # Build reverse lookup: normalized variant -> canonical unit (normalized)
                 unit_variants = standardization_data.get('unit_variants', {})
                 for canonical_unit, variants in unit_variants.items():
                     # Remove whitespace for normalization
@@ -88,8 +90,31 @@ class Labs(BaseTable):
                         self._unit_variant_lookup[variant_normalized] = canonical_normalized
 
                 self.logger.debug(f"Loaded {len(self._unit_variant_lookup)} unit variants")
+
+                # Load conversion factors: target_unit -> {source_unit: factor}
+                conversions = standardization_data.get('conversion', {})
+                for target_unit, source_factors in conversions.items():
+                    target_normalized = target_unit.lower().replace(' ', '')
+                    self._unit_conversions[target_normalized] = {}
+                    for source_unit, factor in source_factors.items():
+                        source_normalized = source_unit.lower().replace(' ', '')
+                        self._unit_conversions[target_normalized][source_normalized] = factor
+
+                self.logger.debug(f"Loaded conversions for {len(self._unit_conversions)} target units")
+
+                # Load molecular weights for MW-dependent conversions
+                self._lab_molecular_weights = standardization_data.get('lab_molecular_weights', {})
+                self.logger.debug(f"Loaded molecular weights for {len(self._lab_molecular_weights)} lab categories")
+
         except Exception as e:
-            self.logger.warning(f"Could not load unit variants: {e}")
+            self.logger.warning(f"Could not load unit variants/conversions: {e}")
+
+    def _is_mw_dependent_conversion(self, source_normalized: str, target_normalized: str) -> bool:
+        """Check if conversion between these units requires molecular weight."""
+        mmol_units = {'mmol/l', 'meq/l'}
+        mg_units = {'mg/dl', 'mg/l'}
+        return (source_normalized in mmol_units and target_normalized in mg_units) or \
+               (source_normalized in mg_units and target_normalized in mmol_units)
 
     def _validate_required_columns(self, required: set) -> set:
         """Check for required columns, return set of missing columns."""
@@ -530,6 +555,255 @@ class Labs(BaseTable):
             return result_df
 
         return None
+
+    def convert_reference_units(
+        self,
+        inplace: bool = True,
+        save: bool = False,
+        output_directory: Optional[str] = None
+    ) -> Optional[pd.DataFrame]:
+        """
+        Convert lab values from source units to target units using conversion factors.
+
+        This method performs actual value conversions (e.g., g/dL to mg/dL) by applying
+        conversion factors from labs_standardization.yaml. It updates both the numeric
+        values and the reference_unit column.
+
+        Conversion formula: target_value = source_value ÷ factor
+        Where factor represents "how much of source unit equals 1 target unit"
+
+        Parameters
+        ----------
+        inplace : bool, default True
+            If True, modify self.df in place. If False, return a copy.
+        save : bool, default False
+            If True, save a CSV of the conversions applied to the output directory.
+        output_directory : str, optional
+            Directory to save results. If None, uses self.output_directory.
+
+        Returns
+        -------
+        Optional[pd.DataFrame]
+            If inplace=False, returns the modified DataFrame. Otherwise None.
+        """
+        if self.df is None:
+            raise ValueError("No data loaded.")
+
+        # Check for required columns
+        missing = self._validate_required_columns({'lab_category', 'reference_unit', 'lab_value_numeric'})
+        if missing:
+            raise ValueError(f"Required columns not found: {missing}")
+
+        if not self._unit_conversions:
+            self.logger.warning("No unit conversions defined in schema")
+            return None
+
+        # Get unique combinations
+        try:
+            import polars as pl
+            if isinstance(self.df, (pl.DataFrame, pl.LazyFrame)):
+                if isinstance(self.df, pl.LazyFrame):
+                    unique_combos_df = (
+                        self.df
+                        .select(['lab_category', 'reference_unit'])
+                        .unique()
+                        .collect()
+                        .to_pandas()
+                    )
+                else:
+                    unique_combos_df = (
+                        self.df
+                        .select(['lab_category', 'reference_unit'])
+                        .unique()
+                        .to_pandas()
+                    )
+            else:
+                unique_combos_df = self.df[['lab_category', 'reference_unit']].drop_duplicates()
+        except ImportError:
+            unique_combos_df = self.df[['lab_category', 'reference_unit']].drop_duplicates()
+
+        # Build conversion mapping
+        conversions_to_apply = []
+        for lab_cat, source_unit in unique_combos_df.itertuples(index=False):
+            if pd.isna(source_unit):
+                continue
+
+            # Get target unit for this lab category
+            target_unit = self._lab_reference_units.get(lab_cat)
+            if not target_unit:
+                continue
+
+            # Normalize units for lookup
+            source_stripped = source_unit.strip() if source_unit else ''
+            source_normalized = source_stripped.lower().replace(' ', '')
+            target_normalized = target_unit.lower().replace(' ', '')
+
+            # Skip if already in target unit
+            if source_normalized == target_normalized:
+                continue
+
+            # Check if this is a molecular weight-dependent conversion
+            if self._is_mw_dependent_conversion(source_normalized, target_normalized):
+                mw = self._lab_molecular_weights.get(lab_cat)
+                if mw:
+                    # Calculate factor based on MW and conversion direction
+                    # Formula: mg/dL = mmol/L × mw / 10, so mmol/L = mg/dL × 10 / mw
+                    # We use value / factor, so:
+                    #   mmol/L → mg/dL: factor = 10 / mw (value / factor = value * mw / 10)
+                    #   mg/dL → mmol/L: factor = mw / 10 (value / factor = value * 10 / mw)
+                    mmol_units = {'mmol/l', 'meq/l'}
+                    if source_normalized in mmol_units:
+                        # mmol/L → mg/dL
+                        factor = 10 / mw
+                    else:
+                        # mg/dL → mmol/L
+                        factor = mw / 10
+
+                    conversions_to_apply.append({
+                        'lab_category': lab_cat,
+                        'source_unit': source_unit,
+                        'target_unit': target_unit,
+                        'factor': factor
+                    })
+                    self.logger.info(
+                        f"Converting '{source_unit}' -> '{target_unit}' for {lab_cat} "
+                        f"(MW={mw}, ÷ {factor:.6f})"
+                    )
+                else:
+                    self.logger.warning(
+                        f"No molecular weight defined for {lab_cat}, cannot convert "
+                        f"'{source_unit}' -> '{target_unit}'"
+                    )
+                continue
+
+            # Look up conversion factor from YAML
+            target_conversions = self._unit_conversions.get(target_normalized, {})
+
+            # Try direct lookup first
+            factor = target_conversions.get(source_normalized)
+
+            # If not found, try looking up via canonical form
+            if factor is None:
+                source_canonical = self._unit_variant_lookup.get(source_normalized)
+                if source_canonical:
+                    factor = target_conversions.get(source_canonical)
+
+            if factor is not None and factor != 1:
+                conversions_to_apply.append({
+                    'lab_category': lab_cat,
+                    'source_unit': source_unit,
+                    'target_unit': target_unit,
+                    'factor': factor
+                })
+                self.logger.info(
+                    f"Converting '{source_unit}' -> '{target_unit}' for {lab_cat} (÷ {factor})"
+                )
+            elif factor is None and source_normalized != target_normalized:
+                self.logger.warning(
+                    f"No conversion factor found for '{source_unit}' -> '{target_unit}' ({lab_cat})"
+                )
+
+        if not conversions_to_apply:
+            self.logger.info("No unit conversions needed")
+            return None
+
+        # Apply conversions
+        try:
+            import polars as pl
+            result_df = self._convert_reference_units_polars(conversions_to_apply)
+            self.logger.debug("Used Polars for convert_reference_units")
+        except Exception as e:
+            self.logger.debug(f"Polars failed ({e}), falling back to pandas")
+            if not isinstance(self.df, pd.DataFrame):
+                try:
+                    import polars as pl
+                    if isinstance(self.df, (pl.DataFrame, pl.LazyFrame)):
+                        if isinstance(self.df, pl.LazyFrame):
+                            self.df = self.df.collect().to_pandas()
+                        else:
+                            self.df = self.df.to_pandas()
+                    else:
+                        self.df = pd.DataFrame(self.df)
+                except Exception:
+                    raise ValueError("Could not convert data to pandas DataFrame")
+            result_df = self._convert_reference_units_pandas(conversions_to_apply)
+
+        if inplace:
+            self.df = result_df
+
+        self.logger.info(f"Applied {len(conversions_to_apply)} unit conversions")
+
+        # Save conversions if requested
+        if save and conversions_to_apply:
+            save_dir = output_directory if output_directory is not None else self.output_directory
+            os.makedirs(save_dir, exist_ok=True)
+            conversion_df = pd.DataFrame(conversions_to_apply)
+            csv_path = os.path.join(save_dir, 'lab_unit_conversions.csv')
+            conversion_df.to_csv(csv_path, index=False)
+            self.logger.info(f"Saved unit conversions to {csv_path}")
+
+        if not inplace:
+            try:
+                import polars as pl
+                if isinstance(result_df, pl.DataFrame):
+                    return result_df.to_pandas()
+            except ImportError:
+                pass
+            return result_df
+
+        return None
+
+    def _convert_reference_units_polars(self, conversions_to_apply: list) -> 'pl.DataFrame':
+        """Polars implementation for convert_reference_units."""
+        import polars as pl
+
+        lf = self._to_lazy_frame()
+
+        for conv in conversions_to_apply:
+            lab_cat = conv['lab_category']
+            source_unit = conv['source_unit']
+            target_unit = conv['target_unit']
+            factor = conv['factor']
+
+            # Apply conversion: divide value by factor, update unit
+            lf = lf.with_columns([
+                pl.when(
+                    (pl.col('lab_category') == lab_cat) &
+                    (pl.col('reference_unit') == source_unit)
+                )
+                .then(pl.col('lab_value_numeric') / factor)
+                .otherwise(pl.col('lab_value_numeric'))
+                .alias('lab_value_numeric'),
+
+                pl.when(
+                    (pl.col('lab_category') == lab_cat) &
+                    (pl.col('reference_unit') == source_unit)
+                )
+                .then(pl.lit(target_unit))
+                .otherwise(pl.col('reference_unit'))
+                .alias('reference_unit')
+            ])
+
+        return lf.collect(streaming=True)
+
+    def _convert_reference_units_pandas(self, conversions_to_apply: list) -> pd.DataFrame:
+        """Pandas implementation for convert_reference_units."""
+        df = self.df.copy()
+
+        for conv in conversions_to_apply:
+            lab_cat = conv['lab_category']
+            source_unit = conv['source_unit']
+            target_unit = conv['target_unit']
+            factor = conv['factor']
+
+            # Create mask for rows to convert
+            mask = (df['lab_category'] == lab_cat) & (df['reference_unit'] == source_unit)
+
+            # Apply conversion: divide value by factor
+            df.loc[mask, 'lab_value_numeric'] = df.loc[mask, 'lab_value_numeric'] / factor
+            df.loc[mask, 'reference_unit'] = target_unit
+
+        return df
 
     # ------------------------------------------------------------------
     # Labs Specific Methods

@@ -1,4 +1,105 @@
 conversion:
+  g/dl:
+    g/dl: 1
+    g/l: 0.1
+    g/100ml: 1
+    mg/dl: 1000
+    mg/l: 100
+    mg/ml: 0.1
+    µg/dl: 1000000
+    ug/dl: 1000000
+    µg/ml: 100
+    ug/ml: 100
+  u/l:
+    u/l: 1
+    iu/l: 1
+    units/l: 1
+    u/ml: 1000
+    iu/ml: 1000
+    units/ml: 1000
+  "%":
+    "%": 1
+    percent: 1
+    fraction: 100
+    decimal: 100
+  "10^3/µl":
+    "10^3/µl": 1
+    "10^3/ul": 1
+    "10^9/l": 1
+    k/µl: 1
+    k/ul: 1
+    thousand/µl: 1
+    thousand/ul: 1
+    k/cu mm: 1
+    cells/µl: 0.001
+    cells/ul: 0.001
+  mmol/l:
+    mmol/l: 1
+    meq/l: 1
+    µmol/l: 0.001
+    umol/l: 0.001
+    nmol/l: 0.000001
+    pmol/l: 1e-9
+    mol/l: 1000
+  mg/dl:
+    mg/dl: 1
+    mg/100ml: 1
+    mg/l: 0.1
+    mg/ml: 0.01
+    g/dl: 0.001
+    g/l: 0.0001
+    g/100ml: 0.001
+    µg/dl: 1000
+    ug/dl: 1000
+    µg/ml: 0.1
+    ug/ml: 0.1
+    µg/l: 100
+    ug/l: 100
+  mg/l:
+    mg/l: 1
+    mg/dl: 10
+    mg/100ml: 10
+    mg/ml: 0.001
+    g/l: 0.001
+    g/dl: 0.01
+    g/100ml: 0.01
+    µg/ml: 1
+    ug/ml: 1
+    µg/l: 1000
+    ug/l: 1000
+    ng/ml: 1000000
+    ng/l: 1000
+  ng/ml:
+    ng/ml: 1
+    ng/l: 0.001
+    ng/dl: 10
+    µg/l: 1
+    ug/l: 1
+    µg/ml: 0.001
+    ug/ml: 0.001
+    pg/ml: 0.001
+    pg/l: 0.000001
+    mg/l: 0.000001
+    mg/ml: 1e-9
+  ng/l:
+    ng/l: 1
+    ng/ml: 1000
+    ng/dl: 10000
+    pg/ml: 1
+    pg/l: 0.001
+    µg/l: 0.001
+    ug/l: 0.001
+    mg/l: 0.000001
+  mmhg:
+    mmhg: 1
+    kpa: 7.50062
+    torr: 1
+    pa: 0.00750062
+  sec:
+    sec: 1
+    min: 60
+    minute: 60
+
 
 
 unit_variants:  
@@ -289,4 +390,19 @@ unit_variants:
     - "mm/hour"
     - "mm/hr"
     - "mm/h"
-    - "mm/hours" 
+    - "mm/hours"
+
+# Molecular weights by lab category (g/mol)
+# Used for mmol/L <-> mg/dL conversions
+lab_molecular_weights:
+  bilirubin_total: 584
+  bilirubin_unconjugated: 584
+  bilirubin_conjugated: 584
+  bun: 28
+  calcium_ionized: 40
+  calcium_total: 40
+  creatinine: 113
+  glucose_fingerstick: 180
+  glucose_serum: 180
+  magnesium: 24
+  phosphate: 31

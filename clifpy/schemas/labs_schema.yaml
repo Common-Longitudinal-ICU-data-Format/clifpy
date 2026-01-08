@@ -155,55 +155,55 @@ category_columns:
 group_columns: []
 
 lab_reference_units:
-  albumin: [g/dL]
-  alkaline_phosphatase: [U/L, iU/L, '[iU]/L']
-  alt: [U/L, iU/L, '[iU]/L']
-  ast: [U/L, iU/L, '[iU]/L']
-  basophils_percent: ['%']
-  basophils_absolute: [10^3/uL, 10^3/μL]
-  bicarbonate: [mmol/L]
-  bilirubin_total: [mg/dL]
-  bilirubin_conjugated: [mg/dL]
-  bilirubin_unconjugated: [mg/dL]
-  bun: [mg/dL]
-  calcium_total: [mg/dL]
-  calcium_ionized: [mg/dL]
-  chloride: [mmol/L]
-  creatinine: [mg/dL]
-  crp: [mg/L]
-  eosinophils_percent: ['%']
-  eosinophils_absolute: [10^3/uL, 10^3/μL]
-  esr: [mm/hour]
-  ferritin: [ng/mL]
-  glucose_fingerstick: [mg/dL]
-  glucose_serum: [mg/dL]
-  hemoglobin: [g/dL]
-  phosphate: [mg/dL]
-  inr: [(no units)]
-  lactate: [mmol/L]
-  ldh: [U/L, iU/L, '[iU]/L']
-  lymphocytes_percent: ['%']
-  lymphocytes_absolute: [10^3/uL, 10^3/μL]
-  magnesium: [mg/dL]
-  monocytes_percent: ['%']
-  monocytes_absolute: [10^3/uL, 10^3/μL]
-  neutrophils_percent: ['%']
-  neutrophils_absolute: [10^3/uL, 10^3/μL]
-  pco2_arterial: [mmHg]
-  po2_arterial: [mmHg]
-  pco2_venous: [mmHg]
-  ph_arterial: [(no units)]
-  ph_venous: [(no units)]
-  platelet_count: [10^3/uL, 10^3/μL]
-  potassium: [mmol/L]
-  procalcitonin: [ng/mL]
-  pt: [sec]
-  ptt: [sec]
-  so2_arterial: ['%']
-  so2_mixed_venous: ['%']
-  so2_central_venous: ['%']
-  sodium: [mmol/L]
-  total_protein: [g/dL]
-  troponin_i: [ng/L]
-  troponin_t: [ng/L]
-  wbc: [10^3/uL, 10^3/μL]
+  albumin: g/dL
+  alkaline_phosphatase: U/L
+  alt: U/L
+  ast: U/L
+  basophils_percent: '%'
+  basophils_absolute: 10^3/µL
+  bicarbonate: mmol/L
+  bilirubin_total: mg/dL
+  bilirubin_conjugated: mg/dL
+  bilirubin_unconjugated: mg/dL
+  bun: mg/dL
+  calcium_total: mg/dL
+  calcium_ionized: mg/dL
+  chloride: mmol/L
+  creatinine: mg/dL
+  crp: mg/L
+  eosinophils_percent: '%'
+  eosinophils_absolute: 10^3/µL
+  esr: mm/hour
+  ferritin: ng/mL
+  glucose_fingerstick: mg/dL
+  glucose_serum: mg/dL
+  hemoglobin: g/dL
+  phosphate: mg/dL
+  inr: null
+  lactate: mmol/L
+  ldh: U/L
+  lymphocytes_percent: '%'
+  lymphocytes_absolute: 10^3/µL
+  magnesium: mg/dL
+  monocytes_percent: '%'
+  monocytes_absolute: 10^3/µL
+  neutrophils_percent: '%'
+  neutrophils_absolute: 10^3/µL
+  pco2_arterial: mmHg
+  po2_arterial: mmHg
+  pco2_venous: mmHg
+  ph_arterial: null
+  ph_venous: null
+  platelet_count: 10^3/µL
+  potassium: mmol/L
+  procalcitonin: ng/mL
+  pt: sec
+  ptt: sec
+  so2_arterial: '%'
+  so2_mixed_venous: '%'
+  so2_central_venous: '%'
+  sodium: mmol/L
+  total_protein: g/dL
+  troponin_i: ng/L
+  troponin_t: ng/L
+  wbc: 10^3/µL
