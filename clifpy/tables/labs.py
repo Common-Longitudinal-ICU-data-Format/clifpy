@@ -60,54 +60,41 @@ class Labs(BaseTable):
         self._load_labs_schema_data()
 
     def _load_labs_schema_data(self):
-        """Load lab reference units from the YAML schema and unit variants."""
-        if self.schema:
-            self._lab_reference_units = self.schema.get('lab_reference_units', {})
-
-        # Load unit variants and conversions from labs_standardization.yaml
+        """Load lab reference units, unit variants, and conversions from the YAML schema."""
         self._unit_variant_lookup = {}
         self._unit_conversions = {}
         self._lab_molecular_weights = {}
-        try:
-            import yaml
-            schema_dir = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'schemas'
-            )
-            standardization_file = os.path.join(schema_dir, 'labs_standardization.yaml')
 
-            if os.path.exists(standardization_file):
-                with open(standardization_file, 'r') as f:
-                    standardization_data = yaml.safe_load(f)
+        if not self.schema:
+            return
 
-                # Build reverse lookup: normalized variant -> canonical unit (normalized)
-                unit_variants = standardization_data.get('unit_variants', {})
-                for canonical_unit, variants in unit_variants.items():
-                    # Remove whitespace for normalization
-                    canonical_normalized = canonical_unit.lower().replace(' ', '')
-                    for variant in variants:
-                        variant_normalized = variant.lower().replace(' ', '')
-                        self._unit_variant_lookup[variant_normalized] = canonical_normalized
+        self._lab_reference_units = self.schema.get('lab_reference_units', {})
 
-                self.logger.debug(f"Loaded {len(self._unit_variant_lookup)} unit variants")
+        # Build reverse lookup: normalized variant -> canonical unit (normalized)
+        unit_variants = self.schema.get('unit_variants', {})
+        for canonical_unit, variants in unit_variants.items():
+            # Remove whitespace for normalization
+            canonical_normalized = canonical_unit.lower().replace(' ', '')
+            for variant in variants:
+                variant_normalized = variant.lower().replace(' ', '')
+                self._unit_variant_lookup[variant_normalized] = canonical_normalized
 
-                # Load conversion factors: target_unit -> {source_unit: factor}
-                conversions = standardization_data.get('conversion', {})
-                for target_unit, source_factors in conversions.items():
-                    target_normalized = target_unit.lower().replace(' ', '')
-                    self._unit_conversions[target_normalized] = {}
-                    for source_unit, factor in source_factors.items():
-                        source_normalized = source_unit.lower().replace(' ', '')
-                        self._unit_conversions[target_normalized][source_normalized] = factor
+        self.logger.debug(f"Loaded {len(self._unit_variant_lookup)} unit variants")
 
-                self.logger.debug(f"Loaded conversions for {len(self._unit_conversions)} target units")
+        # Load conversion factors: target_unit -> {source_unit: factor}
+        conversions = self.schema.get('conversion', {})
+        for target_unit, source_factors in conversions.items():
+            target_normalized = target_unit.lower().replace(' ', '')
+            self._unit_conversions[target_normalized] = {}
+            for source_unit, factor in source_factors.items():
+                source_normalized = source_unit.lower().replace(' ', '')
+                self._unit_conversions[target_normalized][source_normalized] = factor
 
-                # Load molecular weights for MW-dependent conversions
-                self._lab_molecular_weights = standardization_data.get('lab_molecular_weights', {})
-                self.logger.debug(f"Loaded molecular weights for {len(self._lab_molecular_weights)} lab categories")
+        self.logger.debug(f"Loaded conversions for {len(self._unit_conversions)} target units")
 
-        except Exception as e:
-            self.logger.warning(f"Could not load unit variants/conversions: {e}")
+        # Load molecular weights for MW-dependent conversions
+        self._lab_molecular_weights = self.schema.get('lab_molecular_weights', {})
+        self.logger.debug(f"Loaded molecular weights for {len(self._lab_molecular_weights)} lab categories")
 
     def _is_mw_dependent_conversion(self, source_normalized: str, target_normalized: str) -> bool:
         """Check if conversion between these units requires molecular weight."""
@@ -322,11 +309,26 @@ class Labs(BaseTable):
                         loggable_mappings.append((source_unit, final_target, lab_cat))
 
             else:
-                unmatched_units.append({
-                    'lab_category': lab_cat,
-                    'source_unit': source_unit,
-                    'expected_unit': target_unit
-                })
+                # Check if this unit can be converted (has a conversion factor)
+                # If so, don't warn - it will be handled by convert_reference_units()
+                target_conversions = self._unit_conversions.get(target_normalized, {})
+                source_for_conversion = self._unit_variant_lookup.get(source_normalized, source_normalized)
+                has_conversion = source_for_conversion in target_conversions
+
+                # Also check for MW-dependent conversions (mmol/L <-> mg/dL)
+                mmol_units = {'mmol/l', 'meq/l'}
+                mg_units = {'mg/dl', 'mg/l'}
+                is_mw_convertible = (
+                    (source_normalized in mmol_units and target_normalized in mg_units) or
+                    (source_normalized in mg_units and target_normalized in mmol_units)
+                ) and lab_cat in self._lab_molecular_weights
+
+                if not has_conversion and not is_mw_convertible:
+                    unmatched_units.append({
+                        'lab_category': lab_cat,
+                        'source_unit': source_unit,
+                        'expected_unit': target_unit
+                    })
 
         # Batch log all mappings at once
         for source, target, lab in loggable_mappings:
@@ -560,7 +562,8 @@ class Labs(BaseTable):
         self,
         inplace: bool = True,
         save: bool = False,
-        output_directory: Optional[str] = None
+        output_directory: Optional[str] = None,
+        lowercase: bool = False
     ) -> Optional[pd.DataFrame]:
         """
         Convert lab values from source units to target units using conversion factors.
@@ -580,6 +583,8 @@ class Labs(BaseTable):
             If True, save a CSV of the conversions applied to the output directory.
         output_directory : str, optional
             Directory to save results. If None, uses self.output_directory.
+        lowercase : bool, default False
+            If True, convert target reference units to lowercase.
 
         Returns
         -------
@@ -633,6 +638,10 @@ class Labs(BaseTable):
             if not target_unit:
                 continue
 
+            # Apply lowercase to target unit if requested
+            if lowercase:
+                target_unit = target_unit.lower()
+
             # Normalize units for lookup
             source_stripped = source_unit.strip() if source_unit else ''
             source_normalized = source_stripped.lower().replace(' ', '')
@@ -679,14 +688,9 @@ class Labs(BaseTable):
             # Look up conversion factor from YAML
             target_conversions = self._unit_conversions.get(target_normalized, {})
 
-            # Try direct lookup first
-            factor = target_conversions.get(source_normalized)
-
-            # If not found, try looking up via canonical form
-            if factor is None:
-                source_canonical = self._unit_variant_lookup.get(source_normalized)
-                if source_canonical:
-                    factor = target_conversions.get(source_canonical)
+            # Always resolve to canonical form first, then do one lookup
+            source_canonical = self._unit_variant_lookup.get(source_normalized, source_normalized)
+            factor = target_conversions.get(source_canonical)
 
             if factor is not None and factor != 1:
                 conversions_to_apply.append({
@@ -752,6 +756,53 @@ class Labs(BaseTable):
             return result_df
 
         return None
+
+    def process_reference_units(
+        self,
+        inplace: bool = True,
+        save: bool = False,
+        output_directory: Optional[str] = None,
+        lowercase: bool = True
+    ) -> Optional[pd.DataFrame]:
+        """
+        Standardize unit strings and convert values to target units.
+
+        This is a convenience method that calls standardize_reference_units()
+        followed by convert_reference_units() in the correct order. Use this
+        for multi-site data harmonization where you need all labs in consistent
+        units for comparison/aggregation.
+
+        Parameters
+        ----------
+        inplace : bool, default True
+            If True, modify self.df in place. If False, return a copy.
+        save : bool, default False
+            If True, save CSVs of the unit mappings and conversions applied.
+        output_directory : str, optional
+            Directory to save results. If None, uses self.output_directory.
+        lowercase : bool, default True
+            If True, convert all reference units to lowercase.
+
+        Returns
+        -------
+        Optional[pd.DataFrame]
+            If inplace=False, returns the modified DataFrame. Otherwise None.
+        """
+        # Step 1: Standardize unit strings to canonical forms
+        self.standardize_reference_units(
+            inplace=True,
+            save=save,
+            output_directory=output_directory,
+            lowercase=lowercase
+        )
+
+        # Step 2: Convert values to target units
+        return self.convert_reference_units(
+            inplace=inplace,
+            save=save,
+            output_directory=output_directory,
+            lowercase=lowercase
+        )
 
     def _convert_reference_units_polars(self, conversions_to_apply: list) -> 'pl.DataFrame':
         """Polars implementation for convert_reference_units."""
