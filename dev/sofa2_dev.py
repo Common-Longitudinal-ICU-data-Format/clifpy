@@ -139,8 +139,37 @@ def _(mo, vitals_rel):
 
 
 @app.cell
+def _(cohort_df, meds_unit_converted, mo):
+    # Cell 1: Get most recent dose BEFORE start_dttm for each vasopressor (initial state)
+    vaso_initial_state = mo.sql(
+        f"""
+        FROM cohort_df c
+        CROSS JOIN (
+            SELECT DISTINCT med_category
+            FROM meds_unit_converted
+            WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine',
+                                   'dobutamine', 'vasopressin', 'phenylephrine')
+              AND med_route_category = 'iv'
+        ) cats
+        ASOF JOIN meds_unit_converted t
+            ON c.hospitalization_id = t.hospitalization_id
+            AND cats.med_category = t.med_category
+            AND c.start_dttm >= t.admin_dttm
+        SELECT
+            c.hospitalization_id,
+            c.start_dttm AS admin_dttm,
+            t.med_category,
+            CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
+        WHERE t.admin_dttm IS NOT NULL
+        """
+    )
+    return (vaso_initial_state,)
+
+
+@app.cell
 def _(meds_unit_converted, mo):
-    vasopressor_agg = mo.sql(
+    # Cell 2: Get all vasopressor events during [start_dttm, end_dttm] with MAR dedup
+    vaso_in_window = mo.sql(
         f"""
         FROM meds_unit_converted t
         SEMI JOIN cohort_df c ON
@@ -148,58 +177,184 @@ def _(meds_unit_converted, mo):
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            hospitalization_id,
-            -- Max doses for primary vasopressors (norepinephrine + epinephrine)
-            MAX(med_dose) FILTER(med_category = 'norepinephrine') AS norepi_max,
-            MAX(med_dose) FILTER(med_category = 'epinephrine') AS epi_max,
-            -- Other vasopressors
-            MAX(med_dose) FILTER(med_category = 'dopamine') AS dopamine_max,
-            MAX(med_dose) FILTER(med_category = 'dobutamine') AS dobutamine_max,
-            MAX(med_dose) FILTER(med_category = 'vasopressin') AS vasopressin_max,
-            MAX(med_dose) FILTER(med_category = 'phenylephrine') AS phenylephrine_max,
-            -- Flag for any other vasopressor/inotrope
-            CASE WHEN MAX(med_dose) FILTER(med_category IN ('dopamine', 'dobutamine', 'vasopressin', 'phenylephrine', 'milrinone', 'angiotensin_ii')) > 0
-                 THEN 1 ELSE 0 END AS has_other_vasopressor
-        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine', 'milrinone', 'angiotensin_ii')
-            AND med_route_category = 'iv'
-            AND mar_action_category NOT IN ('stop', 'verify', 'not_given')
-        GROUP BY hospitalization_id
+            t.hospitalization_id,
+            t.admin_dttm,
+            t.med_category,
+            CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
+        WHERE t.med_category IN ('norepinephrine', 'epinephrine', 'dopamine',
+                                  'dobutamine', 'vasopressin', 'phenylephrine')
+            AND t.med_route_category = 'iv'
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY t.hospitalization_id, t.admin_dttm, t.med_category
+            ORDER BY
+                CASE WHEN t.mar_action_category IS NULL THEN 10
+                    WHEN t.mar_action_category IN ('verify', 'not_given') THEN 9
+                    WHEN t.mar_action_category = 'stop' THEN 8
+                    WHEN t.mar_action_category = 'going' THEN 7
+                    ELSE 1 END,
+                CASE WHEN t.med_dose > 0 THEN 1 ELSE 2 END,
+                t.med_dose DESC
+        ) = 1
         """
     )
-    return (vasopressor_agg,)
+    return (vaso_in_window,)
 
 
 @app.cell
-def _(cohort_df, map_agg, mo, vasopressor_agg):
+def _(mo, vaso_in_window, vaso_initial_state):
+    vaso_events = mo.sql(
+        f"""
+        SELECT hospitalization_id, admin_dttm, med_category, med_dose
+        FROM vaso_initial_state
+        UNION ALL
+        SELECT hospitalization_id, admin_dttm, med_category, med_dose
+        FROM vaso_in_window
+        """
+    )
+    return (vaso_events,)
+
+
+@app.cell
+def _(mo, vaso_events):
+    # Cell 4: Pivot to wide format (one column per vasopressor)
+    vaso_wide = mo.sql(
+        f"""
+        WITH all_timestamps AS (
+            SELECT DISTINCT hospitalization_id, admin_dttm
+            FROM vaso_events
+        )
+        FROM all_timestamps t
+        LEFT JOIN vaso_events v
+            ON t.hospitalization_id = v.hospitalization_id
+            AND t.admin_dttm = v.admin_dttm
+        SELECT
+            t.hospitalization_id,
+            t.admin_dttm,
+            MAX(v.med_dose) FILTER(v.med_category = 'norepinephrine') AS norepi_raw,
+            MAX(v.med_dose) FILTER(v.med_category = 'epinephrine') AS epi_raw,
+            MAX(v.med_dose) FILTER(v.med_category = 'dopamine') AS dopamine_raw,
+            MAX(v.med_dose) FILTER(v.med_category = 'dobutamine') AS dobutamine_raw,
+            MAX(v.med_dose) FILTER(v.med_category = 'vasopressin') AS vasopressin_raw,
+            MAX(v.med_dose) FILTER(v.med_category = 'phenylephrine') AS phenylephrine_raw
+        GROUP BY t.hospitalization_id, t.admin_dttm
+        """
+    )
+    return (vaso_wide,)
+
+
+@app.cell
+def _(mo, vaso_wide):
+    # Cell 5: Forward-fill doses using LAST_VALUE IGNORE NULLS
+    vaso_filled = mo.sql(
+        f"""
+        FROM vaso_wide
+        SELECT
+            hospitalization_id,
+            admin_dttm,
+            norepi_raw,
+            epi_raw,
+            COALESCE(LAST_VALUE(norepi_raw IGNORE NULLS) OVER w, 0) AS norepi,
+            COALESCE(LAST_VALUE(epi_raw IGNORE NULLS) OVER w, 0) AS epi,
+            COALESCE(LAST_VALUE(dopamine_raw IGNORE NULLS) OVER w, 0) AS dopamine,
+            COALESCE(LAST_VALUE(dobutamine_raw IGNORE NULLS) OVER w, 0) AS dobutamine,
+            COALESCE(LAST_VALUE(vasopressin_raw IGNORE NULLS) OVER w, 0) AS vasopressin,
+            COALESCE(LAST_VALUE(phenylephrine_raw IGNORE NULLS) OVER w, 0) AS phenylephrine
+        WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm
+                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+        """
+    )
+    return (vaso_filled,)
+
+
+@app.cell
+def _(mo, vaso_filled):
+    # Cell 6: Track episode duration for >=60 min enforcement (SOFA-2 Note 8)
+    vaso_with_duration = mo.sql(
+        f"""
+        WITH episode_groups AS (
+            -- Assign episode IDs: increment when dose goes from 0 to >0
+            FROM vaso_filled
+            SELECT
+                *,
+                SUM(CASE WHEN norepi > 0 AND COALESCE(LAG(norepi) OVER w, 0) = 0 THEN 1 ELSE 0 END) OVER w AS norepi_episode,
+                SUM(CASE WHEN epi > 0 AND COALESCE(LAG(epi) OVER w, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
+            WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm)
+        ),
+        with_episode_start AS (
+            FROM episode_groups
+            SELECT
+                *,
+                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, norepi_episode ORDER BY admin_dttm) AS norepi_episode_start,
+                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, epi_episode ORDER BY admin_dttm) AS epi_episode_start
+        )
+        FROM with_episode_start
+        SELECT
+            hospitalization_id,
+            admin_dttm,
+            norepi,
+            epi,
+            dopamine,
+            dobutamine,
+            vasopressin,
+            phenylephrine,
+            -- Only count norepi if episode >=60 min
+            CASE WHEN norepi > 0 AND DATEDIFF('minute', norepi_episode_start, admin_dttm) >= 60
+                 THEN norepi ELSE 0 END AS norepi_valid,
+            -- Only count epi if episode >=60 min
+            CASE WHEN epi > 0 AND DATEDIFF('minute', epi_episode_start, admin_dttm) >= 60
+                 THEN epi ELSE 0 END AS epi_valid
+        """
+    )
+    return (vaso_with_duration,)
+
+
+@app.cell
+def _(cohort_df, mo, vaso_with_duration):
+    # Cell 7: Final aggregation - MAX concurrent norepi + epi sum
+    vaso_concurrent = mo.sql(
+        f"""
+        FROM vaso_with_duration f
+        JOIN cohort_df c ON f.hospitalization_id = c.hospitalization_id
+        SELECT
+            f.hospitalization_id,
+            MAX(f.norepi_valid + f.epi_valid) AS norepi_epi_max_concurrent,
+            MAX(f.norepi_valid) AS norepi_max,
+            MAX(f.epi_valid) AS epi_max,
+            CASE WHEN MAX(f.dopamine) > 0 OR MAX(f.dobutamine) > 0
+                  OR MAX(f.vasopressin) > 0 OR MAX(f.phenylephrine) > 0
+                 THEN 1 ELSE 0 END AS has_other_vasopressor
+        WHERE f.admin_dttm >= c.start_dttm
+          AND f.admin_dttm <= c.end_dttm
+        GROUP BY f.hospitalization_id
+        """
+    )
+    return (vaso_concurrent,)
+
+
+@app.cell
+def _(cohort_df, map_agg, mo, vaso_concurrent):
+    # Cell 8: Cardiovascular score using vaso_concurrent
     cv_agg = mo.sql(
         f"""
         FROM cohort_df c
         LEFT JOIN map_agg m USING (hospitalization_id)
-        LEFT JOIN vasopressor_agg v USING (hospitalization_id)
+        LEFT JOIN vaso_concurrent v USING (hospitalization_id)
         SELECT
             c.hospitalization_id,
-            -- Derived values for debugging
-            COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) AS norepi_epi_sum,
-            COALESCE(v.has_other_vasopressor, 0) AS has_other_vasopressor,
+            -- Define aliases (DuckDB allows reuse in same SELECT)
+            COALESCE(v.norepi_epi_max_concurrent, 0) AS norepi_epi_sum,
+            COALESCE(v.has_other_vasopressor, 0) AS has_other_vaso,
             m.map_min,
-            -- CV Score
+            -- CV Score (reuse aliases)
             cardiovascular: CASE
-                -- Score 4: High-dose norepi+epi OR medium-dose + other
-                WHEN COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) > 0.4 THEN 4
-                WHEN COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) > 0.2
-                     AND COALESCE(v.has_other_vasopressor, 0) = 1 THEN 4
-                -- Score 3: Medium-dose norepi+epi OR low-dose + other
-                WHEN COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) > 0.2 THEN 3
-                WHEN COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) <= 0.2
-                     AND COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) > 0
-                     AND COALESCE(v.has_other_vasopressor, 0) = 1 THEN 3
-                -- Score 2: Low-dose norepi+epi OR any other vasopressor
-                WHEN COALESCE(v.norepi_max, 0) + COALESCE(v.epi_max, 0) > 0 THEN 2
-                WHEN COALESCE(v.has_other_vasopressor, 0) = 1 THEN 2
-                -- Score 1: MAP < 70, no vasopressors
-                WHEN m.map_min < 70 THEN 1
-                -- Score 0: MAP >= 70, no vasopressors
-                WHEN m.map_min >= 70 THEN 0
+                WHEN norepi_epi_sum > 0.4 THEN 4
+                WHEN norepi_epi_sum > 0.2 AND has_other_vaso = 1 THEN 4
+                WHEN norepi_epi_sum > 0.2 THEN 3
+                WHEN norepi_epi_sum > 0 AND has_other_vaso = 1 THEN 3
+                WHEN norepi_epi_sum > 0 THEN 2
+                WHEN has_other_vaso = 1 THEN 2
+                WHEN map_min < 70 THEN 1
+                WHEN map_min >= 70 THEN 0
                 ELSE NULL
             END
         """
