@@ -112,11 +112,46 @@ def _(assessments_rel, mo):
 
 
 @app.cell
-def _(meds_rel):
-    # TODO: Replace with convert_dose_units_by_med_category_rel() once it outputs pyrelation
-    # Will enable automatic unit normalization for heterogeneous vasopressor dose units
-    meds_unit_converted = meds_rel
+def _(meds_rel, vitals_rel):
+    from clifpy.utils.unit_converter import convert_dose_units_by_med_category
+    # Returns tuple: (converted_meds_rel, conversion_info_rel)
+    meds_unit_converted, _ = convert_dose_units_by_med_category(
+        med_df=meds_rel,
+        vitals_df=vitals_rel,
+        return_rel=True
+    )
     return (meds_unit_converted,)
+
+
+@app.cell
+def _(meds_unit_converted, mo):
+    # Centralized MAR deduplication for vasopressors (preserves original dose values)
+    meds_deduped = mo.sql(
+        f"""
+        FROM meds_unit_converted
+        SELECT
+            hospitalization_id,
+            admin_dttm,
+            med_category,
+            mar_action_category,
+            med_dose
+        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine',
+                                'dobutamine', 'vasopressin', 'phenylephrine')
+            AND med_route_category = 'iv'
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY hospitalization_id, admin_dttm, med_category
+            ORDER BY
+                CASE WHEN mar_action_category IS NULL THEN 10
+                    WHEN mar_action_category IN ('verify', 'not_given') THEN 9
+                    WHEN mar_action_category = 'stop' THEN 8
+                    WHEN mar_action_category = 'going' THEN 7
+                    ELSE 1 END,
+                CASE WHEN med_dose > 0 THEN 1 ELSE 2 END,
+                med_dose DESC
+        ) = 1
+        """
+    )
+    return (meds_deduped,)
 
 
 @app.cell
@@ -139,19 +174,17 @@ def _(mo, vitals_rel):
 
 
 @app.cell
-def _(cohort_df, meds_unit_converted, mo):
+def _(cohort_df, meds_deduped, mo):
     # Cell 1: Get most recent dose BEFORE start_dttm for each vasopressor (initial state)
+    # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
     vaso_initial_state = mo.sql(
         f"""
         FROM cohort_df c
         CROSS JOIN (
             SELECT DISTINCT med_category
-            FROM meds_unit_converted
-            WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine',
-                                   'dobutamine', 'vasopressin', 'phenylephrine')
-              AND med_route_category = 'iv'
+            FROM meds_deduped
         ) cats
-        ASOF JOIN meds_unit_converted t
+        ASOF LEFT JOIN meds_deduped t
             ON c.hospitalization_id = t.hospitalization_id
             AND cats.med_category = t.med_category
             AND c.start_dttm >= t.admin_dttm
@@ -167,11 +200,12 @@ def _(cohort_df, meds_unit_converted, mo):
 
 
 @app.cell
-def _(meds_unit_converted, mo):
-    # Cell 2: Get all vasopressor events during [start_dttm, end_dttm] with MAR dedup
+def _(meds_deduped, mo):
+    # Cell 2: Get all vasopressor events during [start_dttm, end_dttm]
+    # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
     vaso_in_window = mo.sql(
         f"""
-        FROM meds_unit_converted t
+        FROM meds_deduped t
         SEMI JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
@@ -181,20 +215,6 @@ def _(meds_unit_converted, mo):
             t.admin_dttm,
             t.med_category,
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
-        WHERE t.med_category IN ('norepinephrine', 'epinephrine', 'dopamine',
-                                  'dobutamine', 'vasopressin', 'phenylephrine')
-            AND t.med_route_category = 'iv'
-        QUALIFY ROW_NUMBER() OVER (
-            PARTITION BY t.hospitalization_id, t.admin_dttm, t.med_category
-            ORDER BY
-                CASE WHEN t.mar_action_category IS NULL THEN 10
-                    WHEN t.mar_action_category IN ('verify', 'not_given') THEN 9
-                    WHEN t.mar_action_category = 'stop' THEN 8
-                    WHEN t.mar_action_category = 'going' THEN 7
-                    ELSE 1 END,
-                CASE WHEN t.med_dose > 0 THEN 1 ELSE 2 END,
-                t.med_dose DESC
-        ) = 1
         """
     )
     return (vaso_in_window,)
@@ -271,22 +291,33 @@ def _(mo, vaso_filled):
     # Cell 6: Track episode duration for >=60 min enforcement (SOFA-2 Note 8)
     vaso_with_duration = mo.sql(
         f"""
-        WITH episode_groups AS (
-            -- Assign episode IDs: increment when dose goes from 0 to >0
+        WITH with_lag AS (
+            -- Step 1: Compute LAG values (cannot be nested in window function)
             FROM vaso_filled
             SELECT
                 *,
-                SUM(CASE WHEN norepi > 0 AND COALESCE(LAG(norepi) OVER w, 0) = 0 THEN 1 ELSE 0 END) OVER w AS norepi_episode,
-                SUM(CASE WHEN epi > 0 AND COALESCE(LAG(epi) OVER w, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
+                LAG(norepi) OVER w AS prev_norepi,
+                LAG(epi) OVER w AS prev_epi
+            WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm)
+        ),
+        episode_groups AS (
+            -- Step 2: Assign episode IDs using the pre-computed LAG values
+            FROM with_lag
+            SELECT
+                *,
+                SUM(CASE WHEN norepi > 0 AND COALESCE(prev_norepi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS norepi_episode,
+                SUM(CASE WHEN epi > 0 AND COALESCE(prev_epi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
             WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm)
         ),
         with_episode_start AS (
+            -- Step 3: Get episode start time for each vasopressor
             FROM episode_groups
             SELECT
                 *,
                 FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, norepi_episode ORDER BY admin_dttm) AS norepi_episode_start,
                 FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, epi_episode ORDER BY admin_dttm) AS epi_episode_start
         )
+        -- Step 4: Apply 60-min threshold
         FROM with_episode_start
         SELECT
             hospitalization_id,
@@ -297,10 +328,8 @@ def _(mo, vaso_filled):
             dobutamine,
             vasopressin,
             phenylephrine,
-            -- Only count norepi if episode >=60 min
             CASE WHEN norepi > 0 AND DATEDIFF('minute', norepi_episode_start, admin_dttm) >= 60
                  THEN norepi ELSE 0 END AS norepi_valid,
-            -- Only count epi if episode >=60 min
             CASE WHEN epi > 0 AND DATEDIFF('minute', epi_episode_start, admin_dttm) >= 60
                  THEN epi ELSE 0 END AS epi_valid
         """
