@@ -11,7 +11,8 @@ as well as unrecognized units.
 from types import NoneType
 import pandas as pd
 import duckdb
-from typing import Any, Set, Tuple, List
+from typing import Any, Set, Tuple, List, Union, Literal, overload
+from duckdb import DuckDBPyRelation
 
 from clifpy.utils.logging_config import get_logger
 
@@ -907,13 +908,34 @@ def _convert_base_units_to_preferred_units(
     """
     return duckdb.sql(q)
 
+@overload
 def convert_dose_units_by_med_category(
-    med_df: pd.DataFrame,
-    vitals_df: pd.DataFrame = None,
+    med_df: pd.DataFrame | DuckDBPyRelation,
+    vitals_df: pd.DataFrame | DuckDBPyRelation = ...,
+    preferred_units: dict = ...,
+    show_intermediate: bool = ...,
+    override: bool = ...,
+    return_rel: Literal[False] = ...
+) -> Tuple[pd.DataFrame, pd.DataFrame]: ...
+
+@overload
+def convert_dose_units_by_med_category(
+    med_df: pd.DataFrame | DuckDBPyRelation,
+    vitals_df: pd.DataFrame | DuckDBPyRelation = ...,
+    preferred_units: dict = ...,
+    show_intermediate: bool = ...,
+    override: bool = ...,
+    return_rel: Literal[True] = ...
+) -> Tuple[DuckDBPyRelation, DuckDBPyRelation]: ...
+
+def convert_dose_units_by_med_category(
+    med_df: pd.DataFrame | DuckDBPyRelation,
+    vitals_df: pd.DataFrame | DuckDBPyRelation = None,
     preferred_units: dict = None,
     show_intermediate: bool = False,
-    override: bool = False
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    override: bool = False,
+    return_rel: bool = False
+) -> Union[Tuple[pd.DataFrame, pd.DataFrame], Tuple[DuckDBPyRelation, DuckDBPyRelation]]:
     """Convert medication dose units to user-defined preferred units for each med_category.
 
     This function performs a two-step conversion process:
@@ -926,15 +948,15 @@ def convert_dose_units_by_med_category(
 
     Parameters
     ----------
-    med_df : pd.DataFrame
-        Medication DataFrame with required columns:
+    med_df : pd.DataFrame or DuckDBPyRelation
+        Medication data with required columns:
 
         - med_dose: Original dose values (numeric)
         - med_dose_unit: Original dose unit strings (e.g., 'MCG/KG/HR', 'mL/hr')
         - med_category: Medication category identifier (e.g., 'propofol', 'fentanyl')
         - weight_kg: Patient weight in kg (optional, will be extracted from vitals_df if missing)
-    vitals_df : pd.DataFrame, optional
-        Vitals DataFrame for extracting patient weights if not in med_df.
+    vitals_df : pd.DataFrame or DuckDBPyRelation, optional
+        Vitals data for extracting patient weights if not in med_df.
         Required columns if weight_kg missing from med_df:
 
         - hospitalization_id: Patient identifier
@@ -952,10 +974,16 @@ def convert_dose_units_by_med_category(
     override : bool, default False
         If True, prints warning messages for unacceptable preferred units but continues processing.
         If False, raises ValueError when encountering unacceptable preferred units.
+    return_rel : bool, default False
+        If True, return lazy DuckDBPyRelation instead of DataFrame.
+        Useful for chaining operations without materialization.
 
     Returns
     -------
-    Tuple[pd.DataFrame, pd.DataFrame]
+    Tuple[pd.DataFrame, pd.DataFrame] or Tuple[DuckDBPyRelation, DuckDBPyRelation]
+        If return_rel=False (default): Tuple of DataFrames (converted_df, counts_df)
+        If return_rel=True: Tuple of DuckDBPyRelations for lazy evaluation
+
         A tuple containing:
 
         - [0] Converted medication DataFrame with additional columns:
@@ -1013,7 +1041,8 @@ def convert_dose_units_by_med_category(
     """
     # check if the requested med_categories are in the input med_df
     requested_med_categories = set(preferred_units.keys())
-    extra_med_categories = requested_med_categories - set(med_df['med_category'])
+    existing_med_categories = set(duckdb.sql("SELECT DISTINCT med_category FROM med_df").to_df()['med_category'])
+    extra_med_categories = requested_med_categories - existing_med_categories
     if extra_med_categories:
         error_msg = f"The following med_categories are given a preferred unit but not found in the input med_df: {extra_med_categories}"
         if override:
@@ -1038,7 +1067,7 @@ def convert_dose_units_by_med_category(
         """
         med_df_preferred = duckdb.sql(q)
 
-        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override).to_df()
+        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override)
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
@@ -1055,21 +1084,38 @@ def convert_dose_units_by_med_category(
         raise ValueError(f"Error creating unit conversion counts table: {e}")
     
     if show_intermediate:
-        return med_df_converted, convert_counts_df
+        if return_rel:
+            return med_df_converted, convert_counts_df
+        else:
+            return med_df_converted.to_df(), convert_counts_df.to_df()
     else:
-        # the default (detailed_output=False) is to drop multiplier columns which likely are not useful for the user
-        multiplier_cols = [col for col in med_df_converted.columns if 'multiplier' in col]
-        qa_cols = [
+        # the default (show_intermediate=False) is to drop multiplier columns which likely are not useful for the user
+        # All possible columns to exclude - multipliers from both conversion stages + QA columns
+        possible_cols_to_exclude = {
             '_weight_recorded_dttm',
             '_weighted', '_weighted_preferred',
             '_base_dose', '_base_unit',
             '_preferred_unit',
             '_unit_class_preferred',
-            '_unit_subclass', '_unit_subclass_preferred'
-            ]
-        
-        cols_to_drop = [c for c in multiplier_cols + qa_cols if c in med_df_converted.columns]
-        
-        return med_df_converted.drop(columns=cols_to_drop), convert_counts_df.to_df()
+            '_unit_subclass', '_unit_subclass_preferred',
+            '_amount_multiplier', '_time_multiplier', '_weight_multiplier',
+            '_amount_multiplier_preferred', '_time_multiplier_preferred', '_weight_multiplier_preferred'
+        }
+        # Only exclude columns that actually exist in the relation
+        existing_cols = set(med_df_converted.columns)
+        cols_to_exclude = tuple(possible_cols_to_exclude & existing_cols)
+
+        if cols_to_exclude:
+            result_rel = duckdb.sql(f"""
+                SELECT * EXCLUDE {cols_to_exclude}
+                FROM med_df_converted
+            """)
+        else:
+            result_rel = med_df_converted
+
+        if return_rel:
+            return result_rel, convert_counts_df
+        else:
+            return result_rel.to_df(), convert_counts_df.to_df()
     
     

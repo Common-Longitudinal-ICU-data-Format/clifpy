@@ -559,7 +559,56 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
         check_names=False,
         # check_dtype=False
     )
-    
+
+
+def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med_category_test_data):
+    """Test that return_rel=True returns DuckDB PyRelation instead of DataFrame.
+
+    Validates that:
+
+    1. Both return values are DuckDBPyRelation instances
+    2. The data is equivalent when materialized to DataFrame
+    3. Expected columns are present in the result
+    """
+    test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data
+    input_df = test_df.filter(items=['rn','med_category', 'med_dose', 'med_dose_unit', 'weight_kg'])
+
+    preferred_units = {
+        'propofol': 'mcg/kg/min',
+        'midazolam': 'mg/hr',
+        'fentanyl': 'mcg/hr',
+        'insulin': 'u/hr',
+        'norepinephrine': 'ng/kg/min',
+        'dextrose': 'g',
+        'heparin': 'l/hr',
+        'bivalirudin': 'ml/hr',
+        'oxytocin': 'mu',
+        'lactated_ringers_solution': 'ml',
+        'liothyronine': 'u/hr',
+        'zidovudine': 'iu/hr'
+    }
+
+    result_rel, counts_rel = convert_dose_units_by_med_category(
+        med_df=input_df,
+        preferred_units=preferred_units,
+        override=True,
+        return_rel=True
+    )
+
+    # Verify return types are DuckDB PyRelation
+    assert isinstance(result_rel, duckdb.DuckDBPyRelation)
+    assert isinstance(counts_rel, duckdb.DuckDBPyRelation)
+
+    # Verify data is equivalent when materialized
+    result_df = result_rel.to_df()
+    assert '_convert_status' in result_df.columns
+    assert 'med_dose_converted' in result_df.columns
+    assert 'med_dose_unit_converted' in result_df.columns
+
+    # Verify counts can be materialized
+    counts_df = counts_rel.to_df()
+    assert 'count' in counts_df.columns
+
 
 # TODO scenarios to test:
 # - [x] preferred_units not supported (not in the acceptable set)
