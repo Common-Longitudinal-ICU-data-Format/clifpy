@@ -12,13 +12,13 @@
         <meta name="author" content="CLIF Consortium">
       
       
-        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/clifpy/user-guide/waterfall/">
+        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/clifpy/user-guide/ase/">
       
       
-        <link rel="prev" href="../ase/">
+        <link rel="prev" href="../sofa/">
       
       
-        <link rel="next" href="../comorbidity-index/">
+        <link rel="next" href="../waterfall/">
       
       
       <link rel="icon" href="../../images/clif_logo_red_no_text.png">
@@ -26,7 +26,7 @@
     
     
       
-        <title>Respiratory Support Waterfall - CLIFpy Documentation</title>
+        <title>CDC Adult Sepsis Event (ASE) - CLIFpy Documentation</title>
       
     
     
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#respiratory-support-waterfall-processing" class="md-skip">
+        <a href="#cdc-adult-sepsis-event-ase-computation" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Respiratory Support Waterfall
+              CDC Adult Sepsis Event (ASE)
             
           </span>
         </div>
@@ -833,29 +833,6 @@
                 
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../ase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    CDC Adult Sepsis Event (ASE)
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
   
@@ -873,7 +850,7 @@
   
   
   <span class="md-ellipsis">
-    Respiratory Support Waterfall
+    CDC Adult Sepsis Event (ASE)
     
   </span>
   
@@ -886,7 +863,7 @@
   
   
   <span class="md-ellipsis">
-    Respiratory Support Waterfall
+    CDC Adult Sepsis Event (ASE)
     
   </span>
   
@@ -909,46 +886,46 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#component-a-presumed-serious-infection" class="md-nav__link">
     <span class="md-ellipsis">
-      Overview
+      Component A: Presumed Serious Infection
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
+  <a href="#component-b-acute-organ-dysfunction" class="md-nav__link">
     <span class="md-ellipsis">
-      Usage
+      Component B: Acute Organ Dysfunction
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Usage">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation-and-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation and Import
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#basic-usage" class="md-nav__link">
+  <a href="#key-parameters" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Usage
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#advanced-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      Advanced Options
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#timezone-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timezone Handling
+      Key Parameters
     </span>
   </a>
   
@@ -960,55 +937,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#processing-pipeline" class="md-nav__link">
+  <a href="#output" class="md-nav__link">
     <span class="md-ellipsis">
-      Processing Pipeline
+      Output
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Processing Pipeline">
+    <nav class="md-nav" aria-label="Output">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#phase-0-initialize-build-hourly-scaffold" class="md-nav__link">
+  <a href="#key-columns" class="md-nav__link">
     <span class="md-ellipsis">
-      Phase 0: Initialize &amp; Build Hourly Scaffold
+      Key Columns
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#phase-1-devicemode-heuristics" class="md-nav__link">
+  <a href="#timestamps" class="md-nav__link">
     <span class="md-ellipsis">
-      Phase 1: Device/Mode Heuristics
+      Timestamps
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#phase-2-hierarchical-ids" class="md-nav__link">
+  <a href="#qad-details" class="md-nav__link">
     <span class="md-ellipsis">
-      Phase 2: Hierarchical IDs
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-3-numeric-waterfall" class="md-nav__link">
-    <span class="md-ellipsis">
-      Phase 3: Numeric Waterfall
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-4-final-tidy-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      Phase 4: Final Tidy-up
+      QAD Details
     </span>
   </a>
   
@@ -1020,28 +979,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#output-format" class="md-nav__link">
+  <a href="#implementation-details" class="md-nav__link">
     <span class="md-ellipsis">
-      Output Format
+      Implementation Details
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Output Format">
+    <nav class="md-nav" aria-label="Implementation Details">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#original-columns-cleaned-and-filled" class="md-nav__link">
+  <a href="#baseline-calculation" class="md-nav__link">
     <span class="md-ellipsis">
-      Original Columns (cleaned and filled)
+      Baseline Calculation
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#new-columns" class="md-nav__link">
+  <a href="#qad-censoring-rules" class="md-nav__link">
     <span class="md-ellipsis">
-      New Columns
+      QAD Censoring Rules
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repeat-infection-timeframe-rit" class="md-nav__link">
+    <span class="md-ellipsis">
+      Repeat Infection Timeframe (RIT)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#esrd-exclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      ESRD Exclusion
     </span>
   </a>
   
@@ -1053,27 +1030,42 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#example-detailed-usage" class="md-nav__link">
     <span class="md-ellipsis">
-      Example
+      Example: Detailed Usage
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#clinical-considerations" class="md-nav__link">
+  <a href="#edge-cases-and-validation" class="md-nav__link">
     <span class="md-ellipsis">
-      Clinical Considerations
+      Edge Cases and Validation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Edge Cases and Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#handled-edge-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Handled Edge Cases
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#performance-notes" class="md-nav__link">
+  <a href="#references" class="md-nav__link">
     <span class="md-ellipsis">
-      Performance Notes
+      References
     </span>
   </a>
   
@@ -1092,6 +1084,29 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waterfall/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Respiratory Support Waterfall
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -1396,46 +1411,46 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#component-a-presumed-serious-infection" class="md-nav__link">
     <span class="md-ellipsis">
-      Overview
+      Component A: Presumed Serious Infection
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
+  <a href="#component-b-acute-organ-dysfunction" class="md-nav__link">
     <span class="md-ellipsis">
-      Usage
+      Component B: Acute Organ Dysfunction
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Usage">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation-and-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation and Import
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#basic-usage" class="md-nav__link">
+  <a href="#key-parameters" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Usage
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#advanced-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      Advanced Options
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#timezone-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timezone Handling
+      Key Parameters
     </span>
   </a>
   
@@ -1447,55 +1462,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#processing-pipeline" class="md-nav__link">
+  <a href="#output" class="md-nav__link">
     <span class="md-ellipsis">
-      Processing Pipeline
+      Output
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Processing Pipeline">
+    <nav class="md-nav" aria-label="Output">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#phase-0-initialize-build-hourly-scaffold" class="md-nav__link">
+  <a href="#key-columns" class="md-nav__link">
     <span class="md-ellipsis">
-      Phase 0: Initialize &amp; Build Hourly Scaffold
+      Key Columns
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#phase-1-devicemode-heuristics" class="md-nav__link">
+  <a href="#timestamps" class="md-nav__link">
     <span class="md-ellipsis">
-      Phase 1: Device/Mode Heuristics
+      Timestamps
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#phase-2-hierarchical-ids" class="md-nav__link">
+  <a href="#qad-details" class="md-nav__link">
     <span class="md-ellipsis">
-      Phase 2: Hierarchical IDs
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-3-numeric-waterfall" class="md-nav__link">
-    <span class="md-ellipsis">
-      Phase 3: Numeric Waterfall
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#phase-4-final-tidy-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      Phase 4: Final Tidy-up
+      QAD Details
     </span>
   </a>
   
@@ -1507,28 +1504,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#output-format" class="md-nav__link">
+  <a href="#implementation-details" class="md-nav__link">
     <span class="md-ellipsis">
-      Output Format
+      Implementation Details
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Output Format">
+    <nav class="md-nav" aria-label="Implementation Details">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#original-columns-cleaned-and-filled" class="md-nav__link">
+  <a href="#baseline-calculation" class="md-nav__link">
     <span class="md-ellipsis">
-      Original Columns (cleaned and filled)
+      Baseline Calculation
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#new-columns" class="md-nav__link">
+  <a href="#qad-censoring-rules" class="md-nav__link">
     <span class="md-ellipsis">
-      New Columns
+      QAD Censoring Rules
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#repeat-infection-timeframe-rit" class="md-nav__link">
+    <span class="md-ellipsis">
+      Repeat Infection Timeframe (RIT)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#esrd-exclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      ESRD Exclusion
     </span>
   </a>
   
@@ -1540,27 +1555,42 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#example-detailed-usage" class="md-nav__link">
     <span class="md-ellipsis">
-      Example
+      Example: Detailed Usage
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#clinical-considerations" class="md-nav__link">
+  <a href="#edge-cases-and-validation" class="md-nav__link">
     <span class="md-ellipsis">
-      Clinical Considerations
+      Edge Cases and Validation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Edge Cases and Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#handled-edge-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Handled Edge Cases
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#performance-notes" class="md-nav__link">
+  <a href="#references" class="md-nav__link">
     <span class="md-ellipsis">
-      Performance Notes
+      References
     </span>
   </a>
   
@@ -1594,175 +1624,221 @@
   
 
 
-<h1 id="respiratory-support-waterfall-processing">Respiratory Support Waterfall Processing<a class="headerlink" href="#respiratory-support-waterfall-processing" title="Permanent link">&para;</a></h1>
-<p>The waterfall method provides a sophisticated data cleaning and imputation pipeline for respiratory support data, ensuring continuous and complete ventilator records for analysis.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The waterfall processing transforms raw, sparse respiratory support data into a dense, analysis-ready dataset by:
-- Creating hourly scaffolds for continuous timelines
-- Inferring missing device and mode information
-- Forward-filling numeric values within ventilation episodes
-- Applying clinical logic and heuristics</p>
-<p><img alt="Waterfall Processing Example" src="../../images/waterfall_example.png" /></p>
-<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
-<h3 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.tables.respiratory_support</span><span class="w"> </span><span class="kn">import</span> <span class="n">RespiratorySupport</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Load your respiratory support data</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">resp_support</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s2">&quot;/path/to/data&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s2">&quot;parquet&quot;</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Apply waterfall processing</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">()</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># The result is a new RespiratorySupport instance</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">processed</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>  <span class="c1"># Validate the processed data</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">df</span> <span class="o">=</span> <span class="n">processed</span><span class="o">.</span><span class="n">df</span>     <span class="c1"># Access the DataFrame</span>
-</code></pre></div>
-<h3 id="advanced-options">Advanced Options<a class="headerlink" href="#advanced-options" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Enable backward fill for numeric values</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">bfill</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Use a different ID column for grouping</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">id_col</span><span class="o">=</span><span class="s2">&quot;patient_id&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Get just the DataFrame</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">df</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">return_dataframe</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Silent mode (no progress messages)</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="timezone-handling">Timezone Handling<a class="headerlink" href="#timezone-handling" title="Permanent link">&para;</a></h3>
-<p>The waterfall function expects data in UTC timezone. If your data is in a different timezone, it will be automatically converted:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Your data is in US/Eastern</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">resp_support</span><span class="o">.</span><span class="n">waterfall</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Output: &quot;Converting timezone from US/Eastern to UTC for waterfall processing&quot;</span>
-</code></pre></div>
-<h2 id="processing-pipeline">Processing Pipeline<a class="headerlink" href="#processing-pipeline" title="Permanent link">&para;</a></h2>
-<p>The waterfall processing consists of five phases:</p>
-<h3 id="phase-0-initialize-build-hourly-scaffold">Phase 0: Initialize &amp; Build Hourly Scaffold<a class="headerlink" href="#phase-0-initialize-build-hourly-scaffold" title="Permanent link">&para;</a></h3>
+<h1 id="cdc-adult-sepsis-event-ase-computation">CDC Adult Sepsis Event (ASE) Computation<a class="headerlink" href="#cdc-adult-sepsis-event-ase-computation" title="Permanent link">&para;</a></h1>
+<p>Compute CDC Adult Sepsis Events from CLIF data using the CDC Sepsis Surveillance Toolkit (March 2018) criteria.
+The CDC Adult Sepsis Event consists of two components that must both be present:</p>
+<p><strong>Sepsis = Component A (Presumed Serious Infection) + Component B (Acute Organ Dysfunction)</strong></p>
+<h3 id="component-a-presumed-serious-infection">Component A: Presumed Serious Infection<a class="headerlink" href="#component-a-presumed-serious-infection" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Lower-case all text columns</strong> - Standardizes device and mode names for consistent matching</li>
-<li><strong>Coerce numeric setters to floats</strong> - Ensures all numeric columns have proper data types</li>
-<li><strong>Scale FiO₂ if needed</strong> - Corrects common documentation errors (e.g., 40 → 0.40)</li>
-<li><strong>Create hourly scaffold</strong> - Inserts synthetic rows at <strong>HH:59:59</strong> for each hour</li>
-<li>Ensures every patient has a dense, regular timeline</li>
-<li>Vital for plots, per-hour metrics, and length-of-stay calculations</li>
-<li>These scaffold rows serve as "landing spots" for forward-fill operations</li>
+<li>Blood culture obtained (result not required)</li>
+<li>≥4 Qualifying Antimicrobial Days (QAD) starting within ±2 calendar days of blood culture</li>
+<li>Must include new antimicrobial (not given in prior 2 calendar days)</li>
+<li>At least one IV/IM antimicrobial required on day 1</li>
+<li>1-day gaps allowed between antimicrobial days</li>
 </ul>
-<h3 id="phase-1-devicemode-heuristics">Phase 1: Device/Mode Heuristics<a class="headerlink" href="#phase-1-devicemode-heuristics" title="Permanent link">&para;</a></h3>
-<p>Applies intelligent rules to repair missing device and mode labels:</p>
-<ul>
-<li><strong>IMV from mode strings</strong> - Infers invasive mechanical ventilation from mode categories</li>
-<li><strong>Look-ahead/behind logic</strong> - Uses surrounding context to fill gaps</li>
-<li><strong>Device-specific repairs</strong>:</li>
-<li>BiPAP device name standardization</li>
-<li>Nasal cannula PEEP guards</li>
-<li>Mode category inference</li>
-<li><strong>Data cleaning</strong>:</li>
-<li>Removes rows with no usable information</li>
-<li>Handles timestamp duplicates</li>
-<li>Prioritizes non-NIPPV entries when duplicates exist</li>
-</ul>
-<h3 id="phase-2-hierarchical-ids">Phase 2: Hierarchical IDs<a class="headerlink" href="#phase-2-hierarchical-ids" title="Permanent link">&para;</a></h3>
-<p>Creates four nested run-length identifiers within each encounter:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>device_cat_id → device_id → mode_cat_id → mode_name_id
-</code></pre></div>
-<ul>
-<li>Each ID increments when its label or parent ID changes</li>
-<li>Enables tracking of ventilation episodes and mode transitions</li>
-<li>Provides grouping keys for the numeric fill phase</li>
-</ul>
-<p>Example progression:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Time  Device_Category  Device_Cat_ID  Mode_Category  Mode_Cat_ID
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>10:00 IMV             1              AC/VC          1
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>11:00 IMV             1              AC/VC          1
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>12:00 IMV             1              SIMV           2  ← mode change
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>13:00 NIPPV           2              CPAP           3  ← device change
-</code></pre></div></p>
-<h3 id="phase-3-numeric-waterfall">Phase 3: Numeric Waterfall<a class="headerlink" href="#phase-3-numeric-waterfall" title="Permanent link">&para;</a></h3>
-<p>Performs intelligent filling of numeric values within each <code>mode_name_id</code> block:</p>
-<ul>
-<li><strong>Forward-fill by default</strong> - Carries last known settings forward</li>
-<li><strong>Optional backward-fill</strong> - When <code>bfill=True</code>, also fills backwards</li>
-<li><strong>Special handling</strong>:</li>
-<li>FiO₂ defaults to 0.21 for room air</li>
-<li>Tidal volume blanked for pressure support modes</li>
-<li>Trach collar acts as a "breaker" for fills</li>
-<li><strong>Preserves clinical logic</strong> - Respects mode transitions and device changes</li>
-</ul>
-<h3 id="phase-4-final-tidy-up">Phase 4: Final Tidy-up<a class="headerlink" href="#phase-4-final-tidy-up" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>De-duplicate rows</strong> - Ensures one row per timestamp</li>
-<li><strong>Sort chronologically</strong> - Orders by encounter and time</li>
-<li><strong>Forward-fill tracheostomy flag</strong> - Carries trach status through entire encounter</li>
-<li><strong>Clean up helper columns</strong> - Removes temporary calculation fields</li>
-<li><strong>Preserve scaffold indicator</strong> - <code>is_scaffold</code> column marks synthetic rows</li>
-</ul>
-<h2 id="output-format">Output Format<a class="headerlink" href="#output-format" title="Permanent link">&para;</a></h2>
-<p>The processed DataFrame includes:</p>
-<h3 id="original-columns-cleaned-and-filled">Original Columns (cleaned and filled)<a class="headerlink" href="#original-columns-cleaned-and-filled" title="Permanent link">&para;</a></h3>
-<ul>
-<li>All original respiratory support columns</li>
-<li>Numeric values filled within appropriate contexts</li>
-<li>Categorical values standardized and inferred</li>
-</ul>
-<h3 id="new-columns">New Columns<a class="headerlink" href="#new-columns" title="Permanent link">&para;</a></h3>
-<ul>
-<li><code>device_cat_id</code> - Device category episode ID</li>
-<li><code>device_id</code> - Device instance episode ID  </li>
-<li><code>mode_cat_id</code> - Mode category episode ID</li>
-<li><code>mode_name_id</code> - Mode instance episode ID</li>
-<li><code>is_scaffold</code> - Boolean flag for synthetic hourly rows</li>
-</ul>
-<h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.tables.respiratory_support</span><span class="w"> </span><span class="kn">import</span> <span class="n">RespiratorySupport</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Sample data with gaps</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="s1">&#39;hospitalization_id&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;H001&#39;</span><span class="p">,</span> <span class="s1">&#39;H001&#39;</span><span class="p">,</span> <span class="s1">&#39;H001&#39;</span><span class="p">],</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="s1">&#39;recorded_dttm&#39;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">([</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="s1">&#39;2023-01-01 10:30&#39;</span><span class="p">,</span> 
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="s1">&#39;2023-01-01 14:15&#39;</span><span class="p">,</span>  <span class="c1"># 4-hour gap</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="s1">&#39;2023-01-01 15:00&#39;</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="p">])</span><span class="o">.</span><span class="n">tz_localize</span><span class="p">(</span><span class="s1">&#39;UTC&#39;</span><span class="p">),</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="s1">&#39;device_category&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;imv&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;imv&#39;</span><span class="p">],</span>  <span class="c1"># Missing value</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="s1">&#39;fio2_set&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">],</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="s1">&#39;peep_set&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="c1"># ... other columns</span>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="p">})</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="c1"># Create instance and process</span>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="n">rs</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="n">processed</span> <span class="o">=</span> <span class="n">rs</span><span class="o">.</span><span class="n">waterfall</span><span class="p">()</span>
-<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
-<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="c1"># Result will have:</span>
-<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="c1"># - Hourly rows at 11:59:59, 12:59:59, 13:59:59</span>
-<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="c1"># - Device category filled for 14:15 row</span>
-<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="c1"># - FiO₂ and PEEP carried forward through gaps</span>
-<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="c1"># - Hierarchical IDs tracking ventilation episodes</span>
-</code></pre></div>
-<h2 id="clinical-considerations">Clinical Considerations<a class="headerlink" href="#clinical-considerations" title="Permanent link">&para;</a></h2>
+<h3 id="component-b-acute-organ-dysfunction">Component B: Acute Organ Dysfunction<a class="headerlink" href="#component-b-acute-organ-dysfunction" title="Permanent link">&para;</a></h3>
+<p>At least ONE organ dysfunction criterion within ±2 calendar days of blood culture:</p>
 <ol>
-<li><strong>Scaffold rows are synthetic</strong> - Filter by <code>is_scaffold == False</code> for actual observations</li>
-<li><strong>Fills respect clinical boundaries</strong> - Values don't cross mode/device transitions</li>
-<li><strong>Room air defaults</strong> - FiO₂ set to 0.21 (21%) for room air observations</li>
-<li><strong>Tracheostomy persistence</strong> - Once documented, carries through admission</li>
+<li><strong>Cardiovascular</strong>: New vasopressor initiation</li>
+<li><strong>Respiratory</strong>: New invasive mechanical ventilation (IMV) initiation</li>
+<li><strong>Renal</strong>: Creatinine ≥2x baseline (ESRD patients excluded, eGFR criteria not implemented)</li>
+<li><strong>Hepatic</strong>: Total bilirubin ≥2.0 mg/dL AND ≥2x baseline</li>
+<li><strong>Coagulation</strong>: Platelet count &lt;100 cells/μL AND ≥50% decline from baseline ≥100</li>
+<li><strong>Metabolic</strong> (optional): Lactate ≥2.0 mmol/L</li>
 </ol>
-<h2 id="performance-notes">Performance Notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
+<p>For a comprehensive visual understanding of the ASE algorithm with interactive flow diagrams:</p>
+<p><a href="../ase-flow-diagrams.html" target="_blank" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg,rgb(169, 39, 19) 0%,rgb(104, 20, 20) 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 15px rgba(25, 35, 171, 0.3); transition: transform 0.2s;">
+    🔍 View ASE Flow Diagrams
+</a></p>
+<h2 id="installation-and-import">Installation and Import<a class="headerlink" href="#installation-and-import" title="Permanent link">&para;</a></h2>
+<p>The ASE module should be imported directly from its submodule to avoid circular dependencies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.ase</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_ase</span><span class="p">,</span> <span class="n">ase</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Compute ASE for specific hospitalizations</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">ase_results</span> <span class="o">=</span> <span class="n">compute_ase</span><span class="p">(</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">hosp_ids</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/path/to/clif/data&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;UTC&#39;</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Or using a config file</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">ase_results</span> <span class="o">=</span> <span class="n">compute_ase</span><span class="p">(</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">hosp_ids</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;config/config.json&#39;</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span>
+</code></pre></div>
+<h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.ase</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_ase</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">compute_ase</span><span class="p">(</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>      <span class="c1"># List of hospitalization IDs (optional)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">config_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>              <span class="c1"># Path to CLIF config file</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>           <span class="c1"># Override data directory path</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>           <span class="c1"># Data format (&#39;parquet&#39; or &#39;csv&#39;)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;UTC&#39;</span><span class="p">,</span>               <span class="c1"># Timezone for datetime handling</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">apply_rit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>               <span class="c1"># Apply 14-day Repeat Infection Timeframe</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">rit_only_hospital_onset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="c1"># Apply RIT only to hospital-onset events</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">include_lactate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>        <span class="c1"># Include lactate as organ dysfunction (default: False)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span>                  <span class="c1"># Enable detailed logging (default: True)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="p">)</span>
+</code></pre></div>
+<h3 id="key-parameters">Key Parameters<a class="headerlink" href="#key-parameters" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Processing time scales with number of encounters and data density</li>
-<li>Memory usage increases due to hourly scaffold creation</li>
-<li>Consider processing in batches for very large datasets</li>
+<li><strong>hospitalization_ids</strong>: Process specific hospitalizations or all if None</li>
+<li><strong>config_path</strong>: CLIF configuration file containing data paths and settings</li>
+<li><strong>apply_rit</strong>: Filters repeat infections within 14 days (per CDC guidelines)</li>
+<li><strong>rit_only_hospital_onset</strong>: When True, RIT only applies to hospital-onset events</li>
+<li><strong>include_lactate</strong>: Include lactate ≥2.0 as a qualifying organ dysfunction</li>
+</ul>
+<h2 id="output">Output<a class="headerlink" href="#output" title="Permanent link">&para;</a></h2>
+<p>Returns a DataFrame with one row per blood culture episode containing:</p>
+<h3 id="key-columns">Key Columns<a class="headerlink" href="#key-columns" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hospitalization_id</code></td>
+<td>Unique hospitalization identifier</td>
+</tr>
+<tr>
+<td><code>bc_id</code></td>
+<td>Blood culture index within hospitalization (1, 2, 3...)</td>
+</tr>
+<tr>
+<td><code>episode_id</code></td>
+<td>ASE episode number (after RIT filtering)</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>Onset type: 'community' (≤2 days) or 'hospital' (&gt;2 days)</td>
+</tr>
+<tr>
+<td><code>presumed_infection</code></td>
+<td>Component A flag (1=meets criteria)</td>
+</tr>
+<tr>
+<td><code>sepsis</code></td>
+<td>Final ASE flag with lactate</td>
+</tr>
+<tr>
+<td><code>sepsis_wo_lactate</code></td>
+<td>ASE flag excluding lactate criterion</td>
+</tr>
+<tr>
+<td><code>no_sepsis_reason</code></td>
+<td>Why sepsis criteria not met</td>
+</tr>
+</tbody>
+</table>
+<h3 id="timestamps">Timestamps<a class="headerlink" href="#timestamps" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>blood_culture_dttm</code>: Blood culture collection/order time</li>
+<li><code>ase_onset_w_lactate_dttm</code>: ASE onset date (earliest qualifying event)</li>
+<li><code>ase_first_criteria_w_lactate</code>: First criterion triggering ASE</li>
+<li>Various organ dysfunction timestamps</li>
+</ul>
+<h3 id="qad-details">QAD Details<a class="headerlink" href="#qad-details" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>total_qad</code>: Number of Qualifying Antimicrobial Days</li>
+<li><code>qad_start_date</code>: First QAD date</li>
+<li><code>qad_end_date</code>: Last consecutive QAD date</li>
+<li><code>anchor_meds_in_window</code>: New antimicrobials within ±2 days</li>
+</ul>
+<h2 id="implementation-details">Implementation Details<a class="headerlink" href="#implementation-details" title="Permanent link">&para;</a></h2>
+<h3 id="baseline-calculation">Baseline Calculation<a class="headerlink" href="#baseline-calculation" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Community baseline</strong>: Uses minimum (creatinine, bilirubin) or maximum (platelets) values across entire hospitalization</li>
+<li><strong>Hospital baseline</strong>: Uses values within ±2 days of blood culture</li>
+<li>Selection based on blood culture timing (≤2 days = community, &gt;2 days = hospital)</li>
+</ul>
+<h3 id="qad-censoring-rules">QAD Censoring Rules<a class="headerlink" href="#qad-censoring-rules" title="Permanent link">&para;</a></h3>
+<p>Patients may meet QAD with &lt;4 days if they: </p>
+<ul>
+<li>Die (expired)</li>
+<li>Transfer to acute care hospital</li>
+<li>Enter hospice care</li>
+</ul>
+<p>These events must occur within 3 days of QAD start, with antibiotics continuing until discharge.</p>
+<h3 id="repeat-infection-timeframe-rit">Repeat Infection Timeframe (RIT)<a class="headerlink" href="#repeat-infection-timeframe-rit" title="Permanent link">&para;</a></h3>
+<p>For hospital-onset events, the 14-day RIT prevents duplicate counting: </p>
+<ul>
+<li>Only the first event in each 14-day window is counted</li>
+<li>Community-onset events are typically excluded from RIT</li>
+<li>Each qualifying event gets a unique <code>episode_id</code></li>
+</ul>
+<h3 id="esrd-exclusion">ESRD Exclusion<a class="headerlink" href="#esrd-exclusion" title="Permanent link">&para;</a></h3>
+<p>Patients with End-Stage Renal Disease are excluded from AKI criterion. ESRD identified by ICD codes:</p>
+<ul>
+<li>N18.6: End stage renal disease</li>
+<li>Z49.31: Encounter for CRRT</li>
+<li>Z49.01: Encounter for dialysis</li>
+<li>I12.0, I13.11, I13.2: Hypertensive CKD with ESRD</li>
+</ul>
+<h2 id="example-detailed-usage">Example: Detailed Usage<a class="headerlink" href="#example-detailed-usage" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.ase</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_ase</span><span class="p">,</span> <span class="n">ase</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Load your cohort</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">cohort_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">&#39;cohort.parquet&#39;</span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">hosp_ids</span> <span class="o">=</span> <span class="n">cohort_df</span><span class="p">[</span><span class="s1">&#39;hospitalization_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># Compute ASE with all options</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">ase_results</span> <span class="o">=</span> <span class="n">compute_ase</span><span class="p">(</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">hosp_ids</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">config_path</span><span class="o">=</span><span class="s1">&#39;config/config.json&#39;</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">apply_rit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                <span class="c1"># Apply 14-day filtering</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">rit_only_hospital_onset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># RIT for hospital events only</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">include_lactate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>          <span class="c1"># Exclude lactate criterion (default)</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span>                    <span class="c1"># Show detailed progress (default)</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="p">)</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="c1"># Or use the alias function</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="n">ase_results</span> <span class="o">=</span> <span class="n">ase</span><span class="p">(</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="n">hospitalization_ids</span><span class="o">=</span><span class="n">hosp_ids</span><span class="p">,</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/path/to/clif/data&#39;</span><span class="p">,</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;UTC&#39;</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="p">)</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="c1"># Analyze results</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total blood cultures evaluated: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ase_results</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Presumed infections: </span><span class="si">{</span><span class="n">ase_results</span><span class="p">[</span><span class="s1">&#39;presumed_infection&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ASE sepsis events: </span><span class="si">{</span><span class="n">ase_results</span><span class="p">[</span><span class="s1">&#39;sepsis&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="c1"># Get first ASE event per patient</span>
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="n">first_ase</span> <span class="o">=</span> <span class="n">ase_results</span><span class="p">[</span>
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>    <span class="p">(</span><span class="n">ase_results</span><span class="p">[</span><span class="s1">&#39;sepsis&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span>
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>    <span class="p">(</span><span class="n">ase_results</span><span class="p">[</span><span class="s1">&#39;episode_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="p">]</span>
+<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>
+<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a><span class="c1"># Examine onset types</span>
+<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a><span class="nb">print</span><span class="p">(</span><span class="n">ase_results</span><span class="p">[</span><span class="n">ase_results</span><span class="p">[</span><span class="s1">&#39;sepsis&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">][</span><span class="s1">&#39;type&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
+</code></pre></div>
+<h2 id="edge-cases-and-validation">Edge Cases and Validation<a class="headerlink" href="#edge-cases-and-validation" title="Permanent link">&para;</a></h2>
+<h3 id="handled-edge-cases">Handled Edge Cases<a class="headerlink" href="#handled-edge-cases" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Blood culture times</strong>: Uses collect_dttm (collection time) as primary timestamp</li>
+<li><strong>Vancomycin routes</strong>: Treats IV and oral vancomycin as different antibiotics</li>
+<li><strong>Procedural medications</strong>: Excludes vasopressors given in procedural locations </li>
+<li><strong>Lab outliers</strong>: Caps extreme values (Cr ≤20, Bili ≤80, Plt ≤2000, Lactate ≤30)</li>
+<li><strong>Platelet baselines</strong>: Only uses baseline if any value ≥100 exists</li>
+<li><strong>ESRD exclusion</strong>: Patients with ESRD ICD codes excluded from AKI criterion</li>
+</ol>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://www.cdc.gov/sepsis/media/pdfs/Sepsis-Surveillance-Toolkit-Aug-2018-508.pdf">CDC Sepsis Surveillance Toolkit (2018)</a></li>
+<li><a href="https://jamanetwork.com/journals/jama/fullarticle/2654187">Incidence and Trends of Sepsis in US Hospitals Using Clinical vs Claims Data, 2009-2014</a></li>
 </ul>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../api/tables/#respiratory-support">Respiratory Support Table</a> - Table schema and validation</li>
-<li><a href="../wide-dataset/">Wide Dataset Creation</a> - Creating analysis-ready datasets</li>
-<li><a href="../validation/">Data Validation</a> - Understanding validation errors</li>
-<li><a href="../timezones/">Timezone Handling</a> - Working with different timezones</li>
+<li><a href="../sofa/">SOFA Score Computation</a> - Alternative sepsis severity scoring</li>
+<li><a href="../comorbidity-index/">Comorbidity Index</a> - Calculate Charlson Comorbidity Index</li>
 </ul>
 
 
