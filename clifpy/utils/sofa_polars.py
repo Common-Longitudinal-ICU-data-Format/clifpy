@@ -26,19 +26,100 @@ Example
 ...     filetype='parquet',
 ...     timezone='US/Central'
 ... )
+>>>
+>>> # With profiling enabled
+>>> sofa_scores = compute_sofa_polars(
+...     data_directory='/path/to/clif/data',
+...     cohort_df=cohort_df,
+...     filetype='parquet',
+...     timezone='US/Central',
+...     profile=True  # Enable step-by-step timing
+... )
 """
 
 import polars as pl
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 import logging
 import gc
+import time
+import os
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 
 from .datetime_polars import standardize_datetime_columns
 from .io_polars import load_data_polars
 
 # Set up logging
 logger = logging.getLogger('clifpy.utils.sofa_polars')
+
+
+# =============================================================================
+# Profiling Utilities
+# =============================================================================
+
+@dataclass
+class ProfileStats:
+    """Container for profiling statistics."""
+    timings: Dict[str, float] = field(default_factory=dict)
+    row_counts: Dict[str, int] = field(default_factory=dict)
+    memory_start_mb: float = 0
+    memory_end_mb: float = 0
+    enabled: bool = False
+    
+    def get_memory_mb(self) -> float:
+        """Get current memory usage in MB (cross-platform)."""
+        try:
+            import psutil
+            return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+        except ImportError:
+            return 0
+    
+    def start(self):
+        """Start profiling."""
+        self.memory_start_mb = self.get_memory_mb()
+        self.timings = {}
+        self.row_counts = {}
+    
+    def record(self, section: str, elapsed: float, rows: Optional[int] = None):
+        """Record timing for a section."""
+        self.timings[section] = elapsed
+        if rows is not None:
+            self.row_counts[section] = rows
+        
+        if self.enabled:
+            row_info = f"  ({rows:,} rows)" if rows is not None else ""
+            logger.info(f"[SOFA Profile] {section:25} {elapsed:7.2f}s{row_info}")
+    
+    def finish(self):
+        """Finish profiling and print summary."""
+        self.memory_end_mb = self.get_memory_mb()
+        
+        if self.enabled:
+            total = sum(self.timings.values())
+            logger.info(f"[SOFA Profile] {'─' * 45}")
+            logger.info(f"[SOFA Profile] {'TOTAL':25} {total:7.2f}s")
+            logger.info(f"[SOFA Profile] {'Memory delta':25} {self.memory_end_mb - self.memory_start_mb:7.0f} MB")
+            
+            # Find bottleneck
+            if self.timings:
+                bottleneck = max(self.timings.items(), key=lambda x: x[1])
+                pct = bottleneck[1] / total * 100 if total > 0 else 0
+                logger.info(f"[SOFA Profile] {'Bottleneck':25} {bottleneck[0]} ({pct:.1f}%)")
+
+
+@contextmanager
+def profile_section(stats: ProfileStats, section_name: str):
+    """Context manager to time a section of code."""
+    start_time = time.perf_counter()
+    rows = None
+    try:
+        yield lambda r: setattr(profile_section, '_rows', r)
+        rows = getattr(profile_section, '_rows', None)
+    finally:
+        elapsed = time.perf_counter() - start_time
+        stats.record(section_name, elapsed, rows)
+        profile_section._rows = None
 
 
 # =============================================================================
@@ -159,8 +240,17 @@ def _create_resp_support_episodes(
     # === HEURISTIC 4: FiO2 imputation from nasal cannula flow ===
     if 'lpm_set' in resp_df.columns:
         resp_df = resp_df.with_columns([
-            pl.col('lpm_set').round(0).cast(pl.Int32).alias('_lpm_rounded')
-        ])
+        pl.when(
+            (pl.col('lpm_set').is_not_null()) & 
+            (pl.col('lpm_set') >= 0) & 
+            (pl.col('lpm_set') <= 60)
+        )
+        .then(pl.col('lpm_set'))  # ← Return raw value
+        .otherwise(None)          # ← Filter out bad values first
+        .round(0)                 # ← THEN round
+        .cast(pl.Int32)           # ← THEN cast (only valid values now)
+        .alias('_lpm_rounded')
+    ])
 
         # Create mapping expression using when/then chains
         fio2_from_lpm = (
@@ -183,7 +273,7 @@ def _create_resp_support_episodes(
                 pl.col('fio2_set').is_null() &
                 pl.col('lpm_set').is_not_null() &
                 (pl.col('_lpm_rounded') >= 1) &
-                (pl.col('_lpm_rounded') <= 10)
+                (pl.col('_lpm_rounded') <= 60)
             )
             .then(fio2_from_lpm)
             .otherwise(pl.col('fio2_set'))
@@ -518,13 +608,17 @@ def _load_respiratory_support(
     ]
 
     id_cols = [col for col in cohort_df.columns if col not in ['start_dttm', 'end_dttm']]
-    resp_pd = resp_pd[[*id_cols, 'recorded_dttm', 'device_category', 'mode_category',
-                       'fio2_set', 'start_dttm', 'end_dttm']]
-
-    # Also include lpm_set if available
-    if 'lpm_set' in resp_pd.columns:
-        resp_pd = resp_pd[[*id_cols, 'recorded_dttm', 'device_category', 'mode_category',
-                           'fio2_set', 'lpm_set', 'start_dttm', 'end_dttm']]
+    
+    # FIX: Check BEFORE selecting columns
+    has_lpm_set = 'lpm_set' in resp_pd.columns
+    
+    # Build column list dynamically
+    select_cols = [*id_cols, 'recorded_dttm', 'device_category', 'mode_category', 'fio2_set']
+    if has_lpm_set:
+        select_cols.append('lpm_set')
+    select_cols.extend(['start_dttm', 'end_dttm'])
+    
+    resp_pd = resp_pd[select_cols]
 
     resp = pl.from_pandas(resp_pd)
 
@@ -570,8 +664,168 @@ def _clean_dose_unit(unit_series: pl.Expr) -> pl.Expr:
 
     return cleaned
 
-
 def _load_and_convert_medications(
+    data_directory: str,
+    filetype: str,
+    hospitalization_ids: List[str],
+    cohort_df: pl.DataFrame,
+    timezone: Optional[str] = None
+) -> pl.LazyFrame:
+    """Load medication data with proper filtering for memory efficiency."""
+    import pandas as pd
+
+    file_path = Path(data_directory) / f"clif_medication_admin_continuous.{filetype}"
+
+    if not file_path.exists():
+        logger.warning(f"Medication admin continuous file not found: {file_path}")
+        return pl.LazyFrame(schema={
+            'hospitalization_id': pl.Utf8,
+            'admin_dttm': pl.Datetime,
+            'med_category': pl.Utf8,
+            'dose_mcg_kg_min': pl.Float64
+        })
+
+    load_columns = ['hospitalization_id', 'admin_dttm', 'med_category', 'med_dose', 'med_dose_unit']
+
+    logger.debug("Loading medications with Polars lazy loading...")
+
+    # Use Polars lazy loading with filter for memory efficiency
+    if filetype == 'parquet':
+        meds = pl.scan_parquet(str(file_path)).select(load_columns)
+    else:
+        meds = pl.scan_csv(str(file_path)).select(load_columns)
+
+    # Filter during scan (predicate pushdown)
+    meds = meds.filter(
+        (pl.col('med_category').is_in(REQUIRED_MEDS)) &
+        (pl.col('hospitalization_id').cast(pl.Utf8).is_in(hospitalization_ids))
+    ).with_columns([
+        pl.col('hospitalization_id').cast(pl.Utf8)
+    ])
+
+    # Collect after filtering
+    meds_collected = meds.collect()
+
+    if timezone:
+        meds_collected = standardize_datetime_columns(
+            meds_collected,
+            target_timezone=timezone,
+            target_time_unit='ns',
+            datetime_columns=['admin_dttm']
+        )
+
+    # Join with cohort for time window filtering
+    cohort_pd = cohort_df.to_pandas()
+    meds_pd = meds_collected.to_pandas()
+    
+    meds_pd = meds_pd.merge(cohort_pd, on='hospitalization_id', how='inner')
+    meds_pd = meds_pd[
+        (meds_pd['admin_dttm'] >= meds_pd['start_dttm']) &
+        (meds_pd['admin_dttm'] <= meds_pd['end_dttm'])
+    ]
+
+    meds = pl.from_pandas(meds_pd)
+
+    # Clean dose units
+    meds = meds.with_columns([
+        _clean_dose_unit(pl.col('med_dose_unit')).alias('dose_unit_clean')
+    ])
+
+    # Load weight data - FIXED: Use Polars lazy loading with filter
+    logger.debug("Loading weight data with filtering...")
+    weight_file = Path(data_directory) / f"clif_vitals.{filetype}"
+    
+    if weight_file.exists():
+        # Use Polars lazy loading with predicate pushdown
+        if filetype == 'parquet':
+            weight_data = pl.scan_parquet(str(weight_file)).filter(
+                (pl.col('hospitalization_id').cast(pl.Utf8).is_in(hospitalization_ids)) &
+                (pl.col('vital_category') == 'weight_kg')
+            ).select([
+                pl.col('hospitalization_id').cast(pl.Utf8),
+                'recorded_dttm',
+                pl.col('vital_value').alias('weight_kg')
+            ]).collect()
+        else:
+            weight_data = pl.scan_csv(str(weight_file)).filter(
+                (pl.col('hospitalization_id').cast(pl.Utf8).is_in(hospitalization_ids)) &
+                (pl.col('vital_category') == 'weight_kg')
+            ).select([
+                pl.col('hospitalization_id').cast(pl.Utf8),
+                'recorded_dttm',
+                pl.col('vital_value').alias('weight_kg')
+            ]).collect()
+
+        logger.debug(f"Loaded {len(weight_data)} weight records")
+
+        if timezone:
+            weight_data = standardize_datetime_columns(
+                weight_data,
+                target_timezone=timezone,
+                target_time_unit='ns',
+                datetime_columns=['recorded_dttm']
+            )
+    else:
+        logger.warning(f"Weight data file not found: {weight_file}")
+        weight_data = pl.DataFrame({
+            'hospitalization_id': pl.Series([], dtype=pl.Utf8),
+            'recorded_dttm': pl.Series([], dtype=pl.Datetime),
+            'weight_kg': pl.Series([], dtype=pl.Float64)
+        })
+
+    # Sort for join_asof
+    meds = meds.sort(['hospitalization_id', 'admin_dttm'])
+    weight_data = weight_data.sort(['hospitalization_id', 'recorded_dttm'])
+
+    # Join with weight
+    meds = meds.join_asof(
+        weight_data,
+        left_on='admin_dttm',
+        right_on='recorded_dttm',
+        by='hospitalization_id',
+        strategy='backward'
+    )
+
+    # Convert doses to mcg/kg/min
+    meds = meds.with_columns([
+        pl.when(pl.col('dose_unit_clean').str.contains(r'^mg'))
+        .then(pl.col('med_dose') * 1000)
+        .when(pl.col('dose_unit_clean').str.contains(r'^g/'))
+        .then(pl.col('med_dose') * 1000000)
+        .when(pl.col('dose_unit_clean').str.contains(r'^ng'))
+        .then(pl.col('med_dose') / 1000)
+        .otherwise(pl.col('med_dose'))
+        .alias('dose_converted')
+    ])
+
+    meds = meds.with_columns([
+        pl.when(pl.col('dose_unit_clean').str.contains(r'/hr$'))
+        .then(pl.col('dose_converted') / 60)
+        .otherwise(pl.col('dose_converted'))
+        .alias('dose_converted')
+    ])
+
+    meds = meds.with_columns([
+        pl.when(pl.col('dose_unit_clean').str.contains(r'/kg'))
+        .then(pl.col('dose_converted'))
+        .when(pl.col('dose_unit_clean').str.contains(r'/lb'))
+        .then(pl.col('dose_converted') * 2.20462)
+        .otherwise(pl.col('dose_converted') / pl.col('weight_kg'))
+        .alias('dose_mcg_kg_min')
+    ])
+
+    id_cols = [col for col in cohort_df.columns if col not in ['start_dttm', 'end_dttm']]
+    meds_select = meds.select([
+        *id_cols,
+        'admin_dttm',
+        'med_category',
+        'dose_mcg_kg_min'
+    ])
+
+    return meds_select.lazy()
+
+
+def _load_and_convert_medications_old(
     data_directory: str,
     filetype: str,
     hospitalization_ids: List[str],
@@ -959,7 +1213,8 @@ def compute_sofa_polars(
     fill_na_scores_with_zero: bool = True,
     remove_outliers: bool = True,
     timezone: Optional[str] = None,
-    time_unit: str = 'us'
+    time_unit: str = 'us',
+    profile: bool = False
 ) -> pl.DataFrame:
     """
     Compute SOFA scores using optimized Polars operations.
@@ -992,6 +1247,8 @@ def compute_sofa_polars(
         Timezone for datetime parsing (e.g., 'US/Central', 'America/New_York')
     time_unit : str, default='us'
         Time unit for datetime columns ('ms', 'us', 'ns')
+    profile : bool, default=False
+        If True, log timing information for each processing step
 
     Returns
     -------
@@ -1013,19 +1270,29 @@ def compute_sofa_polars(
     ... })
     >>> sofa_df = compute_sofa_polars('/path/to/data', cohort, timezone='US/Central')
 
-    >>> # With encounter blocks
-    >>> cohort = pl.DataFrame({
-    ...     'hospitalization_id': ['H1', 'H2', 'H3'],
-    ...     'encounter_block': [1, 1, 2],
-    ...     'start_dttm': [...],
-    ...     'end_dttm': [...]
-    ... })
-    >>> sofa_df = compute_sofa_polars('/path/to/data', cohort, id_name='encounter_block')
+    >>> # With profiling enabled
+    >>> sofa_df = compute_sofa_polars(
+    ...     '/path/to/data', cohort, timezone='US/Central', profile=True
+    ... )
     """
+    # Initialize profiling
+    stats = ProfileStats(enabled=profile)
+    if profile:
+        # Enable info-level logging for profile output
+        logger.setLevel(logging.INFO)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter('%(message)s'))
+            logger.addHandler(handler)
+    
+    stats.start()
+    
     logger.info("Starting SOFA score computation with Polars")
     logger.info(f"Data directory: {data_directory}")
     logger.info(f"Cohort size: {cohort_df.height} rows")
     logger.info(f"Grouping by: {id_name}")
+    if profile:
+        logger.info(f"[SOFA Profile] {'─' * 45}")
 
     # Validate cohort_df
     required_cols = ['hospitalization_id', 'start_dttm', 'end_dttm']
@@ -1036,87 +1303,68 @@ def compute_sofa_polars(
     if id_name not in cohort_df.columns:
         raise ValueError(f"id_name '{id_name}' not found in cohort_df columns")
 
-    # Standardize cohort datetime columns
-    logger.info(f"Standardizing cohort datetime columns to {timezone} with nanosecond precision")
+    # === Section 1: Prepare cohort ===
+    t0 = time.perf_counter()
     cohort_df_local = standardize_datetime_columns(
         cohort_df.clone(),
         target_timezone=timezone,
         target_time_unit='ns',
         datetime_columns=['start_dttm', 'end_dttm']
     )
-
-    # Normalize hospitalization_id to Utf8
     cohort_df_local = cohort_df_local.with_columns([
         pl.col('hospitalization_id').cast(pl.Utf8).alias('hospitalization_id')
     ])
-
-    # Extract unique hospitalization_ids for filtering
     hospitalization_ids = cohort_df_local['hospitalization_id'].unique().to_list()
-    logger.info(f"Loading data for {len(hospitalization_ids)} unique hospitalization(s)")
+    stats.record("Prepare cohort", time.perf_counter() - t0)
 
-    # Load all required tables
-    logger.info("Loading labs data...")
+    # === Section 2: Load labs ===
+    t0 = time.perf_counter()
     labs_df = _load_labs(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
-
-    logger.info("Loading vitals data...")
-    vitals_df = _load_vitals(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
-
-    logger.info("Loading patient assessments data...")
-    assessments_df = _load_patient_assessments(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
-
-    logger.info("Loading respiratory support data...")
-    resp_df = _load_respiratory_support(data_directory, filetype, hospitalization_ids, cohort_df_local, lookback_hours=24, timezone=timezone)
-
-    logger.info("Loading and converting medication data...")
-    meds_df = _load_and_convert_medications(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
-
-    # Collect each data source BEFORE combining
-    logger.info("Collecting individual data sources before combining...")
-
-    logger.info("Collecting labs...")
     labs_collected = labs_df.collect()
-    logger.debug(f"Labs: {len(labs_collected)} rows")
+    stats.record("Load labs", time.perf_counter() - t0, len(labs_collected))
 
-    logger.info("Collecting vitals...")
+    # === Section 3: Load vitals ===
+    t0 = time.perf_counter()
+    vitals_df = _load_vitals(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
     vitals_collected = vitals_df.collect()
-    logger.debug(f"Vitals: {len(vitals_collected)} rows")
+    stats.record("Load vitals", time.perf_counter() - t0, len(vitals_collected))
 
-    logger.info("Collecting assessments...")
+    # === Section 4: Load assessments ===
+    t0 = time.perf_counter()
+    assessments_df = _load_patient_assessments(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
     assessments_collected = assessments_df.collect()
-    logger.debug(f"Assessments: {len(assessments_collected)} rows")
+    stats.record("Load assessments", time.perf_counter() - t0, len(assessments_collected))
 
-    logger.info("Collecting respiratory...")
+    # === Section 5: Load respiratory support ===
+    t0 = time.perf_counter()
+    resp_df = _load_respiratory_support(data_directory, filetype, hospitalization_ids, cohort_df_local, lookback_hours=24, timezone=timezone)
     resp_collected = resp_df.collect()
-    logger.debug(f"Respiratory: {len(resp_collected)} rows")
+    stats.record("Load respiratory", time.perf_counter() - t0, len(resp_collected))
 
-    logger.info("Collecting medications...")
+    # === Section 6: Load medications ===
+    t0 = time.perf_counter()
+    meds_df = _load_and_convert_medications(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone)
     meds_collected = meds_df.collect()
-    logger.debug(f"Medications: {len(meds_collected)} rows")
+    stats.record("Load medications", time.perf_counter() - t0, len(meds_collected))
 
-    # Prepare collected data with renamed and standardized time columns
-    logger.info("Preparing data for combination...")
+    # === Section 7: Combine data ===
+    t0 = time.perf_counter()
     labs_collected = labs_collected.rename({'lab_result_dttm': 'event_time'}).with_columns([
         pl.col('event_time').dt.cast_time_unit(time_unit)
     ])
-
     vitals_collected = vitals_collected.rename({'recorded_dttm': 'event_time'}).with_columns([
         pl.col('event_time').dt.cast_time_unit(time_unit)
     ])
-
     assessments_collected = assessments_collected.rename({'recorded_dttm': 'event_time'}).with_columns([
         pl.col('event_time').dt.cast_time_unit(time_unit)
     ])
-
     resp_collected = resp_collected.rename({'recorded_dttm': 'event_time'}).with_columns([
         pl.col('event_time').dt.cast_time_unit(time_unit)
     ])
-
     meds_collected = meds_collected.rename({'admin_dttm': 'event_time'}).with_columns([
         pl.col('event_time').dt.cast_time_unit(time_unit)
     ])
 
-    # Combine COLLECTED DataFrames
-    logger.info("Combining collected data sources...")
     combined_collected = pl.concat([
         labs_collected,
         vitals_collected,
@@ -1124,14 +1372,14 @@ def compute_sofa_polars(
         resp_collected,
         meds_collected
     ], how='diagonal')
-    logger.debug(f"Combined data: {len(combined_collected)} rows")
+    stats.record("Combine data", time.perf_counter() - t0, len(combined_collected))
 
-    # Clean up individual collected frames
+    # Clean up individual frames
     del labs_collected, vitals_collected, assessments_collected, resp_collected, meds_collected
 
-    # Apply outlier removal
+    # === Section 8: Apply outlier removal ===
     if remove_outliers:
-        logger.info("Applying outlier removal...")
+        t0 = time.perf_counter()
         combined_collected = combined_collected.with_columns([
             pl.when(
                 (pl.col('lab_value_numeric').is_not_null()) &
@@ -1174,10 +1422,10 @@ def compute_sofa_polars(
             .otherwise(pl.col('vital_value'))
             .alias('vital_value')
         ])
+        stats.record("Remove outliers", time.perf_counter() - t0)
 
-    # Aggregate extremal values in long format BEFORE pivoting
-    logger.info("Aggregating extremal values in long format...")
-
+    # === Section 9: Aggregate extremal values ===
+    t0 = time.perf_counter()
     max_labs = ['creatinine', 'bilirubin_total']
     max_meds = ['norepinephrine', 'epinephrine', 'dopamine', 'dobutamine']
     min_labs = ['platelet_count', 'po2_arterial']
@@ -1222,17 +1470,35 @@ def compute_sofa_polars(
         pl.lit('assessment').alias('data_type')
     ])
 
-    # Concatenate all aggregated results
     aggregated_df = pl.concat([labs_agg, vitals_agg, meds_agg, assess_agg], how='vertical')
-    logger.debug(f"Aggregated data shape: {aggregated_df.height:,} rows x {aggregated_df.width} columns")
+    stats.record("Aggregate values", time.perf_counter() - t0, len(aggregated_df))
 
-    # Pivot to wide format
-    logger.info("Pivoting aggregated data to wide format...")
-    combined_df = aggregated_df.pivot(
-        index=id_name,
-        on='lab_category',
-        values='value'
-    )
+     # === Section 10: Pivot to wide format (FIXED: preserve all cohort patients) ===
+    t0 = time.perf_counter()
+    
+    # Start with ALL cohort IDs to preserve patients without data
+    cohort_ids = cohort_df_local.select(id_name).unique()
+    logger.info(f"Cohort has {len(cohort_ids)} unique {id_name} values")
+    
+    # Pivot the aggregated data (only contains patients WITH data)
+    if len(aggregated_df) > 0:
+        pivoted_df = aggregated_df.pivot(
+            index=id_name,
+            on='lab_category',
+            values='value'
+        )
+        
+        # Left join to preserve all cohort patients
+        combined_df = cohort_ids.join(
+            pivoted_df,
+            on=id_name,
+            how='left'
+        )
+    else:
+        # No data at all - just use cohort IDs
+        combined_df = cohort_ids
+    
+    logger.info(f"After pivot: {len(combined_df)} patients (should match cohort)")
 
     # Add _mcg_kg_min suffix to medication columns
     med_cols_to_rename = {col: f"{col}_mcg_kg_min"
@@ -1240,67 +1506,77 @@ def compute_sofa_polars(
                           if col in max_meds}
     if med_cols_to_rename:
         combined_df = combined_df.rename(med_cols_to_rename)
+    stats.record("Pivot data", time.perf_counter() - t0, len(combined_df))
 
-    logger.debug(f"Pivoted data shape: {combined_df.height:,} rows x {combined_df.width} columns")
-
-    # Impute PaO2 from SpO2
-    logger.info("Imputing PaO2 from SpO2...")
+    # === Section 11: Impute PaO2 and calculate P/F ===
+    t0 = time.perf_counter()
+    
+    # Ensure required columns exist before imputation
+    if 'spo2' not in combined_df.columns:
+        combined_df = combined_df.with_columns(pl.lit(None).cast(pl.Float64).alias('spo2'))
+    
     combined_df = _impute_pao2_from_spo2(combined_df)
 
-    # Calculate concurrent P/F ratios (SOFA-97 specification)
-    logger.info("Calculating concurrent P/F ratios...")
+    # Calculate concurrent P/F ratios
     labs_df_collected = _load_labs(data_directory, filetype, hospitalization_ids, cohort_df_local, timezone).collect()
     resp_df_collected = _load_respiratory_support(data_directory, filetype, hospitalization_ids, cohort_df_local, 24, timezone).collect()
 
-    # Extract labs data with PO2
-    labs_with_po2 = labs_df_collected.filter(
-        (pl.col('lab_category') == 'po2_arterial') &
-        (pl.col('lab_value_numeric').is_not_null())
-    ).select([
-        id_name,
-        'lab_result_dttm',
-        pl.col('lab_value_numeric').alias('po2_arterial')
-    ] + [col for col in labs_df_collected.columns if col in cohort_df_local.columns and col not in [id_name, 'lab_result_dttm', 'lab_value_numeric', 'lab_category', 'start_dttm', 'end_dttm']])
+    # Only calculate P/F if we have data
+    if len(labs_df_collected) > 0 and len(resp_df_collected) > 0:
+        labs_with_po2 = labs_df_collected.filter(
+            (pl.col('lab_category') == 'po2_arterial') &
+            (pl.col('lab_value_numeric').is_not_null())
+        ).select([
+            id_name,
+            'lab_result_dttm',
+            pl.col('lab_value_numeric').alias('po2_arterial')
+        ] + [col for col in labs_df_collected.columns if col in cohort_df_local.columns and col not in [id_name, 'lab_result_dttm', 'lab_value_numeric', 'lab_category', 'start_dttm', 'end_dttm']])
 
-    # Calculate concurrent P/F
-    id_cols = [col for col in cohort_df_local.columns if col not in ['start_dttm', 'end_dttm']]
-    concurrent_pf_df = _calculate_concurrent_pf_ratios(
-        labs_with_po2,
-        resp_df_collected,
-        time_tolerance_minutes=240,
-        id_cols=id_cols
-    )
+        id_cols = [col for col in cohort_df_local.columns if col not in ['start_dttm', 'end_dttm']]
+        
+        if len(labs_with_po2) > 0:
+            concurrent_pf_df = _calculate_concurrent_pf_ratios(
+                labs_with_po2,
+                resp_df_collected,
+                time_tolerance_minutes=240,
+                id_cols=id_cols
+            )
 
-    # Aggregate concurrent P/F
-    logger.info(f"Aggregating concurrent P/F ratios by {id_name}...")
-    pf_agg = concurrent_pf_df.group_by(id_name).agg([
-        pl.col('concurrent_pf').min().alias('p_f'),
-        pl.col('po2_arterial').min().alias('po2_arterial'),
-        pl.col('fio2_set').max().alias('fio2_set'),
-        pl.col('device_category').sort_by('concurrent_pf').first().alias('device_category')
-    ])
+            if len(concurrent_pf_df) > 0:
+                pf_agg = concurrent_pf_df.group_by(id_name).agg([
+                    pl.col('concurrent_pf').min().alias('p_f'),
+                    pl.col('po2_arterial').min().alias('po2_arterial'),
+                    pl.col('fio2_set').max().alias('fio2_set'),
+                    pl.col('device_category').sort_by('concurrent_pf').first().alias('device_category')
+                ])
 
-    pf_agg = pf_agg.with_columns([
-        pl.col('device_category').replace(DEVICE_RANK_DICT, default=9).alias('device_rank')
-    ])
+                pf_agg = pf_agg.with_columns([
+                    pl.col('device_category').replace(DEVICE_RANK_DICT, default=9).alias('device_rank')
+                ])
 
-    # Merge P/F data with other aggregated values
-    combined_df = combined_df.join(pf_agg, on=id_name, how='left')
+                # Left join to preserve all patients
+                combined_df = combined_df.join(pf_agg, on=id_name, how='left')
+    
+    stats.record("Calculate P/F ratios", time.perf_counter() - t0)
 
+    # === Section 12: Compute SOFA scores ===
+    t0 = time.perf_counter()
+    
     # Free memory
-    logger.info("Freeing memory from intermediate DataFrames...")
     del labs_df, vitals_df, assessments_df, resp_df, meds_df
-    del labs_df_collected, resp_df_collected, labs_with_po2
+    if 'labs_df_collected' in dir():
+        del labs_df_collected
+    if 'resp_df_collected' in dir():
+        del resp_df_collected
+    if 'labs_with_po2' in dir():
+        del labs_with_po2
     del aggregated_df
     gc.collect()
 
-    # Compute SOFA scores
-    logger.info("Computing SOFA scores...")
     sofa_df = _compute_sofa_scores(combined_df, id_name)
 
     # Fill NA scores with zero if requested
     if fill_na_scores_with_zero:
-        logger.info("Filling missing scores with 0...")
         subscore_cols = ['sofa_cv_97', 'sofa_coag', 'sofa_liver', 'sofa_resp', 'sofa_cns', 'sofa_renal']
         sofa_df = sofa_df.with_columns([
             pl.col(c).fill_null(0) for c in subscore_cols
@@ -1309,8 +1585,16 @@ def compute_sofa_polars(
         sofa_df = sofa_df.with_columns([
             pl.sum_horizontal([pl.col(c) for c in subscore_cols]).alias('sofa_total')
         ])
+    stats.record("Compute SOFA scores", time.perf_counter() - t0, len(sofa_df))
+
+    # Final validation
+    logger.info(f"Final result: {len(sofa_df)} patients")
+    if len(sofa_df) != len(cohort_ids):
+        logger.warning(f"Patient count mismatch! Cohort: {len(cohort_ids)}, Result: {len(sofa_df)}")
+
+    # Finish profiling
+    stats.finish()
 
     logger.info(f"SOFA computation complete. Result shape: {sofa_df.height} rows x {sofa_df.width} columns")
 
     return sofa_df
-

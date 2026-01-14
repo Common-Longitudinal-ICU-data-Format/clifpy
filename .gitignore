@@ -54,3 +54,8 @@ kilo.md
 
 
 clif_config.json
+*.log
+tests/debug_script.py
+tests/debug_sofa_respiratory.py
+*.json
+/tests/.ipynb_checkpoints
