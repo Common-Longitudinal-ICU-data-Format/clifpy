@@ -32,6 +32,7 @@ Helper functions for data processing, validation, and specialized operations:
 
 - **stitch_encounters** - Link related hospitalizations within time windows
 - **process_resp_support_waterfall** - Respiratory support waterfall algorithm
+- **compute_ase** - CDC Adult Sepsis Event surveillance calculation
 - **io** - Data loading and sample creation utilities
 - **config** - Configuration management functions
 - **validator** - Data validation functions

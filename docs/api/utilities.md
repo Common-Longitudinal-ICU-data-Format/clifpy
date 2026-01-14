@@ -91,6 +91,12 @@ Apply sophisticated data cleaning and imputation to respiratory support data for
 
 ## Clinical Calculations
 
+### CDC Adult Sepsis Event (ASE)
+
+Compute CDC Adult Sepsis Events using the March 2018 CDC Sepsis Surveillance Toolkit definition.
+
+::: clifpy.utils.ase.compute_ase
+
 ### Comorbidity Indices
 
 Calculate Charlson and Elixhauser comorbidity indices from diagnosis data.

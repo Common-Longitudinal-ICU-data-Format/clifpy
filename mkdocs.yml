@@ -89,6 +89,7 @@ nav:
       - Advanced Features:
         - Medication Unit Conversion: user-guide/med-unit-conversion.md
         - SOFA Score Computation: user-guide/sofa.md
+        - CDC Adult Sepsis Event (ASE): user-guide/ase.md
         - Respiratory Support Waterfall: user-guide/waterfall.md
         - Comorbidity Index: user-guide/comorbidity-index.md
         - MDRO Flags: user-guide/mdro-flags.md
