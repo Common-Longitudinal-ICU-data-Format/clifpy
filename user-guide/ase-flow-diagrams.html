@@ -223,7 +223,7 @@
                 <li><a href="#overview">Overall Flow</a></li>
                 <li><a href="#component-a">Component A: Infection</a></li>
                 <li><a href="#component-b">Component B: Dysfunction</a></li>
-                <li><a href="#baseline">Baseline Logic</a></li>
+                <li><a href="#baseline">Type Classification</a></li>
                 <li><a href="#rit">RIT Filtering</a></li>
                 <li><a href="#decisions">Decision Points</a></li>
             </ul>
@@ -461,59 +461,136 @@ flowchart TD
             <a href="#top" class="back-to-top">↑ Back to Top</a>
         </div>
 
-        <!-- Section 4: Baseline Selection Logic -->
+        <!-- Section 4: Type Classification Logic -->
         <div class="diagram-section" id="baseline">
-            <h2 class="section-title">4. Baseline Selection Logic</h2>
+            <h2 class="section-title">4. Type Classification: Baseline Selection vs Final Onset Type</h2>
             <p class="section-description">
-                Baseline selection determines whether to use community (entire hospitalization) or
-                hospital (±2 days of blood culture) baseline values for lab-based organ dysfunction.
+                <strong>Important:</strong> There are TWO distinct type classifications in the ASE algorithm that serve different purposes.
+                The first determines baseline selection for labs, the second determines the final onset type for RIT filtering.
+            </p>
+
+            <h3 style="color: #d32f2f; margin: 20px 0 10px 0;">4A. Type for Baseline Selection (Based on Blood Culture Date)</h3>
+            <p class="section-description">
+                This classification determines which baseline values to use for lab-based organ dysfunction.
+                It is calculated EARLY in the pipeline based on when the <strong>blood culture</strong> was collected.
             </p>
 
             <pre class="mermaid">
 flowchart TD
-    BCDay[Blood Culture Day]
-    AdmDay[Admission Day]
-    DayCalc[Calculate Hospital Day]
-    DayCheck{Hospital Day 2 or less}
-    CommType[Type: Community]
-    HospType[Type: Hospital]
-    CommBaseline[Community Baseline]
-    HospBaseline[Hospital Baseline]
-    CrMinAll[Creatinine: MIN all values]
-    BiliMinAll[Bilirubin: MIN all values]
-    PltMaxAll[Platelets: MAX if any 100+]
-    CrMinWin[Creatinine: MIN in 2 day window]
-    BiliMinWin[Bilirubin: MIN in 2 day window]
-    PltMaxWin[Platelets: MAX 100+ in 2 day window]
-
-    BCDay --> AdmDay
-    AdmDay --> DayCalc
-    DayCalc --> DayCheck
-    DayCheck -->|Yes| CommType
-    DayCheck -->|No| HospType
-    CommType --> CommBaseline
-    HospType --> HospBaseline
-    CommBaseline --> CrMinAll
-    CommBaseline --> BiliMinAll
-    CommBaseline --> PltMaxAll
-    HospBaseline --> CrMinWin
-    HospBaseline --> BiliMinWin
-    HospBaseline --> PltMaxWin
+    subgraph BaselineSelection[Type for Baseline Selection]
+        BCDate[Blood Culture Date]
+        AdmDate[Admission Date]
+        CalcDay1[Hospital Day = BC Date - Admission Date + 1]
+        Check1{Hospital Day <= 2}
+        CommBase[type_for_baseline = community]
+        HospBase[type_for_baseline = hospital]
+        UseAll[Use ENTIRE hospitalization for baseline]
+        UseWindow[Use 2 day window around BC for baseline]
+        
+        BCDate --> CalcDay1
+        AdmDate --> CalcDay1
+        CalcDay1 --> Check1
+        Check1 -->|Yes| CommBase
+        Check1 -->|No| HospBase
+        CommBase --> UseAll
+        HospBase --> UseWindow
+    end
+    
+    subgraph BaselineValues[Baseline Value Selection]
+        CrMin1[Creatinine: MIN of all values]
+        BiliMin1[Bilirubin: MIN of all values]
+        PltMax1[Platelets: MAX if any >= 100]
+        CrMin2[Creatinine: MIN in window]
+        BiliMin2[Bilirubin: MIN in window]
+        PltMax2[Platelets: MAX >= 100 in window]
+        
+        UseAll --> CrMin1
+        UseAll --> BiliMin1
+        UseAll --> PltMax1
+        UseWindow --> CrMin2
+        UseWindow --> BiliMin2
+        UseWindow --> PltMax2
+    end
             </pre>
 
             <div class="info-box">
-                <strong>Baseline Strategy:</strong>
-                Community baseline (entire hospitalization) is used for blood cultures on hospital days 1-2,
-                while hospital baseline (±2 days window) is used for blood cultures after day 2.
-                This prevents transient early values from affecting dysfunction detection.
+                <strong>Key Point:</strong> This type is used ONLY for selecting baseline lab values. 
+                It does NOT determine the final onset classification for RIT purposes.
+            </div>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">4B. Final Onset Type (Based on ASE Onset Datetime)</h3>
+            <p class="section-description">
+                This classification determines the FINAL onset type reported in results and used for RIT filtering.
+                It is calculated AFTER ASE determination based on when the <strong>ASE onset</strong> occurred 
+                (earliest time when both Component A and B are satisfied).
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    subgraph FinalOnsetType[Final Onset Type for RIT]
+        ASEOnset[ASE Onset Datetime]
+        AdmDate2[Admission Date]
+        CalcDay2[Onset Hospital Day = ASE Onset Date - Admission Date + 1]
+        Check2{Onset Hospital Day <= 2}
+        CommFinal[type = community]
+        HospFinal[type = hospital]
+        NoRIT[No RIT Applied]
+        ApplyRIT[Apply 14-day RIT Filter]
+        
+        ASEOnset --> CalcDay2
+        AdmDate2 --> CalcDay2
+        CalcDay2 --> Check2
+        Check2 -->|Yes| CommFinal
+        Check2 -->|No| HospFinal
+        CommFinal --> NoRIT
+        HospFinal --> ApplyRIT
+    end
+            </pre>
+
+            <div class="info-box">
+                <strong>Key Difference:</strong><br>
+                • <strong>type_for_baseline</strong> uses <code>blood_culture_dttm</code> — determines lab baseline window<br>
+                • <strong>type</strong> (final) uses <code>ase_onset_w_lactate_dttm</code> — determines RIT application
             </div>
 
             <div class="legend">
-                <h3>📊 Baseline Values</h3>
-                <div class="legend-item">• <strong>Community:</strong> Entire hospitalization period</div>
-                <div class="legend-item">• <strong>Hospital:</strong> ±2 days around blood culture</div>
-                <div class="legend-item">• <strong>Creatinine/Bilirubin:</strong> Use minimum value as baseline</div>
-                <div class="legend-item">• <strong>Platelets:</strong> Use maximum value (if any ≥100)</div>
+                <h3>📊 Summary: Two Type Classifications</h3>
+                <table class="decision-table" style="margin-top: 15px;">
+                    <thead>
+                        <tr>
+                            <th>Aspect</th>
+                            <th>type_for_baseline</th>
+                            <th>type (final)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Based On</strong></td>
+                            <td>Blood Culture Date</td>
+                            <td>ASE Onset Datetime</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Purpose</strong></td>
+                            <td>Select baseline values for labs</td>
+                            <td>Classify event & apply RIT</td>
+                        </tr>
+                        <tr>
+                            <td><strong>When Calculated</strong></td>
+                            <td>Early (baseline selection step)</td>
+                            <td>Final (after ASE determination)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Can be NULL</strong></td>
+                            <td>No (always has BC)</td>
+                            <td>Yes (if no sepsis)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Output Column</strong></td>
+                            <td>Internal use only</td>
+                            <td>Reported in results</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             <a href="#top" class="back-to-top">↑ Back to Top</a>
         </div>
