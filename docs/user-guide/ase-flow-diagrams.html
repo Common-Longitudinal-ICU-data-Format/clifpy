@@ -701,20 +701,6 @@ flowchart TD
                 </tbody>
             </table>
 
-            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">Why This Approach is Valid</h3>
-            <div class="legend">
-                <div class="legend-item">✅ <strong>Logically consistent:</strong> The blood culture is the anchor event for the entire ASE definition—using it as the determinant for baseline selection is natural</div>
-                <div class="legend-item">✅ <strong>Computationally tractable:</strong> Eliminates the circular dependency without iterative solving</div>
-                <div class="legend-item">✅ <strong>Clinically reasonable:</strong> If the blood culture is drawn early (Day 1-2), the patient likely presented with infection (community-acquired), making the full hospitalization baseline appropriate</div>
-                <div class="legend-item">✅ <strong>CDC-aligned:</strong> The CDC defines the hospital-onset baseline window relative to blood culture date, implicitly supporting this interpretation</div>
-            </div>
-
-            <div class="info-box" style="margin-top: 20px;">
-                <strong>Implementation Note:</strong> The CDC documentation does not provide explicit computational 
-                guidance for resolving this edge case. Using blood culture timing as the baseline selector is a 
-                defensible design choice that maintains consistency with CDC intent while being computationally feasible.
-            </div>
-
             <a href="#top" class="back-to-top">↑ Back to Top</a>
         </div>
 
