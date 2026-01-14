@@ -28,6 +28,11 @@ For a comprehensive visual understanding of the ASE algorithm with interactive f
     🔍 View ASE Flow Diagrams
 </a>
 
+!!! warning "Limitations"
+
+    - **No eGFR criterion**: CLIF does not include eGFR data, so the CDC's alternative renal dysfunction criterion (eGFR decrease) is not implemented—only creatinine doubling is used
+    - **Baseline selection**: The CDC definition contains an inherent circular dependency: determining onset type requires the onset datetime, which requires organ dysfunction timing, which requires knowing the baseline, which depends on onset type. This implementation resolves the circularity by using **blood culture timing** (Day 1-2 vs Day 3+) to select which baseline to apply, then calculates the **final onset type** from the resulting ASE onset datetime. See <a href="../ase-flow-diagrams.html#circular-dependency" target="_blank">Resolving the Circular Dependency</a> for details.
+
 ## Installation and Import
 
 The ASE module should be imported directly from its submodule to avoid circular dependencies:

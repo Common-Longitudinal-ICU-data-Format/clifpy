@@ -55,10 +55,10 @@ if __name__ == '__main__':
     
     print(f"Server running at http://localhost:{port}/")
     print(f"Open http://localhost:{port}/package_visualization.html in your browser")
-    print("Press Ctrl+C to stop")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nServer stopped.")
+        print("Press Ctrl+C to stop")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\nServer stopped.")
     finally:
         httpd.server_close()
