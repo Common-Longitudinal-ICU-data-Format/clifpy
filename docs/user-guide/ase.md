@@ -1,37 +1,55 @@
 # CDC Adult Sepsis Event (ASE) Computation
 
-Compute CDC Adult Sepsis Events from CLIF data using the CDC Sepsis Surveillance Toolkit (March 2018) criteria.
-The CDC Adult Sepsis Event consists of two components that must both be present:
+Compute CDC Adult Sepsis Events from CLIF data using the [CDC Sepsis Surveillance Toolkit (2018)](https://www.cdc.gov/sepsis/media/pdfs/Sepsis-Surveillance-Toolkit-Aug-2018-508.pdf) criteria.
 
-**Sepsis = Component A (Presumed Serious Infection) + Component B (Acute Organ Dysfunction)**
+<div style="background: rgba(255, 145, 0, 0.1); border-left: 4px solid #ff9100; border-radius: 8px; padding: 20px; margin: 20px 0; font-size: 0.9em;">
 
-### Component A: Presumed Serious Infection
-- Blood culture obtained (result not required)
-- ≥4 Qualifying Antimicrobial Days (QAD) starting within ±2 calendar days of blood culture
-  - Must include new antimicrobial (not given in prior 2 calendar days)
-  - At least one IV/IM antimicrobial required on day 1
-  - 1-day gaps allowed between antimicrobial days
+<p style="font-weight: 600; color: #ff9100; margin-bottom: 12px; font-size: 1.1em;">
+Sepsis = Component A (Presumed Serious Infection) + Component B (Acute Organ Dysfunction)
+</p>
 
-### Component B: Acute Organ Dysfunction
-At least ONE organ dysfunction criterion within ±2 calendar days of blood culture:
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
 
-1. **Cardiovascular**: New vasopressor initiation
-2. **Respiratory**: New invasive mechanical ventilation (IMV) initiation
-3. **Renal**: Creatinine ≥2x baseline (ESRD patients excluded, eGFR criteria not implemented)
-4. **Hepatic**: Total bilirubin ≥2.0 mg/dL AND ≥2x baseline
-5. **Coagulation**: Platelet count <100 cells/μL AND ≥50% decline from baseline ≥100
-6. **Metabolic** (optional): Lactate ≥2.0 mmol/L
+<div style="flex: 1; min-width: 280px;">
+<p style="font-weight: 600; margin-bottom: 8px;">Component A: Presumed Serious Infection</p>
+<ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
+<li>Blood culture obtained (result not required)</li>
+<li>≥4 Qualifying Antimicrobial Days (QAD) starting within ±2 calendar days of blood culture
+<ul style="padding-left: 16px; margin-top: 4px;">
+<li>Must include new antimicrobial (not given in prior 2 days)</li>
+<li>At least one IV/IM antimicrobial required on day 1</li>
+<li>1-day gaps allowed between antimicrobial days</li>
+</ul>
+</li>
+</ul>
+</div>
 
-For a comprehensive visual understanding of the ASE algorithm with interactive flow diagrams:
+<div style="flex: 1; min-width: 280px;">
+<p style="font-weight: 600; margin-bottom: 8px;">Component B: Acute Organ Dysfunction</p>
+<p style="margin: 0 0 8px 0;">At least ONE within ±2 calendar days of blood culture:</p>
+<ul style="margin: 0; padding-left: 20px; line-height: 1.6;">
+<li><strong>Cardiovascular:</strong> New vasopressor initiation</li>
+<li><strong>Respiratory:</strong> New IMV initiation</li>
+<li><strong>Renal:</strong> Creatinine ≥2x baseline (ESRD excluded)</li>
+<li><strong>Hepatic:</strong> Bilirubin ≥2.0 mg/dL AND ≥2x baseline</li>
+<li><strong>Coagulation:</strong> Platelets <100 AND ≥50% decline</li>
+<li><strong>Metabolic:</strong> Lactate ≥2.0 mmol/L (optional)</li>
+</ul>
+</div>
 
-<a href="../ase-flow-diagrams.html" target="_blank" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg,rgb(169, 39, 19) 0%,rgb(104, 20, 20) 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 15px rgba(25, 35, 171, 0.3); transition: transform 0.2s;">
-    🔍 View ASE Flow Diagrams
-</a>
+</div>
+</div>
 
 !!! warning "Limitations"
 
     - **No eGFR criterion**: CLIF does not include eGFR data, so the CDC's alternative renal dysfunction criterion (eGFR decrease) is not implemented—only creatinine doubling is used
     - **Baseline selection**: The CDC definition contains an inherent circular dependency: determining onset type requires the onset datetime, which requires organ dysfunction timing, which requires knowing the baseline, which depends on onset type. This implementation resolves the circularity by using **blood culture timing** (Day 1-2 vs Day 3+) to select which baseline to apply, then calculates the **final onset type** from the resulting ASE onset datetime. See <a href="../ase-flow-diagrams.html#circular-dependency" target="_blank">Resolving the Circular Dependency</a> for details.
+
+For a comprehensive visual representation of the ASE algorithm:
+
+<a href="../ase-flow-diagrams.html" target="_blank" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg,rgb(169, 39, 19) 0%,rgb(104, 20, 20) 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 15px rgba(25, 35, 171, 0.3); transition: transform 0.2s;">
+    🔍 View ASE Flow Diagrams
+</a>
 
 ## Installation and Import
 
