@@ -27,6 +27,7 @@ class VisualizationHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     PORT = 8000
+    MAX_PORT_ATTEMPTS = 10
     
     # Change to the script directory
     os.chdir(Path(__file__).parent)
@@ -35,12 +36,29 @@ if __name__ == '__main__':
     print("Running initial analysis...")
     subprocess.run(['python', 'analyze_codebase.py'])
     
-    # Start the server
-    with socketserver.TCPServer(("", PORT), VisualizationHandler) as httpd:
-        print(f"Server running at http://localhost:{PORT}/")
-        print(f"Open http://localhost:{PORT}/package_visualization.html in your browser")
-        print("Press Ctrl+C to stop")
+    # Start the server, trying alternative ports if needed
+    httpd = None
+    for port_offset in range(MAX_PORT_ATTEMPTS):
+        port = PORT + port_offset
         try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\nServer stopped.")
+            httpd = socketserver.TCPServer(("", port), VisualizationHandler)
+            break
+        except OSError as e:
+            if e.errno == 48:  # Address already in use
+                print(f"Port {port} is in use, trying {port + 1}...")
+            else:
+                raise
+    
+    if httpd is None:
+        print(f"Could not find an available port in range {PORT}-{PORT + MAX_PORT_ATTEMPTS - 1}")
+        exit(1)
+    
+    print(f"Server running at http://localhost:{port}/")
+    print(f"Open http://localhost:{port}/package_visualization.html in your browser")
+    print("Press Ctrl+C to stop")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+    finally:
+        httpd.server_close()
