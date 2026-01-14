@@ -224,6 +224,7 @@
                 <li><a href="#component-a">Component A: Infection</a></li>
                 <li><a href="#component-b">Component B: Dysfunction</a></li>
                 <li><a href="#baseline">Type Classification</a></li>
+                <li><a href="#circular-dependency">Circular Dependency</a></li>
                 <li><a href="#rit">RIT Filtering</a></li>
                 <li><a href="#decisions">Decision Points</a></li>
             </ul>
@@ -595,9 +596,131 @@ flowchart TD
             <a href="#top" class="back-to-top">↑ Back to Top</a>
         </div>
 
-        <!-- Section 5: RIT Logic -->
+        <!-- Section 5: Circular Dependency Resolution -->
+        <div class="diagram-section" id="circular-dependency">
+            <h2 class="section-title">5. Resolving the Circular Dependency</h2>
+            <p class="section-description">
+                The CDC ASE definition contains an inherent circular dependency that must be resolved for computation.
+                This section explains the problem and how this implementation solves it.
+            </p>
+
+            <h3 style="color: #d32f2f; margin: 20px 0 10px 0;">The Problem</h3>
+            <div class="info-box" style="background: rgba(255, 193, 7, 0.15); border-left-color: #ffc107;">
+                <strong style="color: #856404;">🔄 Circular Dependency:</strong><br><br>
+                <code style="display: block; white-space: pre-line; font-size: 0.95em; line-height: 1.6;">
+To calculate <strong>ONSET DATE</strong>:
+    → Need organ dysfunction datetime
+    → To get dysfunction datetime, need to compare lab value to <strong>BASELINE</strong>
+    → To know which BASELINE to use, need to know if Community or Hospital onset
+    → To know onset type, need <strong>ONSET DATE</strong>
+    → 🔄 CIRCULAR!
+                </code>
+            </div>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">The CDC Specification</h3>
+            <p class="section-description">
+                From CDC Toolkit Page 22:
+            </p>
+            <blockquote style="background: #f5f7fa; padding: 15px 20px; border-left: 4px solid #78909c; margin: 15px 0; font-style: italic;">
+                "Baseline creatinine defined as:<br>
+                1) Community-onset: lowest value during hospitalization<br>
+                2) Hospital-onset: lowest value in ±2 days of blood culture"
+            </blockquote>
+            <p class="section-description">
+                <strong>Key insight:</strong> The hospital-onset baseline window is defined relative to the 
+                <strong>blood culture date</strong>, not the onset date. This provides a computational anchor.
+            </p>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">Our Solution: Calculate Both, Then Select</h3>
+            <p class="section-description">
+                The implementation breaks the circular dependency by computing organ dysfunction using 
+                <strong>both baselines simultaneously</strong>, then selecting based on blood culture timing.
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    subgraph Step1[STEP 1: Calculate BOTH Baselines]
+        BC[Blood Culture Event]
+        CommCalc[Community Baseline<br/>Entire hospitalization]
+        HospCalc[Hospital Baseline<br/>±2 days of BC]
+        
+        BC --> CommCalc
+        BC --> HospCalc
+        
+        CommCalc --> AKI_CO[aki_dttm_co]
+        CommCalc --> BILI_CO[hyperbili_dttm_co]
+        CommCalc --> PLT_CO[thrombo_dttm_co]
+        
+        HospCalc --> AKI_HO[aki_dttm_ho]
+        HospCalc --> BILI_HO[hyperbili_dttm_ho]
+        HospCalc --> PLT_HO[thrombo_dttm_ho]
+    end
+    
+    subgraph Step2[STEP 2: Select Based on BC Timing]
+        BCDay{Blood Culture<br/>Hospital Day}
+        
+        BCDay -->|Day 1-2| UseComm[type_for_baseline = community]
+        BCDay -->|Day 3+| UseHosp[type_for_baseline = hospital]
+        
+        UseComm --> SelectCO[Use: aki_dttm_co,<br/>hyperbili_dttm_co,<br/>thrombo_dttm_co]
+        UseHosp --> SelectHO[Use: aki_dttm_ho,<br/>hyperbili_dttm_ho,<br/>thrombo_dttm_ho]
+    end
+    
+    subgraph Step3[STEP 3: Calculate ASE Onset]
+        SelectCO --> OnsetCalc[ASE Onset = EARLIEST of:<br/>• Blood culture<br/>• First QAD<br/>• Vasopressor<br/>• IMV<br/>• Selected lab dysfunction]
+        SelectHO --> OnsetCalc
+    end
+    
+    subgraph Step4[STEP 4: Final Onset Type]
+        OnsetCalc --> FinalDay{ASE Onset<br/>Hospital Day}
+        FinalDay -->|Day 1-2| Community[type = community<br/>No RIT]
+        FinalDay -->|Day 3+| Hospital[type = hospital<br/>Apply RIT]
+    end
+            </pre>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">Two "Types" Serve Different Purposes</h3>
+            <table class="decision-table">
+                <thead>
+                    <tr>
+                        <th>Variable</th>
+                        <th>Based On</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>type_for_baseline</code></td>
+                        <td>Blood culture date (Day 1-2 vs Day 3+)</td>
+                        <td>Selects which baseline calculation to use for labs</td>
+                    </tr>
+                    <tr>
+                        <td><code>type</code> (final)</td>
+                        <td>ASE onset datetime</td>
+                        <td>Reported in results; determines RIT application</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">Why This Approach is Valid</h3>
+            <div class="legend">
+                <div class="legend-item">✅ <strong>Logically consistent:</strong> The blood culture is the anchor event for the entire ASE definition—using it as the determinant for baseline selection is natural</div>
+                <div class="legend-item">✅ <strong>Computationally tractable:</strong> Eliminates the circular dependency without iterative solving</div>
+                <div class="legend-item">✅ <strong>Clinically reasonable:</strong> If the blood culture is drawn early (Day 1-2), the patient likely presented with infection (community-acquired), making the full hospitalization baseline appropriate</div>
+                <div class="legend-item">✅ <strong>CDC-aligned:</strong> The CDC defines the hospital-onset baseline window relative to blood culture date, implicitly supporting this interpretation</div>
+            </div>
+
+            <div class="info-box" style="margin-top: 20px;">
+                <strong>Implementation Note:</strong> The CDC documentation does not provide explicit computational 
+                guidance for resolving this edge case. Using blood culture timing as the baseline selector is a 
+                defensible design choice that maintains consistency with CDC intent while being computationally feasible.
+            </div>
+
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 6: RIT Logic -->
         <div class="diagram-section" id="rit">
-            <h2 class="section-title">5. Repeat Infection Timeframe (RIT) Logic</h2>
+            <h2 class="section-title">6. Repeat Infection Timeframe (RIT) Logic</h2>
             <p class="section-description">
                 The 14-day RIT prevents counting repeat infections within a short timeframe.
                 Typically applied only to hospital-onset events to avoid overcounting.
@@ -650,9 +773,9 @@ flowchart TD
             <a href="#top" class="back-to-top">↑ Back to Top</a>
         </div>
 
-        <!-- Section 6: Decision Points Table -->
+        <!-- Section 7: Decision Points Table -->
         <div class="diagram-section" id="decisions">
-            <h2 class="section-title">6. Key Decision Points</h2>
+            <h2 class="section-title">7. Key Decision Points</h2>
             <p class="section-description">
                 Critical decision points in the ASE algorithm and their implementation in the code.
             </p>
