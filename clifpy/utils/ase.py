@@ -58,18 +58,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Tuple, Union
 
-# CLIF imports 
-from clifpy.tables import (
-    MicrobiologyCulture,
-    MedicationAdminIntermittent,
-    MedicationAdminContinuous,
-    RespiratorySupport,
-    Labs,
-    HospitalDiagnosis,
-    Adt,
-    Hospitalization,
-    Patient
-)
+# CLIF imports - lazy loaded inside functions to avoid circular imports
 
 # ==============================================================================
 # 2. CONSTANTS AND CONFIGURATION
@@ -860,6 +849,8 @@ def process_blood_cultures(
     Identify blood cultures for hospitalizations.
     Creates: blood_cultures table in DuckDB
     """
+    from clifpy.tables import MicrobiologyCulture
+    
     if verbose:
         print("\n=== Processing Blood Cultures ===")
 
@@ -910,6 +901,8 @@ def calculate_qad(
     Calculate Qualifying Antimicrobial Days.
     Creates: final_qad table in DuckDB
     """
+    from clifpy.tables import MedicationAdminIntermittent, Hospitalization, Patient
+    
     if verbose:
         print("\n=== Calculating QAD ===")
 
@@ -1009,6 +1002,8 @@ def calculate_lab_dysfunction(
     """
     Calculate laboratory-based organ dysfunction.
     """
+    from clifpy.tables import Labs, HospitalDiagnosis
+    
     if verbose:
         print("\n=== Calculating Lab Dysfunction ===")
 
@@ -1115,6 +1110,8 @@ def calculate_clinical_interventions(
     """
     Calculate vasopressor and mechanical ventilation criteria.
     """
+    from clifpy.tables import MedicationAdminContinuous, Adt, RespiratorySupport
+    
     if verbose:
         print("\n=== Calculating Clinical Interventions ===")
 
@@ -1630,7 +1627,8 @@ def compute_ase(
     pd.DataFrame
         ASE results with all required columns
     """
-
+    from clifpy.tables import Hospitalization
+    
     if verbose:
         print(f"\n{'='*60}")
         print(f"ASE COMPUTATION STARTED")
