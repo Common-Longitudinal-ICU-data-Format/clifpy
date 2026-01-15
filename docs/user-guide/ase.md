@@ -53,10 +53,10 @@ For a comprehensive visual representation of the ASE algorithm:
 
 ## Installation and Import
 
-The ASE module should be imported directly from its submodule to avoid circular dependencies:
-
 ```python
-from clifpy.utils.ase import compute_ase, ase
+from clifpy.utils.ase import compute_ase
+# or
+from clifpy.utils import compute_ase
 
 # Compute ASE for specific hospitalizations
 ase_results = compute_ase(
