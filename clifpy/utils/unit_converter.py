@@ -428,7 +428,10 @@ def _pattern_to_factor_builder_for_preferred(pattern: str) -> str:
         return f"WHEN regexp_matches(_preferred_unit, '{pattern}') THEN 1/({REGEX_TO_FACTOR_MAPPER.get(pattern)})"
     raise ValueError(f"regex pattern {pattern} not found in REGEX_TO_FACTOR_MAPPER dict")
 
-def _convert_clean_units_to_base_units(med_df: pd.DataFrame | duckdb.DuckDBPyRelation) -> duckdb.DuckDBPyRelation:
+def _convert_clean_units_to_base_units(
+    med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
+    show_intermediate: bool = False
+) -> duckdb.DuckDBPyRelation:
     """Convert clean dose units to base units.
 
     Core conversion function that transforms various dose units into a base
@@ -444,17 +447,26 @@ def _convert_clean_units_to_base_units(med_df: pd.DataFrame | duckdb.DuckDBPyRel
         - med_dose: Original dose values
         - weight_kg: Patient weight (used for /kg and /lb conversions)
 
+    show_intermediate : bool, default False
+        If True, expose intermediate columns (_amount_multiplier, _time_multiplier,
+        _weight_multiplier) for QA purposes. If False (default), inline multiplier
+        expressions to avoid materializing intermediate columns.
+
     Returns
     -------
     pd.DataFrame
         Original DataFrame with additional columns:
 
         - _unit_class: 'rate', 'amount', or 'unrecognized'
+        - _weighted: 1 if input unit is weight-adjusted, 0 otherwise
+        - _base_dose: base dose value
+        - _base_unit: base unit string
+
+        If show_intermediate=True, also includes:
+
         - _amount_multiplier: Factor for amount conversion
         - _time_multiplier: Factor for time conversion (hr to min)
         - _weight_multiplier: Factor for weight-based conversion
-        - _base_dose: base dose value
-        - _base_unit: base unit string
 
     Examples
     --------
@@ -481,7 +493,7 @@ def _convert_clean_units_to_base_units(med_df: pd.DataFrame | duckdb.DuckDBPyRel
     Weight-based conversions use patient weight from weight_kg column.
     Time conversions: /hr -> /min (divide by 60).
     """
-    
+
     amount_clause = _concat_builders_by_patterns(
         builder=_pattern_to_factor_builder_for_base,
         patterns=[L_REGEX, MU_REGEX, MG_REGEX, NG_REGEX, G_REGEX],
@@ -499,44 +511,81 @@ def _convert_clean_units_to_base_units(med_df: pd.DataFrame | duckdb.DuckDBPyRel
         patterns=[KG_REGEX, LB_REGEX],
         else_case='1'
         )
-    
-    q = f"""
-    SELECT *
-        -- classify and check acceptability first
-        , _unit_class: CASE
-            WHEN _clean_unit IN ('{RATE_UNITS_STR}') THEN 'rate' 
-            WHEN _clean_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
-            ELSE 'unrecognized' END
-        -- mark if the input unit is adjusted by weight (e.g. 'mcg/kg/hr')
-        , _weighted: CASE
-            WHEN regexp_matches(_clean_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
-        -- parse and generate multipliers
-        , _amount_multiplier: CASE
-            WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({amount_clause}) END 
-        , _time_multiplier: CASE
-            WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({time_clause}) END 
-        , _weight_multiplier: CASE
-            WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({weight_clause}) END
-        -- calculate the base dose
-        , _base_dose: CASE
-            -- when the input unit is weighted but weight_kg is missing, keep the original dose
-            WHEN _weighted = 1 AND weight_kg IS NULL THEN med_dose
-            ELSE med_dose * _amount_multiplier * _time_multiplier * _weight_multiplier 
-            END
-        -- id the base unit
-        , _base_unit: CASE 
-            -- when the input unit is weighted but weight_kg is missing, keep the original dose
-            WHEN _weighted = 1 AND weight_kg IS NULL THEN _clean_unit
-            WHEN _unit_class = 'unrecognized' THEN _clean_unit
-            WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg/min'
-            WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml/min'
-            WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u/min'
-            WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg'
-            WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml'
-            WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u'
-            END
-    FROM med_df 
-    """
+
+    if show_intermediate:
+        # Original behavior: expose all intermediate multiplier columns for QA
+        q = f"""
+        SELECT *
+            -- classify and check acceptability first
+            , _unit_class: CASE
+                WHEN _clean_unit IN ('{RATE_UNITS_STR}') THEN 'rate'
+                WHEN _clean_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+                ELSE 'unrecognized' END
+            -- mark if the input unit is adjusted by weight (e.g. 'mcg/kg/hr')
+            , _weighted: CASE
+                WHEN regexp_matches(_clean_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
+            -- parse and generate multipliers
+            , _amount_multiplier: CASE
+                WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({amount_clause}) END
+            , _time_multiplier: CASE
+                WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({time_clause}) END
+            , _weight_multiplier: CASE
+                WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({weight_clause}) END
+            -- calculate the base dose
+            , _base_dose: CASE
+                -- when the input unit is weighted but weight_kg is missing, keep the original dose
+                WHEN _weighted = 1 AND weight_kg IS NULL THEN med_dose
+                ELSE med_dose * _amount_multiplier * _time_multiplier * _weight_multiplier
+                END
+            -- id the base unit
+            , _base_unit: CASE
+                -- when the input unit is weighted but weight_kg is missing, keep the original dose
+                WHEN _weighted = 1 AND weight_kg IS NULL THEN _clean_unit
+                WHEN _unit_class = 'unrecognized' THEN _clean_unit
+                WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg/min'
+                WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml/min'
+                WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u/min'
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg'
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml'
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u'
+                END
+        FROM med_df
+        """
+    else:
+        # Optimized: use CTE to compute classification, then inline multipliers in dose calculation
+        # This avoids materializing 3 intermediate float columns (_amount_multiplier, _time_multiplier, _weight_multiplier)
+        amount_expr = f"CASE WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({amount_clause}) END"
+        time_expr = f"CASE WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({time_clause}) END"
+        weight_expr = f"CASE WHEN _unit_class = 'unrecognized' THEN 1 ELSE ({weight_clause}) END"
+
+        q = f"""
+        WITH classified AS (
+            SELECT *
+                , _unit_class: CASE
+                    WHEN _clean_unit IN ('{RATE_UNITS_STR}') THEN 'rate'
+                    WHEN _clean_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+                    ELSE 'unrecognized' END
+                , _weighted: CASE
+                    WHEN regexp_matches(_clean_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
+            FROM med_df
+        )
+        SELECT *
+            , _base_dose: CASE
+                WHEN _weighted = 1 AND weight_kg IS NULL THEN med_dose
+                ELSE med_dose * ({amount_expr}) * ({time_expr}) * ({weight_expr})
+                END
+            , _base_unit: CASE
+                WHEN _weighted = 1 AND weight_kg IS NULL THEN _clean_unit
+                WHEN _unit_class = 'unrecognized' THEN _clean_unit
+                WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg/min'
+                WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml/min'
+                WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u/min'
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg'
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml'
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u'
+                END
+        FROM classified
+        """
     return duckdb.sql(q)
 
 def _create_unit_conversion_counts_table(
@@ -637,8 +686,9 @@ def find_most_recent_weight(
 
 def standardize_dose_to_base_units(
     med_df: pd.DataFrame,
-    vitals_df: pd.DataFrame = None
-    ) -> Tuple[duckdb.DuckDBPyRelation, duckdb.DuckDBPyRelation]:
+    vitals_df: pd.DataFrame = None,
+    show_intermediate: bool = False
+) -> Tuple[duckdb.DuckDBPyRelation, duckdb.DuckDBPyRelation]:
     """Standardize medication dose units to a base set of standard units.
 
     Main public API function that performs complete dose unit standardization
@@ -655,6 +705,7 @@ def standardize_dose_to_base_units(
         - weight_kg: Patient weights (optional, can be added from vitals_df)
 
         Additional columns are preserved in output.
+
     vitals_df : pd.DataFrame, optional
         Vitals DataFrame for extracting patient weights if not in med_df.
         Required columns if weight_kg missing from med_df:
@@ -663,6 +714,11 @@ def standardize_dose_to_base_units(
         - recorded_dttm: Timestamp of vital recording
         - vital_category: Must include 'weight_kg' values
         - vital_value: Weight values
+
+    show_intermediate : bool, default False
+        If True, expose intermediate columns (_amount_multiplier, _time_multiplier,
+        _weight_multiplier) for QA purposes. If False (default), inline multiplier
+        expressions to avoid materializing intermediate columns.
 
     Returns
     -------
@@ -675,7 +731,10 @@ def standardize_dose_to_base_units(
             * _unit_class: 'rate', 'amount', or 'unrecognized'
             * _base_dose: base dose value
             * _base_unit: base unit
-            * amount_multiplier, time_multiplier, weight_multiplier: Conversion factors
+
+            If show_intermediate=True, also includes:
+
+            * _amount_multiplier, _time_multiplier, _weight_multiplier: Conversion factors
 
         - [1] Summary counts DataFrame showing conversion patterns and frequencies
 
@@ -718,17 +777,17 @@ def standardize_dose_to_base_units(
     if 'weight_kg' not in med_df.columns:
         logger.info("pulling the most recent weight from the vitals table since no `weight_kg` column exists in the medication table")
         med_df = find_most_recent_weight(med_df, vitals_df)#.to_df()
-    
+
     # check if the required columns are present
     required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
     missing_columns = required_columns - set(med_df.columns)
     if missing_columns:
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
-    
+
     # Clean dose units using DuckDB to avoid pandas materialization
     med_df_cleaned = _clean_dose_unit_formats_duckdb(med_df)
     med_df_cleaned = _clean_dose_unit_names_duckdb(med_df_cleaned)
-    med_df_base = _convert_clean_units_to_base_units(med_df_cleaned)
+    med_df_base = _convert_clean_units_to_base_units(med_df_cleaned, show_intermediate=show_intermediate)
     convert_counts_df = _create_unit_conversion_counts_table(
         med_df_base,
         group_by=['med_dose_unit', '_clean_unit', '_base_unit', '_unit_class']
@@ -738,8 +797,9 @@ def standardize_dose_to_base_units(
     
 def _convert_base_units_to_preferred_units(
     med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
-    override: bool = False
-    ) -> duckdb.DuckDBPyRelation:
+    override: bool = False,
+    show_intermediate: bool = False
+) -> duckdb.DuckDBPyRelation:
     """Convert base standardized units to user-preferred units.
 
     Performs the second stage of unit conversion, transforming from standardized
@@ -755,6 +815,7 @@ def _convert_base_units_to_preferred_units(
         - _base_unit: Standardized unit strings (may be NULL)
         - _preferred_unit: Target unit strings for each medication
         - weight_kg: Patient weights (optional, used for weight-based conversions)
+
     override : bool, default False
         If True, prints warnings but continues when encountering:
 
@@ -763,6 +824,12 @@ def _convert_base_units_to_preferred_units(
         - Cross-subclass conversions (e.g., mass to volume)
 
         If False, raises ValueError for these conditions.
+
+    show_intermediate : bool, default False
+        If True, expose intermediate columns (_amount_multiplier_preferred,
+        _time_multiplier_preferred, _weight_multiplier_preferred) for QA purposes.
+        If False (default), inline multiplier expressions to avoid materializing
+        intermediate columns.
 
     Returns
     -------
@@ -774,11 +841,14 @@ def _convert_base_units_to_preferred_units(
         - _unit_class_preferred: Classification of preferred unit
         - _unit_subclass_preferred: Subclassification of preferred unit
         - _convert_status: Success or failure reason message
+        - med_dose_converted: Final converted dose value
+        - med_dose_unit_converted: Final unit string after conversion
+
+        If show_intermediate=True, also includes:
+
         - _amount_multiplier_preferred: Conversion factor for amount units
         - _time_multiplier_preferred: Conversion factor for time units
         - _weight_multiplier_preferred: Conversion factor for weight-based units
-        - med_dose_converted: Final converted dose value
-        - med_dose_unit_converted: Final unit string after conversion
 
     Raises
     ------
@@ -808,7 +878,7 @@ def _convert_base_units_to_preferred_units(
     missing_columns = required_columns - set(med_df.columns)
     if missing_columns:
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
-    
+
     # check user-defined _preferred_unit are in the set of acceptable units
     q = f"""
     SELECT DISTINCT _preferred_unit
@@ -822,7 +892,7 @@ def _convert_base_units_to_preferred_units(
             logger.warning(error_msg)
         else:
             raise ValueError(error_msg)
-    
+
     amount_clause = _concat_builders_by_patterns(
         builder=_pattern_to_factor_builder_for_preferred,
         patterns=[L_REGEX, MU_REGEX, MG_REGEX, NG_REGEX, G_REGEX],
@@ -840,72 +910,125 @@ def _convert_base_units_to_preferred_units(
         patterns=[KG_REGEX, LB_REGEX],
         else_case='1'
         )
-    
+
     unit_class_clause = f"""
     , _unit_class: CASE
-        WHEN _base_unit IN ('{RATE_UNITS_STR}') THEN 'rate' 
+        WHEN _base_unit IN ('{RATE_UNITS_STR}') THEN 'rate'
         WHEN _base_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
         ELSE 'unrecognized' END
     """ if '_unit_class' not in med_df.columns else ''
-    
+
     weighted_clause = f"""
     , _weighted: CASE
         WHEN regexp_matches(_clean_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
     """ if '_weighted' not in med_df.columns else ''
-    
+
     dose_converted_name = "med_dose" if "med_dose" in med_df.columns else "_base_dose"
     unit_converted_name = "_clean_unit" if "_clean_unit" in med_df.columns else "_base_unit"
-    
-    q = f"""
-    SELECT l.*
-        {unit_class_clause}
-        , _unit_subclass: CASE 
-            WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass'
-            WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume'
-            WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit'
-            ELSE 'unrecognized' END
-        , _unit_class_preferred: CASE 
-            WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate' 
-            WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
-            ELSE 'unrecognized' END
-        , _unit_subclass_preferred: CASE 
-            WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass'
-            WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume'
-            WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit'
-            ELSE 'unrecognized' END
-        , _weighted_preferred: CASE
-            WHEN regexp_matches(_preferred_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
-        , _convert_status: CASE 
-            WHEN _weighted_preferred = 1 AND weight_kg IS NULL 
-                THEN 'cannot convert to a weighted unit if weight_kg is missing'
-            WHEN _base_unit IS NULL THEN 'original unit is missing'
-            WHEN _unit_class == 'unrecognized' OR _unit_subclass == 'unrecognized'
-                THEN 'original unit ' || _base_unit || ' is not recognized'
-            WHEN _unit_class_preferred == 'unrecognized' OR _unit_subclass_preferred == 'unrecognized'
-                THEN 'user-preferred unit ' || _preferred_unit || ' is not recognized'
-            WHEN _unit_class != _unit_class_preferred 
-                THEN 'cannot convert ' || _unit_class || ' to ' || _unit_class_preferred
-            WHEN _unit_subclass != _unit_subclass_preferred
-                THEN 'cannot convert ' || _unit_subclass || ' to ' || _unit_subclass_preferred
-            WHEN _unit_class == _unit_class_preferred AND _unit_subclass == _unit_subclass_preferred
-                -- AND _unit_class != 'unrecognized' AND _unit_subclass != 'unrecognized'
-                THEN 'success'
-            ELSE 'other error - please report'
-            END
-        , _amount_multiplier_preferred: {amount_clause}
-        , _time_multiplier_preferred: {time_clause}
-        , _weight_multiplier_preferred: {weight_clause}
-        -- fall back to the base units and dose (i.e. the input) if conversion cannot be accommondated
-        , med_dose_converted: CASE
-            WHEN _convert_status == 'success' THEN _base_dose * _amount_multiplier_preferred * _time_multiplier_preferred * _weight_multiplier_preferred
-            ELSE {dose_converted_name}
-            END
-        , med_dose_unit_converted: CASE
-            WHEN _convert_status == 'success' THEN _preferred_unit
-            ELSE {unit_converted_name}
-            END
-    FROM med_df l
-    """
+
+    if show_intermediate:
+        # Original behavior: expose all intermediate multiplier columns for QA
+        q = f"""
+        SELECT l.*
+            {unit_class_clause}
+            , _unit_subclass: CASE
+                WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass'
+                WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume'
+                WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit'
+                ELSE 'unrecognized' END
+            , _unit_class_preferred: CASE
+                WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate'
+                WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+                ELSE 'unrecognized' END
+            , _unit_subclass_preferred: CASE
+                WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass'
+                WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume'
+                WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit'
+                ELSE 'unrecognized' END
+            , _weighted_preferred: CASE
+                WHEN regexp_matches(_preferred_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
+            , _convert_status: CASE
+                WHEN _weighted_preferred = 1 AND weight_kg IS NULL
+                    THEN 'cannot convert to a weighted unit if weight_kg is missing'
+                WHEN _base_unit IS NULL THEN 'original unit is missing'
+                WHEN _unit_class == 'unrecognized' OR _unit_subclass == 'unrecognized'
+                    THEN 'original unit ' || _base_unit || ' is not recognized'
+                WHEN _unit_class_preferred == 'unrecognized' OR _unit_subclass_preferred == 'unrecognized'
+                    THEN 'user-preferred unit ' || _preferred_unit || ' is not recognized'
+                WHEN _unit_class != _unit_class_preferred
+                    THEN 'cannot convert ' || _unit_class || ' to ' || _unit_class_preferred
+                WHEN _unit_subclass != _unit_subclass_preferred
+                    THEN 'cannot convert ' || _unit_subclass || ' to ' || _unit_subclass_preferred
+                WHEN _unit_class == _unit_class_preferred AND _unit_subclass == _unit_subclass_preferred
+                    THEN 'success'
+                ELSE 'other error - please report'
+                END
+            , _amount_multiplier_preferred: {amount_clause}
+            , _time_multiplier_preferred: {time_clause}
+            , _weight_multiplier_preferred: {weight_clause}
+            -- fall back to the base units and dose (i.e. the input) if conversion cannot be accommondated
+            , med_dose_converted: CASE
+                WHEN _convert_status == 'success' THEN _base_dose * _amount_multiplier_preferred * _time_multiplier_preferred * _weight_multiplier_preferred
+                ELSE {dose_converted_name}
+                END
+            , med_dose_unit_converted: CASE
+                WHEN _convert_status == 'success' THEN _preferred_unit
+                ELSE {unit_converted_name}
+                END
+        FROM med_df l
+        """
+    else:
+        # Optimized: use CTE to compute classification, then inline multipliers in dose calculation
+        # This avoids materializing 3 intermediate float columns
+        q = f"""
+        WITH classified AS (
+            SELECT l.*
+                {unit_class_clause}
+                , _unit_subclass: CASE
+                    WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass'
+                    WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume'
+                    WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit'
+                    ELSE 'unrecognized' END
+                , _unit_class_preferred: CASE
+                    WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate'
+                    WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount'
+                    ELSE 'unrecognized' END
+                , _unit_subclass_preferred: CASE
+                    WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass'
+                    WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume'
+                    WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit'
+                    ELSE 'unrecognized' END
+                , _weighted_preferred: CASE
+                    WHEN regexp_matches(_preferred_unit, '{WEIGHT_REGEX}') THEN 1 ELSE 0 END
+                , _convert_status: CASE
+                    WHEN regexp_matches(_preferred_unit, '{WEIGHT_REGEX}') AND weight_kg IS NULL
+                        THEN 'cannot convert to a weighted unit if weight_kg is missing'
+                    WHEN _base_unit IS NULL THEN 'original unit is missing'
+                    WHEN (CASE WHEN _base_unit IN ('{RATE_UNITS_STR}') THEN 'rate' WHEN _base_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount' ELSE 'unrecognized' END) == 'unrecognized'
+                        OR (CASE WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass' WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume' WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit' ELSE 'unrecognized' END) == 'unrecognized'
+                        THEN 'original unit ' || _base_unit || ' is not recognized'
+                    WHEN (CASE WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate' WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount' ELSE 'unrecognized' END) == 'unrecognized'
+                        OR (CASE WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass' WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume' WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit' ELSE 'unrecognized' END) == 'unrecognized'
+                        THEN 'user-preferred unit ' || _preferred_unit || ' is not recognized'
+                    WHEN (CASE WHEN _base_unit IN ('{RATE_UNITS_STR}') THEN 'rate' WHEN _base_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount' ELSE 'unrecognized' END) != (CASE WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate' WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount' ELSE 'unrecognized' END)
+                        THEN 'cannot convert ' || (CASE WHEN _base_unit IN ('{RATE_UNITS_STR}') THEN 'rate' WHEN _base_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount' ELSE 'unrecognized' END) || ' to ' || (CASE WHEN _preferred_unit IN ('{RATE_UNITS_STR}') THEN 'rate' WHEN _preferred_unit IN ('{AMOUNT_UNITS_STR}') THEN 'amount' ELSE 'unrecognized' END)
+                    WHEN (CASE WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass' WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume' WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit' ELSE 'unrecognized' END) != (CASE WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass' WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume' WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit' ELSE 'unrecognized' END)
+                        THEN 'cannot convert ' || (CASE WHEN regexp_matches(_base_unit, '{MASS_REGEX}') THEN 'mass' WHEN regexp_matches(_base_unit, '{VOLUME_REGEX}') THEN 'volume' WHEN regexp_matches(_base_unit, '{UNIT_REGEX}') THEN 'unit' ELSE 'unrecognized' END) || ' to ' || (CASE WHEN regexp_matches(_preferred_unit, '{MASS_REGEX}') THEN 'mass' WHEN regexp_matches(_preferred_unit, '{VOLUME_REGEX}') THEN 'volume' WHEN regexp_matches(_preferred_unit, '{UNIT_REGEX}') THEN 'unit' ELSE 'unrecognized' END)
+                    ELSE 'success'
+                    END
+            FROM med_df l
+        )
+        SELECT *
+            , med_dose_converted: CASE
+                WHEN _convert_status == 'success' THEN _base_dose * ({amount_clause}) * ({time_clause}) * ({weight_clause})
+                ELSE {dose_converted_name}
+                END
+            , med_dose_unit_converted: CASE
+                WHEN _convert_status == 'success' THEN _preferred_unit
+                ELSE {unit_converted_name}
+                END
+        FROM classified
+        """
     return duckdb.sql(q)
 
 @overload
@@ -1051,10 +1174,10 @@ def convert_dose_units_by_med_category(
             raise ValueError(error_msg)
     
     try:
-        med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df)
+        med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df, show_intermediate=show_intermediate)
     except ValueError as e:
         raise ValueError(f"Error standardizing dose units to base units: {e}")
-    
+
     try:
         # join the preferred units to the df
         preferred_units_df = pd.DataFrame(preferred_units.items(), columns=['med_category', '_preferred_unit'])
@@ -1067,7 +1190,7 @@ def convert_dose_units_by_med_category(
         """
         med_df_preferred = duckdb.sql(q)
 
-        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override)
+        med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override, show_intermediate=show_intermediate)
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
