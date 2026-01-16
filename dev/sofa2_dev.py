@@ -1,27 +1,19 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.19.4"
 app = marimo.App(width="medium", sql_output="native")
 
+with app.setup:
+    import marimo as mo
 
-@app.cell
-def _():
     COHORT_SIZE = 100000
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
     CONFIG_PATH = MIMIC_CONFIG_PATH
-    return COHORT_SIZE, CONFIG_PATH, PREFIX
 
+    from memory_tracker import track_memory, get_report, clear_report
 
-@app.cell
-def _():
-    import marimo as mo
-    return (mo,)
-
-
-@app.cell
-def _(CONFIG_PATH):
     from clifpy import load_data
     labs_rel = load_data('labs', config_path=CONFIG_PATH, return_rel=True)
     crrt_rel = load_data('crrt_therapy', config_path=CONFIG_PATH, return_rel=True)
@@ -29,11 +21,10 @@ def _(CONFIG_PATH):
     adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
     vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
     meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
-    return adt_rel, assessments_rel, crrt_rel, labs_rel, meds_rel, vitals_rel
 
 
 @app.cell
-def _(COHORT_SIZE, PREFIX, adt_rel, mo):
+def _():
     cohort_df = mo.sql(
         f"""
         FROM adt_rel a
@@ -47,9 +38,10 @@ def _(COHORT_SIZE, PREFIX, adt_rel, mo):
 
 
 @app.cell
-def _(labs_rel, mo):
+def _():
     labs_agg = mo.sql(
         f"""
+        EXPLAIN ANALYZE
         FROM
             labs_rel t
             SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
@@ -77,7 +69,13 @@ def _(labs_rel, mo):
 
 
 @app.cell
-def _(crrt_rel, mo):
+def _(labs_agg):
+    labs_agg.df()
+    return
+
+
+@app.cell
+def _():
     # Detect if patient received RRT during the time window
     rrt_flag = mo.sql(
         f"""
@@ -93,7 +91,7 @@ def _(crrt_rel, mo):
 
 
 @app.cell
-def _(assessments_rel, mo):
+def _():
     gcs_agg = mo.sql(
         f"""
         FROM assessments_rel t
@@ -112,19 +110,58 @@ def _(assessments_rel, mo):
 
 
 @app.cell
-def _(meds_rel, vitals_rel):
-    from clifpy.utils.unit_converter import convert_dose_units_by_med_category
-    # Returns tuple: (converted_meds_rel, conversion_info_rel)
-    meds_unit_converted, _ = convert_dose_units_by_med_category(
-        med_df=meds_rel,
-        vitals_df=vitals_rel,
-        return_rel=True
+def _():
+    map_agg = mo.sql(
+        f"""
+        FROM vitals_rel t
+        SEMI JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.recorded_dttm >= c.start_dttm
+            AND t.recorded_dttm <= c.end_dttm
+        SELECT
+            hospitalization_id,
+            MIN(vital_value) AS map_min
+        WHERE vital_category = 'map'
+        GROUP BY hospitalization_id
+        """
     )
+    return (map_agg,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Medication
+    """)
+    return
+
+
+@app.cell
+def _():
+    from clifpy.utils.unit_converter import convert_dose_units_by_med_category
+
+    _preferred_units = {
+          'norepinephrine': 'mcg/kg/min',
+          'epinephrine': 'mcg/kg/min',
+          'dopamine': 'mcg/kg/min',
+          'dobutamine': 'mcg/kg/min',
+          'vasopressin': 'u/min',
+          'phenylephrine': 'mcg/kg/min',
+      }
+
+    with track_memory('med_unit_convert'):
+        meds_unit_converted, _ = convert_dose_units_by_med_category(
+            med_df=meds_rel,
+            vitals_df=vitals_rel,
+            return_rel=True,
+            preferred_units=_preferred_units,
+            override=True
+        )
     return (meds_unit_converted,)
 
 
 @app.cell
-def _(meds_unit_converted, mo):
+def _(meds_unit_converted):
     # Centralized MAR deduplication for vasopressors (preserves original dose values)
     meds_deduped = mo.sql(
         f"""
@@ -155,26 +192,14 @@ def _(meds_unit_converted, mo):
 
 
 @app.cell
-def _(mo, vitals_rel):
-    map_agg = mo.sql(
-        f"""
-        FROM vitals_rel t
-        SEMI JOIN cohort_df c ON
-            t.hospitalization_id = c.hospitalization_id
-            AND t.recorded_dttm >= c.start_dttm
-            AND t.recorded_dttm <= c.end_dttm
-        SELECT
-            hospitalization_id,
-            MIN(vital_value) AS map_min
-        WHERE vital_category = 'map'
-        GROUP BY hospitalization_id
-        """
-    )
-    return (map_agg,)
+def _(meds_deduped):
+    with track_memory('meds_deduped_df'):
+        meds_deduped.df()
+    return
 
 
 @app.cell
-def _(cohort_df, meds_deduped, mo):
+def _(cohort_df, meds_deduped):
     # Cell 1: Get most recent dose BEFORE start_dttm for each vasopressor (initial state)
     # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
     vaso_initial_state = mo.sql(
@@ -200,9 +225,15 @@ def _(cohort_df, meds_deduped, mo):
 
 
 @app.cell
-def _(meds_deduped, mo):
-    # Cell 2: Get all vasopressor events during [start_dttm, end_dttm]
-    # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
+def _(vaso_initial_state):
+    with track_memory('vaso_initial_state'):
+        vaso_initial_state.df()
+    return
+
+
+@app.cell
+def _(meds_deduped):
+    # Cell 2: Get all vasopressor events during [start_dttm, end_dttm] with MAR dedup
     vaso_in_window = mo.sql(
         f"""
         FROM meds_deduped t
@@ -221,7 +252,7 @@ def _(meds_deduped, mo):
 
 
 @app.cell
-def _(mo, vaso_in_window, vaso_initial_state):
+def _(vaso_in_window, vaso_initial_state):
     vaso_events = mo.sql(
         f"""
         SELECT hospitalization_id, admin_dttm, med_category, med_dose
@@ -235,7 +266,7 @@ def _(mo, vaso_in_window, vaso_initial_state):
 
 
 @app.cell
-def _(mo, vaso_events):
+def _(vaso_events):
     # Cell 4: Pivot to wide format (one column per vasopressor)
     vaso_wide = mo.sql(
         f"""
@@ -263,7 +294,7 @@ def _(mo, vaso_events):
 
 
 @app.cell
-def _(mo, vaso_wide):
+def _(vaso_wide):
     # Cell 5: Forward-fill doses using LAST_VALUE IGNORE NULLS
     vaso_filled = mo.sql(
         f"""
@@ -287,7 +318,7 @@ def _(mo, vaso_wide):
 
 
 @app.cell
-def _(mo, vaso_filled):
+def _(vaso_filled):
     # Cell 6: Track episode duration for >=60 min enforcement (SOFA-2 Note 8)
     vaso_with_duration = mo.sql(
         f"""
@@ -338,7 +369,7 @@ def _(mo, vaso_filled):
 
 
 @app.cell
-def _(cohort_df, mo, vaso_with_duration):
+def _(cohort_df, vaso_with_duration):
     # Cell 7: Final aggregation - MAX concurrent norepi + epi sum
     vaso_concurrent = mo.sql(
         f"""
@@ -361,7 +392,7 @@ def _(cohort_df, mo, vaso_with_duration):
 
 
 @app.cell
-def _(cohort_df, map_agg, mo, vaso_concurrent):
+def _(cohort_df, map_agg, vaso_concurrent):
     # Cell 8: Cardiovascular score using vaso_concurrent
     cv_agg = mo.sql(
         f"""
@@ -392,7 +423,7 @@ def _(cohort_df, map_agg, mo, vaso_concurrent):
 
 
 @app.cell
-def _(cohort_df, cv_agg, gcs_agg, labs_agg, mo, rrt_flag):
+def _(cohort_df, cv_agg, gcs_agg, labs_agg, rrt_flag):
     sofa_scores = mo.sql(
         f"""
         -- EXPLAIN ANALYZE
@@ -461,6 +492,7 @@ def _(sofa_scores):
 
 @app.cell
 def _():
+    get_report()
     return
 
 
