@@ -21,6 +21,7 @@ with app.setup:
     adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
     vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
     meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
+    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_rel=True)
 
 
 @app.cell
@@ -172,8 +173,7 @@ def _(meds_unit_converted):
             med_category,
             mar_action_category,
             med_dose
-        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine',
-                                'dobutamine', 'vasopressin', 'phenylephrine')
+        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine')
             AND med_route_category = 'iv'
         QUALIFY ROW_NUMBER() OVER (
             PARTITION BY hospitalization_id, admin_dttm, med_category
@@ -191,10 +191,11 @@ def _(meds_unit_converted):
     return (meds_deduped,)
 
 
-@app.cell
-def _(meds_deduped):
-    with track_memory('meds_deduped_df'):
-        meds_deduped.df()
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ### Vasopressor
+    """)
     return
 
 
@@ -217,6 +218,7 @@ def _(cohort_df, meds_deduped):
             c.hospitalization_id,
             c.start_dttm AS admin_dttm,
             t.med_category,
+            t.mar_action_category,
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
         WHERE t.admin_dttm IS NOT NULL
         """
@@ -245,6 +247,7 @@ def _(meds_deduped):
             t.hospitalization_id,
             t.admin_dttm,
             t.med_category,
+            t.mar_action_category,
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
         """
     )
@@ -255,10 +258,11 @@ def _(meds_deduped):
 def _(vaso_in_window, vaso_initial_state):
     vaso_events = mo.sql(
         f"""
-        SELECT hospitalization_id, admin_dttm, med_category, med_dose
+        --EXPLAIN ANALYSE
+        SELECT hospitalization_id, admin_dttm, med_category, med_dose, mar_action_category
         FROM vaso_initial_state
         UNION ALL
-        SELECT hospitalization_id, admin_dttm, med_category, med_dose
+        SELECT hospitalization_id, admin_dttm, med_category, med_dose, mar_action_category
         FROM vaso_in_window
         """
     )
@@ -267,30 +271,46 @@ def _(vaso_in_window, vaso_initial_state):
 
 @app.cell
 def _(vaso_events):
+    with track_memory('vaso_events'):
+        vaso_events.df()
+    return
+
+
+@app.cell
+def _(vaso_events):
+    vaso_events.df()
+    return
+
+
+@app.cell
+def _():
     # Cell 4: Pivot to wide format (one column per vasopressor)
     vaso_wide = mo.sql(
         f"""
-        WITH all_timestamps AS (
-            SELECT DISTINCT hospitalization_id, admin_dttm
-            FROM vaso_events
+        EXPLAIN ANALYSE
+        FROM vaso_events
+        PIVOT (
+            MAX(med_dose)
+            FOR med_category IN (
+                'norepinephrine' AS norepi_raw,
+                'epinephrine' AS epi_raw,
+                'dopamine' AS dopamine_raw,
+                'dobutamine' AS dobutamine_raw,
+                'vasopressin' AS vasopressin_raw,
+                'phenylephrine' AS phenylephrine_raw
+            )
+            GROUP BY hospitalization_id, admin_dttm
         )
-        FROM all_timestamps t
-        LEFT JOIN vaso_events v
-            ON t.hospitalization_id = v.hospitalization_id
-            AND t.admin_dttm = v.admin_dttm
-        SELECT
-            t.hospitalization_id,
-            t.admin_dttm,
-            MAX(v.med_dose) FILTER(v.med_category = 'norepinephrine') AS norepi_raw,
-            MAX(v.med_dose) FILTER(v.med_category = 'epinephrine') AS epi_raw,
-            MAX(v.med_dose) FILTER(v.med_category = 'dopamine') AS dopamine_raw,
-            MAX(v.med_dose) FILTER(v.med_category = 'dobutamine') AS dobutamine_raw,
-            MAX(v.med_dose) FILTER(v.med_category = 'vasopressin') AS vasopressin_raw,
-            MAX(v.med_dose) FILTER(v.med_category = 'phenylephrine') AS phenylephrine_raw
-        GROUP BY t.hospitalization_id, t.admin_dttm
         """
     )
     return (vaso_wide,)
+
+
+@app.cell
+def _(vaso_wide):
+    # with track_memory('vaso_wide'):
+    vaso_wide.df()
+    return
 
 
 @app.cell
@@ -423,7 +443,110 @@ def _(cohort_df, map_agg, vaso_concurrent):
 
 
 @app.cell
-def _(cohort_df, cv_agg, gcs_agg, labs_agg, rrt_flag):
+def _():
+    mo.md(r"""
+    ### Respiratory
+    """)
+    return
+
+
+@app.cell
+def _():
+    # FiO2 aggregation with imputation based on device category
+    fio2_agg = mo.sql(
+        f"""
+        WITH fio2_imputed AS (
+            FROM resp_rel t
+            SEMI JOIN cohort_df c ON
+                t.hospitalization_id = c.hospitalization_id
+                AND t.recorded_dttm >= c.start_dttm
+                AND t.recorded_dttm <= c.end_dttm
+            SELECT
+                hospitalization_id,
+                recorded_dttm,
+                device_category,
+                -- Impute FiO2 based on device
+                CASE
+                    WHEN fio2_set IS NOT NULL AND fio2_set > 0 THEN fio2_set
+                    WHEN device_category = 'Room_Air' THEN 0.21
+                    -- Nasal cannula: impute from lpm_set
+                    WHEN device_category = 'Nasal_Cannula' THEN
+                        CASE WHEN lpm_set <= 1 THEN 0.24
+                             WHEN lpm_set <= 2 THEN 0.28
+                             WHEN lpm_set <= 3 THEN 0.32
+                             WHEN lpm_set <= 4 THEN 0.36
+                             WHEN lpm_set <= 5 THEN 0.40
+                             WHEN lpm_set <= 6 THEN 0.44
+                             ELSE 0.50 END
+                    ELSE fio2_set
+                END AS fio2_imputed,
+                -- Flag for advanced respiratory support (scores 3-4 require this)
+                CASE WHEN device_category IN ('IMV', 'NIPPV', 'CPAP', 'High_Flow_NC')
+                     THEN 1 ELSE 0 END AS is_advanced_support
+        )
+        FROM fio2_imputed
+        SELECT
+            hospitalization_id,
+            MAX(fio2_imputed) AS fio2_max,
+            MAX(is_advanced_support) AS has_advanced_support
+        GROUP BY hospitalization_id
+        """
+    )
+    return (fio2_agg,)
+
+
+@app.cell
+def _(fio2_agg, labs_agg):
+    # P/F Ratio calculation using worst FiO2 with worst PaO2 (conservative approach)
+    pf_ratio = mo.sql(
+        f"""
+        FROM labs_agg l
+        LEFT JOIN fio2_agg f USING (hospitalization_id)
+        SELECT
+            l.hospitalization_id,
+            l.po2_arterial,
+            f.fio2_max,
+            f.has_advanced_support,
+            -- P/F ratio (PaO2 in mmHg / FiO2 as fraction)
+            CASE WHEN f.fio2_max > 0 AND l.po2_arterial IS NOT NULL
+                 THEN l.po2_arterial / f.fio2_max
+                 ELSE NULL END AS pf_ratio
+        """
+    )
+    return (pf_ratio,)
+
+
+@app.cell
+def _(pf_ratio):
+    # Respiratory score calculation
+    resp_agg = mo.sql(
+        f"""
+        FROM pf_ratio
+        SELECT
+            hospitalization_id,
+            pf_ratio,
+            has_advanced_support,
+            -- Respiratory Score
+            respiratory: CASE
+                -- Score 4: P/F <=75 AND advanced support
+                WHEN pf_ratio <= 75 AND has_advanced_support = 1 THEN 4
+                -- Score 3: P/F <=150 AND advanced support
+                WHEN pf_ratio <= 150 AND has_advanced_support = 1 THEN 3
+                -- Score 2: P/F <=225 (no vent requirement)
+                WHEN pf_ratio <= 225 THEN 2
+                -- Score 1: P/F <=300
+                WHEN pf_ratio <= 300 THEN 1
+                -- Score 0: P/F >300
+                WHEN pf_ratio > 300 THEN 0
+                ELSE NULL
+            END
+        """
+    )
+    return (resp_agg,)
+
+
+@app.cell
+def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_agg, rrt_flag):
     sofa_scores = mo.sql(
         f"""
         -- EXPLAIN ANALYZE
@@ -432,6 +555,7 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, rrt_flag):
         LEFT JOIN rrt_flag r USING (hospitalization_id)
         LEFT JOIN gcs_agg g USING (hospitalization_id)
         LEFT JOIN cv_agg cv USING (hospitalization_id)
+        LEFT JOIN resp_agg resp USING (hospitalization_id)
         SELECT
             c.hospitalization_id,
             c.start_dttm,
@@ -470,6 +594,15 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, rrt_flag):
                 ELSE NULL END,
             -- Cardiovascular
             cv.cardiovascular,
+            -- Respiratory
+            resp.respiratory,
+            -- SOFA Total (sum of all 6 components)
+            sofa_total: COALESCE(hemostasis, 0)
+                + COALESCE(liver, 0)
+                + COALESCE(kidney, 0)
+                + COALESCE(brain, 0)
+                + COALESCE(cv.cardiovascular, 0)
+                + COALESCE(resp.respiratory, 0),
             -- Intermediate values for debugging
             l.platelet_count,
             l.bilirubin_total,
@@ -478,7 +611,9 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, rrt_flag):
             COALESCE(r.has_rrt, 0) AS has_rrt,
             g.gcs_min,
             cv.norepi_epi_sum,
-            cv.map_min
+            cv.map_min,
+            resp.pf_ratio,
+            resp.has_advanced_support
         """
     )
     return (sofa_scores,)
