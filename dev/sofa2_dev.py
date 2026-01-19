@@ -6,7 +6,7 @@ app = marimo.App(width="medium", sql_output="native")
 with app.setup:
     import marimo as mo
 
-    COHORT_SIZE = 100000
+    COHORT_SIZE = 10
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
@@ -148,6 +148,9 @@ def _():
           'dobutamine': 'mcg/kg/min',
           'vasopressin': 'u/min',
           'phenylephrine': 'mcg/kg/min',
+          'milrinone': 'mcg/kg/min',
+          'angiotensin': 'ng/kg/min',
+          'isoproterenol': 'mcg/kg/min',
       }
 
     with track_memory('med_unit_convert'):
@@ -173,7 +176,7 @@ def _(meds_unit_converted):
             med_category,
             mar_action_category,
             med_dose
-        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine')
+        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine', 'milrinone', 'angiotensin', 'isoproterenol')
             AND med_route_category = 'iv'
         QUALIFY ROW_NUMBER() OVER (
             PARTITION BY hospitalization_id, admin_dttm, med_category
@@ -205,22 +208,18 @@ def _(cohort_df, meds_deduped):
     # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
     vaso_initial_state = mo.sql(
         f"""
-        FROM cohort_df c
-        CROSS JOIN (
-            SELECT DISTINCT med_category
-            FROM meds_deduped
-        ) cats
-        ASOF LEFT JOIN meds_deduped t
-            ON c.hospitalization_id = t.hospitalization_id
-            AND cats.med_category = t.med_category
-            AND c.start_dttm >= t.admin_dttm
+        FROM meds_deduped t
+        JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
         SELECT
-            c.hospitalization_id,
+            t.hospitalization_id,
             c.start_dttm AS admin_dttm,
             t.med_category,
-            t.mar_action_category,
-            CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
-        WHERE t.admin_dttm IS NOT NULL
+            ARG_MAX(
+                CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END,
+                t.admin_dttm
+            ) AS med_dose
+        WHERE t.admin_dttm < c.start_dttm
+        GROUP BY t.hospitalization_id, c.start_dttm, t.med_category
         """
     )
     return (vaso_initial_state,)
@@ -259,10 +258,10 @@ def _(vaso_in_window, vaso_initial_state):
     vaso_events = mo.sql(
         f"""
         --EXPLAIN ANALYSE
-        SELECT hospitalization_id, admin_dttm, med_category, med_dose, mar_action_category
+        SELECT hospitalization_id, admin_dttm, med_category, med_dose --, mar_action_category
         FROM vaso_initial_state
         UNION ALL
-        SELECT hospitalization_id, admin_dttm, med_category, med_dose, mar_action_category
+        SELECT hospitalization_id, admin_dttm, med_category, med_dose --, mar_action_category
         FROM vaso_in_window
         """
     )
@@ -283,21 +282,24 @@ def _(vaso_events):
 
 
 @app.cell
-def _():
+def _(vaso_events):
     # Cell 4: Pivot to wide format (one column per vasopressor)
     vaso_wide = mo.sql(
         f"""
-        EXPLAIN ANALYSE
+        --EXPLAIN ANALYSE
         FROM vaso_events
         PIVOT (
-            MAX(med_dose)
+            FIRST(med_dose)
             FOR med_category IN (
                 'norepinephrine' AS norepi_raw,
                 'epinephrine' AS epi_raw,
                 'dopamine' AS dopamine_raw,
                 'dobutamine' AS dobutamine_raw,
                 'vasopressin' AS vasopressin_raw,
-                'phenylephrine' AS phenylephrine_raw
+                'phenylephrine' AS phenylephrine_raw,
+                'milrinone' AS milrinone_raw,
+                'angiotensin' AS angiotensin_raw,
+                'isoproterenol' AS isoproterenol_raw
             )
             GROUP BY hospitalization_id, admin_dttm
         )
@@ -308,8 +310,8 @@ def _():
 
 @app.cell
 def _(vaso_wide):
-    # with track_memory('vaso_wide'):
-    vaso_wide.df()
+    with track_memory('vaso_wide'):
+        vaso_wide.df()
     return
 
 
@@ -322,19 +324,29 @@ def _(vaso_wide):
         SELECT
             hospitalization_id,
             admin_dttm,
-            norepi_raw,
-            epi_raw,
+            --norepi_raw,
+            --epi_raw,
             COALESCE(LAST_VALUE(norepi_raw IGNORE NULLS) OVER w, 0) AS norepi,
             COALESCE(LAST_VALUE(epi_raw IGNORE NULLS) OVER w, 0) AS epi,
             COALESCE(LAST_VALUE(dopamine_raw IGNORE NULLS) OVER w, 0) AS dopamine,
             COALESCE(LAST_VALUE(dobutamine_raw IGNORE NULLS) OVER w, 0) AS dobutamine,
             COALESCE(LAST_VALUE(vasopressin_raw IGNORE NULLS) OVER w, 0) AS vasopressin,
-            COALESCE(LAST_VALUE(phenylephrine_raw IGNORE NULLS) OVER w, 0) AS phenylephrine
+            COALESCE(LAST_VALUE(phenylephrine_raw IGNORE NULLS) OVER w, 0) AS phenylephrine,
+            COALESCE(LAST_VALUE(milrinone_raw IGNORE NULLS) OVER w, 0) AS milrinone,
+            COALESCE(LAST_VALUE(angiotensin_raw IGNORE NULLS) OVER w, 0) AS angiotensin,
+            COALESCE(LAST_VALUE(isoproterenol_raw IGNORE NULLS) OVER w, 0) AS isoproterenol
         WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm
                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+        --ORDER BY hospitalization_id, admin_dttm
         """
     )
     return (vaso_filled,)
+
+
+@app.cell
+def _(vaso_filled):
+    vaso_filled.df()
+    return
 
 
 @app.cell
@@ -356,6 +368,7 @@ def _(vaso_filled):
             FROM with_lag
             SELECT
                 *,
+            	-- cumsum of whenever a new episode starts, defined by switching from 0 to non-zero
                 SUM(CASE WHEN norepi > 0 AND COALESCE(prev_norepi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS norepi_episode,
                 SUM(CASE WHEN epi > 0 AND COALESCE(prev_epi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
             WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm)
@@ -379,6 +392,9 @@ def _(vaso_filled):
             dobutamine,
             vasopressin,
             phenylephrine,
+            milrinone,
+            angiotensin,
+            isoproterenol,
             CASE WHEN norepi > 0 AND DATEDIFF('minute', norepi_episode_start, admin_dttm) >= 60
                  THEN norepi ELSE 0 END AS norepi_valid,
             CASE WHEN epi > 0 AND DATEDIFF('minute', epi_episode_start, admin_dttm) >= 60
@@ -386,6 +402,12 @@ def _(vaso_filled):
         """
     )
     return (vaso_with_duration,)
+
+
+@app.cell
+def _(vaso_with_duration):
+    vaso_with_duration.df()
+    return
 
 
 @app.cell
@@ -402,6 +424,8 @@ def _(cohort_df, vaso_with_duration):
             MAX(f.epi_valid) AS epi_max,
             CASE WHEN MAX(f.dopamine) > 0 OR MAX(f.dobutamine) > 0
                   OR MAX(f.vasopressin) > 0 OR MAX(f.phenylephrine) > 0
+                  OR MAX(f.milrinone) > 0 OR MAX(f.angiotensin) > 0
+                  OR MAX(f.isoproterenol) > 0
                  THEN 1 ELSE 0 END AS has_other_vasopressor
         WHERE f.admin_dttm >= c.start_dttm
           AND f.admin_dttm <= c.end_dttm
@@ -445,7 +469,7 @@ def _(cohort_df, map_agg, vaso_concurrent):
 @app.cell
 def _():
     mo.md(r"""
-    ### Respiratory
+    # Respiratory
     """)
     return
 
