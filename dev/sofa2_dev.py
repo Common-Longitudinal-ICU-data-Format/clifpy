@@ -5,8 +5,9 @@ app = marimo.App(width="medium", sql_output="native")
 
 with app.setup:
     import marimo as mo
+    import duckdb
 
-    COHORT_SIZE = 10
+    COHORT_SIZE = 100
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
@@ -42,7 +43,7 @@ def _():
 def _():
     labs_agg = mo.sql(
         f"""
-        EXPLAIN ANALYZE
+        -- EXPLAIN ANALYZE
         FROM
             labs_rel t
             SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
@@ -141,6 +142,7 @@ def _():
 def _():
     from clifpy.utils.unit_converter import convert_dose_units_by_med_category
 
+    # FIXME: add filtering
     _preferred_units = {
           'norepinephrine': 'mcg/kg/min',
           'epinephrine': 'mcg/kg/min',
@@ -153,15 +155,46 @@ def _():
           'isoproterenol': 'mcg/kg/min',
       }
 
+    cohort_vasopressors = list(_preferred_units.keys())  
+
+    cohort_meds_rel = duckdb.sql(
+        f"""
+        FROM meds_rel t
+        SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        SELECT *
+        WHERE t.med_category IN {cohort_vasopressors}
+        """
+    )
+
+    cohort_vitals_rel = duckdb.sql(
+        f"""
+        FROM vitals_rel t
+        SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        SELECT *
+        """
+    )
+
     with track_memory('med_unit_convert'):
         meds_unit_converted, _ = convert_dose_units_by_med_category(
-            med_df=meds_rel,
-            vitals_df=vitals_rel,
+            med_df=cohort_meds_rel,
+            vitals_df=cohort_vitals_rel,
             return_rel=True,
             preferred_units=_preferred_units,
             override=True
         )
-    return (meds_unit_converted,)
+    return cohort_meds_rel, meds_unit_converted
+
+
+@app.cell
+def _(cohort_meds_rel):
+    cohort_meds_rel.df()
+    return
+
+
+@app.cell
+def _(meds_unit_converted):
+    meds_unit_converted.df()
+    return
 
 
 @app.cell
@@ -169,25 +202,26 @@ def _(meds_unit_converted):
     # Centralized MAR deduplication for vasopressors (preserves original dose values)
     meds_deduped = mo.sql(
         f"""
-        FROM meds_unit_converted
+        FROM meds_unit_converted t
+        --SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
         SELECT
-            hospitalization_id,
-            admin_dttm,
-            med_category,
-            mar_action_category,
-            med_dose
-        WHERE med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine', 'milrinone', 'angiotensin', 'isoproterenol')
-            AND med_route_category = 'iv'
+            t.hospitalization_id,
+            t.admin_dttm,
+            t.med_category,
+            t.mar_action_category,
+            t.med_dose
+        --WHERE t.med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine', 'milrinone', 'angiotensin', 'isoproterenol')
+            --AND t.med_route_category = 'iv'
         QUALIFY ROW_NUMBER() OVER (
-            PARTITION BY hospitalization_id, admin_dttm, med_category
+            PARTITION BY t.hospitalization_id, t.admin_dttm, t.med_category
             ORDER BY
-                CASE WHEN mar_action_category IS NULL THEN 10
-                    WHEN mar_action_category IN ('verify', 'not_given') THEN 9
-                    WHEN mar_action_category = 'stop' THEN 8
-                    WHEN mar_action_category = 'going' THEN 7
+                CASE WHEN t.mar_action_category IS NULL THEN 10
+                    WHEN t.mar_action_category IN ('verify', 'not_given') THEN 9
+                    WHEN t.mar_action_category = 'stop' THEN 8
+                    WHEN t.mar_action_category = 'going' THEN 7
                     ELSE 1 END,
-                CASE WHEN med_dose > 0 THEN 1 ELSE 2 END,
-                med_dose DESC
+                CASE WHEN t.med_dose > 0 THEN 1 ELSE 2 END,
+                t.med_dose DESC
         ) = 1
         """
     )
@@ -250,19 +284,22 @@ def _(meds_deduped):
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
         """
     )
-    return (vaso_in_window,)
+    return
 
 
 @app.cell
-def _(vaso_in_window, vaso_initial_state):
+def _():
     vaso_events = mo.sql(
         f"""
-        --EXPLAIN ANALYSE
-        SELECT hospitalization_id, admin_dttm, med_category, med_dose --, mar_action_category
-        FROM vaso_initial_state
-        UNION ALL
-        SELECT hospitalization_id, admin_dttm, med_category, med_dose --, mar_action_category
-        FROM vaso_in_window
+        EXPLAIN ANALYZE
+        SELECT * FROM (
+            SELECT hospitalization_id, admin_dttm, med_category, med_dose
+            FROM vaso_initial_state
+            UNION ALL
+            SELECT hospitalization_id, admin_dttm, med_category, med_dose
+            FROM vaso_in_window
+        )
+        -- Removed ORDER BY: unnecessary before PIVOT, sorting handled by window functions downstream
         """
     )
     return (vaso_events,)
@@ -278,6 +315,27 @@ def _(vaso_events):
 @app.cell
 def _(vaso_events):
     vaso_events.df()
+    return
+
+
+@app.cell
+def _(vaso_events):
+    vaso_wide_ = mo.sql(
+        f"""
+        -- EXPLAIN ANALYSE
+        -- this is now just a backup copy
+        PIVOT vaso_events
+        ON med_category
+        USING ANY_VALUE(med_dose)
+        GROUP BY hospitalization_id, admin_dttm
+        """
+    )
+    return
+
+
+@app.cell
+def _(vaso_wide):
+    vaso_wide.df()
     return
 
 
@@ -306,6 +364,12 @@ def _(vaso_events):
         """
     )
     return (vaso_wide,)
+
+
+@app.cell
+def _(vaso_wide):
+    vaso_wide.df()
+    return
 
 
 @app.cell
@@ -492,9 +556,9 @@ def _():
                 -- Impute FiO2 based on device
                 CASE
                     WHEN fio2_set IS NOT NULL AND fio2_set > 0 THEN fio2_set
-                    WHEN device_category = 'Room_Air' THEN 0.21
+                    WHEN LOWER(device_category) = 'room air' THEN 0.21
                     -- Nasal cannula: impute from lpm_set
-                    WHEN device_category = 'Nasal_Cannula' THEN
+                    WHEN LOWER(device_category) = 'nasal cannula' THEN
                         CASE WHEN lpm_set <= 1 THEN 0.24
                              WHEN lpm_set <= 2 THEN 0.28
                              WHEN lpm_set <= 3 THEN 0.32
@@ -505,7 +569,7 @@ def _():
                     ELSE fio2_set
                 END AS fio2_imputed,
                 -- Flag for advanced respiratory support (scores 3-4 require this)
-                CASE WHEN device_category IN ('IMV', 'NIPPV', 'CPAP', 'High_Flow_NC')
+                CASE WHEN LOWER(device_category) IN ('imv', 'nippv', 'cpap', 'high flow nc')
                      THEN 1 ELSE 0 END AS is_advanced_support
         )
         FROM fio2_imputed
@@ -567,6 +631,14 @@ def _(pf_ratio):
         """
     )
     return (resp_agg,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Combine
+    """)
+    return
 
 
 @app.cell
