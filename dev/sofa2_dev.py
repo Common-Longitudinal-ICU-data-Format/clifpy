@@ -23,6 +23,15 @@ with app.setup:
     vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
     meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
     resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_rel=True)
+    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_rel=True)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Cohort
+    """)
+    return
 
 
 @app.cell
@@ -128,6 +137,14 @@ def _():
         """
     )
     return (map_agg,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # CV
+    """)
+    return
 
 
 @app.cell(hide_code=True)
@@ -540,97 +557,226 @@ def _():
 
 @app.cell
 def _():
-    # FiO2 aggregation with imputation based on device category
-    fio2_agg = mo.sql(
+    # FiO2 imputation - keep individual rows for ASOF JOIN with PaO2
+    # CRITICAL: Don't aggregate here - need concurrent matching with PaO2
+    fio2_imputed = mo.sql(
         f"""
-        WITH fio2_imputed AS (
-            FROM resp_rel t
-            SEMI JOIN cohort_df c ON
-                t.hospitalization_id = c.hospitalization_id
-                AND t.recorded_dttm >= c.start_dttm
-                AND t.recorded_dttm <= c.end_dttm
-            SELECT
-                hospitalization_id,
-                recorded_dttm,
-                device_category,
-                -- Impute FiO2 based on device
-                CASE
-                    WHEN fio2_set IS NOT NULL AND fio2_set > 0 THEN fio2_set
-                    WHEN LOWER(device_category) = 'room air' THEN 0.21
-                    -- Nasal cannula: impute from lpm_set
-                    WHEN LOWER(device_category) = 'nasal cannula' THEN
-                        CASE WHEN lpm_set <= 1 THEN 0.24
-                             WHEN lpm_set <= 2 THEN 0.28
-                             WHEN lpm_set <= 3 THEN 0.32
-                             WHEN lpm_set <= 4 THEN 0.36
-                             WHEN lpm_set <= 5 THEN 0.40
-                             WHEN lpm_set <= 6 THEN 0.44
-                             ELSE 0.50 END
-                    ELSE fio2_set
-                END AS fio2_imputed,
-                -- Flag for advanced respiratory support (scores 3-4 require this)
-                CASE WHEN LOWER(device_category) IN ('imv', 'nippv', 'cpap', 'high flow nc')
-                     THEN 1 ELSE 0 END AS is_advanced_support
+        FROM resp_rel t
+        SEMI JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.recorded_dttm >= c.start_dttm
+            AND t.recorded_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id,
+            t.recorded_dttm,
+            t.device_category,
+            -- Impute FiO2 based on device
+            CASE
+                WHEN t.fio2_set IS NOT NULL AND t.fio2_set > 0 THEN t.fio2_set
+                WHEN LOWER(t.device_category) = 'room air' THEN 0.21
+                -- Nasal cannula: impute from lpm_set
+                WHEN LOWER(t.device_category) = 'nasal cannula' THEN
+                    CASE WHEN t.lpm_set <= 1 THEN 0.24
+                         WHEN t.lpm_set <= 2 THEN 0.28
+                         WHEN t.lpm_set <= 3 THEN 0.32
+                         WHEN t.lpm_set <= 4 THEN 0.36
+                         WHEN t.lpm_set <= 5 THEN 0.40
+                         WHEN t.lpm_set <= 6 THEN 0.44
+                         ELSE 0.50 END
+                ELSE t.fio2_set
+            END AS fio2_imputed,
+            -- Flag for advanced respiratory support (scores 3-4 require this)
+            CASE WHEN LOWER(t.device_category) IN ('imv', 'nippv', 'cpap', 'high flow nc')
+                 THEN 1 ELSE 0 END AS is_advanced_support
+        WHERE t.fio2_set IS NOT NULL OR t.device_category IS NOT NULL
+        """
+    )
+    return (fio2_imputed,)
+
+
+@app.cell
+def _():
+    # Individual PaO2 measurements (keep each row for ASOF JOIN with FiO2)
+    po2_measurements = mo.sql(
+        f"""
+        FROM labs_rel t
+        SEMI JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.lab_result_dttm >= c.start_dttm
+            AND t.lab_result_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id,
+            t.lab_result_dttm,
+            t.lab_value_numeric AS po2_arterial
+        WHERE t.lab_category = 'po2_arterial'
+            AND t.lab_value_numeric IS NOT NULL
+        """
+    )
+    return (po2_measurements,)
+
+
+@app.cell
+def _():
+    # SpO2 measurements with Severinghaus equation to impute PaO2
+    # Only used when SpO2 < 97% (oxygen-hemoglobin dissociation curve too flat above this)
+    # Reference: sofa_v2_polars.py lines 852-893
+    spo2_imputed = mo.sql(
+        f"""
+        FROM vitals_rel t
+        SEMI JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.recorded_dttm >= c.start_dttm
+            AND t.recorded_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id,
+            t.recorded_dttm AS lab_result_dttm,
+            t.vital_value AS spo2,
+            -- Severinghaus equation (simplified for DuckDB)
+            -- PaO2 ≈ (11700 / ((100/SpO2) - 1))^(1/3) * 2 - 50^(1/3) * 2
+            -- Approximation: PaO2 ≈ 11700 / ((100/SpO2) - 1) when SpO2 < 97%
+            POWER(11700.0 / ((100.0 / t.vital_value) - 1), 0.333333) * 2 AS po2_arterial
+        WHERE t.vital_category = 'spo2'
+            AND t.vital_value IS NOT NULL
+            AND t.vital_value < 97
+            AND t.vital_value > 0
+        """
+    )
+    return (spo2_imputed,)
+
+
+@app.cell
+def _(po2_measurements, spo2_imputed):
+    # Combine actual PaO2 with imputed PaO2 (from SpO2)
+    # Per Note 4: Use SpO2:FiO2 only when PaO2:FiO2 is unavailable
+    # Strategy: Include imputed values only for hospitalizations without actual PaO2
+    po2_combined = mo.sql(
+        f"""
+        WITH actual_po2 AS (
+            FROM po2_measurements
+            SELECT *, 0 AS is_imputed
+        ),
+        hosp_with_actual AS (
+            SELECT DISTINCT hospitalization_id FROM po2_measurements
+        ),
+        imputed_po2 AS (
+            FROM spo2_imputed s
+            ANTI JOIN hosp_with_actual h ON s.hospitalization_id = h.hospitalization_id
+            SELECT s.hospitalization_id, s.lab_result_dttm, s.po2_arterial, 1 AS is_imputed
         )
-        FROM fio2_imputed
+        FROM actual_po2
+        SELECT hospitalization_id, lab_result_dttm, po2_arterial, is_imputed
+        UNION ALL
+        FROM imputed_po2
+        SELECT hospitalization_id, lab_result_dttm, po2_arterial, is_imputed
+        """
+    )
+    return (po2_combined,)
+
+
+@app.cell
+def _(fio2_imputed, po2_combined):
+    # Concurrent P/F ratio using ASOF JOIN
+    # Each PaO2 (actual or imputed from SpO2) is matched with the most recent FiO2 within 4-hour tolerance
+    # CRITICAL: This ensures P/F ratio uses concurrent measurements, not independent aggregations
+    concurrent_pf = mo.sql(
+        f"""
+        FROM po2_combined p
+        ASOF JOIN fio2_imputed f
+            ON p.hospitalization_id = f.hospitalization_id
+            AND p.lab_result_dttm >= f.recorded_dttm
+        SELECT
+            p.hospitalization_id,
+            p.lab_result_dttm,
+            p.po2_arterial,
+            f.fio2_imputed,
+            f.device_category,
+            f.is_advanced_support,
+            p.po2_arterial / f.fio2_imputed AS pf_ratio
+        WHERE f.fio2_imputed IS NOT NULL
+            AND f.fio2_imputed > 0
+            -- 4-hour tolerance (DuckDB ASOF JOIN doesn't have built-in tolerance)
+            AND p.lab_result_dttm - f.recorded_dttm <= INTERVAL '240 minutes'
+        """
+    )
+    return (concurrent_pf,)
+
+
+@app.cell
+def _(concurrent_pf):
+    resp_agg = mo.sql(
+        f"""
+        -- Aggregate to worst (minimum) concurrent P/F ratio per hospitalization
+        -- Use ARG_MIN to get the device/support status at the worst P/F
+        FROM concurrent_pf
         SELECT
             hospitalization_id,
-            MAX(fio2_imputed) AS fio2_max,
-            MAX(is_advanced_support) AS has_advanced_support
+            -- Worst (minimum) concurrent P/F ratio
+            MIN(pf_ratio) AS pf_ratio,
+            -- Device at worst P/F (for advanced support check)
+            ARG_MIN(device_category, pf_ratio) AS device_category,
+            ARG_MIN(is_advanced_support, pf_ratio) AS has_advanced_support,
+            -- For debugging
+            ARG_MIN(po2_arterial, pf_ratio) AS po2_at_worst_pf,
+            ARG_MIN(fio2_imputed, pf_ratio) AS fio2_at_worst_pf
         GROUP BY hospitalization_id
         """
     )
-    return (fio2_agg,)
+    return (resp_agg,)
 
 
 @app.cell
-def _(fio2_agg, labs_agg):
-    # P/F Ratio calculation using worst FiO2 with worst PaO2 (conservative approach)
-    pf_ratio = mo.sql(
+def _(ecmo_rel, cohort_df):
+    # ECMO flag for respiratory scoring (Note 7)
+    # Per SOFA-2: ECMO for respiratory failure = 4 points regardless of P/F ratio
+    ecmo_flag = mo.sql(
         f"""
-        FROM labs_agg l
-        LEFT JOIN fio2_agg f USING (hospitalization_id)
-        SELECT
-            l.hospitalization_id,
-            l.po2_arterial,
-            f.fio2_max,
-            f.has_advanced_support,
-            -- P/F ratio (PaO2 in mmHg / FiO2 as fraction)
-            CASE WHEN f.fio2_max > 0 AND l.po2_arterial IS NOT NULL
-                 THEN l.po2_arterial / f.fio2_max
-                 ELSE NULL END AS pf_ratio
+        FROM ecmo_rel t
+        SEMI JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.recorded_dttm >= c.start_dttm
+            AND t.recorded_dttm <= c.end_dttm
+        SELECT DISTINCT
+            t.hospitalization_id,
+            1 AS has_ecmo
         """
     )
-    return (pf_ratio,)
+    return (ecmo_flag,)
 
 
 @app.cell
-def _(pf_ratio):
-    # Respiratory score calculation
-    resp_agg = mo.sql(
+def _(ecmo_flag, resp_agg):
+    # Respiratory score calculation with ECMO override
+    resp_score = mo.sql(
         f"""
-        FROM pf_ratio
+        FROM resp_agg r
+        LEFT JOIN ecmo_flag e USING (hospitalization_id)
         SELECT
-            hospitalization_id,
-            pf_ratio,
-            has_advanced_support,
+            r.hospitalization_id,
+            r.pf_ratio,
+            r.has_advanced_support,
+            r.device_category,
+            r.po2_at_worst_pf,
+            r.fio2_at_worst_pf,
+            COALESCE(e.has_ecmo, 0) AS has_ecmo,
             -- Respiratory Score
             respiratory: CASE
+                -- ECMO override (Note 7): 4 points regardless of P/F ratio
+                WHEN COALESCE(e.has_ecmo, 0) = 1 THEN 4
                 -- Score 4: P/F <=75 AND advanced support
-                WHEN pf_ratio <= 75 AND has_advanced_support = 1 THEN 4
+                WHEN r.pf_ratio <= 75 AND r.has_advanced_support = 1 THEN 4
                 -- Score 3: P/F <=150 AND advanced support
-                WHEN pf_ratio <= 150 AND has_advanced_support = 1 THEN 3
+                WHEN r.pf_ratio <= 150 AND r.has_advanced_support = 1 THEN 3
                 -- Score 2: P/F <=225 (no vent requirement)
-                WHEN pf_ratio <= 225 THEN 2
+                WHEN r.pf_ratio <= 225 THEN 2
                 -- Score 1: P/F <=300
-                WHEN pf_ratio <= 300 THEN 1
+                WHEN r.pf_ratio <= 300 THEN 1
                 -- Score 0: P/F >300
-                WHEN pf_ratio > 300 THEN 0
+                WHEN r.pf_ratio > 300 THEN 0
                 ELSE NULL
             END
         """
     )
-    return (resp_agg,)
+    return (resp_score,)
 
 
 @app.cell(hide_code=True)
@@ -642,7 +788,7 @@ def _():
 
 
 @app.cell
-def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_agg, rrt_flag):
+def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_score, rrt_flag):
     sofa_scores = mo.sql(
         f"""
         -- EXPLAIN ANALYZE
@@ -651,7 +797,7 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_agg, rrt_flag):
         LEFT JOIN rrt_flag r USING (hospitalization_id)
         LEFT JOIN gcs_agg g USING (hospitalization_id)
         LEFT JOIN cv_agg cv USING (hospitalization_id)
-        LEFT JOIN resp_agg resp USING (hospitalization_id)
+        LEFT JOIN resp_score resp USING (hospitalization_id)
         SELECT
             c.hospitalization_id,
             c.start_dttm,
