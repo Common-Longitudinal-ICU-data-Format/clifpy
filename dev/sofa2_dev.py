@@ -1,13 +1,13 @@
 import marimo
 
 __generated_with = "0.19.4"
-app = marimo.App(width="medium", sql_output="native")
+app = marimo.App(width="medium", sql_output="pandas")
 
 with app.setup:
     import marimo as mo
     import duckdb
 
-    COHORT_SIZE = 100
+    COHORT_SIZE = 100000
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
@@ -259,18 +259,28 @@ def _(cohort_df, meds_deduped):
     # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
     vaso_initial_state = mo.sql(
         f"""
-        FROM meds_deduped t
-        JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        WITH med_cats AS (
+            SELECT DISTINCT med_category FROM meds_deduped
+        ),
+        cohort_meds AS (
+            FROM cohort_df c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, m.med_category
+        )
+        FROM cohort_meds cm
+        ASOF LEFT JOIN meds_deduped t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.start_dttm > t.admin_dttm
         SELECT
-            t.hospitalization_id,
-            c.start_dttm AS admin_dttm,
-            t.med_category,
-            ARG_MAX(
-                CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END,
-                t.admin_dttm
-            ) AS med_dose
-        WHERE t.admin_dttm < c.start_dttm
-        GROUP BY t.hospitalization_id, c.start_dttm, t.med_category
+            cm.hospitalization_id,
+            admin_dttm, admin_dttm - cm.start_dttm AS time_since,
+            cm.med_category,
+            mar_action_category,
+            CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
+        WHERE t.hospitalization_id IS NOT NULL
+            -- NOTE: should prob filter out all the stop / 0-dose as well 
+        	AND t.med_dose != 0
         """
     )
     return (vaso_initial_state,)
@@ -279,7 +289,7 @@ def _(cohort_df, meds_deduped):
 @app.cell
 def _(vaso_initial_state):
     with track_memory('vaso_initial_state'):
-        vaso_initial_state.df()
+        vaso_initial_state
     return
 
 
@@ -289,33 +299,33 @@ def _(meds_deduped):
     vaso_in_window = mo.sql(
         f"""
         FROM meds_deduped t
-        SEMI JOIN cohort_df c ON
+        SEMI JOIN cohort_df AS c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
             t.hospitalization_id,
-            t.admin_dttm,
+            t.admin_dttm, NULL as time_since,
             t.med_category,
             t.mar_action_category,
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
         """
     )
-    return
+    return (vaso_in_window,)
 
 
 @app.cell
-def _():
+def _(vaso_in_window, vaso_initial_state):
     vaso_events = mo.sql(
         f"""
-        EXPLAIN ANALYZE
-        SELECT * FROM (
-            SELECT hospitalization_id, admin_dttm, med_category, med_dose
-            FROM vaso_initial_state
-            UNION ALL
-            SELECT hospitalization_id, admin_dttm, med_category, med_dose
-            FROM vaso_in_window
-        )
+        --EXPLAIN ANALYZE
+        -- ELECT * FROM (
+        SELECT hospitalization_id, admin_dttm, time_since, med_category, med_dose, mar_action_category
+        FROM vaso_initial_state
+        UNION ALL
+        SELECT hospitalization_id, admin_dttm, time_since, med_category, med_dose, mar_action_category
+        FROM vaso_in_window
+        -- )
         -- Removed ORDER BY: unnecessary before PIVOT, sorting handled by window functions downstream
         """
     )
@@ -364,7 +374,7 @@ def _(vaso_events):
         --EXPLAIN ANALYSE
         FROM vaso_events
         PIVOT (
-            FIRST(med_dose)
+            ANY_VALUE(med_dose)
             FOR med_category IN (
                 'norepinephrine' AS norepi_raw,
                 'epinephrine' AS epi_raw,
@@ -556,11 +566,32 @@ def _():
 
 
 @app.cell
-def _():
-    # FiO2 imputation - keep individual rows for ASOF JOIN with PaO2
-    # CRITICAL: Don't aggregate here - need concurrent matching with PaO2
-    fio2_imputed = mo.sql(
+def _(cohort_df):
+    fio2_initial = mo.sql(
         f"""
+        -- Get latest FiO2 measurement BEFORE start_dttm (initial state)
+        FROM cohort_df c
+        ASOF LEFT JOIN resp_rel t
+            ON c.hospitalization_id = t.hospitalization_id
+            AND c.start_dttm > t.recorded_dttm
+        SELECT
+            c.hospitalization_id,
+            t.recorded_dttm,
+            t.recorded_dttm - c.start_dttm AS time_since,
+            t.device_category,
+            t.fio2_set,
+            t.lpm_set
+        WHERE t.hospitalization_id IS NOT NULL
+        """
+    )
+    return (fio2_initial,)
+
+
+@app.cell
+def _():
+    fio2_in_window = mo.sql(
+        f"""
+        -- Get all FiO2 measurements during [start_dttm, end_dttm]
         FROM resp_rel t
         SEMI JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
@@ -569,6 +600,29 @@ def _():
         SELECT
             t.hospitalization_id,
             t.recorded_dttm,
+            NULL AS time_since,
+            t.device_category,
+            t.fio2_set,
+            t.lpm_set
+        """
+    )
+    return (fio2_in_window,)
+
+
+@app.cell
+def _(fio2_in_window, fio2_initial):
+    fio2_imputed = mo.sql(
+        f"""
+        -- Apply FiO2 imputation logic
+        FROM (
+            FROM fio2_initial
+            UNION ALL
+            FROM fio2_in_window 
+            ) t
+        SELECT
+            t.hospitalization_id,
+            t.recorded_dttm,
+            t.time_since,
             t.device_category,
             -- Impute FiO2 based on device
             CASE
@@ -595,141 +649,201 @@ def _():
 
 
 @app.cell
-def _():
-    # Individual PaO2 measurements (keep each row for ASOF JOIN with FiO2)
-    po2_measurements = mo.sql(
+def _(cohort_df):
+    # PaO2 measurements - includes initial state before start_dttm
+    pao2_measurements = mo.sql(
         f"""
-        FROM labs_rel t
-        SEMI JOIN cohort_df c ON
-            t.hospitalization_id = c.hospitalization_id
-            AND t.lab_result_dttm >= c.start_dttm
-            AND t.lab_result_dttm <= c.end_dttm
-        SELECT
-            t.hospitalization_id,
-            t.lab_result_dttm,
-            t.lab_value_numeric AS po2_arterial
-        WHERE t.lab_category = 'po2_arterial'
-            AND t.lab_value_numeric IS NOT NULL
-        """
-    )
-    return (po2_measurements,)
-
-
-@app.cell
-def _():
-    # SpO2 measurements with Severinghaus equation to impute PaO2
-    # Only used when SpO2 < 97% (oxygen-hemoglobin dissociation curve too flat above this)
-    # Reference: sofa_v2_polars.py lines 852-893
-    spo2_imputed = mo.sql(
-        f"""
-        FROM vitals_rel t
-        SEMI JOIN cohort_df c ON
-            t.hospitalization_id = c.hospitalization_id
-            AND t.recorded_dttm >= c.start_dttm
-            AND t.recorded_dttm <= c.end_dttm
-        SELECT
-            t.hospitalization_id,
-            t.recorded_dttm AS lab_result_dttm,
-            t.vital_value AS spo2,
-            -- Severinghaus equation (simplified for DuckDB)
-            -- PaO2 ≈ (11700 / ((100/SpO2) - 1))^(1/3) * 2 - 50^(1/3) * 2
-            -- Approximation: PaO2 ≈ 11700 / ((100/SpO2) - 1) when SpO2 < 97%
-            POWER(11700.0 / ((100.0 / t.vital_value) - 1), 0.333333) * 2 AS po2_arterial
-        WHERE t.vital_category = 'spo2'
-            AND t.vital_value IS NOT NULL
-            AND t.vital_value < 97
-            AND t.vital_value > 0
-        """
-    )
-    return (spo2_imputed,)
-
-
-@app.cell
-def _(po2_measurements, spo2_imputed):
-    # Combine actual PaO2 with imputed PaO2 (from SpO2)
-    # Per Note 4: Use SpO2:FiO2 only when PaO2:FiO2 is unavailable
-    # Strategy: Include imputed values only for hospitalizations without actual PaO2
-    po2_combined = mo.sql(
-        f"""
-        WITH actual_po2 AS (
-            FROM po2_measurements
-            SELECT *, 0 AS is_imputed
+        WITH pao2_initial AS (
+            -- Get latest PaO2 measurement BEFORE start_dttm (initial state)
+            FROM cohort_df c
+            ASOF LEFT JOIN labs_rel t
+                ON c.hospitalization_id = t.hospitalization_id
+                AND c.start_dttm > t.lab_result_dttm
+            SELECT
+                c.hospitalization_id,
+                t.lab_result_dttm,
+                t.lab_result_dttm - c.start_dttm AS time_since,
+                t.lab_value_numeric AS pao2
+            WHERE t.hospitalization_id IS NOT NULL
+                AND t.lab_category = 'po2_arterial'
+                AND t.lab_value_numeric IS NOT NULL
         ),
-        hosp_with_actual AS (
-            SELECT DISTINCT hospitalization_id FROM po2_measurements
-        ),
-        imputed_po2 AS (
-            FROM spo2_imputed s
-            ANTI JOIN hosp_with_actual h ON s.hospitalization_id = h.hospitalization_id
-            SELECT s.hospitalization_id, s.lab_result_dttm, s.po2_arterial, 1 AS is_imputed
+        pao2_in_window AS (
+            -- Get all PaO2 measurements during [start_dttm, end_dttm]
+            FROM labs_rel t
+            SEMI JOIN cohort_df c ON
+                t.hospitalization_id = c.hospitalization_id
+                AND t.lab_result_dttm >= c.start_dttm
+                AND t.lab_result_dttm <= c.end_dttm
+            SELECT
+                t.hospitalization_id,
+                t.lab_result_dttm,
+                NULL AS time_since,
+                t.lab_value_numeric AS pao2
+            WHERE t.lab_category = 'po2_arterial'
+                AND t.lab_value_numeric IS NOT NULL
         )
-        FROM actual_po2
-        SELECT hospitalization_id, lab_result_dttm, po2_arterial, is_imputed
-        UNION ALL
-        FROM imputed_po2
-        SELECT hospitalization_id, lab_result_dttm, po2_arterial, is_imputed
+        FROM pao2_initial SELECT * UNION ALL FROM pao2_in_window SELECT *
         """
     )
-    return (po2_combined,)
+    return (pao2_measurements,)
 
 
 @app.cell
-def _(fio2_imputed, po2_combined):
-    # Concurrent P/F ratio using ASOF JOIN
-    # Each PaO2 (actual or imputed from SpO2) is matched with the most recent FiO2 within 4-hour tolerance
-    # CRITICAL: This ensures P/F ratio uses concurrent measurements, not independent aggregations
+def _(cohort_df):
+    # SpO2 measurements for S/F ratio calculation - includes initial state before start_dttm
+    # Per spec 4: Use SpO2:FiO2 only when PaO2:FiO2 unavailable AND SpO2 < 98%
+    spo2_measurements = mo.sql(
+        f"""
+        WITH spo2_initial AS (
+            -- Get latest SpO2 measurement BEFORE start_dttm (initial state)
+            FROM cohort_df c
+            ASOF LEFT JOIN vitals_rel t
+                ON c.hospitalization_id = t.hospitalization_id
+                AND c.start_dttm > t.recorded_dttm
+            SELECT
+                c.hospitalization_id,
+                t.recorded_dttm,
+                t.recorded_dttm - c.start_dttm AS time_since,
+                t.vital_value AS spo2
+            WHERE t.hospitalization_id IS NOT NULL
+                AND t.vital_category = 'spo2'
+                AND t.vital_value IS NOT NULL
+                AND t.vital_value < 98  -- per spec 4: only use when SpO2 < 98%
+                AND t.vital_value > 0
+        ),
+        spo2_in_window AS (
+            -- Get all SpO2 measurements during [start_dttm, end_dttm]
+            FROM vitals_rel t
+            SEMI JOIN cohort_df c ON
+                t.hospitalization_id = c.hospitalization_id
+                AND t.recorded_dttm >= c.start_dttm
+                AND t.recorded_dttm <= c.end_dttm
+            SELECT
+                t.hospitalization_id,
+                t.recorded_dttm,
+                NULL AS time_since,
+                t.vital_value AS spo2
+            WHERE t.vital_category = 'spo2'
+                AND t.vital_value IS NOT NULL
+                AND t.vital_value < 98  -- per spec 4: only use when SpO2 < 98%
+                AND t.vital_value > 0
+        )
+        FROM spo2_initial SELECT * UNION ALL FROM spo2_in_window SELECT *
+        """
+    )
+    return (spo2_measurements,)
+
+
+@app.cell
+def _(fio2_imputed, pao2_measurements):
     concurrent_pf = mo.sql(
         f"""
-        FROM po2_combined p
+        FROM pao2_measurements p
         ASOF JOIN fio2_imputed f
             ON p.hospitalization_id = f.hospitalization_id
-            AND p.lab_result_dttm >= f.recorded_dttm
+            -- find the most recent FiO2 before or at the PaO2 time
+            AND f.recorded_dttm <= p.lab_result_dttm 
         SELECT
             p.hospitalization_id,
-            p.lab_result_dttm,
-            p.po2_arterial,
+            p.pao2,
+            p.lab_result_dttm as pao2_dttm,
             f.fio2_imputed,
+            f.recorded_dttm as fio2_dttm,
             f.device_category,
             f.is_advanced_support,
-            p.po2_arterial / f.fio2_imputed AS pf_ratio
+            pao2_dttm - fio2_dttm AS pf_time_gap,
+            p.pao2 / f.fio2_imputed AS pf_ratio
         WHERE f.fio2_imputed IS NOT NULL
             AND f.fio2_imputed > 0
-            -- 4-hour tolerance (DuckDB ASOF JOIN doesn't have built-in tolerance)
-            AND p.lab_result_dttm - f.recorded_dttm <= INTERVAL '240 minutes'
+            -- 4-hour lookback tolerance
+            AND pf_time_gap <= INTERVAL '240 minutes'
         """
     )
     return (concurrent_pf,)
 
 
 @app.cell
-def _(concurrent_pf):
+def _(fio2_imputed, spo2_measurements):
+    # Concurrent S/F ratio using ASOF JOIN (SpO2:FiO2 for when PaO2 unavailable)
+    concurrent_sf = mo.sql(
+        f"""
+        FROM spo2_measurements s
+        ASOF JOIN fio2_imputed f
+            ON s.hospitalization_id = f.hospitalization_id
+            -- find the most recent FiO2 before or at the SpO2 time
+            AND f.recorded_dttm <= s.recorded_dttm
+        SELECT
+            s.hospitalization_id,
+            s.spo2,
+            s.recorded_dttm as spo2_dttm,
+            f.fio2_imputed,
+            f.recorded_dttm as fio2_dttm,
+            f.device_category,
+            f.is_advanced_support,
+            spo2_dttm - fio2_dttm AS sf_time_gap,
+            s.spo2 / f.fio2_imputed AS sf_ratio
+        WHERE f.fio2_imputed IS NOT NULL
+            AND f.fio2_imputed > 0
+            -- 4-hour tolerance
+            AND sf_time_gap <= INTERVAL '240 minutes'
+        """
+    )
+    return (concurrent_sf,)
+
+
+@app.cell
+def _(concurrent_pf, concurrent_sf):
+    # Combine P/F and S/F ratios with priority: use S/F only when P/F unavailable
     resp_agg = mo.sql(
         f"""
-        -- Aggregate to worst (minimum) concurrent P/F ratio per hospitalization
-        -- Use ARG_MIN to get the device/support status at the worst P/F
-        FROM concurrent_pf
-        SELECT
-            hospitalization_id,
-            -- Worst (minimum) concurrent P/F ratio
-            MIN(pf_ratio) AS pf_ratio,
-            -- Device at worst P/F (for advanced support check)
-            ARG_MIN(device_category, pf_ratio) AS device_category,
-            ARG_MIN(is_advanced_support, pf_ratio) AS has_advanced_support,
-            -- For debugging
-            ARG_MIN(po2_arterial, pf_ratio) AS po2_at_worst_pf,
-            ARG_MIN(fio2_imputed, pf_ratio) AS fio2_at_worst_pf
-        GROUP BY hospitalization_id
+        WITH pf_worst AS (
+            -- Worst P/F ratio per hospitalization (actual PaO2)
+            FROM concurrent_pf
+            SELECT
+                hospitalization_id,
+                MIN(pf_ratio) AS ratio,
+                ARG_MIN(is_advanced_support, pf_ratio) AS has_advanced_support,
+                ARG_MIN(device_category, pf_ratio) AS device_category,
+                ARG_MIN(pao2, pf_ratio) AS pao2_at_worst,
+                ARG_MIN(fio2_imputed, pf_ratio) AS fio2_at_worst,
+                'pf' AS ratio_type
+            GROUP BY hospitalization_id
+        ),
+        sf_worst AS (
+            -- Worst S/F ratio per hospitalization (only for those WITHOUT P/F data)
+            FROM concurrent_sf
+            ANTI JOIN (SELECT DISTINCT hospitalization_id FROM concurrent_pf) p
+                USING (hospitalization_id)
+            SELECT
+                hospitalization_id,
+                MIN(sf_ratio) AS ratio,
+                ARG_MIN(is_advanced_support, sf_ratio) AS has_advanced_support,
+                ARG_MIN(device_category, sf_ratio) AS device_category,
+                ARG_MIN(spo2, sf_ratio) AS spo2_at_worst,
+                ARG_MIN(fio2_imputed, sf_ratio) AS fio2_at_worst,
+                'sf' AS ratio_type
+            GROUP BY hospitalization_id
+        )
+        -- Combine: P/F takes priority, S/F only for those without P/F
+        FROM pf_worst
+        SELECT hospitalization_id, ratio, has_advanced_support, device_category, ratio_type,
+               pao2_at_worst, NULL AS spo2_at_worst, fio2_at_worst
+        UNION ALL
+        FROM sf_worst
+        SELECT hospitalization_id, ratio, has_advanced_support, device_category, ratio_type,
+               NULL AS pao2_at_worst, spo2_at_worst, fio2_at_worst
         """
     )
     return (resp_agg,)
 
 
 @app.cell
-def _(ecmo_rel, cohort_df):
-    # ECMO flag for respiratory scoring (Note 7)
-    # Per SOFA-2: ECMO for respiratory failure = 4 points regardless of P/F ratio
+def _():
     ecmo_flag = mo.sql(
         f"""
+        -- ECMO flag for respiratory scoring (Note 7)
+        -- Per SOFA-2: ECMO for respiratory failure = 4 points regardless of P/F ratio
         FROM ecmo_rel t
         SEMI JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
@@ -745,33 +859,39 @@ def _(ecmo_rel, cohort_df):
 
 @app.cell
 def _(ecmo_flag, resp_agg):
-    # Respiratory score calculation with ECMO override
+    # Respiratory score calculation with ECMO override and ratio-type-specific cutoffs
+    # P/F cutoffs: 0=>300, 1=≤300, 2=≤225, 3=≤150+vent, 4=≤75+vent
+    # S/F cutoffs: 0=>300, 1=≤300, 2=≤250, 3=≤200+vent, 4=≤120+vent
     resp_score = mo.sql(
         f"""
         FROM resp_agg r
         LEFT JOIN ecmo_flag e USING (hospitalization_id)
         SELECT
             r.hospitalization_id,
-            r.pf_ratio,
+            r.ratio,
+            r.ratio_type,
             r.has_advanced_support,
             r.device_category,
-            r.po2_at_worst_pf,
-            r.fio2_at_worst_pf,
+            r.pao2_at_worst,
+            r.spo2_at_worst,
+            r.fio2_at_worst,
             COALESCE(e.has_ecmo, 0) AS has_ecmo,
-            -- Respiratory Score
+            -- Respiratory Score with ratio-type-specific cutoffs
             respiratory: CASE
-                -- ECMO override (Note 7): 4 points regardless of P/F ratio
+                -- ECMO override (Note 7): 4 points regardless of ratio
                 WHEN COALESCE(e.has_ecmo, 0) = 1 THEN 4
-                -- Score 4: P/F <=75 AND advanced support
-                WHEN r.pf_ratio <= 75 AND r.has_advanced_support = 1 THEN 4
-                -- Score 3: P/F <=150 AND advanced support
-                WHEN r.pf_ratio <= 150 AND r.has_advanced_support = 1 THEN 3
-                -- Score 2: P/F <=225 (no vent requirement)
-                WHEN r.pf_ratio <= 225 THEN 2
-                -- Score 1: P/F <=300
-                WHEN r.pf_ratio <= 300 THEN 1
-                -- Score 0: P/F >300
-                WHEN r.pf_ratio > 300 THEN 0
+                -- P/F ratio cutoffs
+                WHEN r.ratio_type = 'pf' AND r.ratio <= 75 AND r.has_advanced_support = 1 THEN 4
+                WHEN r.ratio_type = 'pf' AND r.ratio <= 150 AND r.has_advanced_support = 1 THEN 3
+                WHEN r.ratio_type = 'pf' AND r.ratio <= 225 THEN 2
+                WHEN r.ratio_type = 'pf' AND r.ratio <= 300 THEN 1
+                WHEN r.ratio_type = 'pf' AND r.ratio > 300 THEN 0
+                -- S/F ratio cutoffs (different thresholds per SOFA-2 spec)
+                WHEN r.ratio_type = 'sf' AND r.ratio <= 120 AND r.has_advanced_support = 1 THEN 4
+                WHEN r.ratio_type = 'sf' AND r.ratio <= 200 AND r.has_advanced_support = 1 THEN 3
+                WHEN r.ratio_type = 'sf' AND r.ratio <= 250 THEN 2
+                WHEN r.ratio_type = 'sf' AND r.ratio <= 300 THEN 1
+                WHEN r.ratio_type = 'sf' AND r.ratio > 300 THEN 0
                 ELSE NULL
             END
         """
@@ -854,7 +974,8 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_score, rrt_flag):
             g.gcs_min,
             cv.norepi_epi_sum,
             cv.map_min,
-            resp.pf_ratio,
+            resp.ratio AS pf_sf_ratio,
+            resp.ratio_type,
             resp.has_advanced_support
         """
     )
@@ -863,7 +984,7 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_score, rrt_flag):
 
 @app.cell
 def _(sofa_scores):
-    sofa_scores.df()
+    sofa_scores
     return
 
 
