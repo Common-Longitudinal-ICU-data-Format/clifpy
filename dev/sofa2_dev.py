@@ -1,13 +1,13 @@
 import marimo
 
-__generated_with = "0.19.4"
+__generated_with = "0.19.5"
 app = marimo.App(width="medium", sql_output="pandas")
 
 with app.setup:
     import marimo as mo
     import duckdb
 
-    COHORT_SIZE = 100000
+    COHORT_SIZE = 1000
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
@@ -87,9 +87,9 @@ def _(labs_agg):
 
 @app.cell
 def _():
-    # Detect if patient received RRT during the time window
     rrt_flag = mo.sql(
         f"""
+        -- Detect if patient received RRT during the time window
         FROM crrt_rel t
         SEMI JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
@@ -174,7 +174,7 @@ def _():
 
     cohort_vasopressors = list(_preferred_units.keys())  
 
-    cohort_meds_rel = duckdb.sql(
+    cohort_meds_rel = mo.sql(
         f"""
         FROM meds_rel t
         SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
@@ -183,7 +183,7 @@ def _():
         """
     )
 
-    cohort_vitals_rel = duckdb.sql(
+    cohort_vitals_rel = mo.sql(
         f"""
         FROM vitals_rel t
         SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
@@ -255,10 +255,11 @@ def _():
 
 @app.cell
 def _(cohort_df, meds_deduped):
-    # Cell 1: Get most recent dose BEFORE start_dttm for each vasopressor (initial state)
-    # Uses meds_deduped which already has MAR deduplication and vasopressor filtering
-    vaso_initial_state = mo.sql(
+    vaso_pre_window = mo.sql(
         f"""
+        -- Get most recent dose BEFORE start_dttm for each vasopressor (pre-window state)
+        -- Uses meds_deduped which already has MAR deduplication and vasopressor filtering
+        -- NOTE: For medications, we ALWAYS forward-fill (not fallback), so this is always included
         WITH med_cats AS (
             SELECT DISTINCT med_category FROM meds_deduped
         ),
@@ -274,38 +275,43 @@ def _(cohort_df, meds_deduped):
             AND cm.start_dttm > t.admin_dttm
         SELECT
             cm.hospitalization_id,
-            admin_dttm, admin_dttm - cm.start_dttm AS time_since,
+            cm.start_dttm,  -- window identity
+            t.admin_dttm,
+            t.admin_dttm - cm.start_dttm AS time_since_start,
             cm.med_category,
-            mar_action_category,
+            t.mar_action_category,
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
         WHERE t.hospitalization_id IS NOT NULL
-            -- NOTE: should prob filter out all the stop / 0-dose as well 
-        	AND t.med_dose != 0
+            -- NOTE: should prob filter out all the stop / 0-dose as well
+            AND t.med_dose != 0
         """
     )
-    return (vaso_initial_state,)
+    return (vaso_pre_window,)
 
 
 @app.cell
-def _(vaso_initial_state):
-    with track_memory('vaso_initial_state'):
-        vaso_initial_state
+def _(vaso_pre_window):
+    with track_memory('vaso_pre_window'):
+        vaso_pre_window
     return
 
 
 @app.cell
-def _(meds_deduped):
-    # Cell 2: Get all vasopressor events during [start_dttm, end_dttm] with MAR dedup
+def _(cohort_df, meds_deduped):
     vaso_in_window = mo.sql(
         f"""
+        -- Get all vasopressor events during [start_dttm, end_dttm] with MAR dedup
+        -- INNER JOIN to carry window identity (non-overlapping windows assumed)
         FROM meds_deduped t
-        SEMI JOIN cohort_df AS c ON
+        JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
             t.hospitalization_id,
-            t.admin_dttm, NULL as time_since,
+            c.start_dttm,  -- window identity
+            t.admin_dttm,
+            t.admin_dttm - c.start_dttm AS time_since_start,
             t.med_category,
             t.mar_action_category,
             CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
@@ -315,17 +321,17 @@ def _(meds_deduped):
 
 
 @app.cell
-def _(vaso_in_window, vaso_initial_state):
+def _(vaso_in_window, vaso_pre_window):
     vaso_events = mo.sql(
         f"""
+        -- Combine pre-window and in-window vaso events
+        -- NOTE: For medications, we ALWAYS include pre-window (forward-fill), not fallback
         --EXPLAIN ANALYZE
-        -- ELECT * FROM (
-        SELECT hospitalization_id, admin_dttm, time_since, med_category, med_dose, mar_action_category
-        FROM vaso_initial_state
+        SELECT hospitalization_id, start_dttm, admin_dttm, time_since_start, med_category, med_dose, mar_action_category
+        FROM vaso_pre_window
         UNION ALL
-        SELECT hospitalization_id, admin_dttm, time_since, med_category, med_dose, mar_action_category
+        SELECT hospitalization_id, start_dttm, admin_dttm, time_since_start, med_category, med_dose, mar_action_category
         FROM vaso_in_window
-        -- )
         -- Removed ORDER BY: unnecessary before PIVOT, sorting handled by window functions downstream
         """
     )
@@ -567,62 +573,85 @@ def _():
 
 @app.cell
 def _(cohort_df):
-    fio2_initial = mo.sql(
+    # Get latest FiO2 measurement BEFORE start_dttm (pre-window state)
+    # Used as fallback when no in-window measurements exist
+    fio2_pre_window = mo.sql(
         f"""
-        -- Get latest FiO2 measurement BEFORE start_dttm (initial state)
+        -- Get latest FiO2 measurement BEFORE start_dttm (pre-window state)
+        -- Used as fallback when no in-window measurements exist
         FROM cohort_df c
         ASOF LEFT JOIN resp_rel t
             ON c.hospitalization_id = t.hospitalization_id
             AND c.start_dttm > t.recorded_dttm
         SELECT
             c.hospitalization_id,
+            c.start_dttm,  -- window identity
             t.recorded_dttm,
-            t.recorded_dttm - c.start_dttm AS time_since,
+            t.recorded_dttm - c.start_dttm AS time_since_start,
             t.device_category,
             t.fio2_set,
             t.lpm_set
         WHERE t.hospitalization_id IS NOT NULL
+        -- NOTE: REVIEWED
         """
     )
-    return (fio2_initial,)
+    return (fio2_pre_window,)
 
 
 @app.cell
-def _():
+def _(cohort_df):
+    # Get all FiO2 measurements during [start_dttm, end_dttm]
+    # INNER JOIN to carry window identity (non-overlapping windows assumed)
     fio2_in_window = mo.sql(
         f"""
         -- Get all FiO2 measurements during [start_dttm, end_dttm]
+        -- INNER JOIN to carry window identity (non-overlapping windows assumed)
         FROM resp_rel t
-        SEMI JOIN cohort_df c ON
+        INNER JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
             t.hospitalization_id,
+            c.start_dttm,  -- window identity
             t.recorded_dttm,
-            NULL AS time_since,
+            t.recorded_dttm - c.start_dttm AS time_since_start,
             t.device_category,
             t.fio2_set,
             t.lpm_set
+        -- NOTE: REVIEWED
         """
     )
     return (fio2_in_window,)
 
 
 @app.cell
-def _(fio2_in_window, fio2_initial):
+def _(fio2_in_window, fio2_pre_window):
+    # Apply FiO2 imputation logic with fallback: use pre_window only when no in_window data
     fio2_imputed = mo.sql(
         f"""
-        -- Apply FiO2 imputation logic
-        FROM (
-            FROM fio2_initial
+        -- Apply FiO2 imputation logic with fallback: use pre_window only when no in_window data
+        WITH windows_with_data AS (
+            SELECT DISTINCT hospitalization_id, start_dttm
+            FROM fio2_in_window
+        ),
+        pre_window_fallback AS (
+            -- Only for windows WITHOUT in-window data
+            FROM fio2_pre_window p
+            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
+            SELECT *
+        ),
+        combined AS (
+            FROM fio2_in_window SELECT *
             UNION ALL
-            FROM fio2_in_window 
-            ) t
+            FROM pre_window_fallback SELECT *
+        )
+        FROM combined t
         SELECT
             t.hospitalization_id,
+            t.start_dttm,
             t.recorded_dttm,
-            t.time_since,
+            t.time_since_start,
             t.device_category,
             -- Impute FiO2 based on device
             CASE
@@ -643,6 +672,7 @@ def _(fio2_in_window, fio2_initial):
             CASE WHEN LOWER(t.device_category) IN ('imv', 'nippv', 'cpap', 'high flow nc')
                  THEN 1 ELSE 0 END AS is_advanced_support
         WHERE t.fio2_set IS NOT NULL OR t.device_category IS NOT NULL
+        -- NOTE: REVIEWED
         """
     )
     return (fio2_imputed,)
@@ -650,19 +680,21 @@ def _(fio2_in_window, fio2_initial):
 
 @app.cell
 def _(cohort_df):
-    # PaO2 measurements - includes initial state before start_dttm
+    # PaO2 measurements with fallback: use pre_window only when no in_window data
     pao2_measurements = mo.sql(
         f"""
-        WITH pao2_initial AS (
-            -- Get latest PaO2 measurement BEFORE start_dttm (initial state)
+        -- PaO2 measurements with fallback: use pre_window only when no in_window data
+        WITH pao2_pre_window AS (
+            -- Get latest PaO2 measurement BEFORE start_dttm (pre-window state)
             FROM cohort_df c
             ASOF LEFT JOIN labs_rel t
                 ON c.hospitalization_id = t.hospitalization_id
                 AND c.start_dttm > t.lab_result_dttm
             SELECT
                 c.hospitalization_id,
+                c.start_dttm,  -- window identity
                 t.lab_result_dttm,
-                t.lab_result_dttm - c.start_dttm AS time_since,
+                t.lab_result_dttm - c.start_dttm AS time_since_start,
                 t.lab_value_numeric AS pao2
             WHERE t.hospitalization_id IS NOT NULL
                 AND t.lab_category = 'po2_arterial'
@@ -670,20 +702,35 @@ def _(cohort_df):
         ),
         pao2_in_window AS (
             -- Get all PaO2 measurements during [start_dttm, end_dttm]
+            -- INNER JOIN to carry window identity (non-overlapping windows assumed)
             FROM labs_rel t
-            SEMI JOIN cohort_df c ON
+            INNER JOIN cohort_df c ON
                 t.hospitalization_id = c.hospitalization_id
                 AND t.lab_result_dttm >= c.start_dttm
                 AND t.lab_result_dttm <= c.end_dttm
             SELECT
                 t.hospitalization_id,
+                c.start_dttm,  -- window identity
                 t.lab_result_dttm,
-                NULL AS time_since,
+                t.lab_result_dttm - c.start_dttm AS time_since_start,
                 t.lab_value_numeric AS pao2
             WHERE t.lab_category = 'po2_arterial'
                 AND t.lab_value_numeric IS NOT NULL
+        ),
+        windows_with_data AS (
+            SELECT DISTINCT hospitalization_id, start_dttm
+            FROM pao2_in_window
+        ),
+        pre_window_fallback AS (
+            -- Only for windows WITHOUT in-window data
+            FROM pao2_pre_window p
+            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
+            SELECT *
         )
-        FROM pao2_initial SELECT * UNION ALL FROM pao2_in_window SELECT *
+        FROM pao2_in_window SELECT *
+        UNION ALL
+        FROM pre_window_fallback SELECT *
+        -- NOTE: REVIEWED
         """
     )
     return (pao2_measurements,)
@@ -691,20 +738,23 @@ def _(cohort_df):
 
 @app.cell
 def _(cohort_df):
-    # SpO2 measurements for S/F ratio calculation - includes initial state before start_dttm
+    # SpO2 measurements for S/F ratio calculation with fallback logic
     # Per spec 4: Use SpO2:FiO2 only when PaO2:FiO2 unavailable AND SpO2 < 98%
     spo2_measurements = mo.sql(
         f"""
-        WITH spo2_initial AS (
-            -- Get latest SpO2 measurement BEFORE start_dttm (initial state)
+        -- SpO2 measurements for S/F ratio calculation with fallback logic
+        -- Per spec 4: Use SpO2:FiO2 only when PaO2:FiO2 unavailable AND SpO2 < 98%
+        WITH spo2_pre_window AS (
+            -- Get latest SpO2 measurement BEFORE start_dttm (pre-window state)
             FROM cohort_df c
             ASOF LEFT JOIN vitals_rel t
                 ON c.hospitalization_id = t.hospitalization_id
                 AND c.start_dttm > t.recorded_dttm
             SELECT
                 c.hospitalization_id,
+                c.start_dttm,  -- window identity
                 t.recorded_dttm,
-                t.recorded_dttm - c.start_dttm AS time_since,
+                t.recorded_dttm - c.start_dttm AS time_since_start,
                 t.vital_value AS spo2
             WHERE t.hospitalization_id IS NOT NULL
                 AND t.vital_category = 'spo2'
@@ -714,22 +764,37 @@ def _(cohort_df):
         ),
         spo2_in_window AS (
             -- Get all SpO2 measurements during [start_dttm, end_dttm]
+            -- INNER JOIN to carry window identity (non-overlapping windows assumed)
             FROM vitals_rel t
-            SEMI JOIN cohort_df c ON
+            JOIN cohort_df c ON
                 t.hospitalization_id = c.hospitalization_id
                 AND t.recorded_dttm >= c.start_dttm
                 AND t.recorded_dttm <= c.end_dttm
             SELECT
                 t.hospitalization_id,
+                c.start_dttm,  -- window identity
                 t.recorded_dttm,
-                NULL AS time_since,
+                t.recorded_dttm - c.start_dttm AS time_since_start,
                 t.vital_value AS spo2
             WHERE t.vital_category = 'spo2'
                 AND t.vital_value IS NOT NULL
                 AND t.vital_value < 98  -- per spec 4: only use when SpO2 < 98%
                 AND t.vital_value > 0
+        ),
+        windows_with_data AS (
+            SELECT DISTINCT hospitalization_id, start_dttm
+            FROM spo2_in_window
+        ),
+        pre_window_fallback AS (
+            -- Only for windows WITHOUT in-window data
+            FROM spo2_pre_window p
+            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
+            SELECT *
         )
-        FROM spo2_initial SELECT * UNION ALL FROM spo2_in_window SELECT *
+        FROM spo2_in_window SELECT *
+        UNION ALL
+        FROM pre_window_fallback SELECT *
+        -- NOTE: REVIEWED
         """
     )
     return (spo2_measurements,)
@@ -737,19 +802,23 @@ def _(cohort_df):
 
 @app.cell
 def _(fio2_imputed, pao2_measurements):
+    # Concurrent P/F ratio using ASOF JOIN, with window identity
     concurrent_pf = mo.sql(
         f"""
+        -- Concurrent P/F ratio using ASOF JOIN, with window identity
         FROM pao2_measurements p
         ASOF JOIN fio2_imputed f
             ON p.hospitalization_id = f.hospitalization_id
+            AND p.start_dttm = f.start_dttm  -- same window
             -- find the most recent FiO2 before or at the PaO2 time
-            AND f.recorded_dttm <= p.lab_result_dttm 
+            AND f.recorded_dttm <= p.lab_result_dttm
         SELECT
             p.hospitalization_id,
+            p.start_dttm,  -- window identity
             p.pao2,
-            p.lab_result_dttm as pao2_dttm,
+            p.lab_result_dttm AS pao2_dttm,
             f.fio2_imputed,
-            f.recorded_dttm as fio2_dttm,
+            f.recorded_dttm AS fio2_dttm,
             f.device_category,
             f.is_advanced_support,
             pao2_dttm - fio2_dttm AS pf_time_gap,
@@ -757,7 +826,8 @@ def _(fio2_imputed, pao2_measurements):
         WHERE f.fio2_imputed IS NOT NULL
             AND f.fio2_imputed > 0
             -- 4-hour lookback tolerance
-            AND pf_time_gap <= INTERVAL '240 minutes'
+            AND pf_time_gap <= INTERVAL '240 minutes' -- 4 hrs
+        -- NOTE: REVIEWED
         """
     )
     return (concurrent_pf,)
@@ -765,20 +835,23 @@ def _(fio2_imputed, pao2_measurements):
 
 @app.cell
 def _(fio2_imputed, spo2_measurements):
-    # Concurrent S/F ratio using ASOF JOIN (SpO2:FiO2 for when PaO2 unavailable)
+    # Concurrent S/F ratio using ASOF JOIN (SpO2:FiO2 for when PaO2 unavailable), with window identity
     concurrent_sf = mo.sql(
         f"""
+        -- Concurrent S/F ratio using ASOF JOIN (SpO2:FiO2 for when PaO2 unavailable), with window identity
         FROM spo2_measurements s
         ASOF JOIN fio2_imputed f
             ON s.hospitalization_id = f.hospitalization_id
+            AND s.start_dttm = f.start_dttm  -- same window
             -- find the most recent FiO2 before or at the SpO2 time
             AND f.recorded_dttm <= s.recorded_dttm
         SELECT
             s.hospitalization_id,
+            s.start_dttm,  -- window identity
             s.spo2,
-            s.recorded_dttm as spo2_dttm,
+            s.recorded_dttm AS spo2_dttm,
             f.fio2_imputed,
-            f.recorded_dttm as fio2_dttm,
+            f.recorded_dttm AS fio2_dttm,
             f.device_category,
             f.is_advanced_support,
             spo2_dttm - fio2_dttm AS sf_time_gap,
@@ -787,6 +860,7 @@ def _(fio2_imputed, spo2_measurements):
             AND f.fio2_imputed > 0
             -- 4-hour tolerance
             AND sf_time_gap <= INTERVAL '240 minutes'
+        -- NOTE: REVIEWED
         """
     )
     return (concurrent_sf,)
@@ -794,44 +868,46 @@ def _(fio2_imputed, spo2_measurements):
 
 @app.cell
 def _(concurrent_pf, concurrent_sf):
-    # Combine P/F and S/F ratios with priority: use S/F only when P/F unavailable
     resp_agg = mo.sql(
         f"""
+        -- Combine P/F and S/F ratios with priority: use S/F only when P/F unavailable per window
         WITH pf_worst AS (
-            -- Worst P/F ratio per hospitalization (actual PaO2)
+            -- Worst P/F ratio per window (actual PaO2)
             FROM concurrent_pf
             SELECT
                 hospitalization_id,
+                start_dttm,  -- window identity
                 MIN(pf_ratio) AS ratio,
                 ARG_MIN(is_advanced_support, pf_ratio) AS has_advanced_support,
                 ARG_MIN(device_category, pf_ratio) AS device_category,
                 ARG_MIN(pao2, pf_ratio) AS pao2_at_worst,
                 ARG_MIN(fio2_imputed, pf_ratio) AS fio2_at_worst,
                 'pf' AS ratio_type
-            GROUP BY hospitalization_id
+            GROUP BY hospitalization_id, start_dttm
         ),
         sf_worst AS (
-            -- Worst S/F ratio per hospitalization (only for those WITHOUT P/F data)
+            -- Worst S/F ratio per window (only for windows WITHOUT P/F data)
             FROM concurrent_sf
-            ANTI JOIN (SELECT DISTINCT hospitalization_id FROM concurrent_pf) p
-                USING (hospitalization_id)
+            ANTI JOIN (SELECT DISTINCT hospitalization_id, start_dttm FROM concurrent_pf) p
+                USING (hospitalization_id, start_dttm)
             SELECT
                 hospitalization_id,
+                start_dttm,  -- window identity
                 MIN(sf_ratio) AS ratio,
                 ARG_MIN(is_advanced_support, sf_ratio) AS has_advanced_support,
                 ARG_MIN(device_category, sf_ratio) AS device_category,
                 ARG_MIN(spo2, sf_ratio) AS spo2_at_worst,
                 ARG_MIN(fio2_imputed, sf_ratio) AS fio2_at_worst,
                 'sf' AS ratio_type
-            GROUP BY hospitalization_id
+            GROUP BY hospitalization_id, start_dttm
         )
-        -- Combine: P/F takes priority, S/F only for those without P/F
+        -- Combine: P/F takes priority, S/F only for windows without P/F
         FROM pf_worst
-        SELECT hospitalization_id, ratio, has_advanced_support, device_category, ratio_type,
+        SELECT hospitalization_id, start_dttm, ratio, has_advanced_support, device_category, ratio_type,
                pao2_at_worst, NULL AS spo2_at_worst, fio2_at_worst
         UNION ALL
         FROM sf_worst
-        SELECT hospitalization_id, ratio, has_advanced_support, device_category, ratio_type,
+        SELECT hospitalization_id, start_dttm, ratio, has_advanced_support, device_category, ratio_type,
                NULL AS pao2_at_worst, spo2_at_worst, fio2_at_worst
         """
     )
@@ -839,18 +915,21 @@ def _(concurrent_pf, concurrent_sf):
 
 
 @app.cell
-def _():
+def _(cohort_df):
+    # ECMO flag for respiratory scoring (Note 7) with window identity
+    # Per SOFA-2: ECMO for respiratory failure = 4 points regardless of P/F ratio
     ecmo_flag = mo.sql(
         f"""
-        -- ECMO flag for respiratory scoring (Note 7)
+        -- ECMO flag for respiratory scoring (Note 7) with window identity
         -- Per SOFA-2: ECMO for respiratory failure = 4 points regardless of P/F ratio
         FROM ecmo_rel t
-        SEMI JOIN cohort_df c ON
+        JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT DISTINCT
             t.hospitalization_id,
+            c.start_dttm,  -- window identity
             1 AS has_ecmo
         """
     )
@@ -859,15 +938,16 @@ def _():
 
 @app.cell
 def _(ecmo_flag, resp_agg):
-    # Respiratory score calculation with ECMO override and ratio-type-specific cutoffs
-    # P/F cutoffs: 0=>300, 1=≤300, 2=≤225, 3=≤150+vent, 4=≤75+vent
-    # S/F cutoffs: 0=>300, 1=≤300, 2=≤250, 3=≤200+vent, 4=≤120+vent
     resp_score = mo.sql(
         f"""
+        -- Respiratory score calculation with ECMO override and ratio-type-specific cutoffs
+        -- P/F cutoffs: 0=>300, 1=≤300, 2=≤225, 3=≤150+vent, 4=≤75+vent
+        -- S/F cutoffs: 0=>300, 1=≤300, 2=≤250, 3=≤200+vent, 4=≤120+vent
         FROM resp_agg r
-        LEFT JOIN ecmo_flag e USING (hospitalization_id)
+        LEFT JOIN ecmo_flag e USING (hospitalization_id, start_dttm)
         SELECT
             r.hospitalization_id,
+            r.start_dttm,  -- window identity
             r.ratio,
             r.ratio_type,
             r.has_advanced_support,
@@ -911,13 +991,15 @@ def _():
 def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_score, rrt_flag):
     sofa_scores = mo.sql(
         f"""
+        -- CRITICAL: LEFT JOIN from cohort_df to preserve all cohort rows
+        -- Windows without data → NULL scores (expected behavior)
         -- EXPLAIN ANALYZE
         FROM cohort_df c
-        LEFT JOIN labs_agg l USING (hospitalization_id)
-        LEFT JOIN rrt_flag r USING (hospitalization_id)
-        LEFT JOIN gcs_agg g USING (hospitalization_id)
-        LEFT JOIN cv_agg cv USING (hospitalization_id)
-        LEFT JOIN resp_score resp USING (hospitalization_id)
+        LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
+        LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
+        LEFT JOIN gcs_agg g USING (hospitalization_id, start_dttm)
+        LEFT JOIN cv_agg cv USING (hospitalization_id, start_dttm)
+        LEFT JOIN resp_score resp USING (hospitalization_id, start_dttm)
         SELECT
             c.hospitalization_id,
             c.start_dttm,
