@@ -1,3 +1,5 @@
+TODO: add timestamps for all the determining  
+
 # Brain (spec 3-4)
 - score 0 = GCS 15 (or thumbs-up, fist, or peace sign)
 - score 1 = GCS 13–14 (or localizing to pain) (spec 2) or need for drugs to treat delirium (spec 3)
@@ -7,9 +9,9 @@
 
 | spec | status |
 |----------|----------|
-| 1 For sedated patients, use the last GCS before sedation; if unknown, score 0. | ! Hard to implement|
-| 2 If full GCS cannot be assessed, use the best motor response score only. | ? What does this even mean? why cited after only score 1? |
-| 3 If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | TODO: add relevant drugs (cover only dexmedetomidine for now) |
+| 1 For sedated patients, use the last GCS before sedation; if unknown, score 0. | TODO |
+| 2 If full GCS cannot be assessed, use the best motor response score only. | TODO |
+| 3 If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: added relevant drugs (cover only dexmedetomidine for now) |
 
 delirium drugs:
 - Mentioned in the PADIS guideline and already in MCIDE: dexmedetomidine
@@ -17,7 +19,7 @@ delirium drugs:
 - Mentioned in the PADIS guideline but NOT already in MCIDE and we are NOT proposing to add to MCIDE: statin (rosuvastatin)
 
 
-# Respiratory (spec 4) x
+# Respiratory (spec 4) 
 - score 0 = PaO₂:FiO₂ ratio >300 mm Hg (>40 kPa) (or, when applicable, SpO₂:FiO₂ ratio >300 mm Hg)
 - score 1 = PaO₂:FiO₂ ratio ≤300 mm Hg (≤40 kPa) (or, when applicable, SpO₂:FiO₂ ratio ≤300 mm Hg)
 - score 2 = PaO₂:FiO₂ ratio ≤225 mm Hg (≤30 kPa) (or, when applicable, SpO₂:FiO₂ ratio ≤250 mm Hg)
@@ -26,34 +28,34 @@ delirium drugs:
 
 | spec | status |
 |------|----------|
-| 4 Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | x |
-| 5 Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | x |
-| 6 Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | ! |
-| 7 If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | ! right now we are not using ecmo table |
+| 4 Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
+| 5 Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | QUESTION: possible to measure transient changes within 1 hour? TODO: review others implementation |
+| 6 Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | DONE |
+| 7 If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | PENDING ecmo table (VV = 4 in resp, non-VV = 4 in both resp and CV) settings don't matter, can just score based on device |
 
 notes:
-- we added imputation of fio2_set from lpm_set for nasal cannula: necessary?
+- added imputation of fio2_set from lpm_set for nasal cannula 
 - tracking transient changes within 1 hr?
-
-
+- current implementation of tolerance is 4 hrs between PaO2 or SpO2 and FiO2 measurements.
+- TODO: add pre-window lookback cutoff
 
 # Cardiovascular (spec 8-11)
 | score | spec | status |
 |----------|----------|----------|
-| 0 | MAP ≥70 mm Hg, no vasopressor or inotrope use | |
-| 1 | MAP <70 mm Hg, no vasopressor or inotrope use | |
-| 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | |
-| 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | |
-| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (spec 7, 12) | ! Need ECMO table |
+| 0 | MAP ≥70 mm Hg, no vasopressor or inotrope use | DONE |
+| 1 | MAP <70 mm Hg, no vasopressor or inotrope use | DONE |
+| 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | DONE|
+| 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | DONE|
+| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (spec 7, 12) | PENDING: Need ECMO table |
 
 ## specs
 | spec | status |
 |----------|----------|
-| 8 Count vasopressors only if given as a continuous IV infusion for ≥1 hour. | x |
-| 9 Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | ? Not applicable|
-| 10 If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | x |
-| 11 When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | ? How to implement this |
-| 12 Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | ! Need ECMO table |
+| 8 Count vasopressors only if given as a continuous IV infusion for ≥1 hour. | DONE |
+| 9 Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | QUESTION: NOT_APPLICABLE ? |
+| 10 If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | DONE |
+| 11 When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | QUESTION: NOT_APPLICABLE ? |
+| 12 Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | PENDING need ECMO table |
 
 ### Spec 8 implementation: ≥60min duration validation
 
@@ -121,11 +123,14 @@ ORDER BY hospitalization_id, med_category, admin_dttm;
 ```
 
 # Liver
+ALL DONE:
 - score 0 = Total bilirubin ≤1.20 mg/dL (≤20.6 μmol/L)
 - score 1 = Total bilirubin ≤3.0 mg/dL (≤51.3 μmol/L)
 - score 2 = Total bilirubin ≤6.0 mg/dL (≤102.6 μmol/L)
 - score 3 = Total bilirubin ≤12.0 mg/dL (≤205 μmol/L)
 - score 4 = Total bilirubin >12 mg/dL (>205 μmol/L)
+
+24 hr pre-window lookback
 
 # Kidney
 - score 0 = Creatinine ≤1.20 mg/dL (≤110 μmol/L)
@@ -140,17 +145,21 @@ ORDER BY hospitalization_id, med_category, admin_dttm;
 
 | spec | status |
 |----------|----------|
-13 Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal).
-14 For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria: creatinine >1.2 mg/dL (>110 μmol/L) or oliguria (<0.3 mL/kg/h) for >6 hours plus either serum potassium ≥6.0 mmol/L or metabolic acidosis (pH ≤7.20 and serum bicarbonate ≤12 mmol/L).
-15 For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated.
+13 Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal). | QUESTION - NOT_APPLICABLE |
+14 For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria: creatinine >1.2 mg/dL (>110 μmol/L) OR oliguria (<0.3 mL/kg/h) for >6 hours AND (serum potassium ≥6.0 mmol/L OR metabolic acidosis [pH ≤7.20 and serum bicarbonate ≤12 mmol/L]). | PARTIAL |
+15 For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated. | QUESTION - we dont have intermittent RRT yet, no? |
+
+12 hr pre-window lookback
 
 # Hemostasis
+ALL DONE:
 - score 0 = Platelets >150 × 10³/μLf
 - score 1 = Platelets ≤150 × 10³/μL
 - score 2 = Platelets ≤100 × 10³/μL
 - score 3 = Platelets ≤80 × 10³/μL
 - score 4 = Platelets ≤50 × 10³/μL
 
+12 hr pre-window lookback
 
 # Implementation Details
 
