@@ -7,7 +7,7 @@ with app.setup:
     import marimo as mo
     import duckdb
 
-    COHORT_SIZE = 1000
+    COHORT_SIZE = 20000
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
@@ -121,6 +121,30 @@ def _(cohort_df):
         """
     )
     return (gcs_agg,)
+
+
+@app.cell
+def _(cohort_df):
+    # Detect delirium drug administration during window (brain spec 3)
+    # Currently only dexmedetomidine per spec 3
+    delirium_drug_flag = mo.sql(
+        f"""
+        -- Detect delirium drug administration during window
+        -- Currently only dexmedetomidine per spec 3
+        FROM meds_rel t
+        JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.admin_dttm >= c.start_dttm
+            AND t.admin_dttm <= c.end_dttm
+        SELECT DISTINCT
+            t.hospitalization_id,
+            c.start_dttm,  -- window identity
+            1 AS has_delirium_drug
+        WHERE t.med_category = 'dexmedetomidine'
+            AND t.med_dose > 0  -- actively infusing
+        """
+    )
+    return (delirium_drug_flag,)
 
 
 @app.cell
@@ -277,7 +301,7 @@ def _(cohort_df, cohort_vasopressors):
         SELECT
             cm.hospitalization_id,
             cm.start_dttm,  -- window identity
-            cm.end_dttm AS admin_dttm,  -- forward-filled timestamp AT end_dttm
+            t.admin_dttm,  -- preserve original post-window timestamp
             cm.med_category,
             t.mar_action_category,
             t.med_dose,
@@ -1035,6 +1059,115 @@ def _(ecmo_flag, resp_agg):
     return (resp_score,)
 
 
+@app.cell
+def _():
+    mo.md(r"""
+    # Modular Subscores
+    """)
+    return
+
+
+@app.cell
+def _(cohort_df, delirium_drug_flag, gcs_agg):
+    # Brain subscore with spec 3: delirium drug → min 1 point
+    brain_score = mo.sql(
+        f"""
+        -- Brain subscore with spec 3: delirium drug → min 1 point
+        FROM cohort_df c
+        LEFT JOIN gcs_agg g USING (hospitalization_id, start_dttm)
+        LEFT JOIN delirium_drug_flag d USING (hospitalization_id, start_dttm)
+        SELECT
+            c.hospitalization_id,
+            c.start_dttm,
+            g.gcs_min,
+            COALESCE(d.has_delirium_drug, 0) AS has_delirium_drug,
+            brain: CASE
+                WHEN g.gcs_min >= 15 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1  -- Spec 3
+                WHEN g.gcs_min >= 15 THEN 0
+                WHEN g.gcs_min >= 13 THEN 1
+                WHEN g.gcs_min >= 9 THEN 2
+                WHEN g.gcs_min >= 6 THEN 3
+                WHEN g.gcs_min >= 3 THEN 4
+                ELSE NULL END
+        """
+    )
+    return (brain_score,)
+
+
+@app.cell
+def _(cohort_df, labs_agg):
+    # Hemostasis subscore (platelets in 10^3/uL)
+    hemostasis_score = mo.sql(
+        f"""
+        -- Hemostasis subscore (platelets in 10^3/uL)
+        FROM cohort_df c
+        LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
+        SELECT
+            c.hospitalization_id,
+            c.start_dttm,
+            l.platelet_count,
+            hemostasis: CASE
+                WHEN l.platelet_count > 150 THEN 0
+                WHEN l.platelet_count <= 150 THEN 1
+                WHEN l.platelet_count <= 100 THEN 2
+                WHEN l.platelet_count <= 80 THEN 3
+                WHEN l.platelet_count <= 50 THEN 4
+                ELSE NULL END
+        """
+    )
+    return (hemostasis_score,)
+
+
+@app.cell
+def _(cohort_df, labs_agg):
+    # Liver subscore (bilirubin in mg/dL)
+    liver_score = mo.sql(
+        f"""
+        -- Liver subscore (bilirubin in mg/dL)
+        FROM cohort_df c
+        LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
+        SELECT
+            c.hospitalization_id,
+            c.start_dttm,
+            l.bilirubin_total,
+            liver: CASE
+                WHEN l.bilirubin_total <= 1.2 THEN 0
+                WHEN l.bilirubin_total <= 3.0 THEN 1
+                WHEN l.bilirubin_total <= 6.0 THEN 2
+                WHEN l.bilirubin_total <= 12.0 THEN 3
+                WHEN l.bilirubin_total > 12.0 THEN 4
+                ELSE NULL END
+        """
+    )
+    return (liver_score,)
+
+
+@app.cell
+def _(cohort_df, labs_agg, rrt_flag):
+    # Kidney subscore (creatinine in mg/dL, with RRT override)
+    kidney_score = mo.sql(
+        f"""
+        -- Kidney subscore (creatinine in mg/dL, with RRT override)
+        FROM cohort_df c
+        LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
+        LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
+        SELECT
+            c.hospitalization_id,
+            c.start_dttm,
+            l.creatinine,
+            COALESCE(r.has_rrt, 0) AS has_rrt,
+            kidney: CASE
+                WHEN r.has_rrt = 1 THEN 4
+                WHEN l.creatinine > 3.50 THEN 3
+                WHEN l.creatinine <= 3.50 THEN 2
+                WHEN l.creatinine <= 2.0 THEN 1
+                WHEN l.creatinine <= 1.20 THEN 0
+                ELSE NULL END
+        """
+    )
+    return (kidney_score,)
+
+
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
@@ -1044,72 +1177,50 @@ def _():
 
 
 @app.cell
-def _(cohort_df, cv_score, gcs_agg, labs_agg, resp_score, rrt_flag):
+def _(
+    brain_score,
+    cohort_df,
+    cv_score,
+    hemostasis_score,
+    kidney_score,
+    liver_score,
+    resp_score,
+):
     sofa_scores = mo.sql(
         f"""
-        -- CRITICAL: LEFT JOIN from cohort_df to preserve all cohort rows
-        -- Windows without data → NULL scores (expected behavior)
-        -- EXPLAIN ANALYZE
+        -- Final SOFA score: join all 6 modular subscores
         FROM cohort_df c
-        LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
-        LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
-        LEFT JOIN gcs_agg g USING (hospitalization_id, start_dttm)
+        LEFT JOIN hemostasis_score h USING (hospitalization_id, start_dttm)
+        LEFT JOIN liver_score li USING (hospitalization_id, start_dttm)
+        LEFT JOIN kidney_score k USING (hospitalization_id, start_dttm)
+        LEFT JOIN brain_score b USING (hospitalization_id, start_dttm)
         LEFT JOIN cv_score cv USING (hospitalization_id, start_dttm)
         LEFT JOIN resp_score resp USING (hospitalization_id, start_dttm)
         SELECT
             c.hospitalization_id,
             c.start_dttm,
             c.end_dttm,
-            -- Hemostasis (platelets in 10^3/uL)
-            hemostasis: CASE
-                WHEN l.platelet_count > 150 THEN 0
-                WHEN l.platelet_count <= 150 THEN 1
-                WHEN l.platelet_count <= 100 THEN 2
-                WHEN l.platelet_count <= 80 THEN 3
-                WHEN l.platelet_count <= 50 THEN 4
-                ELSE NULL END,
-            -- Liver (bilirubin in mg/dL)
-            liver: CASE
-                WHEN l.bilirubin_total <= 1.2 THEN 0
-                WHEN l.bilirubin_total <= 3.0 THEN 1
-                WHEN l.bilirubin_total <= 6.0 THEN 2
-                WHEN l.bilirubin_total <= 12.0 THEN 3
-                WHEN l.bilirubin_total > 12.0 THEN 4
-                ELSE NULL END,
-            -- Kidney (creatinine in mg/dL, with RRT override)
-            kidney: CASE
-                WHEN r.has_rrt = 1 THEN 4
-                WHEN l.creatinine > 3.50 THEN 3
-                WHEN l.creatinine <= 3.50 THEN 2
-                WHEN l.creatinine <= 2.0 THEN 1
-                WHEN l.creatinine <= 1.20 THEN 0
-                ELSE NULL END,
-            -- Brain (GCS)
-            brain: CASE
-                WHEN g.gcs_min >= 15 THEN 0
-                WHEN g.gcs_min >= 13 THEN 1
-                WHEN g.gcs_min >= 9 THEN 2
-                WHEN g.gcs_min >= 6 THEN 3
-                WHEN g.gcs_min >= 3 THEN 4
-                ELSE NULL END,
-            -- Cardiovascular
+            -- 6 subscores (pre-computed in modular cells)
+            h.hemostasis,
+            li.liver,
+            k.kidney,
+            b.brain,
             cv.cardiovascular,
-            -- Respiratory
             resp.respiratory,
             -- SOFA Total (sum of all 6 components)
-            sofa_total: COALESCE(hemostasis, 0)
-                + COALESCE(liver, 0)
-                + COALESCE(kidney, 0)
-                + COALESCE(brain, 0)
+            sofa_total: COALESCE(h.hemostasis, 0)
+                + COALESCE(li.liver, 0)
+                + COALESCE(k.kidney, 0)
+                + COALESCE(b.brain, 0)
                 + COALESCE(cv.cardiovascular, 0)
                 + COALESCE(resp.respiratory, 0),
-            -- Intermediate values for debugging
-            l.platelet_count,
-            l.bilirubin_total,
-            l.creatinine,
-            l.po2_arterial,
-            COALESCE(r.has_rrt, 0) AS has_rrt,
-            g.gcs_min,
+            -- Intermediate values for debugging (from each score table)
+            h.platelet_count,
+            li.bilirubin_total,
+            k.creatinine,
+            k.has_rrt,
+            b.gcs_min,
+            b.has_delirium_drug,
             cv.norepi_epi_sum,
             cv.map_min,
             resp.ratio AS pf_sf_ratio,
