@@ -49,17 +49,19 @@ def _():
 
 
 @app.cell
-def _():
+def _(cohort_df):
     labs_agg = mo.sql(
         f"""
+        -- Lab aggregations for hemostasis, liver, kidney subscores
         -- EXPLAIN ANALYZE
-        FROM
-            labs_rel t
-            SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        FROM labs_rel t
+        JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
             AND t.lab_result_dttm >= c.start_dttm
             AND t.lab_result_dttm <= c.end_dttm
         SELECT
-            hospitalization_id,
+            t.hospitalization_id,
+            c.start_dttm,  -- window identity
             -- MIN aggregations (worse = lower)
             MIN(lab_value_numeric) FILTER(lab_category = 'platelet_count') AS platelet_count,
             MIN(lab_value_numeric) FILTER(lab_category = 'po2_arterial') AS po2_arterial,
@@ -72,8 +74,7 @@ def _():
                 'bilirubin_total',
                 'po2_arterial'
             )
-        GROUP BY
-            hospitalization_id
+        GROUP BY t.hospitalization_id, c.start_dttm
         """
     )
     return (labs_agg,)
@@ -86,54 +87,58 @@ def _(labs_agg):
 
 
 @app.cell
-def _():
+def _(cohort_df):
     rrt_flag = mo.sql(
         f"""
         -- Detect if patient received RRT during the time window
         FROM crrt_rel t
-        SEMI JOIN cohort_df c ON
+        JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
-        SELECT DISTINCT hospitalization_id, 1 AS has_rrt
+        SELECT DISTINCT t.hospitalization_id, c.start_dttm, 1 AS has_rrt
         """
     )
     return (rrt_flag,)
 
 
 @app.cell
-def _():
+def _(cohort_df):
     gcs_agg = mo.sql(
         f"""
+        -- GCS aggregation for brain subscore
         FROM assessments_rel t
-        SEMI JOIN cohort_df c ON
+        JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            hospitalization_id,
+            t.hospitalization_id,
+            c.start_dttm,  -- window identity
             MIN(numerical_value) AS gcs_min
         WHERE assessment_category = 'gcs_total'
-        GROUP BY hospitalization_id
+        GROUP BY t.hospitalization_id, c.start_dttm
         """
     )
     return (gcs_agg,)
 
 
 @app.cell
-def _():
+def _(cohort_df):
     map_agg = mo.sql(
         f"""
+        -- MAP aggregation for cardiovascular subscore
         FROM vitals_rel t
-        SEMI JOIN cohort_df c ON
+        JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            hospitalization_id,
+            t.hospitalization_id,
+            c.start_dttm,  -- window identity
             MIN(vital_value) AS map_min
         WHERE vital_category = 'map'
-        GROUP BY hospitalization_id
+        GROUP BY t.hospitalization_id, c.start_dttm
         """
     )
     return (map_agg,)
@@ -156,7 +161,7 @@ def _():
 
 
 @app.cell
-def _():
+def _(cohort_df):
     from clifpy.utils.unit_converter import convert_dose_units_by_med_category
 
     # FIXME: add filtering
@@ -177,7 +182,7 @@ def _():
     cohort_meds_rel = mo.sql(
         f"""
         FROM meds_rel t
-        SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        INNER JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
         SELECT *
         WHERE t.med_category IN {cohort_vasopressors}
         """
@@ -186,7 +191,7 @@ def _():
     cohort_vitals_rel = mo.sql(
         f"""
         FROM vitals_rel t
-        SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        INNER JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
         SELECT *
         """
     )
@@ -509,13 +514,14 @@ def _(vaso_with_duration):
 
 @app.cell
 def _(cohort_df, vaso_with_duration):
-    # Cell 7: Final aggregation - MAX concurrent norepi + epi sum
     vaso_concurrent = mo.sql(
         f"""
+        -- Final aggregation - MAX concurrent norepi + epi sum
         FROM vaso_with_duration f
         JOIN cohort_df c ON f.hospitalization_id = c.hospitalization_id
         SELECT
             f.hospitalization_id,
+            c.start_dttm,  -- window identity
             MAX(f.norepi_valid + f.epi_valid) AS norepi_epi_max_concurrent,
             MAX(f.norepi_valid) AS norepi_max,
             MAX(f.epi_valid) AS epi_max,
@@ -526,7 +532,7 @@ def _(cohort_df, vaso_with_duration):
                  THEN 1 ELSE 0 END AS has_other_vasopressor
         WHERE f.admin_dttm >= c.start_dttm
           AND f.admin_dttm <= c.end_dttm
-        GROUP BY f.hospitalization_id
+        GROUP BY f.hospitalization_id, c.start_dttm
         """
     )
     return (vaso_concurrent,)
@@ -534,14 +540,15 @@ def _(cohort_df, vaso_with_duration):
 
 @app.cell
 def _(cohort_df, map_agg, vaso_concurrent):
-    # Cell 8: Cardiovascular score using vaso_concurrent
     cv_agg = mo.sql(
         f"""
+        -- Cardiovascular score using vaso_concurrent
         FROM cohort_df c
-        LEFT JOIN map_agg m USING (hospitalization_id)
-        LEFT JOIN vaso_concurrent v USING (hospitalization_id)
+        LEFT JOIN map_agg m USING (hospitalization_id, start_dttm)
+        LEFT JOIN vaso_concurrent v USING (hospitalization_id, start_dttm)
         SELECT
             c.hospitalization_id,
+            c.start_dttm,  -- window identity
             -- Define aliases (DuckDB allows reuse in same SELECT)
             COALESCE(v.norepi_epi_max_concurrent, 0) AS norepi_epi_sum,
             COALESCE(v.has_other_vasopressor, 0) AS has_other_vaso,
@@ -551,19 +558,21 @@ def _(cohort_df, map_agg, vaso_concurrent):
                 WHEN norepi_epi_sum > 0.4 THEN 4
                 WHEN norepi_epi_sum > 0.2 AND has_other_vaso = 1 THEN 4
                 WHEN norepi_epi_sum > 0.2 THEN 3
-                WHEN norepi_epi_sum > 0 AND has_other_vaso = 1 THEN 3
-                WHEN norepi_epi_sum > 0 THEN 2
+                WHEN norepi_epi_sum > 0 AND has_other_vaso = 1 THEN 3 -- norepi_epi_sum <= 0.2 implied
+                WHEN norepi_epi_sum > 0 THEN 2 -- has_other_vaso = 0 implied
                 WHEN has_other_vaso = 1 THEN 2
+            	-- here on implies no pressor as norepi_epi_sum <= 0 and has_other_vaso = 0
                 WHEN map_min < 70 THEN 1
                 WHEN map_min >= 70 THEN 0
                 ELSE NULL
             END
+        -- NOTE: REVIEWED
         """
     )
     return (cv_agg,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     mo.md(r"""
     # Respiratory
