@@ -147,25 +147,15 @@ def _(cohort_df):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # CV
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ## Medication
+    # CV subscore
     """)
     return
 
 
 @app.cell
-def _(cohort_df):
-    from clifpy.utils.unit_converter import convert_dose_units_by_med_category
-
-    # FIXME: add filtering
-    _preferred_units = {
+def _():
+    # Define vasopressor list and preferred units for later unit conversion
+    pressor_preferred_units = {
           'norepinephrine': 'mcg/kg/min',
           'epinephrine': 'mcg/kg/min',
           'dopamine': 'mcg/kg/min',
@@ -177,65 +167,165 @@ def _(cohort_df):
           'isoproterenol': 'mcg/kg/min',
       }
 
-    cohort_vasopressors = list(_preferred_units.keys())  
+    cohort_vasopressors = list(pressor_preferred_units.keys())
+    return cohort_vasopressors, pressor_preferred_units
 
-    cohort_meds_rel = mo.sql(
-        f"""
-        FROM meds_rel t
-        INNER JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
-        SELECT *
-        WHERE t.med_category IN {cohort_vasopressors}
-        """
-    )
 
-    cohort_vitals_rel = mo.sql(
+@app.cell
+def _(cohort_df):
+    # Vitals needed for unit conversion (weight for mcg/kg/min)
+    cohort_vitals = mo.sql(
         f"""
         FROM vitals_rel t
         INNER JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
         SELECT *
         """
     )
-
-    with track_memory('med_unit_convert'):
-        meds_unit_converted, _ = convert_dose_units_by_med_category(
-            med_df=cohort_meds_rel,
-            vitals_df=cohort_vitals_rel,
-            return_rel=True,
-            preferred_units=_preferred_units,
-            override=True
-        )
-    return cohort_meds_rel, meds_unit_converted
+    return (cohort_vitals,)
 
 
 @app.cell
-def _(cohort_meds_rel):
-    cohort_meds_rel.df()
-    return
-
-
-@app.cell
-def _(meds_unit_converted):
-    meds_unit_converted.df()
-    return
-
-
-@app.cell
-def _(meds_unit_converted):
-    # Centralized MAR deduplication for vasopressors (preserves original dose values)
-    meds_deduped = mo.sql(
+def _(cohort_df, cohort_vasopressors):
+    pressor_at_start = mo.sql(
         f"""
-        FROM meds_unit_converted t
-        --SEMI JOIN cohort_df c ON t.hospitalization_id = c.hospitalization_id
+        -- Forward-filled event AT start_dttm for each vasopressor
+        -- Operates on meds_rel directly (filter by window FIRST)
+        -- Includes raw columns for later dedup and unit conversion
+        WITH med_cats AS (
+            SELECT UNNEST({cohort_vasopressors}::VARCHAR[]) AS med_category
+        ),
+        cohort_meds AS (
+            FROM cohort_df c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+        )
+        FROM cohort_meds cm
+        ASOF LEFT JOIN meds_rel t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.start_dttm >= t.admin_dttm  -- include events AT start_dttm
+        SELECT
+            cm.hospitalization_id,
+            cm.start_dttm,  -- window identity
+            cm.start_dttm AS admin_dttm,  -- forward-filled timestamp AT start_dttm
+            cm.med_category,
+            t.mar_action_category,
+            t.med_dose,
+            t.med_dose_unit  -- needed for unit conversion
+        WHERE t.hospitalization_id IS NOT NULL
+            AND t.mar_action_category != 'stop'
+            AND t.med_dose > 0  -- only if actively infusing
+        -- TODO: REVIEWED
+        """
+    )
+    return (pressor_at_start,)
+
+
+@app.cell
+def _(pressor_at_start):
+    with track_memory('pressor_at_start'):
+        pressor_at_start
+    return
+
+
+@app.cell
+def _(cohort_vasopressors):
+    pressor_in_window = mo.sql(
+        f"""
+        -- In-window vasopressor events with STRICT inequality
+        -- Operates on meds_rel directly (filter by window FIRST)
+        -- Includes raw columns for later dedup and unit conversion
+        FROM meds_rel t
+        JOIN cohort_df c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.admin_dttm > c.start_dttm   -- strict >
+            AND t.admin_dttm < c.end_dttm     -- strict <
         SELECT
             t.hospitalization_id,
+            c.start_dttm,  -- window identity
             t.admin_dttm,
             t.med_category,
             t.mar_action_category,
-            t.med_dose
-        --WHERE t.med_category IN ('norepinephrine', 'epinephrine', 'dopamine', 'dobutamine', 'vasopressin', 'phenylephrine', 'milrinone', 'angiotensin', 'isoproterenol')
-            --AND t.med_route_category = 'iv'
+            t.med_dose,
+            t.med_dose_unit  -- needed for unit conversion
+        WHERE t.med_category IN {cohort_vasopressors}
+        """
+    )
+    return (pressor_in_window,)
+
+
+@app.cell
+def _(cohort_df, cohort_vasopressors):
+    pressor_at_end = mo.sql(
+        f"""
+        -- Forward-filled event AT end_dttm for each vasopressor
+        -- Operates on meds_rel directly (filter by window FIRST)
+        -- Includes raw columns for later dedup and unit conversion
+        WITH med_cats AS (
+            SELECT UNNEST({cohort_vasopressors}::VARCHAR[]) AS med_category
+        ),
+        cohort_meds AS (
+            FROM cohort_df c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+        )
+        FROM cohort_meds cm -- FIXME: maybe refactor this out into a new cell since its also used in pressor_at_start ?
+        ASOF LEFT JOIN meds_rel t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.end_dttm >= t.admin_dttm  -- include events AT end_dttm
+        SELECT
+            cm.hospitalization_id,
+            cm.start_dttm,  -- window identity
+            cm.end_dttm AS admin_dttm,  -- forward-filled timestamp AT end_dttm
+            cm.med_category,
+            t.mar_action_category,
+            t.med_dose,
+            t.med_dose_unit  -- needed for unit conversion
+        WHERE t.hospitalization_id IS NOT NULL
+            -- AND t.mar_action_category != 'stop'
+            -- AND t.med_dose > 0  -- only if actively infusing
+        """
+    )
+    return (pressor_at_end,)
+
+
+@app.cell
+def _(pressor_at_end, pressor_at_start, pressor_in_window):
+    pressor_events_raw = mo.sql(
+        f"""
+        -- Combine forward-filled boundary events and in-window events
+        -- Raw data before dedup and unit conversion
+        SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
+        FROM pressor_at_start
+        UNION ALL
+        SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
+        FROM pressor_in_window
+        UNION ALL
+        SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
+        FROM pressor_at_end
+        """
+    )
+    return (pressor_events_raw,)
+
+
+@app.cell
+def _(pressor_events_raw):
+    # MAR deduplication on window-filtered data
+    pressor_events_deduped = mo.sql(
+        f"""
+        -- Centralized MAR deduplication for vasopressors
+        FROM pressor_events_raw t
+        SELECT
+            t.hospitalization_id,
+            t.start_dttm,
+            t.admin_dttm,
+            t.med_category,
+            t.mar_action_category,
+            t.med_dose,
+            t.med_dose_unit
         QUALIFY ROW_NUMBER() OVER (
-            PARTITION BY t.hospitalization_id, t.admin_dttm, t.med_category
+            PARTITION BY t.hospitalization_id, t.start_dttm, t.admin_dttm, t.med_category
             ORDER BY
                 CASE WHEN t.mar_action_category IS NULL THEN 10
                     WHEN t.mar_action_category IN ('verify', 'not_given') THEN 9
@@ -247,335 +337,276 @@ def _(meds_unit_converted):
         ) = 1
         """
     )
-    return (meds_deduped,)
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ### Vasopressor
-    """)
-    return
+    return (pressor_events_deduped,)
 
 
 @app.cell
-def _(cohort_df, meds_deduped):
-    vaso_pre_window = mo.sql(
-        f"""
-        -- Get most recent dose BEFORE start_dttm for each vasopressor (pre-window state)
-        -- Uses meds_deduped which already has MAR deduplication and vasopressor filtering
-        -- NOTE: For medications, we ALWAYS forward-fill (not fallback), so this is always included
-        WITH med_cats AS (
-            SELECT DISTINCT med_category FROM meds_deduped
-        ),
-        cohort_meds AS (
-            FROM cohort_df c
-            CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, m.med_category
+def _(cohort_vitals, pressor_events_deduped, pressor_preferred_units):
+    from clifpy.utils.unit_converter import convert_dose_units_by_med_category
+
+    # Unit conversion on deduped data (least data to process)
+    with track_memory('pressor_unit_convert'):
+        pressor_events, _ = convert_dose_units_by_med_category(
+            med_df=pressor_events_deduped,
+            vitals_df=cohort_vitals,
+            return_rel=True,
+            preferred_units=pressor_preferred_units,
+            override=True
         )
-        FROM cohort_meds cm
-        ASOF LEFT JOIN meds_deduped t
-            ON cm.hospitalization_id = t.hospitalization_id
-            AND cm.med_category = t.med_category
-            AND cm.start_dttm > t.admin_dttm
-        SELECT
-            cm.hospitalization_id,
-            cm.start_dttm,  -- window identity
-            t.admin_dttm,
-            t.admin_dttm - cm.start_dttm AS time_since_start,
-            cm.med_category,
-            t.mar_action_category,
-            CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
-        WHERE t.hospitalization_id IS NOT NULL
-            -- NOTE: should prob filter out all the stop / 0-dose as well
-            AND t.med_dose != 0
-        """
-    )
-    return (vaso_pre_window,)
+    return (pressor_events,)
 
 
 @app.cell
-def _(vaso_pre_window):
-    with track_memory('vaso_pre_window'):
-        vaso_pre_window
+def _(pressor_events):
+    with track_memory('pressor_events'):
+        pressor_events.df()
     return
 
 
 @app.cell
-def _(cohort_df, meds_deduped):
-    vaso_in_window = mo.sql(
+def _(pressor_events):
+    # Pivot only epi + norepi to wide format (need concurrent sum)
+    epi_ne_wide = mo.sql(
         f"""
-        -- Get all vasopressor events during [start_dttm, end_dttm] with MAR dedup
-        -- INNER JOIN to carry window identity (non-overlapping windows assumed)
-        FROM meds_deduped t
-        JOIN cohort_df c ON
-            t.hospitalization_id = c.hospitalization_id
-            AND t.admin_dttm >= c.start_dttm
-            AND t.admin_dttm <= c.end_dttm
-        SELECT
-            t.hospitalization_id,
-            c.start_dttm,  -- window identity
-            t.admin_dttm,
-            t.admin_dttm - c.start_dttm AS time_since_start,
-            t.med_category,
-            t.mar_action_category,
-            CASE WHEN t.mar_action_category = 'stop' THEN 0 ELSE t.med_dose END AS med_dose
-        """
-    )
-    return (vaso_in_window,)
-
-
-@app.cell
-def _(vaso_in_window, vaso_pre_window):
-    vaso_events = mo.sql(
-        f"""
-        -- Combine pre-window and in-window vaso events
-        -- NOTE: For medications, we ALWAYS include pre-window (forward-fill), not fallback
-        --EXPLAIN ANALYZE
-        SELECT hospitalization_id, start_dttm, admin_dttm, time_since_start, med_category, med_dose, mar_action_category
-        FROM vaso_pre_window
-        UNION ALL
-        SELECT hospitalization_id, start_dttm, admin_dttm, time_since_start, med_category, med_dose, mar_action_category
-        FROM vaso_in_window
-        -- Removed ORDER BY: unnecessary before PIVOT, sorting handled by window functions downstream
-        """
-    )
-    return (vaso_events,)
-
-
-@app.cell
-def _(vaso_events):
-    with track_memory('vaso_events'):
-        vaso_events.df()
-    return
-
-
-@app.cell
-def _(vaso_events):
-    vaso_events.df()
-    return
-
-
-@app.cell
-def _(vaso_events):
-    vaso_wide_ = mo.sql(
-        f"""
-        -- EXPLAIN ANALYSE
-        -- this is now just a backup copy
-        PIVOT vaso_events
-        ON med_category
-        USING ANY_VALUE(med_dose)
-        GROUP BY hospitalization_id, admin_dttm
-        """
-    )
-    return
-
-
-@app.cell
-def _(vaso_wide):
-    vaso_wide.df()
-    return
-
-
-@app.cell
-def _(vaso_events):
-    # Cell 4: Pivot to wide format (one column per vasopressor)
-    vaso_wide = mo.sql(
-        f"""
-        --EXPLAIN ANALYSE
-        FROM vaso_events
+        FROM pressor_events
         PIVOT (
             ANY_VALUE(med_dose)
             FOR med_category IN (
                 'norepinephrine' AS norepi_raw,
-                'epinephrine' AS epi_raw,
-                'dopamine' AS dopamine_raw,
-                'dobutamine' AS dobutamine_raw,
-                'vasopressin' AS vasopressin_raw,
-                'phenylephrine' AS phenylephrine_raw,
-                'milrinone' AS milrinone_raw,
-                'angiotensin' AS angiotensin_raw,
-                'isoproterenol' AS isoproterenol_raw
+                'epinephrine' AS epi_raw
             )
-            GROUP BY hospitalization_id, admin_dttm
+            GROUP BY hospitalization_id, start_dttm, admin_dttm
         )
+        -- WHERE med_category IN ('norepinephrine', 'epinephrine')
         """
     )
-    return (vaso_wide,)
+    return (epi_ne_wide,)
 
 
 @app.cell
-def _(vaso_wide):
-    vaso_wide.df()
-    return
-
-
-@app.cell
-def _(vaso_wide):
-    with track_memory('vaso_wide'):
-        vaso_wide.df()
-    return
-
-
-@app.cell
-def _(vaso_wide):
-    # Cell 5: Forward-fill doses using LAST_VALUE IGNORE NULLS
-    vaso_filled = mo.sql(
+def _(epi_ne_wide):
+    # Forward-fill epi + norepi only
+    epi_ne_filled = mo.sql(
         f"""
-        FROM vaso_wide
+        FROM epi_ne_wide
         SELECT
             hospitalization_id,
+            start_dttm,
             admin_dttm,
-            --norepi_raw,
-            --epi_raw,
             COALESCE(LAST_VALUE(norepi_raw IGNORE NULLS) OVER w, 0) AS norepi,
-            COALESCE(LAST_VALUE(epi_raw IGNORE NULLS) OVER w, 0) AS epi,
-            COALESCE(LAST_VALUE(dopamine_raw IGNORE NULLS) OVER w, 0) AS dopamine,
-            COALESCE(LAST_VALUE(dobutamine_raw IGNORE NULLS) OVER w, 0) AS dobutamine,
-            COALESCE(LAST_VALUE(vasopressin_raw IGNORE NULLS) OVER w, 0) AS vasopressin,
-            COALESCE(LAST_VALUE(phenylephrine_raw IGNORE NULLS) OVER w, 0) AS phenylephrine,
-            COALESCE(LAST_VALUE(milrinone_raw IGNORE NULLS) OVER w, 0) AS milrinone,
-            COALESCE(LAST_VALUE(angiotensin_raw IGNORE NULLS) OVER w, 0) AS angiotensin,
-            COALESCE(LAST_VALUE(isoproterenol_raw IGNORE NULLS) OVER w, 0) AS isoproterenol
-        WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm
+            COALESCE(LAST_VALUE(epi_raw IGNORE NULLS) OVER w, 0) AS epi
+        WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm
                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
-        --ORDER BY hospitalization_id, admin_dttm
         """
     )
-    return (vaso_filled,)
+    return (epi_ne_filled,)
 
 
 @app.cell
-def _(vaso_filled):
-    vaso_filled.df()
-    return
-
-
-@app.cell
-def _(vaso_filled):
-    # Cell 6: Track episode duration for >=60 min enforcement (SOFA-2 Note 8)
-    vaso_with_duration = mo.sql(
+def _(epi_ne_filled):
+    # Duration validation for epi + norepi only (SOFA-2 spec 8: >=60min)
+    epi_ne_duration = mo.sql(
         f"""
+        -- Episode detection and 60-min validation for epi + norepi only
         WITH with_lag AS (
-            -- Step 1: Compute LAG values (cannot be nested in window function)
-            FROM vaso_filled
+            FROM epi_ne_filled
             SELECT
                 *,
                 LAG(norepi) OVER w AS prev_norepi,
                 LAG(epi) OVER w AS prev_epi
-            WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
         ),
         episode_groups AS (
-            -- Step 2: Assign episode IDs using the pre-computed LAG values
+            -- Assign episode IDs (cumsum when transitioning from 0 to non-zero)
             FROM with_lag
             SELECT
                 *,
-            	-- cumsum of whenever a new episode starts, defined by switching from 0 to non-zero
                 SUM(CASE WHEN norepi > 0 AND COALESCE(prev_norepi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS norepi_episode,
                 SUM(CASE WHEN epi > 0 AND COALESCE(prev_epi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
-            WINDOW w AS (PARTITION BY hospitalization_id ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
         ),
         with_episode_start AS (
-            -- Step 3: Get episode start time for each vasopressor
+            -- Get episode start time for each pressor
             FROM episode_groups
             SELECT
                 *,
-                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, norepi_episode ORDER BY admin_dttm) AS norepi_episode_start,
-                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, epi_episode ORDER BY admin_dttm) AS epi_episode_start
+                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, start_dttm, norepi_episode ORDER BY admin_dttm) AS norepi_episode_start,
+                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, start_dttm, epi_episode ORDER BY admin_dttm) AS epi_episode_start
         )
-        -- Step 4: Apply 60-min threshold
+        -- Apply 60-min threshold
         FROM with_episode_start
-        SELECT
+        SELECT --*,
             hospitalization_id,
+            start_dttm,
             admin_dttm,
             norepi,
             epi,
-            dopamine,
-            dobutamine,
-            vasopressin,
-            phenylephrine,
-            milrinone,
-            angiotensin,
-            isoproterenol,
+            norepi_episode_start,
+            epi_episode_start,
+            -- Validated doses (only count if episode >= 60 min)
             CASE WHEN norepi > 0 AND DATEDIFF('minute', norepi_episode_start, admin_dttm) >= 60
                  THEN norepi ELSE 0 END AS norepi_valid,
             CASE WHEN epi > 0 AND DATEDIFF('minute', epi_episode_start, admin_dttm) >= 60
                  THEN epi ELSE 0 END AS epi_valid
+        -- RESUME: FIXME the calculation
         """
     )
-    return (vaso_with_duration,)
+    return (epi_ne_duration,)
 
 
 @app.cell
-def _(vaso_with_duration):
-    vaso_with_duration.df()
-    return
-
-
-@app.cell
-def _(cohort_df, vaso_with_duration):
-    vaso_concurrent = mo.sql(
+def _(epi_ne_duration):
+    # Pre-aggregate epi + norepi to one row per window (avoids inequality join)
+    epi_ne_agg = mo.sql(
         f"""
-        -- Final aggregation - MAX concurrent norepi + epi sum
-        FROM vaso_with_duration f
-        JOIN cohort_df c ON f.hospitalization_id = c.hospitalization_id
+        FROM epi_ne_duration
         SELECT
-            f.hospitalization_id,
-            c.start_dttm,  -- window identity
-            MAX(f.norepi_valid + f.epi_valid) AS norepi_epi_max_concurrent,
-            MAX(f.norepi_valid) AS norepi_max,
-            MAX(f.epi_valid) AS epi_max,
-            CASE WHEN MAX(f.dopamine) > 0 OR MAX(f.dobutamine) > 0
-                  OR MAX(f.vasopressin) > 0 OR MAX(f.phenylephrine) > 0
-                  OR MAX(f.milrinone) > 0 OR MAX(f.angiotensin) > 0
-                  OR MAX(f.isoproterenol) > 0
-                 THEN 1 ELSE 0 END AS has_other_vasopressor
-        WHERE f.admin_dttm >= c.start_dttm
-          AND f.admin_dttm <= c.end_dttm
-        GROUP BY f.hospitalization_id, c.start_dttm
+            hospitalization_id,
+            start_dttm,
+            MAX(norepi_valid + epi_valid) AS norepi_epi_sum,
+            MAX(norepi_valid) AS norepi_max,
+            MAX(epi_valid) AS epi_max
+        GROUP BY hospitalization_id, start_dttm
         """
     )
-    return (vaso_concurrent,)
+    return (epi_ne_agg,)
 
 
 @app.cell
-def _(cohort_df, map_agg, vaso_concurrent):
-    cv_agg = mo.sql(
+def _(pressor_events):
+    # Duration validation for dopamine + 6 other pressors in long format
+    # NOTE: No forward-fill needed - works on sparse events with LAG
+    other_pressor_duration = mo.sql(
         f"""
-        -- Cardiovascular score using vaso_concurrent
+        WITH filtered AS (
+            FROM pressor_events
+            SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose
+            WHERE med_category NOT IN ('norepinephrine', 'epinephrine')
+
+        ),
+        with_lag AS (
+            FROM filtered
+            SELECT
+                *,
+                LAG(med_dose) OVER w AS prev_dose
+            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm, med_category ORDER BY admin_dttm)
+        ),
+        episode_groups AS (
+            FROM with_lag
+            SELECT
+                *,
+                SUM(CASE WHEN med_dose > 0 AND COALESCE(prev_dose, 0) = 0 THEN 1 ELSE 0 END) OVER w AS episode_id
+            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm, med_category ORDER BY admin_dttm)
+        ),
+        with_start AS (
+            FROM episode_groups
+            SELECT
+                *,
+                FIRST_VALUE(admin_dttm) OVER (
+                    PARTITION BY hospitalization_id, start_dttm, med_category, episode_id
+                    ORDER BY admin_dttm
+                ) AS episode_start
+        )
+        -- Apply 60-min threshold (spec 8)
+        FROM with_start
+        SELECT
+            hospitalization_id,
+            start_dttm,
+            admin_dttm,
+            med_category,
+            med_dose,
+            CASE WHEN med_dose > 0 AND DATEDIFF('minute', episode_start, admin_dttm) >= 60
+                 THEN med_dose ELSE 0 END AS dose_valid
+        """
+    )
+    return (other_pressor_duration,)
+
+
+@app.cell
+def _(other_pressor_duration):
+    # Pre-aggregate dopamine + others to one row per window
+    other_pressor_agg = mo.sql(
+        f"""
+        FROM other_pressor_duration
+        SELECT
+            hospitalization_id,
+            start_dttm,
+            MAX(dose_valid) FILTER (WHERE med_category = 'dopamine') AS dopamine_max,
+            CASE WHEN MAX(dose_valid) FILTER (WHERE med_category != 'dopamine') > 0
+                 THEN 1 ELSE 0 END AS has_other_non_dopa
+        GROUP BY hospitalization_id, start_dttm
+        """
+    )
+    return (other_pressor_agg,)
+
+
+@app.cell
+def _(cohort_df, epi_ne_agg, other_pressor_agg):
+    # Simple equality join of pre-aggregated tables (no expensive inequality conditions)
+    pressor_agg = mo.sql(
+        f"""
+        FROM cohort_df c
+        LEFT JOIN epi_ne_agg ne USING (hospitalization_id, start_dttm)
+        LEFT JOIN other_pressor_agg op USING (hospitalization_id, start_dttm)
+        SELECT
+            c.hospitalization_id,
+            c.start_dttm,
+            COALESCE(ne.norepi_epi_sum, 0) AS norepi_epi_sum,
+            COALESCE(ne.norepi_max, 0) AS norepi_max,
+            COALESCE(ne.epi_max, 0) AS epi_max,
+            COALESCE(op.dopamine_max, 0) AS dopamine_max,
+            COALESCE(op.has_other_non_dopa, 0) AS has_other_non_dopa
+        """
+    )
+    return (pressor_agg,)
+
+
+@app.cell
+def _(cohort_df, map_agg, pressor_agg):
+    cv_score = mo.sql(
+        f"""
+        -- Cardiovascular score with spec 8 (all pressors 60min) and spec 10 (dopamine-only)
         FROM cohort_df c
         LEFT JOIN map_agg m USING (hospitalization_id, start_dttm)
-        LEFT JOIN vaso_concurrent v USING (hospitalization_id, start_dttm)
+        LEFT JOIN pressor_agg v USING (hospitalization_id, start_dttm)
         SELECT
             c.hospitalization_id,
             c.start_dttm,  -- window identity
             -- Define aliases (DuckDB allows reuse in same SELECT)
-            COALESCE(v.norepi_epi_max_concurrent, 0) AS norepi_epi_sum,
-            COALESCE(v.has_other_vasopressor, 0) AS has_other_vaso,
+            COALESCE(v.norepi_epi_sum, 0) AS norepi_epi_sum,
+            COALESCE(v.dopamine_max, 0) AS dopamine_max,
+            COALESCE(v.has_other_non_dopa, 0) AS has_other_non_dopa,
+            -- Composite "other" flag (dopamine OR other non-dopa)
+            CASE WHEN COALESCE(v.dopamine_max, 0) > 0 OR COALESCE(v.has_other_non_dopa, 0) = 1
+                 THEN 1 ELSE 0 END AS has_other_vaso,
             m.map_min,
-            -- CV Score (reuse aliases)
+            -- CV Score with spec 10 dopamine-only scoring
             cardiovascular: CASE
+                -- Spec 10: Dopamine-only scoring (no norepi/epi, no other pressors)
+                WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 40 THEN 4
+                WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 20 THEN 3
+                WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 0 THEN 2
+                -- Standard norepi/epi scoring
                 WHEN norepi_epi_sum > 0.4 THEN 4
                 WHEN norepi_epi_sum > 0.2 AND has_other_vaso = 1 THEN 4
                 WHEN norepi_epi_sum > 0.2 THEN 3
-                WHEN norepi_epi_sum > 0 AND has_other_vaso = 1 THEN 3 -- norepi_epi_sum <= 0.2 implied
-                WHEN norepi_epi_sum > 0 THEN 2 -- has_other_vaso = 0 implied
+                WHEN norepi_epi_sum > 0 AND has_other_vaso = 1 THEN 3
+                WHEN norepi_epi_sum > 0 THEN 2
                 WHEN has_other_vaso = 1 THEN 2
-            	-- here on implies no pressor as norepi_epi_sum <= 0 and has_other_vaso = 0
+                -- No pressor (norepi_epi_sum = 0 and has_other_vaso = 0)
                 WHEN map_min < 70 THEN 1
                 WHEN map_min >= 70 THEN 0
                 ELSE NULL
             END
-        -- NOTE: REVIEWED
         """
     )
-    return (cv_agg,)
+    return (cv_score,)
 
 
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Respiratory
+    # Respiratory subscore
     """)
     return
 
@@ -997,7 +1028,7 @@ def _():
 
 
 @app.cell
-def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_score, rrt_flag):
+def _(cohort_df, cv_score, gcs_agg, labs_agg, resp_score, rrt_flag):
     sofa_scores = mo.sql(
         f"""
         -- CRITICAL: LEFT JOIN from cohort_df to preserve all cohort rows
@@ -1007,7 +1038,7 @@ def _(cohort_df, cv_agg, gcs_agg, labs_agg, resp_score, rrt_flag):
         LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
         LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
         LEFT JOIN gcs_agg g USING (hospitalization_id, start_dttm)
-        LEFT JOIN cv_agg cv USING (hospitalization_id, start_dttm)
+        LEFT JOIN cv_score cv USING (hospitalization_id, start_dttm)
         LEFT JOIN resp_score resp USING (hospitalization_id, start_dttm)
         SELECT
             c.hospitalization_id,
