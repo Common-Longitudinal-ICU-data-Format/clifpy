@@ -203,11 +203,11 @@ def _(cohort_df, cohort_vasopressors):
         ASOF LEFT JOIN meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
-            AND cm.start_dttm >= t.admin_dttm  -- include events AT start_dttm
+            AND cm.start_dttm > t.admin_dttm  -- include events ONLY BEFORE (NOT AT) start_dttm
         SELECT
             cm.hospitalization_id,
             cm.start_dttm,  -- window identity
-            cm.start_dttm AS admin_dttm,  -- forward-filled timestamp AT start_dttm
+            t.admin_dttm,  -- preserve all original pre-window timestamps
             cm.med_category,
             t.mar_action_category,
             t.med_dose,
@@ -215,7 +215,7 @@ def _(cohort_df, cohort_vasopressors):
         WHERE t.hospitalization_id IS NOT NULL
             AND t.mar_action_category != 'stop'
             AND t.med_dose > 0  -- only if actively infusing
-        -- TODO: REVIEWED
+        -- NOTE: REVIEWED
         """
     )
     return (pressor_at_start,)
@@ -238,8 +238,8 @@ def _(cohort_vasopressors):
         FROM meds_rel t
         JOIN cohort_df c ON
             t.hospitalization_id = c.hospitalization_id
-            AND t.admin_dttm > c.start_dttm   -- strict >
-            AND t.admin_dttm < c.end_dttm     -- strict <
+            AND t.admin_dttm >= c.start_dttm   
+            AND t.admin_dttm <= c.end_dttm     
         SELECT
             t.hospitalization_id,
             c.start_dttm,  -- window identity
@@ -269,11 +269,11 @@ def _(cohort_df, cohort_vasopressors):
             CROSS JOIN med_cats m
             SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
         )
-        FROM cohort_meds cm -- FIXME: maybe refactor this out into a new cell since its also used in pressor_at_start ?
+        FROM cohort_meds cm -- NOTE: cohort_meds CTE is duplicated in pressor_at_start (minor, DuckDB optimizes CTEs)
         ASOF LEFT JOIN meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
-            AND cm.end_dttm >= t.admin_dttm  -- include events AT end_dttm
+            AND cm.end_dttm < t.admin_dttm  -- include first event AFTER end_dttm
         SELECT
             cm.hospitalization_id,
             cm.start_dttm,  -- window identity
@@ -405,6 +405,7 @@ def _(epi_ne_wide):
 @app.cell
 def _(epi_ne_filled):
     # Duration validation for epi + norepi only (SOFA-2 spec 8: >=60min)
+    # If episode duration >= 60 min, ALL events in that episode are valid
     epi_ne_duration = mo.sql(
         f"""
         -- Episode detection and 60-min validation for epi + norepi only
@@ -425,30 +426,40 @@ def _(epi_ne_filled):
                 SUM(CASE WHEN epi > 0 AND COALESCE(prev_epi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
             WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
         ),
-        with_episode_start AS (
-            -- Get episode start time for each pressor
+        with_episode_bounds AS (
+            -- Get episode start AND end times for each pressor
             FROM episode_groups
             SELECT
                 *,
-                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, start_dttm, norepi_episode ORDER BY admin_dttm) AS norepi_episode_start,
-                FIRST_VALUE(admin_dttm) OVER (PARTITION BY hospitalization_id, start_dttm, epi_episode ORDER BY admin_dttm) AS epi_episode_start
+                FIRST_VALUE(admin_dttm) OVER norepi_w AS norepi_episode_start,
+                LAST_VALUE(admin_dttm) OVER norepi_w AS norepi_episode_end,
+                FIRST_VALUE(admin_dttm) OVER epi_w AS epi_episode_start,
+                LAST_VALUE(admin_dttm) OVER epi_w AS epi_episode_end
+            WINDOW norepi_w AS (PARTITION BY hospitalization_id, start_dttm, norepi_episode
+                                ORDER BY admin_dttm ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),
+                   epi_w AS (PARTITION BY hospitalization_id, start_dttm, epi_episode
+                             ORDER BY admin_dttm ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
         )
-        -- Apply 60-min threshold
-        FROM with_episode_start
-        SELECT --*,
+        -- Apply 60-min threshold based on EPISODE DURATION (not event time from start)
+        FROM with_episode_bounds
+        SELECT
             hospitalization_id,
             start_dttm,
             admin_dttm,
             norepi,
             epi,
             norepi_episode_start,
+            norepi_episode_end,
             epi_episode_start,
-            -- Validated doses (only count if episode >= 60 min)
-            CASE WHEN norepi > 0 AND DATEDIFF('minute', norepi_episode_start, admin_dttm) >= 60
+            epi_episode_end,
+            -- Calculate episode durations
+            DATEDIFF('minute', norepi_episode_start, norepi_episode_end) AS norepi_episode_duration,
+            DATEDIFF('minute', epi_episode_start, epi_episode_end) AS epi_episode_duration,
+            -- Validated doses: ALL events in 60+ min episodes are valid
+            CASE WHEN norepi > 0 AND norepi_episode_duration >= 60
                  THEN norepi ELSE 0 END AS norepi_valid,
-            CASE WHEN epi > 0 AND DATEDIFF('minute', epi_episode_start, admin_dttm) >= 60
+            CASE WHEN epi > 0 AND epi_episode_duration >= 60
                  THEN epi ELSE 0 END AS epi_valid
-        -- RESUME: FIXME the calculation
         """
     )
     return (epi_ne_duration,)
@@ -476,13 +487,13 @@ def _(epi_ne_duration):
 def _(pressor_events):
     # Duration validation for dopamine + 6 other pressors in long format
     # NOTE: No forward-fill needed - works on sparse events with LAG
+    # If episode duration >= 60 min, ALL events in that episode are valid
     other_pressor_duration = mo.sql(
         f"""
         WITH filtered AS (
             FROM pressor_events
             SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose
             WHERE med_category NOT IN ('norepinephrine', 'epinephrine')
-
         ),
         with_lag AS (
             FROM filtered
@@ -498,24 +509,29 @@ def _(pressor_events):
                 SUM(CASE WHEN med_dose > 0 AND COALESCE(prev_dose, 0) = 0 THEN 1 ELSE 0 END) OVER w AS episode_id
             WINDOW w AS (PARTITION BY hospitalization_id, start_dttm, med_category ORDER BY admin_dttm)
         ),
-        with_start AS (
+        with_episode_bounds AS (
+            -- Get episode start AND end times
             FROM episode_groups
             SELECT
                 *,
-                FIRST_VALUE(admin_dttm) OVER (
-                    PARTITION BY hospitalization_id, start_dttm, med_category, episode_id
-                    ORDER BY admin_dttm
-                ) AS episode_start
+                FIRST_VALUE(admin_dttm) OVER episode_w AS episode_start,
+                LAST_VALUE(admin_dttm) OVER episode_w AS episode_end
+            WINDOW episode_w AS (PARTITION BY hospitalization_id, start_dttm, med_category, episode_id
+                                 ORDER BY admin_dttm ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
         )
-        -- Apply 60-min threshold (spec 8)
-        FROM with_start
+        -- Apply 60-min threshold based on EPISODE DURATION (not event time from start)
+        FROM with_episode_bounds
         SELECT
             hospitalization_id,
             start_dttm,
             admin_dttm,
             med_category,
             med_dose,
-            CASE WHEN med_dose > 0 AND DATEDIFF('minute', episode_start, admin_dttm) >= 60
+            episode_start,
+            episode_end,
+            DATEDIFF('minute', episode_start, episode_end) AS episode_duration,
+            -- ALL events in 60+ min episodes are valid
+            CASE WHEN med_dose > 0 AND episode_duration >= 60
                  THEN med_dose ELSE 0 END AS dose_valid
         """
     )
@@ -552,8 +568,8 @@ def _(cohort_df, epi_ne_agg, other_pressor_agg):
             c.hospitalization_id,
             c.start_dttm,
             COALESCE(ne.norepi_epi_sum, 0) AS norepi_epi_sum,
-            COALESCE(ne.norepi_max, 0) AS norepi_max,
-            COALESCE(ne.epi_max, 0) AS epi_max,
+            --COALESCE(ne.norepi_max, 0) AS norepi_max,
+            --COALESCE(ne.epi_max, 0) AS epi_max,
             COALESCE(op.dopamine_max, 0) AS dopamine_max,
             COALESCE(op.has_other_non_dopa, 0) AS has_other_non_dopa
         """
@@ -580,7 +596,7 @@ def _(cohort_df, map_agg, pressor_agg):
             CASE WHEN COALESCE(v.dopamine_max, 0) > 0 OR COALESCE(v.has_other_non_dopa, 0) = 1
                  THEN 1 ELSE 0 END AS has_other_vaso,
             m.map_min,
-            -- CV Score with spec 10 dopamine-only scoring
+            -- CV Score with spec 10 dopamine-only scoring -- TODO: further review this
             cardiovascular: CASE
                 -- Spec 10: Dopamine-only scoring (no norepi/epi, no other pressors)
                 WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 40 THEN 4
