@@ -7,23 +7,13 @@ with app.setup:
     import marimo as mo
     import duckdb
 
-    COHORT_SIZE = 20000
+    COHORT_SIZE = 100000
     PREFIX = ''
     DEMO_CONFIG_PATH = PREFIX + 'config/demo_data_config.yaml'
     MIMIC_CONFIG_PATH = PREFIX + 'config/config.yaml'
     CONFIG_PATH = MIMIC_CONFIG_PATH
 
-    from memory_tracker import track_memory, get_report, clear_report
-
-    from clifpy import load_data
-    labs_rel = load_data('labs', config_path=CONFIG_PATH, return_rel=True)
-    crrt_rel = load_data('crrt_therapy', config_path=CONFIG_PATH, return_rel=True)
-    assessments_rel = load_data('patient_assessments', config_path=CONFIG_PATH, return_rel=True)
-    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
-    vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
-    meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
-    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_rel=True)
-    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_rel=True)
+    # from memory_tracker import track_memory, get_report, clear_report
 
 
 @app.cell(hide_code=True)
@@ -36,6 +26,29 @@ def _():
 
 @app.cell
 def _():
+    from clifpy import load_data
+    labs_rel = load_data('labs', config_path=CONFIG_PATH, return_rel=True)
+    crrt_rel = load_data('crrt_therapy', config_path=CONFIG_PATH, return_rel=True)
+    assessments_rel = load_data('patient_assessments', config_path=CONFIG_PATH, return_rel=True)
+    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
+    vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
+    meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
+    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_rel=True)
+    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_rel=True)
+    return (
+        adt_rel,
+        assessments_rel,
+        crrt_rel,
+        ecmo_rel,
+        labs_rel,
+        meds_rel,
+        resp_rel,
+        vitals_rel,
+    )
+
+
+@app.cell
+def cohort_c(adt_rel):
     cohort_df = mo.sql(
         f"""
         FROM adt_rel a
@@ -49,7 +62,7 @@ def _():
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, labs_rel):
     labs_agg = mo.sql(
         f"""
         -- Lab aggregations for hemostasis, liver, kidney subscores
@@ -68,11 +81,19 @@ def _(cohort_df):
             -- MAX aggregations (worse = higher)
             MAX(lab_value_numeric) FILTER(lab_category = 'creatinine') AS creatinine,
             MAX(lab_value_numeric) FILTER(lab_category = 'bilirubin_total') AS bilirubin_total,
+            -- Spec 14 labs: RRT criteria fallback
+            MAX(lab_value_numeric) FILTER(lab_category = 'potassium') AS potassium,
+            MIN(lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) AS ph_min,
+            MIN(lab_value_numeric) FILTER(lab_category = 'bicarbonate') AS bicarbonate,
         WHERE t.lab_category IN (
                 'platelet_count',
                 'creatinine',
                 'bilirubin_total',
-                'po2_arterial'
+                'po2_arterial',
+                'potassium',
+                'ph_arterial',
+                'ph_venous',
+                'bicarbonate'
             )
         GROUP BY t.hospitalization_id, c.start_dttm
         """
@@ -87,7 +108,7 @@ def _(labs_agg):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, crrt_rel):
     rrt_flag = mo.sql(
         f"""
         -- Detect if patient received RRT during the time window
@@ -103,7 +124,7 @@ def _(cohort_df):
 
 
 @app.cell
-def _(cohort_df):
+def _(assessments_rel, cohort_df):
     gcs_agg = mo.sql(
         f"""
         -- GCS aggregation for brain subscore
@@ -124,7 +145,7 @@ def _(cohort_df):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, meds_rel):
     # Detect delirium drug administration during window (brain spec 3)
     # Currently only dexmedetomidine per spec 3
     delirium_drug_flag = mo.sql(
@@ -148,7 +169,7 @@ def _(cohort_df):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, vitals_rel):
     map_agg = mo.sql(
         f"""
         -- MAP aggregation for cardiovascular subscore
@@ -196,7 +217,7 @@ def _():
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, vitals_rel):
     # Vitals needed for unit conversion (weight for mcg/kg/min)
     cohort_vitals = mo.sql(
         f"""
@@ -209,7 +230,7 @@ def _(cohort_df):
 
 
 @app.cell
-def _(cohort_df, cohort_vasopressors):
+def _(cohort_df, cohort_vasopressors, meds_rel):
     pressor_at_start = mo.sql(
         f"""
         -- Forward-filled event AT start_dttm for each vasopressor
@@ -246,7 +267,7 @@ def _(cohort_df, cohort_vasopressors):
 
 
 @app.cell
-def _(pressor_at_start):
+def _(pressor_at_start, track_memory):
     with track_memory('pressor_at_start'):
         pressor_at_start
     return
@@ -279,7 +300,7 @@ def _(cohort_vasopressors):
 
 
 @app.cell
-def _(cohort_df, cohort_vasopressors):
+def _(cohort_df, cohort_vasopressors, meds_rel):
     pressor_at_end = mo.sql(
         f"""
         -- Forward-filled event AT end_dttm for each vasopressor
@@ -365,7 +386,12 @@ def _(pressor_events_raw):
 
 
 @app.cell
-def _(cohort_vitals, pressor_events_deduped, pressor_preferred_units):
+def _(
+    cohort_vitals,
+    pressor_events_deduped,
+    pressor_preferred_units,
+    track_memory,
+):
     from clifpy.utils.unit_converter import convert_dose_units_by_med_category
 
     # Unit conversion on deduped data (least data to process)
@@ -381,7 +407,7 @@ def _(cohort_vitals, pressor_events_deduped, pressor_preferred_units):
 
 
 @app.cell
-def _(pressor_events):
+def _(pressor_events, track_memory):
     with track_memory('pressor_events'):
         pressor_events.df()
     return
@@ -652,7 +678,7 @@ def _():
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, resp_rel):
     # Get latest FiO2 measurement BEFORE start_dttm (pre-window state)
     # Used as fallback when no in-window measurements exist
     fio2_pre_window = mo.sql(
@@ -679,7 +705,7 @@ def _(cohort_df):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, resp_rel):
     # Get all FiO2 measurements during [start_dttm, end_dttm]
     # INNER JOIN to carry window identity (non-overlapping windows assumed)
     fio2_in_window = mo.sql(
@@ -759,7 +785,7 @@ def _(fio2_in_window, fio2_pre_window):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, labs_rel):
     # PaO2 measurements with fallback: use pre_window only when no in_window data
     pao2_measurements = mo.sql(
         f"""
@@ -817,7 +843,7 @@ def _(cohort_df):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, vitals_rel):
     # SpO2 measurements for S/F ratio calculation with fallback logic
     # Per spec 4: Use SpO2:FiO2 only when PaO2:FiO2 unavailable AND SpO2 < 98%
     spo2_measurements = mo.sql(
@@ -995,7 +1021,7 @@ def _(concurrent_pf, concurrent_sf):
 
 
 @app.cell
-def _(cohort_df):
+def _(cohort_df, ecmo_rel):
     # ECMO flag for respiratory scoring (Note 7) with window identity
     # Per SOFA-2: ECMO for respiratory failure = 4 points regardless of P/F ratio
     ecmo_flag = mo.sql(
@@ -1142,12 +1168,20 @@ def _(cohort_df, labs_agg):
     return (liver_score,)
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Kidney score
+    """)
+    return
+
+
 @app.cell
 def _(cohort_df, labs_agg, rrt_flag):
     # Kidney subscore (creatinine in mg/dL, with RRT override)
     kidney_score = mo.sql(
         f"""
-        -- Kidney subscore (creatinine in mg/dL, with RRT override)
+        -- Kidney subscore with Spec 14: RRT criteria fallback
         FROM cohort_df c
         LEFT JOIN labs_agg l USING (hospitalization_id, start_dttm)
         LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
@@ -1155,12 +1189,22 @@ def _(cohort_df, labs_agg, rrt_flag):
             c.hospitalization_id,
             c.start_dttm,
             l.creatinine,
+            l.potassium,
+            l.ph_min,
+            l.bicarbonate,
             COALESCE(r.has_rrt, 0) AS has_rrt,
+            -- footnote p: RRT criteria met (window-level, no concurrency check)
+            rrt_criteria_met: CASE
+                WHEN l.creatinine > 1.2
+                     AND (l.potassium >= 6.0
+                          OR (l.ph_min <= 7.20 AND l.bicarbonate <= 12.0))
+                THEN 1 ELSE 0 END,
             kidney: CASE
                 WHEN r.has_rrt = 1 THEN 4
+                WHEN rrt_criteria_met = 1 THEN 4  -- Spec 14 fallback
                 WHEN l.creatinine > 3.50 THEN 3
-                WHEN l.creatinine <= 3.50 THEN 2
-                WHEN l.creatinine <= 2.0 THEN 1
+                WHEN l.creatinine > 2.0 THEN 2
+                WHEN l.creatinine > 1.20 THEN 1
                 WHEN l.creatinine <= 1.20 THEN 0
                 ELSE NULL END
         """
@@ -1238,7 +1282,7 @@ def _(sofa_scores):
 
 
 @app.cell
-def _():
+def _(get_report):
     get_report()
     return
 
