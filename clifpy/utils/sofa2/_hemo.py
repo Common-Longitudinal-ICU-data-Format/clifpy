@@ -47,12 +47,14 @@ def _calculate_hemo_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, platelet_count, hemo]
-        Where hemo is the subscore (0-4) or NULL if no platelet data
+        Columns: [hospitalization_id, start_dttm, platelet_count, platelet_dttm_offset, hemo]
+        Where hemo is the subscore (0-4) or NULL if no platelet data.
+        Offset is interval from start_dttm (negative = pre-window, positive = in-window)
     """
     lookback_hours = cfg.hemo_lookback_hours
 
-    # Step 1: Get in-window platelet values (MIN = worst) with timestamp
+    # Step 1: Get in-window platelet values (MIN = worst) with offset from start_dttm
+    # Offset = lab_collect_dttm - start_dttm (positive for in-window)
     platelet_in_window = duckdb.sql("""
         FROM labs_rel t
         JOIN cohort_rel c ON
@@ -63,13 +65,14 @@ def _calculate_hemo_subscore(
             t.hospitalization_id
             , c.start_dttm
             , MIN(lab_value_numeric) AS platelet_count
-            , ARG_MIN(lab_collect_dttm, lab_value_numeric) AS platelet_dttm
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) - c.start_dttm AS platelet_dttm_offset
         WHERE t.lab_category = 'platelet_count'
         GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
     # Step 2: Get pre-window platelet value (ASOF JOIN with cutoff in WHERE)
-    # ASOF returns single closest record, so timestamp is directly available
+    # ASOF returns single closest record, so offset is directly available
+    # Offset = lab_collect_dttm - start_dttm (negative for pre-window)
     platelet_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
@@ -79,10 +82,9 @@ def _calculate_hemo_subscore(
             c.hospitalization_id
             , c.start_dttm
             , t.lab_value_numeric AS platelet_count
-            , t.lab_collect_dttm AS platelet_dttm
-            , c.start_dttm - t.lab_collect_dttm AS time_gap
+            , platelet_dttm_offset: t.lab_collect_dttm - c.start_dttm
         WHERE t.lab_category = 'platelet_count'
-            AND time_gap <= INTERVAL '{lookback_hours} hours'
+            AND platelet_dttm_offset >= -INTERVAL '{lookback_hours} hours'
     """)
 
     # Step 3: Apply fallback pattern (use pre-window only if no in-window data)
@@ -94,9 +96,9 @@ def _calculate_hemo_subscore(
         pre_window_fallback AS (
             FROM platelet_pre_window p
             ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm
+            SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm_offset
         )
-        FROM platelet_in_window SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm
+        FROM platelet_in_window SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm_offset
         UNION ALL
         FROM pre_window_fallback SELECT *
     """)
@@ -109,7 +111,7 @@ def _calculate_hemo_subscore(
             c.hospitalization_id
             , c.start_dttm
             , p.platelet_count
-            , p.platelet_dttm
+            , p.platelet_dttm_offset
             , hemo: CASE
                 WHEN p.platelet_count > 150 THEN 0
                 WHEN p.platelet_count <= 150 THEN 1

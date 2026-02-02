@@ -47,12 +47,14 @@ def _calculate_liver_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, bilirubin_total, liver]
-        Where liver is the subscore (0-4) or NULL if no bilirubin data
+        Columns: [hospitalization_id, start_dttm, bilirubin_total, bilirubin_dttm_offset, liver]
+        Where liver is the subscore (0-4) or NULL if no bilirubin data.
+        Offset is interval from start_dttm (negative = pre-window, positive = in-window)
     """
     lookback_hours = cfg.liver_lookback_hours
 
-    # Step 1: Get in-window bilirubin values (MAX = worst) with timestamp
+    # Step 1: Get in-window bilirubin values (MAX = worst) with offset from start_dttm
+    # Offset = lab_collect_dttm - start_dttm (positive for in-window)
     bilirubin_in_window = duckdb.sql("""
         FROM labs_rel t
         JOIN cohort_rel c ON
@@ -63,13 +65,14 @@ def _calculate_liver_subscore(
             t.hospitalization_id
             , c.start_dttm
             , MAX(lab_value_numeric) AS bilirubin_total
-            , ARG_MAX(lab_collect_dttm, lab_value_numeric) AS bilirubin_dttm
+            , ARG_MAX(lab_collect_dttm, lab_value_numeric) - c.start_dttm AS bilirubin_dttm_offset
         WHERE t.lab_category = 'bilirubin_total'
         GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
     # Step 2: Get pre-window bilirubin value (ASOF JOIN with cutoff in WHERE)
-    # ASOF returns single closest record, so timestamp is directly available
+    # ASOF returns single closest record, so offset is directly available
+    # Offset = lab_collect_dttm - start_dttm (negative for pre-window)
     bilirubin_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
@@ -79,10 +82,9 @@ def _calculate_liver_subscore(
             c.hospitalization_id
             , c.start_dttm
             , t.lab_value_numeric AS bilirubin_total
-            , t.lab_collect_dttm AS bilirubin_dttm
-            , c.start_dttm - t.lab_collect_dttm AS time_gap
+            , bilirubin_dttm_offset: t.lab_collect_dttm - c.start_dttm
         WHERE t.lab_category = 'bilirubin_total'
-            AND time_gap <= INTERVAL '{lookback_hours} hours'
+            AND bilirubin_dttm_offset >= -INTERVAL '{lookback_hours} hours'
     """)
 
     # Step 3: Apply fallback pattern (use pre-window only if no in-window data)
@@ -94,9 +96,9 @@ def _calculate_liver_subscore(
         pre_window_fallback AS (
             FROM bilirubin_pre_window p
             ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, bilirubin_total, bilirubin_dttm
+            SELECT hospitalization_id, start_dttm, bilirubin_total, bilirubin_dttm_offset
         )
-        FROM bilirubin_in_window SELECT hospitalization_id, start_dttm, bilirubin_total, bilirubin_dttm
+        FROM bilirubin_in_window SELECT hospitalization_id, start_dttm, bilirubin_total, bilirubin_dttm_offset
         UNION ALL
         FROM pre_window_fallback SELECT *
     """)
@@ -109,7 +111,7 @@ def _calculate_liver_subscore(
             c.hospitalization_id
             , c.start_dttm
             , b.bilirubin_total
-            , b.bilirubin_dttm
+            , b.bilirubin_dttm_offset
             , liver: CASE
                 WHEN b.bilirubin_total <= 1.2 THEN 0
                 WHEN b.bilirubin_total <= 3.0 THEN 1

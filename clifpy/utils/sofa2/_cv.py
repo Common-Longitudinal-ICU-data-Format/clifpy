@@ -71,7 +71,10 @@ def _calculate_cv_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, map_min, norepi_epi_sum, dopamine_max, cv]
+        Columns: [hospitalization_id, start_dttm, map_min, map_min_dttm_offset,
+                  norepi_epi_maxsum, norepi_epi_maxsum_dttm_offset,
+                  dopa_max, dopa_max_dttm_offset, ..., cv]
+        Offset columns are intervals from start_dttm (always positive for in-window).
     """
     from clifpy.utils.unit_converter import convert_dose_units_by_med_category
 
@@ -296,13 +299,14 @@ def _calculate_cv_subscore(
                    THEN epi ELSE 0 END AS epi_valid
     """)
 
-    # Aggregate epi+norepi
+    # Aggregate epi+norepi with offset at max dose
     epi_ne_agg = duckdb.sql("""
         FROM epi_ne_duration
         SELECT
             hospitalization_id
             , start_dttm
-            , MAX(norepi_valid + epi_valid) AS norepi_epi_sum
+            , MAX(norepi_valid + epi_valid) AS norepi_epi_maxsum
+            , ARG_MAX(admin_dttm, norepi_valid + epi_valid) - start_dttm AS norepi_epi_maxsum_dttm_offset
             , MAX(norepi_valid) AS norepi_max
             , MAX(epi_valid) AS epi_max
         GROUP BY hospitalization_id, start_dttm
@@ -354,13 +358,14 @@ def _calculate_cv_subscore(
                    THEN med_dose ELSE 0 END AS dose_valid
     """)
 
-    # Aggregate dopamine + others
+    # Aggregate dopamine + others with offset at max dose
     other_pressor_agg = duckdb.sql("""
         FROM other_pressor_duration
         SELECT
             hospitalization_id
             , start_dttm
-            , MAX(dose_valid) FILTER (WHERE med_category = 'dopamine') AS dopamine_max
+            , MAX(dose_valid) FILTER (WHERE med_category = 'dopamine') AS dopa_max
+            , ARG_MAX(admin_dttm, dose_valid) FILTER (WHERE med_category = 'dopamine') - start_dttm AS dopa_max_dttm_offset
             , CASE WHEN MAX(dose_valid) FILTER (WHERE med_category != 'dopamine') > 0
                    THEN 1 ELSE 0 END AS has_other_non_dopa
         GROUP BY hospitalization_id, start_dttm
@@ -374,8 +379,10 @@ def _calculate_cv_subscore(
         SELECT
             c.hospitalization_id
             , c.start_dttm
-            , COALESCE(ne.norepi_epi_sum, 0) AS norepi_epi_sum
-            , COALESCE(op.dopamine_max, 0) AS dopamine_max
+            , COALESCE(ne.norepi_epi_maxsum, 0) AS norepi_epi_maxsum
+            , ne.norepi_epi_maxsum_dttm_offset
+            , COALESCE(op.dopa_max, 0) AS dopa_max
+            , op.dopa_max_dttm_offset
             , COALESCE(op.has_other_non_dopa, 0) AS has_other_non_dopa
     """)
 
@@ -389,24 +396,27 @@ def _calculate_cv_subscore(
         SELECT
             c.hospitalization_id
             , c.start_dttm
-            , COALESCE(v.norepi_epi_sum, 0) AS norepi_epi_sum
-            , COALESCE(v.dopamine_max, 0) AS dopamine_max
+            , m.map_min
+            , m.map_min_dttm_offset
+            , COALESCE(v.norepi_epi_maxsum, 0) AS norepi_epi_maxsum
+            , v.norepi_epi_maxsum_dttm_offset
+            , COALESCE(v.dopa_max, 0) AS dopa_max
+            , v.dopa_max_dttm_offset
             , COALESCE(v.has_other_non_dopa, 0) AS has_other_non_dopa
             -- Composite "other" flag (dopamine OR other non-dopa)
-            , CASE WHEN COALESCE(v.dopamine_max, 0) > 0 OR COALESCE(v.has_other_non_dopa, 0) = 1
+            , CASE WHEN COALESCE(v.dopa_max, 0) > 0 OR COALESCE(v.has_other_non_dopa, 0) = 1
                    THEN 1 ELSE 0 END AS has_other_vaso
-            , m.map_min
             , cv: CASE
                 -- Footnote l: Dopamine-only scoring (no norepi/epi, no other pressors)
-                WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 40 THEN 4
-                WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 20 THEN 3
-                WHEN norepi_epi_sum = 0 AND has_other_non_dopa = 0 AND dopamine_max > 0 THEN 2
+                WHEN norepi_epi_maxsum = 0 AND has_other_non_dopa = 0 AND dopa_max > 40 THEN 4
+                WHEN norepi_epi_maxsum = 0 AND has_other_non_dopa = 0 AND dopa_max > 20 THEN 3
+                WHEN norepi_epi_maxsum = 0 AND has_other_non_dopa = 0 AND dopa_max > 0 THEN 2
                 -- Standard norepi/epi scoring
-                WHEN norepi_epi_sum > 0.4 THEN 4
-                WHEN norepi_epi_sum > 0.2 AND has_other_vaso = 1 THEN 4
-                WHEN norepi_epi_sum > 0.2 THEN 3
-                WHEN norepi_epi_sum > 0 AND has_other_vaso = 1 THEN 3
-                WHEN norepi_epi_sum > 0 THEN 2
+                WHEN norepi_epi_maxsum > 0.4 THEN 4
+                WHEN norepi_epi_maxsum > 0.2 AND has_other_vaso = 1 THEN 4
+                WHEN norepi_epi_maxsum > 0.2 THEN 3
+                WHEN norepi_epi_maxsum > 0 AND has_other_vaso = 1 THEN 3
+                WHEN norepi_epi_maxsum > 0 THEN 2
                 WHEN has_other_vaso = 1 THEN 2
                 -- No pressor
                 WHEN map_min < 70 THEN 1

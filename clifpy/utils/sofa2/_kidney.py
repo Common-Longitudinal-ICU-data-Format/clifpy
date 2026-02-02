@@ -10,6 +10,9 @@ Scoring (per SOFA-2 spec, creatinine in mg/dL):
 Special rules:
 - Footnote p: Score 4 if patient meets RRT criteria even without RRT
 - RRT criteria: creatinine > 1.2 AND (potassium >= 6.0 OR (pH <= 7.20 AND bicarbonate <= 12.0))
+
+Reviewers:
+- Zewei (Whiskey) on 2026-02-01.
 """
 
 from __future__ import annotations
@@ -54,8 +57,9 @@ def _calculate_kidney_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, creatinine, has_rrt, rrt_criteria_met, kidney]
-        Where kidney is the subscore (0-4) or NULL if no creatinine data
+        Columns: [hospitalization_id, start_dttm, creatinine, creatinine_dttm_offset, ..., kidney]
+        Where kidney is the subscore (0-4) or NULL if no creatinine data.
+        Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window)
     """
     lookback_hours = cfg.kidney_lookback_hours
     lab_categories = KIDNEY_LAB_CATEGORIES
@@ -63,8 +67,9 @@ def _calculate_kidney_subscore(
     # Step 1: Get RRT flag (in-window only)
     rrt_flag = _flag_rrt(cohort_rel, crrt_rel)
 
-    # Step 2: Get in-window lab values for kidney with timestamps
+    # Step 2: Get in-window lab values for kidney with offsets from start_dttm
     # MAX creatinine/potassium = worst, MIN pH/bicarbonate = worst
+    # Offset = lab_collect_dttm - start_dttm (positive for in-window)
     labs_in_window = duckdb.sql(f"""
         FROM labs_rel t
         JOIN cohort_rel c ON
@@ -75,21 +80,22 @@ def _calculate_kidney_subscore(
             t.hospitalization_id
             , c.start_dttm
             , MAX(lab_value_numeric) FILTER(lab_category = 'creatinine') AS creatinine
-            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'creatinine') AS creatinine_dttm
+            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'creatinine') - c.start_dttm AS creatinine_dttm_offset
             , MAX(lab_value_numeric) FILTER(lab_category = 'potassium') AS potassium
-            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'potassium') AS potassium_dttm
+            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'potassium') - c.start_dttm AS potassium_dttm_offset
             , MIN(lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) AS ph
             , ARG_MIN(lab_category, lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) AS ph_type
-            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) AS ph_dttm
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) - c.start_dttm AS ph_dttm_offset
             , MIN(lab_value_numeric) FILTER(lab_category = 'bicarbonate') AS bicarbonate
-            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'bicarbonate') AS bicarbonate_dttm
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'bicarbonate') - c.start_dttm AS bicarbonate_dttm_offset
         WHERE t.lab_category IN {tuple(lab_categories)}
         GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
     # Step 3: Get pre-window lab values using CROSS JOIN + ASOF JOIN pattern
     # This is more compact than separate ASOF JOINs per lab category
-    # ASOF returns single closest record, so timestamp is directly available
+    # ASOF returns single closest record, so offset is directly available
+    # Offset = lab_collect_dttm - start_dttm (negative for pre-window)
     labs_pre_window_long = duckdb.sql(f"""
         WITH lab_cats AS (
             SELECT UNNEST({lab_categories}::VARCHAR[]) AS lab_category
@@ -109,27 +115,26 @@ def _calculate_kidney_subscore(
             , cl.start_dttm
             , cl.lab_category
             , t.lab_value_numeric AS lab_value
-            , t.lab_collect_dttm AS lab_dttm
-            , cl.start_dttm - t.lab_collect_dttm AS time_gap
+            , lab_dttm_offset: t.lab_collect_dttm - cl.start_dttm
         WHERE t.hospitalization_id IS NOT NULL
-            AND time_gap <= INTERVAL '{lookback_hours} hours'
+            AND lab_dttm_offset >= -INTERVAL '{lookback_hours} hours'
     """)
 
-    # Step 4: Pivot pre-window labs to wide format (values and timestamps in single pass)
+    # Step 4: Pivot pre-window labs to wide format (values and offsets in single pass)
     # DuckDB PIVOT supports multiple aggregations: creates {category}_{alias} columns
     labs_pre_window = duckdb.sql("""
         PIVOT labs_pre_window_long
         ON lab_category
         USING
             ANY_VALUE(lab_value) AS val
-            , ANY_VALUE(lab_dttm) AS dttm
+            , ANY_VALUE(lab_dttm_offset) AS dttm_offset
         GROUP BY hospitalization_id, start_dttm
     """)
 
-    # Step 5: Apply fallback pattern for ALL labs (values and timestamps)
+    # Step 5: Apply fallback pattern for ALL labs (values and offsets)
     # Use pre-window value only if no in-window value exists for that specific lab
 
-    # Note: PIVOT creates columns as {category}_{alias}, e.g. creatinine_val, creatinine_dttm
+    # Note: PIVOT creates columns as {category}_{alias}, e.g. creatinine_val, creatinine_dttm_offset
     labs_with_fallback = duckdb.sql("""
         FROM cohort_rel c
         LEFT JOIN labs_in_window l USING (hospitalization_id, start_dttm)
@@ -139,18 +144,18 @@ def _calculate_kidney_subscore(
             , c.start_dttm
             -- Apply fallback per-lab: use pre-window only if in-window is NULL
             , COALESCE(l.creatinine, p.creatinine_val) AS creatinine
-            , COALESCE(l.creatinine_dttm, p.creatinine_dttm) AS creatinine_dttm
+            , COALESCE(l.creatinine_dttm_offset, p.creatinine_dttm_offset) AS creatinine_dttm_offset
             , COALESCE(l.potassium, p.potassium_val) AS potassium
-            , COALESCE(l.potassium_dttm, p.potassium_dttm) AS potassium_dttm
+            , COALESCE(l.potassium_dttm_offset, p.potassium_dttm_offset) AS potassium_dttm_offset
             , COALESCE(l.ph, LEAST(p.ph_arterial_val, p.ph_venous_val)) AS ph
             , COALESCE(l.ph_type,
                 CASE WHEN p.ph_arterial_val <= p.ph_venous_val OR p.ph_venous_val IS NULL
                      THEN 'ph_arterial' ELSE 'ph_venous' END) AS ph_type
-            , COALESCE(l.ph_dttm,
+            , COALESCE(l.ph_dttm_offset,
                 CASE WHEN p.ph_arterial_val <= p.ph_venous_val OR p.ph_venous_val IS NULL
-                     THEN p.ph_arterial_dttm ELSE p.ph_venous_dttm END) AS ph_dttm
+                     THEN p.ph_arterial_dttm_offset ELSE p.ph_venous_dttm_offset END) AS ph_dttm_offset
             , COALESCE(l.bicarbonate, p.bicarbonate_val) AS bicarbonate
-            , COALESCE(l.bicarbonate_dttm, p.bicarbonate_dttm) AS bicarbonate_dttm
+            , COALESCE(l.bicarbonate_dttm_offset, p.bicarbonate_dttm_offset) AS bicarbonate_dttm_offset
     """)
 
     # Step 6: Calculate subscore with RRT override and RRT criteria fallback
@@ -161,14 +166,14 @@ def _calculate_kidney_subscore(
             l.hospitalization_id
             , l.start_dttm
             , l.creatinine
-            , l.creatinine_dttm
+            , l.creatinine_dttm_offset
             , l.potassium
-            , l.potassium_dttm
+            , l.potassium_dttm_offset
             , l.ph
             , l.ph_type
-            , l.ph_dttm
+            , l.ph_dttm_offset
             , l.bicarbonate
-            , l.bicarbonate_dttm
+            , l.bicarbonate_dttm_offset
             , COALESCE(r.has_rrt, 0) AS has_rrt
             -- Footnote p: RRT criteria met (window-level, no concurrency check)
             , rrt_criteria_met: CASE

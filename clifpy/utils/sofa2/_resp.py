@@ -68,7 +68,11 @@ def _calculate_resp_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, ratio, ratio_type, has_advanced_support, resp]
+        Columns: [hospitalization_id, start_dttm, pf_ratio, sf_ratio, has_advanced_support,
+                  pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
+                  fio2_at_worst, fio2_dttm_offset, has_ecmo, resp]
+        pf_ratio and sf_ratio are mutually exclusive (one will be NULL).
+        Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window).
     """
     lookback_hours = cfg.resp_lookback_hours
     tolerance_minutes = int(cfg.pf_sf_tolerance_hours * 60)
@@ -162,12 +166,12 @@ def _calculate_resp_subscore(
         FROM labs_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
-            AND t.lab_result_dttm >= c.start_dttm
-            AND t.lab_result_dttm <= c.end_dttm
+            AND t.lab_collect_dttm >= c.start_dttm
+            AND t.lab_collect_dttm <= c.end_dttm
         SELECT
             t.hospitalization_id
             , c.start_dttm
-            , t.lab_result_dttm
+            , t.lab_collect_dttm
             , t.lab_value_numeric AS pao2
         WHERE t.lab_category = 'po2_arterial'
             AND t.lab_value_numeric IS NOT NULL
@@ -177,13 +181,13 @@ def _calculate_resp_subscore(
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
             ON c.hospitalization_id = t.hospitalization_id
-            AND c.start_dttm > t.lab_result_dttm
+            AND c.start_dttm > t.lab_collect_dttm
         SELECT
             c.hospitalization_id
             , c.start_dttm
-            , t.lab_result_dttm
+            , t.lab_collect_dttm
             , t.lab_value_numeric AS pao2
-            , c.start_dttm - t.lab_result_dttm AS time_gap
+            , c.start_dttm - t.lab_collect_dttm AS time_gap
         WHERE t.hospitalization_id IS NOT NULL
             AND t.lab_category = 'po2_arterial'
             AND t.lab_value_numeric IS NOT NULL
@@ -198,7 +202,7 @@ def _calculate_resp_subscore(
         pre_window_fallback AS (
             FROM pao2_pre_window p
             ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, lab_result_dttm, pao2
+            SELECT hospitalization_id, start_dttm, lab_collect_dttm, pao2
         )
         FROM pao2_in_window SELECT *
         UNION ALL
@@ -267,17 +271,17 @@ def _calculate_resp_subscore(
         ASOF JOIN fio2_imputed f
             ON p.hospitalization_id = f.hospitalization_id
             AND p.start_dttm = f.start_dttm  -- same window
-            AND f.recorded_dttm <= p.lab_result_dttm
+            AND f.recorded_dttm <= p.lab_collect_dttm
         SELECT
             p.hospitalization_id
             , p.start_dttm
             , p.pao2
-            , p.lab_result_dttm AS pao2_dttm
+            , pao2_dttm_offset: p.lab_collect_dttm - p.start_dttm
             , f.fio2_imputed
-            , f.recorded_dttm AS fio2_dttm
+            , fio2_dttm_offset: f.recorded_dttm - p.start_dttm
             , f.device_category
             , f.is_advanced_support
-            , p.lab_result_dttm - f.recorded_dttm AS pf_time_gap
+            , p.lab_collect_dttm - f.recorded_dttm AS pf_time_gap
             , p.pao2 / f.fio2_imputed AS pf_ratio
         WHERE f.fio2_imputed IS NOT NULL
             AND f.fio2_imputed > 0
@@ -298,9 +302,9 @@ def _calculate_resp_subscore(
             s.hospitalization_id
             , s.start_dttm
             , s.spo2
-            , s.recorded_dttm AS spo2_dttm
+            , spo2_dttm_offset: s.recorded_dttm - s.start_dttm
             , f.fio2_imputed
-            , f.recorded_dttm AS fio2_dttm
+            , fio2_dttm_offset: f.recorded_dttm - s.start_dttm
             , f.device_category
             , f.is_advanced_support
             , s.recorded_dttm - f.recorded_dttm AS sf_time_gap
@@ -321,12 +325,13 @@ def _calculate_resp_subscore(
             SELECT
                 hospitalization_id
                 , start_dttm
-                , MIN(pf_ratio) AS ratio
+                , MIN(pf_ratio) AS pf_ratio
                 , ARG_MIN(is_advanced_support, pf_ratio) AS has_advanced_support
                 , ARG_MIN(device_category, pf_ratio) AS device_category
                 , ARG_MIN(pao2, pf_ratio) AS pao2_at_worst
                 , ARG_MIN(fio2_imputed, pf_ratio) AS fio2_at_worst
-                , 'pf' AS ratio_type
+                , ARG_MIN(pao2_dttm_offset, pf_ratio) AS pao2_dttm_offset
+                , ARG_MIN(fio2_dttm_offset, pf_ratio) AS fio2_dttm_offset
             GROUP BY hospitalization_id, start_dttm
         ),
         sf_worst AS (
@@ -337,22 +342,27 @@ def _calculate_resp_subscore(
             SELECT
                 hospitalization_id
                 , start_dttm
-                , MIN(sf_ratio) AS ratio
+                , MIN(sf_ratio) AS sf_ratio
                 , ARG_MIN(is_advanced_support, sf_ratio) AS has_advanced_support
                 , ARG_MIN(device_category, sf_ratio) AS device_category
                 , ARG_MIN(spo2, sf_ratio) AS spo2_at_worst
                 , ARG_MIN(fio2_imputed, sf_ratio) AS fio2_at_worst
-                , 'sf' AS ratio_type
+                , ARG_MIN(spo2_dttm_offset, sf_ratio) AS spo2_dttm_offset
+                , ARG_MIN(fio2_dttm_offset, sf_ratio) AS fio2_dttm_offset
             GROUP BY hospitalization_id, start_dttm
         )
         -- Combine: P/F takes priority, S/F only for windows without P/F
         FROM pf_worst
-        SELECT hospitalization_id, start_dttm, ratio, has_advanced_support, device_category, ratio_type,
-               pao2_at_worst, NULL AS spo2_at_worst, fio2_at_worst
+        SELECT hospitalization_id, start_dttm, pf_ratio, NULL::DOUBLE AS sf_ratio,
+               has_advanced_support, device_category,
+               pao2_at_worst, NULL AS spo2_at_worst, fio2_at_worst,
+               pao2_dttm_offset, NULL::INTERVAL AS spo2_dttm_offset, fio2_dttm_offset
         UNION ALL
         FROM sf_worst
-        SELECT hospitalization_id, start_dttm, ratio, has_advanced_support, device_category, ratio_type,
-               NULL AS pao2_at_worst, spo2_at_worst, fio2_at_worst
+        SELECT hospitalization_id, start_dttm, NULL::DOUBLE AS pf_ratio, sf_ratio,
+               has_advanced_support, device_category,
+               NULL AS pao2_at_worst, spo2_at_worst, fio2_at_worst,
+               NULL::INTERVAL AS pao2_dttm_offset, spo2_dttm_offset, fio2_dttm_offset
     """)
 
     # =========================================================================
@@ -382,29 +392,32 @@ def _calculate_resp_subscore(
         SELECT
             c.hospitalization_id
             , c.start_dttm
-            , r.ratio
-            , r.ratio_type
+            , r.pf_ratio
+            , r.sf_ratio
             , r.has_advanced_support
             , r.device_category
             , r.pao2_at_worst
+            , r.pao2_dttm_offset
             , r.spo2_at_worst
+            , r.spo2_dttm_offset
             , r.fio2_at_worst
+            , r.fio2_dttm_offset
             , COALESCE(e.has_ecmo, 0) AS has_ecmo
             , resp: CASE
                 -- ECMO override: 4 points regardless of ratio
                 WHEN COALESCE(e.has_ecmo, 0) = 1 THEN 4
-                -- P/F ratio cutoffs
-                WHEN r.ratio_type = 'pf' AND r.ratio <= 75 AND r.has_advanced_support = 1 THEN 4
-                WHEN r.ratio_type = 'pf' AND r.ratio <= 150 AND r.has_advanced_support = 1 THEN 3
-                WHEN r.ratio_type = 'pf' AND r.ratio <= 225 THEN 2
-                WHEN r.ratio_type = 'pf' AND r.ratio <= 300 THEN 1
-                WHEN r.ratio_type = 'pf' AND r.ratio > 300 THEN 0
+                -- P/F ratio cutoffs (pf_ratio IS NOT NULL means P/F data exists)
+                WHEN r.pf_ratio IS NOT NULL AND r.pf_ratio <= 75 AND r.has_advanced_support = 1 THEN 4
+                WHEN r.pf_ratio IS NOT NULL AND r.pf_ratio <= 150 AND r.has_advanced_support = 1 THEN 3
+                WHEN r.pf_ratio IS NOT NULL AND r.pf_ratio <= 225 THEN 2
+                WHEN r.pf_ratio IS NOT NULL AND r.pf_ratio <= 300 THEN 1
+                WHEN r.pf_ratio IS NOT NULL AND r.pf_ratio > 300 THEN 0
                 -- S/F ratio cutoffs (different thresholds per SOFA-2 spec)
-                WHEN r.ratio_type = 'sf' AND r.ratio <= 120 AND r.has_advanced_support = 1 THEN 4
-                WHEN r.ratio_type = 'sf' AND r.ratio <= 200 AND r.has_advanced_support = 1 THEN 3
-                WHEN r.ratio_type = 'sf' AND r.ratio <= 250 THEN 2
-                WHEN r.ratio_type = 'sf' AND r.ratio <= 300 THEN 1
-                WHEN r.ratio_type = 'sf' AND r.ratio > 300 THEN 0
+                WHEN r.sf_ratio IS NOT NULL AND r.sf_ratio <= 120 AND r.has_advanced_support = 1 THEN 4
+                WHEN r.sf_ratio IS NOT NULL AND r.sf_ratio <= 200 AND r.has_advanced_support = 1 THEN 3
+                WHEN r.sf_ratio IS NOT NULL AND r.sf_ratio <= 250 THEN 2
+                WHEN r.sf_ratio IS NOT NULL AND r.sf_ratio <= 300 THEN 1
+                WHEN r.sf_ratio IS NOT NULL AND r.sf_ratio > 300 THEN 0
                 ELSE NULL
             END
     """)

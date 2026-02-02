@@ -63,11 +63,19 @@ def _agg_labs(cohort_rel: DuckDBPyRelation, labs_rel: DuckDBPyRelation) -> DuckD
     Aggregate lab values within each scoring window.
 
     Returns one row per (hospitalization_id, start_dttm) with:
+
     - platelet_count (MIN - worse when lower)
+
     - po2_arterial (MIN)
+
     - creatinine (MAX - worse when higher)
+
     - bilirubin_total (MAX)
-    - potassium, ph_min, bicarbonate (for RRT criteria fallback, spec 14)
+
+    - potassium, ph_min, bicarbonate (for RRT criteria fallback, footnote p)
+
+    Each lab value includes a corresponding `*_dttm_offset` column (interval from start_dttm).
+    Positive offset = in-window measurement.
 
     Parameters
     ----------
@@ -79,27 +87,35 @@ def _agg_labs(cohort_rel: DuckDBPyRelation, labs_rel: DuckDBPyRelation) -> DuckD
     Returns
     -------
     DuckDBPyRelation
-        Aggregated lab values per window
+        Aggregated lab values per window with offset timestamps
     """
+    # Offset = lab_collect_dttm - start_dttm (positive for in-window)
     return duckdb.sql("""
         FROM labs_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
-            AND t.lab_result_dttm >= c.start_dttm
-            AND t.lab_result_dttm <= c.end_dttm
+            AND t.lab_collect_dttm >= c.start_dttm
+            AND t.lab_collect_dttm <= c.end_dttm
         SELECT
             t.hospitalization_id
             , c.start_dttm  -- window identity
-            -- MIN aggregations (worse = lower)
+            -- MIN aggregations (worse = lower) with offsets
             , MIN(lab_value_numeric) FILTER(lab_category = 'platelet_count') AS platelet_count
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'platelet_count') - c.start_dttm AS platelet_dttm_offset
             , MIN(lab_value_numeric) FILTER(lab_category = 'po2_arterial') AS po2_arterial
-            -- MAX aggregations (worse = higher)
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'po2_arterial') - c.start_dttm AS po2_arterial_dttm_offset
+            -- MAX aggregations (worse = higher) with offsets
             , MAX(lab_value_numeric) FILTER(lab_category = 'creatinine') AS creatinine
+            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'creatinine') - c.start_dttm AS creatinine_dttm_offset
             , MAX(lab_value_numeric) FILTER(lab_category = 'bilirubin_total') AS bilirubin_total
-            -- Spec 14: RRT criteria fallback labs
+            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'bilirubin_total') - c.start_dttm AS bilirubin_dttm_offset
+            -- Footnote p: RRT criteria fallback labs with offsets
             , MAX(lab_value_numeric) FILTER(lab_category = 'potassium') AS potassium
+            , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'potassium') - c.start_dttm AS potassium_dttm_offset
             , MIN(lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) AS ph_min
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category IN ('ph_arterial', 'ph_venous')) - c.start_dttm AS ph_dttm_offset
             , MIN(lab_value_numeric) FILTER(lab_category = 'bicarbonate') AS bicarbonate
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'bicarbonate') - c.start_dttm AS bicarbonate_dttm_offset
         WHERE t.lab_category IN (
             'platelet_count', 'creatinine', 'bilirubin_total', 'po2_arterial',
             'potassium', 'ph_arterial', 'ph_venous', 'bicarbonate'
@@ -153,7 +169,8 @@ def _agg_map(cohort_rel: DuckDBPyRelation, vitals_rel: DuckDBPyRelation) -> Duck
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, map_min]
+        Columns: [hospitalization_id, start_dttm, map_min, map_min_dttm_offset]
+        Offset is interval from start_dttm (always positive for in-window)
     """
     return duckdb.sql("""
         FROM vitals_rel t
@@ -165,6 +182,7 @@ def _agg_map(cohort_rel: DuckDBPyRelation, vitals_rel: DuckDBPyRelation) -> Duck
             t.hospitalization_id
             , c.start_dttm  -- window identity
             , MIN(vital_value) AS map_min
+            , ARG_MIN(t.recorded_dttm, vital_value) - c.start_dttm AS map_min_dttm_offset
         WHERE vital_category = 'map'
         GROUP BY t.hospitalization_id, c.start_dttm
     """)
@@ -208,7 +226,7 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
     """
     Detect delirium drug administration during each scoring window.
 
-    Per spec 3: dexmedetomidine infusion -> brain subscore minimum 1 point.
+    Per footnote e: dexmedetomidine infusion -> brain subscore minimum 1 point.
 
     Parameters
     ----------
