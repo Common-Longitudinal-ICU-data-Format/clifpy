@@ -36,7 +36,7 @@ delirium drugs:
 | f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
 | g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | SHELVED: review others implementation |
 | h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | DONE |
-| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | PENDING ecmo table (VV = 4 in resp, non-VV = 4 in both resp and CV) settings don't matter, can just score based on device |
+| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | FUTURE ecmo table (VV = 4 in resp, non-VV = 4 in both resp and CV) settings don't matter, can just score based on device |
 
 implementation details:
 - added imputation of fio2_set from lpm_set for nasal cannula 
@@ -51,15 +51,15 @@ implementation details:
 | 1 | MAP <70 mm Hg, no vasopressor or inotrope use | DONE |
 | 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | DONE|
 | 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | DONE|
-| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | PENDING: Need ECMO table |
+| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | DONE and FUTURE: Need ECMO table |
 
 | footnotes | status |
 |----------|----------|
 | j. Count vasopressors only if given as a continuous IV infusion for ≥1 hour. | DONE |
-| k. Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | QUESTION: NOT_APPLICABLE ? |
+| k. Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | NOT_APPLICABLE |
 | l. If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | DONE |
-| m. When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | QUESTION: NOT_APPLICABLE ? |
-| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | PENDING need ECMO table |
+| m. When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | NOT_APPLICABLE |
+| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | FUTURE need ECMO table |
 
 ### footnote j implementation: ≥60min duration validation
 
@@ -127,14 +127,16 @@ ORDER BY hospitalization_id, med_category, admin_dttm;
 ```
 
 # Liver
-ALL DONE:
 - score 0 = Total bilirubin ≤1.20 mg/dL (≤20.6 μmol/L)
 - score 1 = Total bilirubin ≤3.0 mg/dL (≤51.3 μmol/L)
 - score 2 = Total bilirubin ≤6.0 mg/dL (≤102.6 μmol/L)
 - score 3 = Total bilirubin ≤12.0 mg/dL (≤205 μmol/L)
 - score 4 = Total bilirubin >12 mg/dL (>205 μmol/L)
 
-24 hr pre-window lookback TODO
+24 hr pre-window lookback 
+
+status:
+- ALL DONE and Reviewed by Zewei (Whiskey) on 2026-02-01.
 
 # Kidney
 - score 0 = Creatinine ≤1.20 mg/dL (≤110 μmol/L)
@@ -149,7 +151,7 @@ ALL DONE:
 
 | footnote | status |
 |----------|----------|
-| o. Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal). | QUESTION - NOT_APPLICABLE |
+| o. Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal). | NOT_APPLICABLE |
 | p. For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria (defined below) | DONE |
 | q. For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated. | FUTURE - we dont have intermittent RRT for now |
 
@@ -159,7 +161,10 @@ RRT criteria in footnote p:
   - serum potassium >= 6.0 mmol/L OR 
   - metabolic acidosis (pH <= 7.20 and serum bicarbonate <= 12 mmol/L)
 
-12 hr pre-window lookback for all labs -- TODO
+12 hr pre-window lookback for all labs
+
+status:
+- ALL DONE and Reviewed by Zewei (Whiskey) on 2026-02-01.
 
 # Hemostasis
 - score 0 = Platelets >150 × 10³/μL
@@ -168,7 +173,7 @@ RRT criteria in footnote p:
 - score 3 = Platelets ≤80 × 10³/μL
 - score 4 = Platelets ≤50 × 10³/μL
 
-12 hr pre-window lookback TODO
+12 hr pre-window lookback
 
 status:
 - ALL DONE and Reviewed by Zewei (Whiskey) on 2026-02-01.
@@ -256,3 +261,103 @@ For nasal cannula without explicit FiO2, impute from `lpm_set`:
 | >6 | 0.50 |
 
 Room air = 0.21
+
+---
+
+# Architecture
+
+## File Structure
+
+```
+clifpy/utils/sofa2/
+  __init__.py    # Public exports: calculate_sofa2, calculate_sofa2_daily, SOFA2Config
+  _utils.py      # SOFA2Config + shared aggregation/flag queries
+  _brain.py      # Brain subscore
+  _resp.py       # Respiratory subscore
+  _cv.py         # Cardiovascular subscore (most complex)
+  _liver.py      # Liver subscore
+  _kidney.py     # Kidney subscore
+  _hemo.py       # Hemostasis subscore
+  _core.py       # Main orchestration functions
+```
+
+## Public API
+
+### `SOFA2Config` (dataclass)
+
+```python
+@dataclass
+class SOFA2Config:
+    # Pre-window lookback (hours) - per subscore type
+    resp_lookback_hours: float = 6.0
+    liver_lookback_hours: float = 24.0
+    kidney_lookback_hours: float = 12.0
+    hemo_lookback_hours: float = 12.0
+
+    # CV subscore
+    pressor_min_duration_minutes: int = 60
+
+    # Resp subscore
+    pf_sf_tolerance_hours: float = 4.0
+
+    # QA options
+    include_timestamps: bool = False
+```
+
+### `calculate_sofa2(cohort_df, config_path, return_rel, qa, sofa2_config)`
+
+- **cohort_df**: One row per scoring window `[hospitalization_id, start_dttm, end_dttm]`
+
+- **qa=True**: Returns `(results, intermediates)` where intermediates is dict of lazy DuckDBPyRelation
+
+### `calculate_sofa2_daily(...)`
+
+Implements footnote b: Day 1 missing → 0, Day 2+ missing → forward-fill
+
+## Pre-Window Lookback by Subscore
+
+| Subscore | Lookback | Data |
+|----------|----------|------|
+| Resp | 6h | FiO2, PaO2, SpO2 |
+| Liver | 24h | Bilirubin |
+| Kidney | 12h | Creatinine, potassium, pH, bicarbonate |
+| Hemo | 12h | Platelets |
+| CV | Always forward-fill | Vasopressors via ASOF JOIN |
+| Brain | In-window only | GCS, delirium drug |
+
+## Pre-Window Fallback Pattern
+
+Two patterns for handling measurements before window start:
+
+| Type | Pattern | Rationale |
+|------|---------|-----------|
+| **Medications (vaso)** | Always forward-fill | Dose continues until changed |
+| **Labs/vitals** | Fallback only | Don't score on stale data if fresh in-window data exists |
+
+```sql
+-- ASOF JOIN for pre-window (closest measurement before start_dttm)
+FROM cohort_rel c
+ASOF LEFT JOIN labs_rel t
+    ON c.hospitalization_id = t.hospitalization_id
+    AND c.start_dttm > t.lab_collect_dttm
+SELECT ...
+    , t.lab_collect_dttm - c.start_dttm AS creatinine_dttm_offset  -- negative for pre-window
+WHERE creatinine_dttm_offset >= -INTERVAL '{lookback_hours} hours'
+
+-- ANTI JOIN fallback (use pre-window only if no in-window data)
+WITH windows_with_data AS (SELECT DISTINCT hospitalization_id, start_dttm FROM in_window),
+pre_window_fallback AS (
+    FROM pre_window p
+    ANTI JOIN windows_with_data USING (hospitalization_id, start_dttm)
+)
+FROM in_window UNION ALL FROM pre_window_fallback
+```
+
+## Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Scoring thresholds inline in SQL | Stable (medical spec), only used once, readable |
+| Config dataclass vs many params | Clean signature, discoverable, extensible |
+| Lazy intermediates in QA mode | Only materialize what you `.df()` |
+| `*_dttm_offset` vs `*_dttm` | Negative = pre-window, positive = in-window; source implicit in sign |
