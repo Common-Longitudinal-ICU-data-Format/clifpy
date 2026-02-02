@@ -1,4 +1,8 @@
-PLANNED: use ARGMAX or ARGMIN to add timestamps for all the determining, extremal measurements in the final output for QA purpose.
+# TODOs
+
+- for the kidney subscore, the fallback pattern should be applied to all labs, not just creatinine. (DONE)
+- use lab_collect_dttm instead of lab_result_dttm for all labs.
+- instead of keeping and displaying the `_dttm` columns directly for the deciding extremal values, let's calculate the `*_dttm - start_dttm` as a `*_dttm_offset` column. DEPRECATED: use ARGMAX or ARGMIN to add timestamps for all the determining, extremal measurements in the final output for QA purpose. e.g. for the max creatinine that is used to determine the kidney score, we should add the lab_collect_dttm of that measurement as 'creatinine_dttm' to both the intermdiate output and the final output.
 
 # Brain (footnote c, d)
 - score 0 = GCS 15 (or thumbs-up, fist, or peace sign)
@@ -9,8 +13,8 @@ PLANNED: use ARGMAX or ARGMIN to add timestamps for all the determining, extrema
 
 | footnote | status |
 |----------|----------|
-| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | TODO |
-| d. If full GCS cannot be assessed, use the best motor response score only. | TODO |
+| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | QUESTION |
+| d. If full GCS cannot be assessed, use the best motor response score only. | QUESTION |
 | e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: added relevant drugs (cover only dexmedetomidine for now) |
 
 delirium drugs:
@@ -30,7 +34,7 @@ delirium drugs:
 | footnote | status |
 |------|----------|
 | f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
-| g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | SHELVED TODO: review others implementation |
+| g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | SHELVED: review others implementation |
 | h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | DONE |
 | i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | PENDING ecmo table (VV = 4 in resp, non-VV = 4 in both resp and CV) settings don't matter, can just score based on device |
 
@@ -130,7 +134,7 @@ ALL DONE:
 - score 3 = Total bilirubin ≤12.0 mg/dL (≤205 μmol/L)
 - score 4 = Total bilirubin >12 mg/dL (>205 μmol/L)
 
-24 hr pre-window lookback
+24 hr pre-window lookback TODO
 
 # Kidney
 - score 0 = Creatinine ≤1.20 mg/dL (≤110 μmol/L)
@@ -146,31 +150,34 @@ ALL DONE:
 | footnote | status |
 |----------|----------|
 | o. Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal). | QUESTION - NOT_APPLICABLE |
-| p. For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria (defined below) | TODO |
-| q. For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated. | QUESTION - we dont have intermittent RRT yet, no? |
+| p. For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria (defined below) | DONE |
+| q. For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated. | FUTURE - we dont have intermittent RRT for now |
 
-RRT criteria: 
+RRT criteria in footnote p:
 - creatinine >1.2 mg/dL (>110 μmol/L) OR oliguria (<0.3 mL/kg/h) for >6 hours
 - AND 
   - serum potassium >= 6.0 mmol/L OR 
   - metabolic acidosis (pH <= 7.20 and serum bicarbonate <= 12 mmol/L)
 
-12 hr pre-window lookback
+12 hr pre-window lookback for all labs -- TODO
 
 # Hemostasis
-ALL DONE:
-- score 0 = Platelets >150 × 10³/μLf
+- score 0 = Platelets >150 × 10³/μL
 - score 1 = Platelets ≤150 × 10³/μL
 - score 2 = Platelets ≤100 × 10³/μL
 - score 3 = Platelets ≤80 × 10³/μL
 - score 4 = Platelets ≤50 × 10³/μL
 
-12 hr pre-window lookback
+12 hr pre-window lookback TODO
+
+status:
+- ALL DONE and Reviewed by Zewei (Whiskey) on 2026-02-01.
+
 
 # Other footnotes
 | footnote | status |
 |----------|----------|
-| a. The final score is obtained by summing the maximum points from each of the 6 organ systems individually within a 24-hour period, ranging from 0 to 24. | TODO |
+| a. The final score is obtained by summing the maximum points from each of the 6 organ systems individually within a 24-hour period, ranging from 0 to 24. | DONE |
 | b. For missing values at day 1, the general recommendation is to score these as 0 points. This may vary for specific purposes (eg, bedside use, research, etc). For sequential scoring, for missing data after day 1, it is to carry forward the last observation, the rationale being that nonmeasurement suggests stability. | TODO |
 
 
