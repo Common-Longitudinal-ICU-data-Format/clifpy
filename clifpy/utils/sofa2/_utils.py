@@ -254,3 +254,72 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
         WHERE t.med_category = 'dexmedetomidine'
             AND t.med_dose > 0  -- actively infusing
     """)
+
+
+# =============================================================================
+# Window Expansion
+# =============================================================================
+
+def _expand_to_daily_windows(cohort_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+    """
+    Expand arbitrary duration windows into complete 24-hour periods.
+
+    Takes input windows of any duration >= 24 hours and breaks them into
+    complete 24-hour chunks. Partial days at the end are dropped.
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with columns [hospitalization_id, start_dttm, end_dttm].
+        Windows can be any duration >= 24 hours.
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Expanded cohort with one row per complete 24-hour period:
+
+        - hospitalization_id
+
+        - start_dttm (start of the 24h period)
+
+        - end_dttm (end of the 24h period)
+
+        - nth_day (1-indexed: 1, 2, 3, ...)
+
+    Notes
+    -----
+    - Windows < 24 hours produce no output rows
+
+    - Partial days at the end are dropped
+
+    - Example: 47 hours → 1 row (nth_day=1); 49 hours → 2 rows (nth_day=1, 2)
+    """
+    return duckdb.sql("""
+        WITH window_info AS (
+            -- Calculate number of complete 24h periods per window
+            FROM cohort_rel
+            SELECT
+                hospitalization_id
+                , start_dttm AS original_start_dttm
+                , end_dttm
+                -- Number of complete 24h periods (floor division)
+                , FLOOR(DATEDIFF('hour', start_dttm, end_dttm) / 24)::INTEGER AS num_complete_days
+        ),
+        expanded AS (
+            -- Generate one row per complete 24h period
+            FROM window_info w
+            -- UNNEST with generate_series creates rows [0, 1, 2, ..., num_complete_days - 1]
+            SELECT
+                w.hospitalization_id
+                , w.original_start_dttm
+                , UNNEST(generate_series(0, w.num_complete_days - 1)) AS day_offset
+            WHERE w.num_complete_days >= 1  -- Filter out windows < 24h
+        )
+        -- Calculate start/end for each 24h period
+        FROM expanded
+        SELECT
+            hospitalization_id
+            , original_start_dttm + (day_offset * INTERVAL '24 hours') AS start_dttm
+            , original_start_dttm + ((day_offset + 1) * INTERVAL '24 hours') AS end_dttm
+            , (day_offset + 1)::INTEGER AS nth_day  -- 1-indexed
+    """)

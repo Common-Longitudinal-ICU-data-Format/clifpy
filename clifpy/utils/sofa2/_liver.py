@@ -17,6 +17,9 @@ import duckdb
 from duckdb import DuckDBPyRelation
 
 from ._utils import SOFA2Config
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.sofa2.liver')
 
 
 def _calculate_liver_subscore(
@@ -24,7 +27,7 @@ def _calculate_liver_subscore(
     labs_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
     *,
-    include_intermediates: bool = False,
+    dev: bool = False,
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 liver subscore based on total bilirubin.
@@ -41,8 +44,8 @@ def _calculate_liver_subscore(
         Labs table (CLIF labs)
     cfg : SOFA2Config
         Configuration with liver_lookback_hours
-    include_intermediates : bool, default False
-        If True, return (result, intermediates_dict) for QA
+    dev : bool, default False
+        If True, return (result, intermediates_dict) for debugging
 
     Returns
     -------
@@ -51,10 +54,14 @@ def _calculate_liver_subscore(
         Where liver is the subscore (0-4) or NULL if no bilirubin data.
         Offset is interval from start_dttm (negative = pre-window, positive = in-window)
     """
+    logger.info("Calculating liver subscore...")
+
     lookback_hours = cfg.liver_lookback_hours
+    logger.info(f"liver_lookback_hours={lookback_hours}")
 
     # Step 1: Get in-window bilirubin values (MAX = worst) with offset from start_dttm
     # Offset = lab_collect_dttm - start_dttm (positive for in-window)
+    logger.info("Collecting worst in-window bilirubin for liver dysfunction assessment...")
     bilirubin_in_window = duckdb.sql("""
         FROM labs_rel t
         JOIN cohort_rel c ON
@@ -73,6 +80,7 @@ def _calculate_liver_subscore(
     # Step 2: Get pre-window bilirubin value (ASOF JOIN with cutoff in WHERE)
     # ASOF returns single closest record, so offset is directly available
     # Offset = lab_collect_dttm - start_dttm (negative for pre-window)
+    logger.info("Looking back for pre-window bilirubin to handle missing data...")
     bilirubin_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
@@ -88,6 +96,7 @@ def _calculate_liver_subscore(
     """)
 
     # Step 3: Apply fallback pattern (use pre-window only if no in-window data)
+    logger.info("Applying fallback: use pre-window bilirubin only when in-window missing...")
     bilirubin_with_fallback = duckdb.sql("""
         WITH windows_with_data AS (
             SELECT DISTINCT hospitalization_id, start_dttm
@@ -104,6 +113,7 @@ def _calculate_liver_subscore(
     """)
 
     # Step 4: Calculate subscore
+    logger.info("Scoring liver subscore based on bilirubin thresholds...")
     liver_score = duckdb.sql("""
         FROM cohort_rel c
         LEFT JOIN bilirubin_with_fallback b USING (hospitalization_id, start_dttm)
@@ -122,7 +132,9 @@ def _calculate_liver_subscore(
             END
     """)
 
-    if include_intermediates:
+    logger.info("Liver subscore complete")
+
+    if dev:
         return liver_score, {
             'bilirubin_in_window': bilirubin_in_window,
             'bilirubin_pre_window': bilirubin_pre_window,

@@ -21,6 +21,9 @@ import duckdb
 from duckdb import DuckDBPyRelation
 
 from ._utils import SOFA2Config, _flag_rrt
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.sofa2.kidney')
 
 # Lab categories for kidney subscore
 KIDNEY_LAB_CATEGORIES = ['creatinine', 'potassium', 'ph_arterial', 'ph_venous', 'bicarbonate']
@@ -32,7 +35,7 @@ def _calculate_kidney_subscore(
     crrt_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
     *,
-    include_intermediates: bool = False,
+    dev: bool = False,
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 kidney subscore based on creatinine with RRT override.
@@ -51,8 +54,8 @@ def _calculate_kidney_subscore(
         CRRT therapy table (CLIF crrt_therapy)
     cfg : SOFA2Config
         Configuration with kidney_lookback_hours
-    include_intermediates : bool, default False
-        If True, return (result, intermediates_dict) for QA
+    dev : bool, default False
+        If True, return (result, intermediates_dict) for debugging
 
     Returns
     -------
@@ -61,15 +64,20 @@ def _calculate_kidney_subscore(
         Where kidney is the subscore (0-4) or NULL if no creatinine data.
         Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window)
     """
+    logger.info("Calculating kidney subscore...")
+
     lookback_hours = cfg.kidney_lookback_hours
     lab_categories = KIDNEY_LAB_CATEGORIES
+    logger.info(f"kidney_lookback_hours={lookback_hours}")
 
     # Step 1: Get RRT flag (in-window only)
+    logger.info("Flagging RRT for automatic score 4 override...")
     rrt_flag = _flag_rrt(cohort_rel, crrt_rel)
 
     # Step 2: Get in-window lab values for kidney with offsets from start_dttm
     # MAX creatinine/potassium = worst, MIN pH/bicarbonate = worst
     # Offset = lab_collect_dttm - start_dttm (positive for in-window)
+    logger.info("Collecting in-window creatinine, potassium, pH, bicarbonate...")
     labs_in_window = duckdb.sql(f"""
         FROM labs_rel t
         JOIN cohort_rel c ON
@@ -96,6 +104,7 @@ def _calculate_kidney_subscore(
     # This is more compact than separate ASOF JOINs per lab category
     # ASOF returns single closest record, so offset is directly available
     # Offset = lab_collect_dttm - start_dttm (negative for pre-window)
+    logger.info("Looking back for pre-window labs to handle missing in-window data...")
     labs_pre_window_long = duckdb.sql(f"""
         WITH lab_cats AS (
             SELECT UNNEST({lab_categories}::VARCHAR[]) AS lab_category
@@ -122,6 +131,7 @@ def _calculate_kidney_subscore(
 
     # Step 4: Pivot pre-window labs to wide format (values and offsets in single pass)
     # DuckDB PIVOT supports multiple aggregations: creates {category}_{alias} columns
+    logger.info("Pivoting pre-window labs to enable per-lab fallback pattern...")
     labs_pre_window = duckdb.sql("""
         PIVOT labs_pre_window_long
         ON lab_category
@@ -133,6 +143,7 @@ def _calculate_kidney_subscore(
 
     # Step 5: Apply fallback pattern for ALL labs (values and offsets)
     # Use pre-window value only if no in-window value exists for that specific lab
+    logger.info("Applying fallback: use pre-window only when in-window is missing...")
 
     # Note: PIVOT creates columns as {category}_{alias}, e.g. creatinine_val, creatinine_dttm_offset
     labs_with_fallback = duckdb.sql("""
@@ -159,6 +170,7 @@ def _calculate_kidney_subscore(
     """)
 
     # Step 6: Calculate subscore with RRT override and RRT criteria fallback
+    logger.info("Scoring kidney with RRT override and footnote p criteria fallback...")
     kidney_score = duckdb.sql("""
         FROM labs_with_fallback l
         LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
@@ -192,7 +204,9 @@ def _calculate_kidney_subscore(
             END
     """)
 
-    if include_intermediates:
+    logger.info("Kidney subscore complete")
+
+    if dev:
         return kidney_score, {
             'rrt_flag': rrt_flag,
             'labs_in_window': labs_in_window,

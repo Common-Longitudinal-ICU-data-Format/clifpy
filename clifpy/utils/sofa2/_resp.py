@@ -26,6 +26,9 @@ import duckdb
 from duckdb import DuckDBPyRelation
 
 from ._utils import SOFA2Config
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.sofa2.resp')
 
 
 def _calculate_resp_subscore(
@@ -36,7 +39,7 @@ def _calculate_resp_subscore(
     ecmo_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
     *,
-    include_intermediates: bool = False,
+    dev: bool = False,
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 respiratory subscore based on P/F or S/F ratio.
@@ -62,8 +65,8 @@ def _calculate_resp_subscore(
         ECMO/MCS table (CLIF ecmo_mcs)
     cfg : SOFA2Config
         Configuration with resp_lookback_hours, pf_sf_tolerance_hours
-    include_intermediates : bool, default False
-        If True, return (result, intermediates_dict) for QA
+    dev : bool, default False
+        If True, return (result, intermediates_dict) for debugging
 
     Returns
     -------
@@ -74,12 +77,16 @@ def _calculate_resp_subscore(
         pf_ratio and sf_ratio are mutually exclusive (one will be NULL).
         Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window).
     """
+    logger.info("Calculating respiratory subscore...")
+
     lookback_hours = cfg.resp_lookback_hours
     tolerance_minutes = int(cfg.pf_sf_tolerance_hours * 60)
+    logger.info(f"resp_lookback_hours={lookback_hours}, pf_sf_tolerance_minutes={tolerance_minutes}")
 
     # =========================================================================
     # Step 1: FiO2 with imputation and pre-window fallback
     # =========================================================================
+    logger.info("Processing FiO2 with room air imputation and pre-window fallback...")
 
     # Get in-window FiO2 measurements
     fio2_in_window = duckdb.sql("""
@@ -161,6 +168,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 2: PaO2 measurements with pre-window fallback
     # =========================================================================
+    logger.info("Collecting PaO2 measurements for P/F ratio calculation...")
 
     pao2_in_window = duckdb.sql("""
         FROM labs_rel t
@@ -212,6 +220,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 3: SpO2 measurements with pre-window fallback
     # =========================================================================
+    logger.info("Collecting SpO2 measurements for S/F ratio fallback...")
 
     spo2_in_window = duckdb.sql("""
         FROM vitals_rel t
@@ -265,6 +274,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 4: Concurrent P/F ratio (ASOF JOIN with tolerance)
     # =========================================================================
+    logger.info("Computing concurrent P/F ratios using ASOF JOIN with tolerance window...")
 
     concurrent_pf = duckdb.sql(f"""
         FROM pao2_measurements p
@@ -291,6 +301,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 5: Concurrent S/F ratio (ASOF JOIN with tolerance)
     # =========================================================================
+    logger.info("Computing concurrent S/F ratios for patients without arterial blood gas...")
 
     concurrent_sf = duckdb.sql(f"""
         FROM spo2_measurements s
@@ -317,6 +328,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 6: Aggregate (worst P/F, worst S/F, P/F takes priority)
     # =========================================================================
+    logger.info("Selecting worst P/F ratio, falling back to S/F when PaO2 unavailable...")
 
     resp_agg = duckdb.sql("""
         WITH pf_worst AS (
@@ -368,6 +380,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 7: ECMO flag
     # =========================================================================
+    logger.info("Checking ECMO flag for automatic score 4 override...")
 
     ecmo_flag = duckdb.sql("""
         FROM ecmo_rel t
@@ -384,6 +397,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     # Step 8: Calculate respiratory score
     # =========================================================================
+    logger.info("Applying respiratory scoring based on P/F or S/F thresholds...")
 
     resp_score = duckdb.sql("""
         FROM cohort_rel c
@@ -422,7 +436,9 @@ def _calculate_resp_subscore(
             END
     """)
 
-    if include_intermediates:
+    logger.info("Respiratory subscore complete")
+
+    if dev:
         return resp_score, {
             'fio2_in_window': fio2_in_window,
             'fio2_pre_window': fio2_pre_window,

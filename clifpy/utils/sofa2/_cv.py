@@ -19,6 +19,9 @@ import duckdb
 from duckdb import DuckDBPyRelation
 
 from ._utils import SOFA2Config, _agg_map
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.sofa2.cv')
 
 
 # Default vasopressor list with preferred units
@@ -43,7 +46,7 @@ def _calculate_cv_subscore(
     vitals_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
     *,
-    include_intermediates: bool = False,
+    dev: bool = False,
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 cardiovascular subscore.
@@ -65,8 +68,8 @@ def _calculate_cv_subscore(
         Vitals table (CLIF vitals) - for MAP and weight
     cfg : SOFA2Config
         Configuration with pressor_min_duration_minutes
-    include_intermediates : bool, default False
-        If True, return (result, intermediates_dict) for QA
+    dev : bool, default False
+        If True, return (result, intermediates_dict) for debugging
 
     Returns
     -------
@@ -76,14 +79,18 @@ def _calculate_cv_subscore(
                   dopa_max, dopa_max_dttm_offset, ..., cv]
         Offset columns are intervals from start_dttm (always positive for in-window).
     """
+    logger.info("Calculating cardiovascular subscore...")
+
     from clifpy.utils.unit_converter import convert_dose_units_by_med_category
 
     min_duration = cfg.pressor_min_duration_minutes
     cohort_vasopressors = COHORT_VASOPRESSORS
+    logger.info(f"pressor_min_duration_minutes={min_duration}, cohort_vasopressors={cohort_vasopressors}")
 
     # =========================================================================
     # Step 1: Get MAP aggregation (in-window only)
     # =========================================================================
+    logger.info("Aggregating in-window MAP to identify hypotension without pressors...")
     map_agg = _agg_map(cohort_rel, vitals_rel)
 
     # Get vitals for unit conversion (weight for mcg/kg/min)
@@ -96,6 +103,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 2: Get vasopressor events (pre-window, in-window, post-window)
     # =========================================================================
+    logger.info("Collecting vasopressor events across pre/in/post windows for episode tracking...")
 
     # Pre-window: Forward-filled event AT start_dttm for each vasopressor
     pressor_at_start = duckdb.sql(f"""
@@ -184,6 +192,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 3: MAR deduplication
     # =========================================================================
+    logger.info("Deduplicating MAR actions to resolve simultaneous entries...")
     pressor_events_deduped = duckdb.sql("""
         FROM pressor_events_raw t
         SELECT
@@ -210,6 +219,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 4: Unit conversion
     # =========================================================================
+    logger.info("Converting pressor doses to standardized weight-based units...")
     pressor_events, _ = convert_dose_units_by_med_category(
         med_df=pressor_events_deduped,
         vitals_df=cohort_vitals,
@@ -221,6 +231,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 5: Pivot epi+norepi to wide format
     # =========================================================================
+    logger.info("Pivoting epi+norepi to wide format for concurrent dosage calculation...")
     epi_ne_wide = duckdb.sql("""
         FROM pressor_events
         PIVOT (
@@ -233,6 +244,7 @@ def _calculate_cv_subscore(
         )
     """)
 
+    logger.info("Forward-filling epi+norepi to get continuous dosage values...")
     # Forward-fill epi+norepi
     epi_ne_filled = duckdb.sql("""
         FROM epi_ne_wide
@@ -249,6 +261,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 6: Episode detection and 60-min duration validation for epi+norepi
     # =========================================================================
+    logger.info("Detecting episodes and validating 60-min duration per footnote j...")
     epi_ne_duration = duckdb.sql(f"""
         WITH with_lag AS (
             FROM epi_ne_filled
@@ -315,6 +328,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 7: Duration validation for dopamine + other pressors
     # =========================================================================
+    logger.info("Validating duration for dopamine and other pressors per footnote l...")
     other_pressor_duration = duckdb.sql(f"""
         WITH filtered AS (
             FROM pressor_events
@@ -389,6 +403,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 8: Calculate CV score
     # =========================================================================
+    logger.info("Applying CV scoring rules based on norepi+epi dose tiers and pressor combinations...")
     cv_score = duckdb.sql("""
         FROM cohort_rel c
         LEFT JOIN map_agg m USING (hospitalization_id, start_dttm)
@@ -425,7 +440,9 @@ def _calculate_cv_subscore(
             END
     """)
 
-    if include_intermediates:
+    logger.info("Cardiovascular subscore complete")
+
+    if dev:
         return cv_score, {
             'map_agg': map_agg,
             'pressor_at_start': pressor_at_start,
