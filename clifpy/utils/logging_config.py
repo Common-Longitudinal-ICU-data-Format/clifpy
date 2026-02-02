@@ -28,12 +28,14 @@ EMOJI_MAP = {
 
 
 class EmojiFormatter(logging.Formatter):
-    """Custom formatter that adds emoji indicators to log messages."""
+    """Custom formatter that adds emoji indicators and clean logger names to log messages."""
 
     def format(self, record):
-        """Add emoji to the record before formatting."""
+        """Add emoji and clean logger name to the record before formatting."""
         emoji = EMOJI_MAP.get(record.levelname, '•')
         record.emoji = emoji
+        # Strip 'clifpy.' prefix for cleaner console output
+        record.shortname = record.name.replace('clifpy.', '')
         return super().format(record)
 
 
@@ -102,7 +104,8 @@ def setup_logging(
 
     # Format strings
     file_format = '%(asctime)s | %(emoji)s %(levelname)-8s | %(name)s | [%(funcName)s:%(lineno)d] | %(message)s'
-    console_format = '%(emoji)s %(message)s'
+    console_format = '%(asctime)s %(shortname)s %(emoji)s %(message)s'
+    console_datefmt = '%H:%M:%S'
 
     # Handler 1: Main log file (all messages INFO and above)
     all_handler = logging.FileHandler(
@@ -129,7 +132,7 @@ def setup_logging(
     if console_output:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
-        console_handler.setFormatter(EmojiFormatter(console_format))
+        console_handler.setFormatter(EmojiFormatter(console_format, datefmt=console_datefmt))
         root_logger.addHandler(console_handler)
 
     # Prevent propagation to avoid duplicate messages
