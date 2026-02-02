@@ -15,6 +15,13 @@ from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
 from .ase import compute_ase
+from .table_one import (
+    TableOneGenerator,
+    PrivacyConfig,
+    VariableConfig,
+    generate_table_one,
+    DEFAULT_CLIF_VARIABLES,
+)
 
 __all__ = [
       # io
@@ -45,4 +52,10 @@ __all__ = [
       # validator (add main functions)
       'validate_dataframe',
       'validate_table',
+      # table_one
+      'TableOneGenerator',
+      'PrivacyConfig',
+      'VariableConfig',
+      'generate_table_one',
+      'DEFAULT_CLIF_VARIABLES',
   ]
