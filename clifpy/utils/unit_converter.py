@@ -667,6 +667,7 @@ def find_most_recent_weight(
     vitals_df: pd.DataFrame | duckdb.DuckDBPyRelation
     ) -> duckdb.DuckDBPyRelation:
     """Find the most recent weight for each medication administration."""
+    logger.info("Finding most recent weights...")
     q = """
     with weights as (
         SELECT hospitalization_id, recorded_dttm, vital_value
@@ -678,11 +679,13 @@ def find_most_recent_weight(
         , v.recorded_dttm as _weight_recorded_dttm
     FROM med_df m
     ASOF LEFT JOIN weights v
-        ON m.hospitalization_id = v.hospitalization_id 
-        AND v.recorded_dttm <= m.admin_dttm 
+        ON m.hospitalization_id = v.hospitalization_id
+        AND v.recorded_dttm <= m.admin_dttm
     ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category
     """
-    return duckdb.sql(q)
+    result = duckdb.sql(q)
+    logger.info("Weight lookup complete")
+    return result
 
 def standardize_dose_to_base_units(
     med_df: pd.DataFrame,
@@ -774,8 +777,10 @@ def standardize_dose_to_base_units(
 
     Unrecognized units are flagged but preserved in the output.
     """
+    logger.info("Standardizing dose units to base...")
+
     if 'weight_kg' not in med_df.columns:
-        logger.info("pulling the most recent weight from the vitals table since no `weight_kg` column exists in the medication table")
+        logger.debug("Pulling weight from vitals table (no weight_kg column in med_df)")
         med_df = find_most_recent_weight(med_df, vitals_df)#.to_df()
 
     # check if the required columns are present
@@ -785,14 +790,18 @@ def standardize_dose_to_base_units(
         raise ValueError(f"The following column(s) are required but not found: {missing_columns}")
 
     # Clean dose units using DuckDB to avoid pandas materialization
+    logger.debug("Cleaning unit formats...")
     med_df_cleaned = _clean_dose_unit_formats_duckdb(med_df)
+    logger.debug("Cleaning unit names...")
     med_df_cleaned = _clean_dose_unit_names_duckdb(med_df_cleaned)
+    logger.debug("Converting to base units...")
     med_df_base = _convert_clean_units_to_base_units(med_df_cleaned, show_intermediate=show_intermediate)
     convert_counts_df = _create_unit_conversion_counts_table(
         med_df_base,
         group_by=['med_dose_unit', '_clean_unit', '_base_unit', '_unit_class']
         )
 
+    logger.info("Standardization complete")
     return med_df_base, convert_counts_df
     
 def _convert_base_units_to_preferred_units(
@@ -1162,6 +1171,9 @@ def convert_dose_units_by_med_category(
     ----
     Implement config file parsing for default preferred_units.
     """
+    n_categories = len(preferred_units) if preferred_units else 0
+    logger.info(f"Converting dose units for {n_categories} med categories...")
+
     # check if the requested med_categories are in the input med_df
     requested_med_categories = set(preferred_units.keys())
     existing_med_categories = set(duckdb.sql("SELECT DISTINCT med_category FROM med_df").to_df()['med_category'])
@@ -1172,7 +1184,7 @@ def convert_dose_units_by_med_category(
             logger.warning(error_msg)
         else:
             raise ValueError(error_msg)
-    
+
     try:
         med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df, show_intermediate=show_intermediate)
     except ValueError as e:
@@ -1190,13 +1202,14 @@ def convert_dose_units_by_med_category(
         """
         med_df_preferred = duckdb.sql(q)
 
+        logger.debug("Converting to preferred units...")
         med_df_converted = _convert_base_units_to_preferred_units(med_df_preferred, override=override, show_intermediate=show_intermediate)
     except ValueError as e:
         raise ValueError(f"Error converting dose units to preferred units: {e}")
     
     try:
         convert_counts_df = _create_unit_conversion_counts_table(
-            med_df_converted, 
+            med_df_converted,
             group_by=[
                 'med_category',
                 'med_dose_unit', '_clean_unit', '_base_unit', '_unit_class',
@@ -1205,7 +1218,9 @@ def convert_dose_units_by_med_category(
             )
     except ValueError as e:
         raise ValueError(f"Error creating unit conversion counts table: {e}")
-    
+
+    logger.info("Dose unit conversion complete")
+
     if show_intermediate:
         if return_rel:
             return med_df_converted, convert_counts_df
