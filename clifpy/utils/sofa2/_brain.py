@@ -1,14 +1,14 @@
 """Brain subscore calculation for SOFA-2.
 
 Scoring (per SOFA-2 spec):
-- GCS 15: 0 points (unless delirium drug -> 1 point per spec 3)
+- GCS 15: 0 points (unless delirium drug -> 1 point per footnote e)
 - GCS 13-14: 1 point
 - GCS 9-12: 2 points
 - GCS 6-8: 3 points
 - GCS 3-5: 4 points
 
 Special rules:
-- Spec 3: If patient is receiving drug therapy for delirium, score 1 point even if GCS is 15.
+- Footnote e: If patient is receiving drug therapy for delirium, score 1 point even if GCS is 15.
   Currently only dexmedetomidine is included.
 """
 
@@ -55,7 +55,7 @@ def _calculate_brain_subscore(
     # Step 2: Flag delirium drug administration
     delirium_flag = _flag_delirium_drug(cohort_rel, meds_rel)
 
-    # Step 3: Calculate subscore with spec 3 logic
+    # Step 3: Calculate subscore with footnote e logic
     brain_score = duckdb.sql("""
         FROM cohort_rel c
         LEFT JOIN gcs_agg g USING (hospitalization_id, start_dttm)
@@ -66,7 +66,7 @@ def _calculate_brain_subscore(
             , g.gcs_min
             , COALESCE(d.has_delirium_drug, 0) AS has_delirium_drug
             , brain: CASE
-                -- Spec 3: delirium drug with GCS 15 -> minimum 1 point
+                -- Footnote e: delirium drug with GCS 15 -> minimum 1 point
                 WHEN g.gcs_min >= 15 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
                 WHEN g.gcs_min >= 15 THEN 0
                 WHEN g.gcs_min >= 13 THEN 1

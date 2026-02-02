@@ -7,7 +7,8 @@ Scoring (per SOFA-2 spec):
 - Platelets ≤ 80 × 10³/µL: 3 points
 - Platelets ≤ 50 × 10³/µL: 4 points
 
-Reviewed by Zewei (Whiskey) on 2026-02-01.
+Reviewers:
+- Zewei (Whiskey) on 2026-02-01.
 """
 
 from __future__ import annotations
@@ -51,32 +52,35 @@ def _calculate_hemo_subscore(
     """
     lookback_hours = cfg.hemo_lookback_hours
 
-    # Step 1: Get in-window platelet values (MIN = worst)
+    # Step 1: Get in-window platelet values (MIN = worst) with timestamp
     platelet_in_window = duckdb.sql("""
         FROM labs_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
-            AND t.lab_result_dttm >= c.start_dttm
-            AND t.lab_result_dttm <= c.end_dttm
+            AND t.lab_collect_dttm >= c.start_dttm
+            AND t.lab_collect_dttm <= c.end_dttm
         SELECT
             t.hospitalization_id
             , c.start_dttm
             , MIN(lab_value_numeric) AS platelet_count
+            , ARG_MIN(lab_collect_dttm, lab_value_numeric) AS platelet_dttm
         WHERE t.lab_category = 'platelet_count'
         GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
     # Step 2: Get pre-window platelet value (ASOF JOIN with cutoff in WHERE)
+    # ASOF returns single closest record, so timestamp is directly available
     platelet_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
             ON c.hospitalization_id = t.hospitalization_id
-            AND c.start_dttm > t.lab_result_dttm
+            AND c.start_dttm > t.lab_collect_dttm
         SELECT
             c.hospitalization_id
             , c.start_dttm
             , t.lab_value_numeric AS platelet_count
-            , c.start_dttm - t.lab_result_dttm AS time_gap
+            , t.lab_collect_dttm AS platelet_dttm
+            , c.start_dttm - t.lab_collect_dttm AS time_gap
         WHERE t.lab_category = 'platelet_count'
             AND time_gap <= INTERVAL '{lookback_hours} hours'
     """)
@@ -90,9 +94,9 @@ def _calculate_hemo_subscore(
         pre_window_fallback AS (
             FROM platelet_pre_window p
             ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, platelet_count
+            SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm
         )
-        FROM platelet_in_window SELECT *
+        FROM platelet_in_window SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm
         UNION ALL
         FROM pre_window_fallback SELECT *
     """)
@@ -105,6 +109,7 @@ def _calculate_hemo_subscore(
             c.hospitalization_id
             , c.start_dttm
             , p.platelet_count
+            , p.platelet_dttm
             , hemo: CASE
                 WHEN p.platelet_count > 150 THEN 0
                 WHEN p.platelet_count <= 150 THEN 1
