@@ -1,0 +1,125 @@
+"""Hemostasis subscore calculation for SOFA-2.
+
+Scoring (per SOFA-2 spec):
+- Platelets > 150 × 10³/µL: 0 points
+- Platelets ≤ 150 × 10³/µL: 1 point
+- Platelets ≤ 100 × 10³/µL: 2 points
+- Platelets ≤ 80 × 10³/µL: 3 points
+- Platelets ≤ 50 × 10³/µL: 4 points
+
+Reviewed by Zewei (Whiskey) on 2026-02-01.
+"""
+
+from __future__ import annotations
+
+import duckdb
+from duckdb import DuckDBPyRelation
+
+from ._utils import SOFA2Config
+
+
+def _calculate_hemo_subscore(
+    cohort_rel: DuckDBPyRelation,
+    labs_rel: DuckDBPyRelation,
+    cfg: SOFA2Config,
+    *,
+    include_intermediates: bool = False,
+) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
+    """
+    Calculate SOFA-2 hemostasis subscore based on platelet count.
+
+    Implements pre-window lookback with fallback pattern:
+    - First tries to use in-window platelet values
+    - Falls back to pre-window value (within lookback hours) if no in-window data
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+    labs_rel : DuckDBPyRelation
+        Labs table (CLIF labs)
+    cfg : SOFA2Config
+        Configuration with hemo_lookback_hours
+    include_intermediates : bool, default False
+        If True, return (result, intermediates_dict) for QA
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Columns: [hospitalization_id, start_dttm, platelet_count, hemo]
+        Where hemo is the subscore (0-4) or NULL if no platelet data
+    """
+    lookback_hours = cfg.hemo_lookback_hours
+
+    # Step 1: Get in-window platelet values (MIN = worst)
+    platelet_in_window = duckdb.sql("""
+        FROM labs_rel t
+        JOIN cohort_rel c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.lab_result_dttm >= c.start_dttm
+            AND t.lab_result_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id
+            , c.start_dttm
+            , MIN(lab_value_numeric) AS platelet_count
+        WHERE t.lab_category = 'platelet_count'
+        GROUP BY t.hospitalization_id, c.start_dttm
+    """)
+
+    # Step 2: Get pre-window platelet value (ASOF JOIN with cutoff in WHERE)
+    platelet_pre_window = duckdb.sql(f"""
+        FROM cohort_rel c
+        ASOF LEFT JOIN labs_rel t
+            ON c.hospitalization_id = t.hospitalization_id
+            AND c.start_dttm > t.lab_result_dttm
+        SELECT
+            c.hospitalization_id
+            , c.start_dttm
+            , t.lab_value_numeric AS platelet_count
+            , c.start_dttm - t.lab_result_dttm AS time_gap
+        WHERE t.lab_category = 'platelet_count'
+            AND time_gap <= INTERVAL '{lookback_hours} hours'
+    """)
+
+    # Step 3: Apply fallback pattern (use pre-window only if no in-window data)
+    platelet_with_fallback = duckdb.sql("""
+        WITH windows_with_data AS (
+            SELECT DISTINCT hospitalization_id, start_dttm
+            FROM platelet_in_window
+        ),
+        pre_window_fallback AS (
+            FROM platelet_pre_window p
+            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
+            SELECT hospitalization_id, start_dttm, platelet_count
+        )
+        FROM platelet_in_window SELECT *
+        UNION ALL
+        FROM pre_window_fallback SELECT *
+    """)
+
+    # Step 4: Calculate subscore
+    hemo_score = duckdb.sql("""
+        FROM cohort_rel c
+        LEFT JOIN platelet_with_fallback p USING (hospitalization_id, start_dttm)
+        SELECT
+            c.hospitalization_id
+            , c.start_dttm
+            , p.platelet_count
+            , hemo: CASE
+                WHEN p.platelet_count > 150 THEN 0
+                WHEN p.platelet_count <= 150 THEN 1
+                WHEN p.platelet_count <= 100 THEN 2
+                WHEN p.platelet_count <= 80 THEN 3
+                WHEN p.platelet_count <= 50 THEN 4
+                ELSE NULL
+            END
+    """)
+
+    if include_intermediates:
+        return hemo_score, {
+            'platelet_in_window': platelet_in_window,
+            'platelet_pre_window': platelet_pre_window,
+            'platelet_with_fallback': platelet_with_fallback,
+        }
+
+    return hemo_score
