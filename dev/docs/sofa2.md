@@ -1,21 +1,26 @@
 # TODOs
 
 - for the kidney subscore, the fallback pattern should be applied to all labs, not just creatinine. (DONE)
-- use lab_collect_dttm instead of lab_result_dttm for all labs.
+- lab_collect_dttm instead of lab_result_dttm for all labs.
 - instead of keeping and displaying the `_dttm` columns directly for the deciding extremal values, let's calculate the `*_dttm - start_dttm` as a `*_dttm_offset` column. DEPRECATED: use ARGMAX or ARGMIN to add timestamps for all the determining, extremal measurements in the final output for QA purpose. e.g. for the max creatinine that is used to determine the kidney score, we should add the lab_collect_dttm of that measurement as 'creatinine_dttm' to both the intermdiate output and the final output.
+- add pf time_gap
+
+# Specs
 
 # Brain (footnote c, d)
-- score 0 = GCS 15 (or thumbs-up, fist, or peace sign)
-- score 1 = GCS 13–14 (or localizing to pain) (footnote d) or need for drugs to treat delirium (footnote e)
-- score 2 = GCS 9–12 (or withdrawal to pain)
-- score 3 = GCS 6–8 (or flexion to pain)
-- score 4 = GCS 3–5 (or extension to pain, no response to pain, generalized myoclonus)
+- score 0 = GCS 15 (or, when gcs_total unavailable, gcs_motor = 6, thumbs-up, fist, or peace sign)
+- score 1 = GCS 13–14 (or, when gcs_total unavailable, gcs_motor = 5, localizing to pain) or need for drugs to treat delirium (footnote e)
+- score 2 = GCS 9–12 (or, when gcs_total unavailable, gcs_motor = 4, withdrawal to pain)
+- score 3 = GCS 6–8 (or, when gcs_total unavailable, gcs_motor = 3, flexion to pain)
+- score 4 = GCS 3–5 (or, when gcs_total unavailable, gcs_motor in [0, 1, 2], extension to pain, no response to pain, generalized myoclonus)
 
 | footnote | status |
 |----------|----------|
-| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | QUESTION |
-| d. If full GCS cannot be assessed, use the best motor response score only. | QUESTION |
+| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: sedation episodes detected using LAG + cumulative SUM pattern. GCS measurements during sedation + post_sedation_gcs_invalidate_hours (default 1 hr) are invalid. If no valid GCS and sedation present, score 0. |
+| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor used as fallback when gcs_total unavailable. Motor mapping: 6→0, 5→1, 4→2, 3→3, [0,1,2]→4. gcs_motor also excludes sedation periods. |
 | e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: added relevant drugs (cover only dexmedetomidine for now) |
+
+sedation drugs: 'propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam'
 
 delirium drugs:
 - Mentioned in the PADIS guideline and already in MCIDE: dexmedetomidine
@@ -23,6 +28,7 @@ delirium drugs:
 - Mentioned in the PADIS guideline but NOT already in MCIDE and we are NOT proposing to add to MCIDE: statin (rosuvastatin)
 - Screened in the Fei et al. study: Dexmedetomidine, Haloperidol, Olanzapine, Quetiapine, and Ziprasidone (allcovered in the MCIDE expansion)
 
+DONE 1 hr post sedation parameterized as `post_sedation_gcs_invalidate_hours` in SOFA2Config
 
 # Respiratory (footnote f) 
 - score 0 = PaO₂:FiO₂ ratio >300 mm Hg (>40 kPa) (or, when applicable, SpO₂:FiO₂ ratio >300 mm Hg)
@@ -34,9 +40,9 @@ delirium drugs:
 | footnote | status |
 |------|----------|
 | f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
-| g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | SHELVED: review others implementation |
+| g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | DONE and FUTURE |
 | h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | DONE |
-| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | FUTURE ecmo table (VV = 4 in resp, non-VV = 4 in both resp and CV) settings don't matter, can just score based on device |
+| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | FUTURE ecmo table (if VV then 4 in resp, if non-VV, then 4 in both resp and CV -- settings don't matter, can just score based on device) |
 
 implementation details:
 - added imputation of fio2_set from lpm_set for nasal cannula 
@@ -183,7 +189,7 @@ status:
 | footnote | status |
 |----------|----------|
 | a. The final score is obtained by summing the maximum points from each of the 6 organ systems individually within a 24-hour period, ranging from 0 to 24. | DONE |
-| b. For missing values at day 1, the general recommendation is to score these as 0 points. This may vary for specific purposes (eg, bedside use, research, etc). For sequential scoring, for missing data after day 1, it is to carry forward the last observation, the rationale being that nonmeasurement suggests stability. | TODO |
+| b. For missing values at day 1, the general recommendation is to score these as 0 points. This may vary for specific purposes (eg, bedside use, research, etc). For sequential scoring, for missing data after day 1, it is to carry forward the last observation, the rationale being that nonmeasurement suggests stability. | DONE: implemented in `calculate_sofa2_daily()` |
 
 
 
