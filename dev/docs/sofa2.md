@@ -4,21 +4,22 @@
 ```python 
 from clifpy import calculate_sofa2, calculate_sofa2_daily
 
+# this is the generic function that takes in a cohort_df defined by [hospitalization_id, start_dttm, end_dttm] where hospitalization_id can be repeated across rows but windows for each hospitalization_id must be non-overlapping.
 sofa2_results = calculate_sofa2(
-  cohort_df = cohort_df, # df with columns [hospitalization_id, start_dttm, end_dttm]. hospitalization_id can be repeated across rows but windows for each hospitalization_id must be non-overlapping.
+  cohort_df = cohort_df,
   clif_config_path=CONFIG_PATH, # path to CLIF config file for data loading.
   return_rel=False, # If True, return DuckDB relation for lazy evaluation.
   sofa2_config=SOFA2Config(), # Configuration object with calculation parameters. If None, uses default values define below.
 )
 
+# this is the higher-level function that takes in a daily_cohort_df defined by [hospitalization_id, start_dttm, end_dttm] where the hospitalization_id must be unique but windows can be any duration >= 24 hours and will be broken into consecutive 24-hour chunks (with partial days dropped). The output will have an additional column 'nth_day' = 1, 2, 3, ...
+# Example: 47h window → 1 row (nth_day=1); 49h window → 2 rows (nth_day=1, 2)
 daily_sofa2_results = calculate_sofa2_daily(
-  cohort_df = daily_cohort_df, # df with columns [hospitalization_id, start_dttm, end_dttm]. hospitalization_id must be unique but windows can be any duration >= 24 hours; will be broken into complete 24-hour chunks (partial days dropped).
+  cohort_df = daily_cohort_df,
   clif_config_path=CONFIG_PATH,
   return_rel=False,
   sofa2_config=SOFA2Config(),
 )
-# Output: df with columns [hospitalization_id, nth_day,start_dttm, end_dttm, brain, resp, cv, liver, kidney, hemo, sofa_total, ...]
-# Example: 47h window → 1 row (nth_day=1); 49h window → 2 rows (nth_day=1, 2)
 ```
 
 ## `SOFA2Config` (dataclass)
@@ -66,7 +67,7 @@ class SOFA2Config:
 
 delirium drugs:
 - Mentioned in the PADIS guideline and already in MCIDE: dexmedetomidine
-- Mentioned in the PADIS guideline but NOT already in MCIDE and we are proposing to add to MCIDE: haloperidol, quetiapine (atypical antipsychotics), ziprasidone, olanzapine, zyprexa FUTURE
+- Mentioned in the PADIS guideline but NOT already in MCIDE and we are proposing to add to MCIDE: haloperidol, quetiapine, ziprasidone, olanzapine, zyprexa TODO: add them into the current script as if they are already available in the same syntax as dexmedetomidine.
 - Mentioned in the PADIS guideline but NOT already in MCIDE and we are NOT proposing to add to MCIDE: statin (rosuvastatin)
 - Screened in the Fei et al. study: Dexmedetomidine, Haloperidol, Olanzapine, Quetiapine, and Ziprasidone (all covered in the MCIDE expansion)
 
@@ -82,13 +83,13 @@ delirium drugs:
 | f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
 | g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | DONE except for 'ignore transient changes within 1 hour' which is FUTURE |
 | h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | NOT_APPLICABLE cannot operationalize |
-| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | FUTURE when ecmo table is mature (if VV then 4 in resp, if non-VV, then 4 in both resp and CV -- settings don't matter, can just score based on device) |
+| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | TODO: if `ecmo_mcs.ecmo_configuration_category = 'vv'` then ECMO used for respiratory failure and always score 4 in resp; elif `ecmo_mcs.ecmo_configuration_category in ('va','va_v', 'vv_a')`, then ECMO used for cardiovascular indications and score 4 in both resp and CV.
 
 | additional specs | status |
 |----------|----------| 
 | impute fio2 from lpm_set and room air (see detailsbelow) | DONE |
-| fio2 are matched to their most recent pao2 or spo2 measurements up to `pf_sf_tolerance_hours` (default = 4 hrs) | DONE; TODO: add the sf or pf time gap as a output column |
-| if no pao2, spo2, or fio2 is found within the target window, values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 4 hr) | DONE |
+| fio2 are matched to their most recent pao2 or spo2 measurements up to `pf_sf_tolerance_hours` (default = 4 hrs) | DONE; `pf_sf_dttm_offset` column added showing the time gap between PaO2/SpO2 and FiO2 measurements |
+| if no pao2, spo2, or fio2 is found within the target window, the most recent values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 4 hr) | DONE |
 
 ### fio2_set imputation
 ```sql
@@ -115,7 +116,7 @@ END AS fio2_imputed
 | 1 | MAP <70 mm Hg, no vasopressor or inotrope use | DONE |
 | 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | DONE|
 | 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | DONE|
-| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | DONE and FUTURE: Need ECMO table |
+| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | all DONE except TODO for the 'mechanical support' part, in connection with footnote n. |
 
 | footnotes | status |
 |----------|----------|
@@ -123,7 +124,8 @@ END AS fio2_imputed
 | k. Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | NOT_APPLICABLE |
 | l. If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | DONE. `is_dopamine_only: dopamine_max > 0 AND norepi_epi_sum = 0 AND has_other_non_dopa = 0`|
 | m. When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | NOT_APPLICABLE cannot operationalize |
-| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | FUTURE when ECMO table is mature |
+| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | TODO: venoarterial ECMO => `ecmo_mcs.ecmo_configuration_category in ('va','va_v', 'vv_a')`; IABP => `ecmo_mcs.mcs_group = 'iabp'`; LV assist device, microaxial flow pump => `ecmo_mcs.mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad', 'temporary_rvad')` 
+
 
 # Liver
 - score 0 = Total bilirubin ≤1.20 mg/dL (≤20.6 μmol/L)
