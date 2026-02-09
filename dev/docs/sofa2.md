@@ -63,11 +63,11 @@ class SOFA2Config:
 |----------|----------|
 | c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: sedation admin episodes are calculated and only GCS recorded outside of sedation episodes are considered valid and used for scoring. Specifically, the end of sedation episodes can be extended with the `post_sedation_gcs_invalidate_hours` parameter (default = 1 hr) to account for post-sedation lingering effects that could still invalidate GCS. Sedation drugs include `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']`|
 | d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. outside of extended sedation episodes) gcs_total is available.   
-| e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: added relevant drugs (cover only dexmedetomidine for now) |
+| e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: delirium drugs include `['dexmedetomidine', 'haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']`. Uses pre-window ASOF + in-window flag pattern to capture drugs that started infusing before the window. |
 
 delirium drugs:
 - Mentioned in the PADIS guideline and already in MCIDE: dexmedetomidine
-- Mentioned in the PADIS guideline but NOT already in MCIDE and we are proposing to add to MCIDE: haloperidol, quetiapine, ziprasidone, olanzapine, zyprexa TODO: add them into the current script as if they are already available in the same syntax as dexmedetomidine.
+- Mentioned in the PADIS guideline but NOT already in MCIDE and we are proposing to add to MCIDE: haloperidol, quetiapine, ziprasidone, olanzapine. DONE: pending mCIDE updates, placeholder codes are added to implementation.
 - Mentioned in the PADIS guideline but NOT already in MCIDE and we are NOT proposing to add to MCIDE: statin (rosuvastatin)
 - Screened in the Fei et al. study: Dexmedetomidine, Haloperidol, Olanzapine, Quetiapine, and Ziprasidone (all covered in the MCIDE expansion)
 
@@ -83,7 +83,7 @@ delirium drugs:
 | f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
 | g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | DONE except for 'ignore transient changes within 1 hour' which is FUTURE |
 | h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | NOT_APPLICABLE cannot operationalize |
-| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | TODO: if `ecmo_mcs.ecmo_configuration_category = 'vv'` then ECMO used for respiratory failure and always score 4 in resp; elif `ecmo_mcs.ecmo_configuration_category in ('va','va_v', 'vv_a')`, then ECMO used for cardiovascular indications and score 4 in both resp and CV.
+| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | DONE: resp ecmo_flag filters to actual ECMO devices only (`mcs_group = 'ecmo' OR ecmo_configuration_category IS NOT NULL`); non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`) scores 4 in both resp and CV via `_flag_mechanical_cv_support()`. VV-ECMO (`ecmo_configuration_category = 'vv'`) scores 4 in resp only. |
 
 | additional specs | status |
 |----------|----------| 
@@ -116,7 +116,7 @@ END AS fio2_imputed
 | 1 | MAP <70 mm Hg, no vasopressor or inotrope use | DONE |
 | 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | DONE|
 | 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | DONE|
-| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | all DONE except TODO for the 'mechanical support' part, in connection with footnote n. |
+| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | DONE |
 
 | footnotes | status |
 |----------|----------|
@@ -124,7 +124,7 @@ END AS fio2_imputed
 | k. Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | NOT_APPLICABLE |
 | l. If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | DONE. `is_dopamine_only: dopamine_max > 0 AND norepi_epi_sum = 0 AND has_other_non_dopa = 0`|
 | m. When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | NOT_APPLICABLE cannot operationalize |
-| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | TODO: venoarterial ECMO => `ecmo_mcs.ecmo_configuration_category in ('va','va_v', 'vv_a')`; IABP => `ecmo_mcs.mcs_group = 'iabp'`; LV assist device, microaxial flow pump => `ecmo_mcs.mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad', 'temporary_rvad')` 
+| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | DONE: `_flag_mechanical_cv_support()` detects non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`), IABP (`mcs_group = 'iabp'`), LV assist/microaxial (`mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')`), RV assist (`mcs_group = 'temporary_rvad'`). Mechanical CV support → 4 points (highest priority in CASE). |
 
 
 # Liver
@@ -205,52 +205,13 @@ RRT criteria in footnote p:
 
 - Windows without any data → NULL scores (expected behavior)
 
-## Pre-window Initial State Patterns
+## Pre-window Temporal Patterns
 
-Two different patterns for handling measurements before the window start:
+Two fundamentally different approaches for handling data around window boundaries, plus three medication-specific scenarios:
 
-| Type | Pattern | Rationale |
-|------|---------|-----------|
-| **Medications (vaso)** | Always forward-fill | Dose continues until changed; pre-window dose is always relevant |
-| **Labs/vitals (FiO2, PaO2, SpO2)** | Fallback only | Don't score on stale data if fresh in-window measurements exist |
+### Labs/Vitals Fallback
 
-### Fallback Logic (labs/vitals)
-
-```sql
-WITH windows_with_data AS (
-    SELECT DISTINCT hospitalization_id, start_dttm
-    FROM in_window_measurements
-),
-pre_window_fallback AS (
-    -- Only for windows WITHOUT in-window data
-    FROM pre_window_measurements p
-    ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-    SELECT *
-)
-FROM in_window_measurements SELECT *
-UNION ALL
-FROM pre_window_fallback SELECT *
-```
-
-## Pre-Window Lookback by Subscore
-
-| Module | Lookback | Data |
-|----------|----------|------|
-| Resp | 4h | FiO2, PaO2, SpO2 |
-| Liver | 24h | Bilirubin |
-| Kidney | 12h | Creatinine, potassium, pH, bicarbonate |
-| Hemo | 12h | Platelets |
-| Medication | Always forward-fill | Vasopressors via ASOF JOIN |
-| Brain | In-window only | GCS, delirium drug |
-
-## Pre-Window Fallback Pattern
-
-Two patterns for handling measurements before window start:
-
-| Type | Pattern | Rationale |
-|------|---------|-----------|
-| **Medications (vaso)** | Always forward-fill | Dose continues until changed |
-| **Labs/vitals** | Fallback only | Don't score on stale data if fresh in-window data exists |
+For labs and vitals (FiO2, PaO2, SpO2, creatinine, bilirubin, platelets, etc.), pre-window values are used **only as fallback** when no in-window data exists. This avoids scoring on stale data when fresh measurements are available.
 
 ```sql
 -- ASOF JOIN for pre-window (closest measurement before start_dttm)
@@ -263,36 +224,62 @@ SELECT ...
 WHERE creatinine_dttm_offset >= -INTERVAL '{lookback_hours} hours'
 
 -- ANTI JOIN fallback (use pre-window only if no in-window data)
-WITH windows_with_data AS (SELECT DISTINCT hospitalization_id, start_dttm FROM in_window),
+WITH windows_with_data AS (
+    SELECT DISTINCT hospitalization_id, start_dttm
+    FROM in_window_measurements
+),
 pre_window_fallback AS (
-    FROM pre_window p
-    ANTI JOIN windows_with_data USING (hospitalization_id, start_dttm)
+    FROM pre_window_measurements p
+    ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
+    SELECT *
 )
-FROM in_window UNION ALL FROM pre_window_fallback
+FROM in_window_measurements SELECT *
+UNION ALL
+FROM pre_window_fallback SELECT *
 ```
 
+### Medication Administration Window Boundaries
 
-## Medication admin episode duration
+All medication patterns use ASOF JOINs to capture the continuous state of drug infusions across window boundaries. Three scenarios differ in what post-window information is needed:
 
-**Episode detection pattern:**
+| Scenario | Pre-window | In-window | Post-window | Used by |
+|----------|-----------|-----------|-------------|---------|
+| **Flag only** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Delirium drugs |
+| **Window-bounded episodes** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | ASOF at end: `end_dttm >= admin_dttm` (synthetic `end_dttm AS admin_dttm`) | Sedation |
+| **Exact duration episodes** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | First event after: `end_dttm < admin_dttm` | Vasopressors |
 
-1. Identify episode boundaries (dose transitions from 0 → non-zero)
+**Why three scenarios?**
 
-2. Assign episode IDs using cumulative sum
+- **Flag only**: Just need boolean "was drug active?" — no duration needed. Pre-window catches drugs that started before the window and are still running.
 
-3. Get episode start time with FIRST_VALUE
+- **Window-bounded**: Need episode boundaries to invalidate in-window GCS, but don't need exact duration past `end_dttm`. Forward-fill at `end_dttm` extends episodes to the window edge: if drug is still running, the episode's `LAST_VALUE(admin_dttm)` becomes `end_dttm`, ensuring the sedation episode covers the full window.
 
-4. Validate: `DATEDIFF(episode_start, current_event) >= 60 min`
+- **Exact duration**: Need precise episode length for ≥60 min validation (footnote j). Episodes can spill past `end_dttm`, so we fetch the first MAR event *after* the window to measure the full duration.
 
-**Window boundary handling:**
+**Episode detection pattern** (shared by window-bounded and exact duration):
 
-- In-window events: `admin_dttm > start_dttm AND admin_dttm < end_dttm` (strict inequality)
+1. MAR dedup via `QUALIFY ROW_NUMBER()` (priority-based, see [dedup section](#deduplication-of-mar_action_category))
 
-- Forward-filled at start: ASOF JOIN with `start_dttm >= admin_dttm`
+2. Collapse to binary on/off (`is_sedated` / `is_on`) per timestamp
 
-- Forward-filled at end: ASOF JOIN with `end_dttm >= admin_dttm`
+3. `LAG(is_on)` to detect transitions (off → on)
 
-**Rationale:** ASOF JOINs create forward-filled events at window boundaries to capture infusions that span past start_dttm or end_dttm.
+4. Cumulative `SUM` of transitions → episode IDs
+
+5. `FIRST_VALUE` / `LAST_VALUE` over episode window → episode start/end
+
+6. For pressors: validate `DATEDIFF >= 60 min`; for sedation: extend end by `post_sedation_gcs_invalidate_hours`
+
+## Pre-Window Lookback by Subscore
+
+| Module | Lookback | Data | Pattern |
+|--------|----------|------|---------|
+| Resp | 4h | FiO2, PaO2, SpO2 | Labs/vitals fallback |
+| Liver | 24h | Bilirubin | Labs/vitals fallback |
+| Kidney | 12h | Creatinine, potassium, pH, bicarbonate | Labs/vitals fallback |
+| Hemo | 12h | Platelets | Labs/vitals fallback |
+| Brain | GCS in-window only; sedation pre+in+at-end; delirium pre+in | GCS, sedation drugs, delirium drugs | Mixed |
+| CV | Vasopressors pre+in+post; mechanical CV support in-window only | Vasopressors, ECMO/MCS | Exact duration + in-window flag |
 
 ## SQL Patterns
 
