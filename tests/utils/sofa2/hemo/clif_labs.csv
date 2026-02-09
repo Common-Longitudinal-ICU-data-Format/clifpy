@@ -1,0 +1,14 @@
+hospitalization_id,lab_collect_dttm,lab_category,lab_value_numeric
+501,2024-01-01 10:00:00,platelet_count,200
+502,2024-01-01 10:00:00,platelet_count,140
+503,2024-01-01 10:00:00,platelet_count,90
+504,2024-01-01 10:00:00,platelet_count,70
+505,2024-01-01 10:00:00,platelet_count,40
+507,2024-01-01 06:00:00,platelet_count,100
+508,2024-01-01 06:00:00,platelet_count,150
+508,2024-01-01 10:00:00,platelet_count,80
+509,2023-12-31 18:00:00,platelet_count,60
+510,2024-01-01 10:00:00,platelet_count,200
+510,2024-01-02 10:00:00,platelet_count,60
+511,2024-01-01 10:00:00,platelet_count,50
+511,2024-01-02 10:00:00,platelet_count,160

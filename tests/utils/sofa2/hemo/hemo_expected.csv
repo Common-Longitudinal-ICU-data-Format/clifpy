@@ -1,0 +1,14 @@
+hospitalization_id,start_dttm,platelet_count,platelet_dttm_offset,hemo,notes,status
+501,2024-01-01 08:00:00,200,02:00:00,0,platelet > 150,validated
+502,2024-01-01 08:00:00,140,02:00:00,1,platelet <= 150,validated
+503,2024-01-01 08:00:00,90,02:00:00,2,platelet <= 100,validated
+504,2024-01-01 08:00:00,70,02:00:00,3,platelet <= 80,validated
+505,2024-01-01 08:00:00,40,02:00:00,4,platelet <= 50,validated
+506,2024-01-01 08:00:00,,,,no data at all,validated
+507,2024-01-01 08:00:00,100,-02:00:00,2,pre-window fallback (no in-window),validated
+508,2024-01-01 08:00:00,80,02:00:00,3,in-window preferred over pre-window,validated
+509,2024-01-01 08:00:00,,,,pre-window outside 12hr lookback,validated
+510,2024-01-01 08:00:00,200,02:00:00,0,multi-window: w1 stable,validated
+510,2024-01-02 08:00:00,60,02:00:00,3,multi-window: w2 deterioration,validated
+511,2024-01-01 08:00:00,50,02:00:00,4,multi-window: w1 critical,validated
+511,2024-01-02 08:00:00,160,02:00:00,0,multi-window: w2 recovery,validated
