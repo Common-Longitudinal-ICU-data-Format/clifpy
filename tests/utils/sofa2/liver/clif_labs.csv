@@ -1,0 +1,14 @@
+hospitalization_id,lab_collect_dttm,lab_category,lab_value_numeric
+301,2024-01-01 10:00:00,bilirubin_total,1.0
+302,2024-01-01 10:00:00,bilirubin_total,2.5
+303,2024-01-01 10:00:00,bilirubin_total,5.0
+304,2024-01-01 10:00:00,bilirubin_total,10.0
+305,2024-01-01 10:00:00,bilirubin_total,15.0
+307,2024-01-01 00:00:00,bilirubin_total,5.0
+308,2024-01-01 00:00:00,bilirubin_total,1.0
+308,2024-01-01 10:00:00,bilirubin_total,4.0
+309,2023-12-31 04:00:00,bilirubin_total,8.0
+310,2024-01-01 10:00:00,bilirubin_total,1.0
+310,2024-01-02 10:00:00,bilirubin_total,10.0
+311,2024-01-01 10:00:00,bilirubin_total,15.0
+311,2024-01-02 10:00:00,bilirubin_total,2.5

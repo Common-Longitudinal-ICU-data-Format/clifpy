@@ -1,17 +1,17 @@
-"""Tests for SOFA-2 hemostasis (hemo) subscore calculation.
+"""Tests for SOFA-2 liver subscore calculation.
 
-Test cases (documented in hemo_expected.csv notes column):
-- 501-505: Score boundaries (150, 100, 80, 50 thresholds)
-- 506: No data -> NULL
-- 507: Pre-window fallback when no in-window data
-- 508: Pre-window ignored when in-window exists
-- 509: Pre-window outside 12hr lookback -> NULL
-- 510: Multi-window same hosp_id (stable -> deterioration)
-- 511: Multi-window same hosp_id (critical -> recovery)
+Test cases (documented in liver_expected.csv notes column):
+- 301-305: Score boundaries (1.2, 3.0, 6.0, 12.0 thresholds)
+- 306: No data -> NULL
+- 307: Pre-window fallback when no in-window data
+- 308: Pre-window ignored when in-window exists
+- 309: Pre-window outside 24hr lookback -> NULL
+- 310: Multi-window same hosp_id (stable -> deterioration)
+- 311: Multi-window same hosp_id (critical -> recovery)
 
 Custom lookback cases (case column in expected CSV):
-- short_lookback: hemo_lookback_hours=1.0
-- long_lookback: hemo_lookback_hours=24.0
+- short_lookback: liver_lookback_hours=6.0
+- long_lookback: liver_lookback_hours=36.0
 """
 
 import pytest
@@ -19,7 +19,7 @@ from pathlib import Path
 import pandas as pd
 import duckdb
 
-from clifpy.utils.sofa2._hemo import _calculate_hemo_subscore
+from clifpy.utils.sofa2._liver import _calculate_liver_subscore
 from clifpy.utils.sofa2._utils import SOFA2Config
 
 
@@ -27,8 +27,8 @@ FIXTURES_DIR = Path(__file__).parent
 SORT_COLS = ['hospitalization_id', 'start_dttm']
 
 LOOKBACK_CONFIGS = {
-    'short_lookback': SOFA2Config(hemo_lookback_hours=1.0),
-    'long_lookback': SOFA2Config(hemo_lookback_hours=24.0),
+    'short_lookback': SOFA2Config(liver_lookback_hours=6.0),
+    'long_lookback': SOFA2Config(liver_lookback_hours=36.0),
 }
 
 
@@ -51,7 +51,7 @@ def _to_total_seconds(x):
 def _load_expected(case: str) -> pd.DataFrame:
     """Load expected CSV filtered to a specific case."""
     df = pd.read_csv(
-        str(FIXTURES_DIR / 'hemo_expected.csv'),
+        str(FIXTURES_DIR / 'liver_expected.csv'),
         dtype={'hospitalization_id': str},
     )
     return df[df['case'] == case].sort_values(SORT_COLS).reset_index(drop=True)
@@ -83,41 +83,41 @@ def expected_df():
 
 @pytest.fixture
 def result_df(cohort_rel, labs_rel):
-    """Run the hemo subscore and return sorted result DataFrame."""
+    """Run the liver subscore and return sorted result DataFrame."""
     cfg = SOFA2Config()
-    result = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg)
+    result = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
     return result.df().sort_values(SORT_COLS).reset_index(drop=True)
 
 
-def test_hemo_row_count(result_df, expected_df):
+def test_liver_row_count(result_df, expected_df):
     """Verify output has one row per cohort window."""
     assert len(result_df) == len(expected_df), (
         f"Expected {len(expected_df)} rows, got {len(result_df)}"
     )
 
 
-def test_hemo_scores(result_df, expected_df):
-    """Verify hemo scores match expected (all cases from CSV)."""
+def test_liver_scores(result_df, expected_df):
+    """Verify liver scores match expected (all cases from CSV)."""
     pd.testing.assert_series_equal(
-        result_df['hemo'].astype('Int64'),
-        expected_df['hemo'].astype('Int64'),
+        result_df['liver'].astype('Int64'),
+        expected_df['liver'].astype('Int64'),
         check_names=False,
     )
 
 
-def test_hemo_platelet_count(result_df, expected_df):
-    """Verify platelet_count values match expected."""
+def test_liver_bilirubin_total(result_df, expected_df):
+    """Verify bilirubin_total values match expected."""
     pd.testing.assert_series_equal(
-        result_df['platelet_count'].astype('Float64'),
-        expected_df['platelet_count'].astype('Float64'),
+        result_df['bilirubin_total'].astype('Float64'),
+        expected_df['bilirubin_total'].astype('Float64'),
         check_names=False,
     )
 
 
-def test_hemo_dttm_offset(result_df, expected_df):
-    """Verify platelet_dttm_offset values match expected."""
-    result_seconds = result_df['platelet_dttm_offset'].apply(_to_total_seconds)
-    expected_seconds = expected_df['platelet_dttm_offset'].apply(_to_total_seconds)
+def test_liver_dttm_offset(result_df, expected_df):
+    """Verify bilirubin_dttm_offset values match expected."""
+    result_seconds = result_df['bilirubin_dttm_offset'].apply(_to_total_seconds)
+    expected_seconds = expected_df['bilirubin_dttm_offset'].apply(_to_total_seconds)
 
     pd.testing.assert_series_equal(
         result_seconds,
@@ -126,12 +126,12 @@ def test_hemo_dttm_offset(result_df, expected_df):
     )
 
 
-def test_hemo_intermediates(cohort_rel, labs_rel):
+def test_liver_intermediates(cohort_rel, labs_rel):
     """Verify dev=True returns intermediate relations."""
     cfg = SOFA2Config()
-    result, intermediates = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg, dev=True)
+    result, intermediates = _calculate_liver_subscore(cohort_rel, labs_rel, cfg, dev=True)
 
-    expected_keys = {'platelet_in_window', 'platelet_pre_window', 'platelet_with_fallback'}
+    expected_keys = {'bilirubin_in_window', 'bilirubin_pre_window', 'bilirubin_with_fallback'}
     assert set(intermediates.keys()) == expected_keys
 
     for key in expected_keys:
@@ -142,13 +142,13 @@ def test_hemo_intermediates(cohort_rel, labs_rel):
 
 
 @pytest.mark.parametrize('case', ['short_lookback', 'long_lookback'])
-def test_hemo_custom_lookback(cohort_rel, labs_rel, case):
+def test_liver_custom_lookback(cohort_rel, labs_rel, case):
     """Verify custom lookback config produces expected results from CSV."""
     cfg = LOOKBACK_CONFIGS[case]
     expected = _load_expected(case)
     hosp_ids = expected['hospitalization_id'].tolist()
 
-    result = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg)
+    result = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
     result_df = (
         result.df()
         .query('hospitalization_id in @hosp_ids')
@@ -160,17 +160,17 @@ def test_hemo_custom_lookback(cohort_rel, labs_rel, case):
         f"case={case}: expected {len(expected)} rows, got {len(result_df)}"
     )
     pd.testing.assert_series_equal(
-        result_df['hemo'].astype('Int64'),
-        expected['hemo'].astype('Int64'),
+        result_df['liver'].astype('Int64'),
+        expected['liver'].astype('Int64'),
         check_names=False,
     )
     pd.testing.assert_series_equal(
-        result_df['platelet_count'].astype('Float64'),
-        expected['platelet_count'].astype('Float64'),
+        result_df['bilirubin_total'].astype('Float64'),
+        expected['bilirubin_total'].astype('Float64'),
         check_names=False,
     )
-    result_seconds = result_df['platelet_dttm_offset'].apply(_to_total_seconds)
-    expected_seconds = expected['platelet_dttm_offset'].apply(_to_total_seconds)
+    result_seconds = result_df['bilirubin_dttm_offset'].apply(_to_total_seconds)
+    expected_seconds = expected['bilirubin_dttm_offset'].apply(_to_total_seconds)
     pd.testing.assert_series_equal(
         result_seconds,
         expected_seconds,
