@@ -39,7 +39,7 @@ class SOFA2Config:
   # Resp subscore
   pf_sf_tolerance_hours: float = 4.0
 
-  # Brain subscore (footnote c)
+  # Brain subscore (footnote c) — DEPRECATED, no longer used
   post_sedation_gcs_invalidate_hours: float = 1.0
 ```
 ---
@@ -61,9 +61,9 @@ class SOFA2Config:
 
 | footnote | status |
 |----------|----------|
-| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: sedation admin episodes are calculated and only GCS recorded outside of sedation episodes are considered valid and used for scoring. Specifically, the end of sedation episodes can be extended with the `post_sedation_gcs_invalidate_hours` parameter (default = 1 hr) to account for post-sedation lingering effects that could still invalidate GCS. Sedation drugs include `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']`|
-| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. outside of extended sedation episodes) gcs_total is available.   
-| e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: delirium drugs include `['dexmedetomidine', 'haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']`. Uses pre-window ASOF + in-window flag pattern to capture drugs that started infusing before the window. |
+| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: finds the earliest sedation drug admin from BOTH continuous and intermittent tables (`_find_earliest_sedation()`). Only GCS recorded BEFORE this onset time are valid; all GCS after are invalidated. Pre-window ASOF is used for continuous drugs (to detect drugs already infusing at window start). `post_sedation_gcs_invalidate_hours` is deprecated. Sedation drugs: `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']` |
+| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. before earliest sedation onset) gcs_total is available. |
+| e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: continuous delirium drugs (`['dexmedetomidine']`) use pre-window ASOF + in-window from `medication_admin_continuous`; intermittent delirium drugs (`['haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']`) use in-window only from `medication_admin_intermittent` with `med_dose > 0 AND mar_action_category != 'not_given'`. |
 
 delirium drugs:
 - Mentioned in the PADIS guideline and already in MCIDE: dexmedetomidine
@@ -244,23 +244,25 @@ All medication patterns use ASOF JOINs to capture the continuous state of drug i
 
 | Scenario | Pre-window | In-window | Post-window | Used by |
 |----------|-----------|-----------|-------------|---------|
-| **Flag only** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Delirium drugs |
-| **Window-bounded episodes** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | ASOF at end: `end_dttm >= admin_dttm` (synthetic `end_dttm AS admin_dttm`) | Sedation |
+| **Earliest onset** (cont) | ASOF: `start_dttm > admin_dttm` → onset = `start_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Sedation (cont) |
+| **Earliest onset** (intm) | none | `admin_dttm >= start_dttm AND <= end_dttm`, `med_dose > 0`, `mar_action_category != 'not_given'` | none | Sedation (intm) |
+| **Flag only** (cont) | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Delirium drugs (cont: dexmedetomidine) |
+| **Flag only** (intm) | none | `admin_dttm >= start_dttm AND <= end_dttm`, `med_dose > 0`, `mar_action_category != 'not_given'` | none | Delirium drugs (intm: haloperidol, quetiapine, ziprasidone, olanzapine) |
 | **Exact duration episodes** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | First event after: `end_dttm < admin_dttm` | Vasopressors |
 
-**Why three scenarios?**
+**Why these scenarios?**
 
-- **Flag only**: Just need boolean "was drug active?" — no duration needed. Pre-window catches drugs that started before the window and are still running.
+- **Earliest onset**: Find the MIN(admin_dttm) across all sedation drug sources (cont pre-window ASOF + cont in-window + intm in-window). All GCS after this time are invalidated. Much simpler than episode detection — no need to track episode boundaries.
 
-- **Window-bounded**: Need episode boundaries to invalidate in-window GCS, but don't need exact duration past `end_dttm`. Forward-fill at `end_dttm` extends episodes to the window edge: if drug is still running, the episode's `LAST_VALUE(admin_dttm)` becomes `end_dttm`, ensuring the sedation episode covers the full window.
+- **Flag only**: Just need boolean "was drug active?" — no duration needed. Continuous drugs (dexmedetomidine) use pre-window ASOF + in-window; intermittent drugs only need in-window check.
 
 - **Exact duration**: Need precise episode length for ≥60 min validation (footnote j). Episodes can spill past `end_dttm`, so we fetch the first MAR event *after* the window to measure the full duration.
 
-**Episode detection pattern** (shared by window-bounded and exact duration):
+**Episode detection pattern** (used by exact duration only):
 
 1. MAR dedup via `QUALIFY ROW_NUMBER()` (priority-based, see [dedup section](#deduplication-of-mar_action_category))
 
-2. Collapse to binary on/off (`is_sedated` / `is_on`) per timestamp
+2. Collapse to binary on/off (`is_on`) per timestamp
 
 3. `LAG(is_on)` to detect transitions (off → on)
 
@@ -268,7 +270,7 @@ All medication patterns use ASOF JOINs to capture the continuous state of drug i
 
 5. `FIRST_VALUE` / `LAST_VALUE` over episode window → episode start/end
 
-6. For pressors: validate `DATEDIFF >= 60 min`; for sedation: extend end by `post_sedation_gcs_invalidate_hours`
+6. For pressors: validate `DATEDIFF >= 60 min`
 
 ## Pre-Window Lookback by Subscore
 
@@ -278,8 +280,23 @@ All medication patterns use ASOF JOINs to capture the continuous state of drug i
 | Liver | 24h | Bilirubin | Labs/vitals fallback |
 | Kidney | 12h | Creatinine, potassium, pH, bicarbonate | Labs/vitals fallback |
 | Hemo | 12h | Platelets | Labs/vitals fallback |
-| Brain | GCS in-window only; sedation pre+in+at-end; delirium pre+in | GCS, sedation drugs, delirium drugs | Mixed |
+| Brain | GCS in-window only; sedation cont pre+in, intm in; delirium cont pre+in, intm in | GCS, sedation drugs, delirium drugs | Mixed |
 | CV | Vasopressors pre+in+post; mechanical CV support in-window only | Vasopressors, ECMO/MCS | Exact duration + in-window flag |
+
+## Optional Tables
+
+Some CLIF tables may not be available at all sites. The pipeline handles these gracefully via **empty sentinel relations** — a DuckDB relation with the correct schema but zero rows. The downstream LEFT JOIN + COALESCE pattern converts missing data to safe defaults (0 or NULL).
+
+| Table | Required columns | Impact when missing | Default behavior |
+|-------|-----------------|---------------------|------------------|
+| `ecmo_mcs` | `hospitalization_id`, `recorded_dttm`, `mcs_group`, `ecmo_configuration_category` | `has_ecmo` → 0 (resp), `has_mechanical_cv_support` → 0 (CV) | Warning logged, ECMO scoring skipped |
+| `medication_admin_intermittent` | `hospitalization_id`, `admin_dttm`, `med_category`, `med_dose`, `mar_action_category` | Intermittent delirium drugs and intermittent sedation drugs not detected; only continuous drug sources used | Warning logged, intermittent med scoring skipped |
+
+**Implementation**: `_load_ecmo_optional()` and `_load_intm_meds_optional()` in `_core.py` handle two failure modes:
+
+1. **File not found**: `load_data()` raises exception → caught → empty sentinel + warning
+
+2. **Missing columns**: column validation after load → empty sentinel + warning
 
 ## SQL Patterns
 

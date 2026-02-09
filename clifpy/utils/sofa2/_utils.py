@@ -53,6 +53,8 @@ class SOFA2Config:
     pf_sf_tolerance_hours: float = 4.0
 
     # Brain subscore (footnote c)
+    # NOTE: DEPRECATED — no longer used. Retained for backward compatibility.
+    # Sedation now uses earliest-onset approach (see _find_earliest_sedation).
     post_sedation_gcs_invalidate_hours: float = 1.0
 
 
@@ -224,32 +226,35 @@ def _flag_rrt(cohort_rel: DuckDBPyRelation, crrt_rel: DuckDBPyRelation) -> DuckD
     """)
 
 
-DELIRIUM_DRUGS = [
-    'dexmedetomidine',
-    'haloperidol',
-    'quetiapine',
-    'ziprasidone',
-    'olanzapine',
-]
+CONT_DELIRIUM_DRUGS = ['dexmedetomidine']
+INTM_DELIRIUM_DRUGS = ['haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']
 
 
-def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _flag_delirium_drug(
+    cohort_rel: DuckDBPyRelation,
+    cont_meds_rel: DuckDBPyRelation,
+    intm_meds_rel: DuckDBPyRelation,
+) -> DuckDBPyRelation:
     """
     Detect delirium drug administration during each scoring window.
 
     Per footnote e: delirium drug administration -> brain subscore minimum 1 point.
-    Delirium drugs (per PADIS guideline): dexmedetomidine, haloperidol, quetiapine,
-    ziprasidone, olanzapine.
 
-    Uses pre-window ASOF + in-window pattern (flag-only scenario) to capture drugs
-    that started infusing before the window and are still running.
+    Continuous delirium drugs (dexmedetomidine): pre-window ASOF + in-window from
+    medication_admin_continuous.
+
+    Intermittent delirium drugs (haloperidol, quetiapine, ziprasidone, olanzapine):
+    in-window only from medication_admin_intermittent, filtered by
+    med_dose > 0 AND mar_action_category != 'not_given'.
 
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
         Cohort with columns [hospitalization_id, start_dttm, end_dttm]
-    meds_rel : DuckDBPyRelation
+    cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
+    intm_meds_rel : DuckDBPyRelation
+        Intermittent medication administrations (CLIF medication_admin_intermittent)
 
     Returns
     -------
@@ -257,13 +262,16 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
         Columns: [hospitalization_id, start_dttm, has_delirium_drug]
         Only includes rows where delirium drug was detected (has_delirium_drug = 1)
     """
-    delirium_drugs_list = DELIRIUM_DRUGS
-    delirium_drugs_tuple = tuple(DELIRIUM_DRUGS)
+    cont_delirium_list = CONT_DELIRIUM_DRUGS
+    cont_delirium_tuple = tuple(CONT_DELIRIUM_DRUGS)
+    intm_delirium_tuple = tuple(INTM_DELIRIUM_DRUGS)
+
+    # --- Continuous delirium drugs (dexmedetomidine): pre-window ASOF + in-window ---
 
     # Pre-window: ASOF JOIN to detect drugs already infusing at window start
-    delirium_pre_window = duckdb.sql(f"""
+    cont_pre_window = duckdb.sql(f"""
         WITH med_cats AS (
-            SELECT UNNEST({delirium_drugs_list}::VARCHAR[]) AS med_category
+            SELECT UNNEST({cont_delirium_list}::VARCHAR[]) AS med_category
         ),
         cohort_meds AS (
             FROM cohort_rel c
@@ -271,7 +279,7 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
             SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
-        ASOF LEFT JOIN meds_rel t
+        ASOF LEFT JOIN cont_meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm
@@ -283,9 +291,9 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
             AND t.med_dose > 0
     """)
 
-    # In-window: standard events during [start_dttm, end_dttm]
-    delirium_in_window = duckdb.sql(f"""
-        FROM meds_rel t
+    # In-window continuous delirium drugs
+    cont_in_window = duckdb.sql(f"""
+        FROM cont_meds_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
@@ -293,15 +301,33 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
         SELECT
             t.hospitalization_id
             , c.start_dttm
-        WHERE t.med_category IN {delirium_drugs_tuple}
+        WHERE t.med_category IN {cont_delirium_tuple}
             AND t.med_dose > 0
+    """)
+
+    # --- Intermittent delirium drugs: in-window only ---
+
+    intm_in_window = duckdb.sql(f"""
+        FROM intm_meds_rel t
+        JOIN cohort_rel c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.admin_dttm >= c.start_dttm
+            AND t.admin_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id
+            , c.start_dttm
+        WHERE t.med_category IN {intm_delirium_tuple}
+            AND t.med_dose > 0
+            AND t.mar_action_category != 'not_given'
     """)
 
     return duckdb.sql("""
         FROM (
-            FROM delirium_pre_window SELECT *
+            FROM cont_pre_window SELECT *
             UNION ALL
-            FROM delirium_in_window SELECT *
+            FROM cont_in_window SELECT *
+            UNION ALL
+            FROM intm_in_window SELECT *
         )
         SELECT DISTINCT
             hospitalization_id
@@ -362,7 +388,7 @@ def _flag_mechanical_cv_support(
 
 
 # =============================================================================
-# Sedation Episode Detection (for brain subscore)
+# Sedation Detection (for brain subscore)
 # =============================================================================
 
 SEDATION_DRUGS = [
@@ -379,12 +405,126 @@ SEDATION_DRUGS = [
 ]
 
 
+def _find_earliest_sedation(
+    cohort_rel: DuckDBPyRelation,
+    cont_meds_rel: DuckDBPyRelation,
+    intm_meds_rel: DuckDBPyRelation,
+) -> DuckDBPyRelation:
+    """
+    Find earliest sedation drug administration per scoring window.
+
+    Checks three sources:
+    1. Pre-window ASOF for continuous sedation drugs (already infusing at window start)
+    2. In-window continuous sedation drugs (admin_dttm within [start_dttm, end_dttm])
+    3. In-window intermittent sedation drugs (med_dose > 0 AND mar_action_category != 'not_given')
+
+    For source 1 (pre-window ASOF), if a continuous sedation drug was already active at
+    window start, we set earliest_sedation_dttm = start_dttm (the drug was on before the
+    window began, so ALL GCS in-window are invalidated).
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+    cont_meds_rel : DuckDBPyRelation
+        Continuous medication administrations (CLIF medication_admin_continuous)
+    intm_meds_rel : DuckDBPyRelation
+        Intermittent medication administrations (CLIF medication_admin_intermittent)
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Columns: [hospitalization_id, start_dttm, earliest_sedation_dttm]
+        One row per window that has any sedation. Windows without sedation are absent.
+    """
+    sedation_drugs_list = SEDATION_DRUGS
+    sedation_drugs_tuple = tuple(SEDATION_DRUGS)
+
+    # Source 1: Pre-window ASOF for continuous drugs already infusing at window start
+    # If active, earliest_sedation_dttm = start_dttm (drug was on before window)
+    cont_pre_window = duckdb.sql(f"""
+        WITH med_cats AS (
+            SELECT UNNEST({sedation_drugs_list}::VARCHAR[]) AS med_category
+        ),
+        cohort_meds AS (
+            FROM cohort_rel c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+        )
+        FROM cohort_meds cm
+        ASOF LEFT JOIN cont_meds_rel t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.start_dttm > t.admin_dttm
+        SELECT
+            cm.hospitalization_id
+            , cm.start_dttm
+            -- Drug was already running before window → use start_dttm as onset FIXME: should use admin_dttm as sedation_dttm
+            , cm.start_dttm AS sedation_dttm
+        WHERE t.hospitalization_id IS NOT NULL
+            AND t.mar_action_category != 'stop'
+            AND t.med_dose > 0
+    """)
+
+    # Source 2: In-window continuous sedation drugs
+    cont_in_window = duckdb.sql(f"""
+        FROM cont_meds_rel t
+        JOIN cohort_rel c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.admin_dttm >= c.start_dttm
+            AND t.admin_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id
+            , c.start_dttm
+            , t.admin_dttm AS sedation_dttm
+        WHERE t.med_category IN {sedation_drugs_tuple}
+            AND t.med_dose > 0
+    """)
+
+    # Source 3: In-window intermittent sedation drugs
+    intm_in_window = duckdb.sql(f"""
+        FROM intm_meds_rel t
+        JOIN cohort_rel c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.admin_dttm >= c.start_dttm
+            AND t.admin_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id
+            , c.start_dttm
+            , t.admin_dttm AS sedation_dttm
+        WHERE t.med_category IN {sedation_drugs_tuple}
+            AND t.med_dose > 0
+            AND t.mar_action_category != 'not_given'
+    """)
+
+    # UNION ALL → MIN per window
+    return duckdb.sql("""
+        FROM (
+            FROM cont_pre_window SELECT *
+            UNION ALL
+            FROM cont_in_window SELECT *
+            UNION ALL
+            FROM intm_in_window SELECT *
+        )
+        SELECT
+            hospitalization_id
+            , start_dttm
+            , MIN(sedation_dttm) AS earliest_sedation_dttm
+        GROUP BY hospitalization_id, start_dttm
+    """)
+
+
+# NOTE: DEPRECATED — retained for reference in case we need to revert to
+# episode-based sedation detection. The new approach uses _find_earliest_sedation()
+# which simply finds the earliest sedation drug admin and invalidates all GCS after it.
 def _detect_sedation_episodes(
     cohort_rel: DuckDBPyRelation,
-    meds_rel: DuckDBPyRelation,
+    cont_meds_rel: DuckDBPyRelation,
     post_sedation_gcs_invalidate_hours: float = 1.0,
 ) -> DuckDBPyRelation:
     """
+    DEPRECATED: Use _find_earliest_sedation() instead. Retained for reference only.
+
     Detect sedation episodes within each scoring window for brain subscore.
 
     Uses the window-bounded episode pattern: pre-window ASOF + in-window +
@@ -399,7 +539,7 @@ def _detect_sedation_episodes(
     ----------
     cohort_rel : DuckDBPyRelation
         Cohort with columns [hospitalization_id, start_dttm, end_dttm]
-    meds_rel : DuckDBPyRelation
+    cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
     post_sedation_gcs_invalidate_hours : float
         Hours after sedation episode ends where GCS measurements remain invalid.
@@ -430,7 +570,7 @@ def _detect_sedation_episodes(
             SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
-        ASOF LEFT JOIN meds_rel t
+        ASOF LEFT JOIN cont_meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm
@@ -446,7 +586,7 @@ def _detect_sedation_episodes(
 
     # In-window: standard events during [start_dttm, end_dttm]
     sedation_in_window = duckdb.sql(f"""
-        FROM meds_rel t
+        FROM cont_meds_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
@@ -473,7 +613,7 @@ def _detect_sedation_episodes(
             SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
-        ASOF LEFT JOIN meds_rel t
+        ASOF LEFT JOIN cont_meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
             AND cm.end_dttm >= t.admin_dttm

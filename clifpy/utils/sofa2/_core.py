@@ -67,6 +67,46 @@ def _load_ecmo_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     return rel
 
 
+def _load_intm_meds_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load medication_admin_intermittent table; return empty sentinel if unavailable.
+
+    Many sites may not have the intermittent medication table. It is used for:
+    - Sedation detection (intermittent sedation drugs)
+    - Delirium drug detection (haloperidol, quetiapine, ziprasidone, olanzapine)
+
+    The empty relation flows harmlessly — no intermittent drugs are detected,
+    and only continuous drug data is used for scoring.
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'admin_dttm', 'med_category', 'med_dose', 'mar_action_category'}
+    EMPTY_INTM = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMP AS admin_dttm
+            , NULL::VARCHAR AS med_category
+            , NULL::DOUBLE AS med_dose
+            , NULL::VARCHAR AS mar_action_category
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('medication_admin_intermittent', config_path=clif_config_path, return_rel=True)
+    except Exception as e:
+        logger.warning(f"Intermittent meds table not available ({e}). Only continuous meds will be used.")
+        return EMPTY_INTM
+
+    # Validate required columns exist
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"Intermittent meds table missing required columns: {missing}. Only continuous meds will be used."
+        )
+        return EMPTY_INTM
+
+    return rel
+
+
 def calculate_sofa2(
     cohort_df: pd.DataFrame | DuckDBPyRelation,
     clif_config_path: str | None = None,
@@ -136,9 +176,10 @@ def calculate_sofa2(
     crrt_rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True)
     assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True)
     vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True)
-    meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True)
+    cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True)
     resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True)
     ecmo_rel = _load_ecmo_optional(clif_config_path)
+    intm_meds_rel = _load_intm_meds_optional(clif_config_path)
 
     # =========================================================================
     # Calculate subscores
@@ -148,12 +189,14 @@ def calculate_sofa2(
     # Brain subscore
     if dev:
         brain_score, brain_intermediates = _calculate_brain_subscore(
-            cohort_rel, assessments_rel, meds_rel, cfg, dev=True
+            cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg, dev=True
         )
         intermediates.update({f'brain_{k}': v for k, v in brain_intermediates.items()})
         intermediates['brain_score'] = brain_score
     else:
-        brain_score = _calculate_brain_subscore(cohort_rel, assessments_rel, meds_rel, cfg)
+        brain_score = _calculate_brain_subscore(
+            cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg
+        )
 
     # Respiratory subscore
     if dev:
@@ -170,12 +213,12 @@ def calculate_sofa2(
     # Cardiovascular subscore
     if dev:
         cv_score, cv_intermediates = _calculate_cv_subscore(
-            cohort_rel, meds_rel, vitals_rel, ecmo_rel, cfg, dev=True
+            cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg, dev=True
         )
         intermediates.update({f'cv_{k}': v for k, v in cv_intermediates.items()})
         intermediates['cv_score'] = cv_score
     else:
-        cv_score = _calculate_cv_subscore(cohort_rel, meds_rel, vitals_rel, ecmo_rel, cfg)
+        cv_score = _calculate_cv_subscore(cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg)
 
     # Liver subscore
     if dev:

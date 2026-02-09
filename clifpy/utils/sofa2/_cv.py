@@ -43,7 +43,7 @@ COHORT_VASOPRESSORS = list(PRESSOR_PREFERRED_UNITS.keys())
 
 def _calculate_cv_subscore(
     cohort_rel: DuckDBPyRelation,
-    meds_rel: DuckDBPyRelation,
+    cont_meds_rel: DuckDBPyRelation,
     vitals_rel: DuckDBPyRelation,
     ecmo_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
@@ -64,7 +64,7 @@ def _calculate_cv_subscore(
     ----------
     cohort_rel : DuckDBPyRelation
         Cohort with columns [hospitalization_id, start_dttm, end_dttm]
-    meds_rel : DuckDBPyRelation
+    cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
     vitals_rel : DuckDBPyRelation
         Vitals table (CLIF vitals) - for MAP and weight
@@ -118,7 +118,7 @@ def _calculate_cv_subscore(
             SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
-        ASOF LEFT JOIN meds_rel t
+        ASOF LEFT JOIN cont_meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm  -- include events ONLY BEFORE start_dttm
@@ -137,7 +137,7 @@ def _calculate_cv_subscore(
 
     # In-window: Events during [start_dttm, end_dttm]
     pressor_in_window = duckdb.sql(f"""
-        FROM meds_rel t
+        FROM cont_meds_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
@@ -164,7 +164,7 @@ def _calculate_cv_subscore(
             SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
-        ASOF LEFT JOIN meds_rel t
+        ASOF LEFT JOIN cont_meds_rel t
             ON cm.hospitalization_id = t.hospitalization_id
             AND cm.med_category = t.med_category
             AND cm.end_dttm < t.admin_dttm  -- first event AFTER end_dttm

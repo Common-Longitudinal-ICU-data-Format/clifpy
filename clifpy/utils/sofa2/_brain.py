@@ -8,13 +8,14 @@ Scoring (per SOFA-2 spec):
 - GCS 3-5: 4 points
 
 Special rules:
-- Footnote c: For sedated patients, GCS measurements during sedation episodes
-  (plus post_sedation_gcs_invalidate_hours) are invalid. If no valid GCS and
-  sedation present, score 0.
+- Footnote c: Find earliest sedation drug admin (from both continuous and
+  intermittent tables). Only GCS recorded BEFORE this onset time are valid.
+  If no valid GCS and sedation present, score 0.
 - Footnote d: If gcs_total unavailable, use gcs_motor with mapping:
   motor=6 -> 0, motor=5 -> 1, motor=4 -> 2, motor=3 -> 3, motor∈[0,1,2] -> 4
 - Footnote e: If patient is receiving drug therapy for delirium, score 1 point
-  even if GCS is 15. Currently only dexmedetomidine is included.
+  even if GCS is 15. Continuous (dexmedetomidine) via pre-window ASOF + in-window;
+  intermittent (haloperidol, quetiapine, ziprasidone, olanzapine) via in-window only.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from __future__ import annotations
 import duckdb
 from duckdb import DuckDBPyRelation
 
-from ._utils import SOFA2Config, _flag_delirium_drug, _detect_sedation_episodes
+from ._utils import SOFA2Config, _flag_delirium_drug, _find_earliest_sedation
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.brain')
@@ -31,7 +32,8 @@ logger = get_logger('utils.sofa2.brain')
 def _calculate_brain_subscore(
     cohort_rel: DuckDBPyRelation,
     assessments_rel: DuckDBPyRelation,
-    meds_rel: DuckDBPyRelation,
+    cont_meds_rel: DuckDBPyRelation,
+    intm_meds_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
     *,
     dev: bool = False,
@@ -40,9 +42,9 @@ def _calculate_brain_subscore(
     Calculate SOFA-2 brain subscore based on GCS and delirium drug administration.
 
     Implements:
-    - Footnote c: Sedation-aware GCS (invalidate GCS during sedation episodes)
+    - Footnote c: Earliest sedation onset invalidates all subsequent GCS
     - Footnote d: GCS motor fallback when gcs_total unavailable
-    - Footnote e: Delirium drug -> minimum 1 point
+    - Footnote e: Delirium drug -> minimum 1 point (cont + intm)
 
     Parameters
     ----------
@@ -50,10 +52,12 @@ def _calculate_brain_subscore(
         Cohort with columns [hospitalization_id, start_dttm, end_dttm]
     assessments_rel : DuckDBPyRelation
         Patient assessments table (CLIF patient_assessments)
-    meds_rel : DuckDBPyRelation
+    cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
+    intm_meds_rel : DuckDBPyRelation
+        Intermittent medication administrations (CLIF medication_admin_intermittent)
     cfg : SOFA2Config
-        Configuration with post_sedation_gcs_invalidate_hours
+        Configuration object
     dev : bool, default False
         If True, return (result, intermediates_dict) for debugging
 
@@ -66,20 +70,16 @@ def _calculate_brain_subscore(
         or NULL if no GCS data and no sedation.
     """
     logger.info("Calculating brain subscore...")
-    post_sed_hours = cfg.post_sedation_gcs_invalidate_hours
-    logger.info(f"post_sedation_gcs_invalidate_hours={post_sed_hours}")
 
     # =========================================================================
-    # Step 1: Detect sedation episodes (footnote c)
+    # Step 1: Find earliest sedation onset (footnote c)
     # =========================================================================
-    logger.info("Detecting sedation episodes within scoring windows...")
-    sedation_episodes = _detect_sedation_episodes(
-        cohort_rel, meds_rel, post_sedation_gcs_invalidate_hours=post_sed_hours
-    )
-    
+    logger.info("Finding earliest sedation drug administration per window...")
+    earliest_sedation = _find_earliest_sedation(cohort_rel, cont_meds_rel, intm_meds_rel)
+
     # Flag windows that have any sedation
     has_sedation_flag = duckdb.sql("""
-        FROM sedation_episodes
+        FROM earliest_sedation
         SELECT DISTINCT
             hospitalization_id
             , start_dttm
@@ -107,17 +107,13 @@ def _calculate_brain_subscore(
     """)
 
     # =========================================================================
-    # Step 3: Mark GCS as valid/invalid based on sedation episodes
+    # Step 3: Mark GCS as valid/invalid based on earliest sedation onset
     # =========================================================================
-    logger.info("Filtering GCS measurements to exclude those during sedation episodes...")
-    # A GCS is invalid if it falls within ANY sedation episode's [sedation_start, sedation_end_extended]
+    logger.info("Filtering GCS measurements to exclude those after earliest sedation onset...")
+    # GCS is valid if recorded BEFORE earliest_sedation_dttm (or no sedation found)
     gcs_with_validity = duckdb.sql("""
         FROM gcs_in_window g
-        LEFT JOIN sedation_episodes s ON
-            g.hospitalization_id = s.hospitalization_id
-            AND g.start_dttm = s.start_dttm
-            AND g.recorded_dttm >= s.sedation_start
-            AND g.recorded_dttm <= s.sedation_end_extended
+        LEFT JOIN earliest_sedation s USING (hospitalization_id, start_dttm)
         SELECT
             g.hospitalization_id
             , g.start_dttm
@@ -125,7 +121,11 @@ def _calculate_brain_subscore(
             , g.assessment_category
             , g.gcs_value
             , g.dttm_offset
-            , CASE WHEN s.hospitalization_id IS NOT NULL THEN 0 ELSE 1 END AS is_valid
+            , CASE
+                WHEN s.earliest_sedation_dttm IS NULL THEN 1
+                WHEN g.recorded_dttm < s.earliest_sedation_dttm THEN 1
+                ELSE 0
+              END AS is_valid
     """)
 
     # Keep only valid GCS
@@ -178,7 +178,7 @@ def _calculate_brain_subscore(
     # Step 5: Flag delirium drug administration (footnote e)
     # =========================================================================
     logger.info("Flagging delirium drug administration for footnote e...")
-    delirium_flag = _flag_delirium_drug(cohort_rel, meds_rel)
+    delirium_flag = _flag_delirium_drug(cohort_rel, cont_meds_rel, intm_meds_rel)
 
     # =========================================================================
     # Step 6: Calculate final brain subscore
@@ -233,7 +233,7 @@ def _calculate_brain_subscore(
 
     if dev:
         return brain_score, {
-            'sedation_episodes': sedation_episodes,
+            'earliest_sedation': earliest_sedation,
             'has_sedation_flag': has_sedation_flag,
             'gcs_in_window': gcs_in_window,
             'gcs_with_validity': gcs_with_validity,
