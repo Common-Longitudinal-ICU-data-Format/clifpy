@@ -38,7 +38,7 @@ def calculate_sofa2(
     ----------
     cohort_df : pd.DataFrame | DuckDBPyRelation
         Cohort with columns [hospitalization_id, start_dttm, end_dttm].
-        One row per scoring window.
+        One row per scoring window. Note that windows for the same hospitalization_id must be non-overlapping.
     clif_config_path : str, optional
         Path to CLIF config file for data loading.
     return_rel : bool, default False
@@ -55,7 +55,18 @@ def calculate_sofa2(
     pd.DataFrame | DuckDBPyRelation | tuple
         If dev=False: DataFrame or relation with columns:
             - hospitalization_id, start_dttm, end_dttm (from input)
-            - brain, resp, cv, liver, kidney, hemo (subscores 0-4)
+            - Brain: gcs_min, gcs_type, gcs_min_dttm_offset, has_sedation, has_delirium_drug, brain
+            - Resp: pf_ratio, sf_ratio, has_advanced_support, device_category,
+              pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
+              fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
+            - CV: map_min, map_min_dttm_offset, norepi_epi_maxsum,
+              norepi_epi_maxsum_dttm_offset, dopa_max, dopa_max_dttm_offset,
+              has_other_non_dopa, has_other_vaso, cv
+            - Liver: bilirubin_total, bilirubin_dttm_offset, liver
+            - Kidney: creatinine, creatinine_dttm_offset, potassium,
+              potassium_dttm_offset, ph, ph_type, ph_dttm_offset, bicarbonate,
+              bicarbonate_dttm_offset, has_rrt, rrt_criteria_met, kidney
+            - Hemo: platelet_count, platelet_dttm_offset, hemo
             - sofa_total (sum of subscores, 0-24)
         If dev=True: (results, intermediates_dict)
     """
@@ -93,12 +104,12 @@ def calculate_sofa2(
     # Brain subscore
     if dev:
         brain_score, brain_intermediates = _calculate_brain_subscore(
-            cohort_rel, assessments_rel, meds_rel, dev=True
+            cohort_rel, assessments_rel, meds_rel, cfg, dev=True
         )
         intermediates.update({f'brain_{k}': v for k, v in brain_intermediates.items()})
         intermediates['brain_score'] = brain_score
     else:
-        brain_score = _calculate_brain_subscore(cohort_rel, assessments_rel, meds_rel)
+        brain_score = _calculate_brain_subscore(cohort_rel, assessments_rel, meds_rel, cfg)
 
     # Respiratory subscore
     if dev:
@@ -115,12 +126,12 @@ def calculate_sofa2(
     # Cardiovascular subscore
     if dev:
         cv_score, cv_intermediates = _calculate_cv_subscore(
-            cohort_rel, meds_rel, vitals_rel, cfg, dev=True
+            cohort_rel, meds_rel, vitals_rel, ecmo_rel, cfg, dev=True
         )
         intermediates.update({f'cv_{k}': v for k, v in cv_intermediates.items()})
         intermediates['cv_score'] = cv_score
     else:
-        cv_score = _calculate_cv_subscore(cohort_rel, meds_rel, vitals_rel, cfg)
+        cv_score = _calculate_cv_subscore(cohort_rel, meds_rel, vitals_rel, ecmo_rel, cfg)
 
     # Liver subscore
     if dev:
@@ -168,13 +179,58 @@ def calculate_sofa2(
             c.hospitalization_id
             , c.start_dttm
             , c.end_dttm
-            -- 6 subscores
-            , h.hemo
-            , li.liver
-            , k.kidney
+            -- Brain subscore
+            , b.gcs_min
+            , b.gcs_type
+            , b.gcs_min_dttm_offset
+            , b.has_sedation
+            , b.has_delirium_drug
             , b.brain
-            , cv.cv
+            -- Respiratory subscore
+            , resp.pf_ratio
+            , resp.sf_ratio
+            , resp.has_advanced_support
+            , resp.device_category
+            , resp.pao2_at_worst
+            , resp.pao2_dttm_offset
+            , resp.spo2_at_worst
+            , resp.spo2_dttm_offset
+            , resp.fio2_at_worst
+            , resp.fio2_dttm_offset
+            , resp.has_ecmo
             , resp.resp
+            -- Cardiovascular subscore
+            , cv.map_min
+            , cv.map_min_dttm_offset
+            , cv.norepi_epi_maxsum
+            , cv.norepi_epi_maxsum_dttm_offset
+            , cv.dopa_max
+            , cv.dopa_max_dttm_offset
+            , cv.has_other_non_dopa
+            , cv.has_other_vaso
+            , cv.has_mechanical_cv_support
+            , cv.cv
+            -- Liver subscore
+            , li.bilirubin_total
+            , li.bilirubin_dttm_offset
+            , li.liver
+            -- Kidney subscore
+            , k.creatinine
+            , k.creatinine_dttm_offset
+            , k.potassium
+            , k.potassium_dttm_offset
+            , k.ph
+            , k.ph_type
+            , k.ph_dttm_offset
+            , k.bicarbonate
+            , k.bicarbonate_dttm_offset
+            , k.has_rrt
+            , k.rrt_criteria_met
+            , k.kidney
+            -- Hemostasis subscore
+            , h.platelet_count
+            , h.platelet_dttm_offset
+            , h.hemo
             -- SOFA Total (sum of all 6 components)
             , sofa_total: COALESCE(h.hemo, 0)
                 + COALESCE(li.liver, 0)
@@ -255,25 +311,28 @@ def calculate_sofa2_daily(
         cohort_rel = cohort_df
 
     # Step 1: Expand arbitrary windows to complete 24h periods
-    logger.debug("Expanding windows to 24h periods...")
+    logger.info("Expanding windows to 24h periods...")
     expanded_cohort = _expand_to_daily_windows(cohort_rel)
+    logger.info(f"Input cohort: {cohort_rel.count('*').df().iloc[0, 0]} rows")
+    logger.info(f"Expanded cohort: {expanded_cohort.count('*').df().iloc[0, 0]} rows")
 
     # Step 2: Calculate raw scores for each 24h window
     raw_scores = calculate_sofa2(
         expanded_cohort,
         clif_config_path=clif_config_path,
-        return_rel=True,
+        return_rel=False,
         dev=False,
         sofa2_config=sofa2_config,
     )
+    logger.info(f"Raw scores: {len(raw_scores)} rows")
 
     # Step 3: Join back to get nth_day and apply carry-forward logic
-    logger.debug("Applying carry-forward logic...")
+    logger.info("Applying carry-forward logic...")
     filled_scores = duckdb.sql("""
         WITH with_nth_day AS (
             -- Join raw scores with expanded cohort to get nth_day
             FROM raw_scores r
-            JOIN expanded_cohort e USING (hospitalization_id, start_dttm)
+            LEFT JOIN expanded_cohort e USING (hospitalization_id, start_dttm)
             SELECT
                 r.hospitalization_id
                 , r.start_dttm

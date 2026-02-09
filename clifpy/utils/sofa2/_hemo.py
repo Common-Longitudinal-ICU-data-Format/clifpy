@@ -7,7 +7,7 @@ Scoring (per SOFA-2 spec):
 - Platelets ≤ 80 × 10³/µL: 3 points
 - Platelets ≤ 50 × 10³/µL: 4 points
 
-Reviewers:4
+Reviewers:
 - Zewei (Whiskey) on 2026-02-01.
 """
 

@@ -10,6 +10,7 @@ Scoring (per SOFA-2 spec):
 Special rules:
 - Footnote j: Vasopressors only count if infused for ≥ 60 minutes
 - Footnote l: Dopamine-only has different cutoffs (≤20 → 2, >20-40 → 3, >40 → 4)
+- Footnote n: Mechanical CV support (non-VV ECMO, IABP, LVAD, RVAD) → 4 points
 - MAR action deduplication to handle simultaneous entries
 """
 
@@ -18,7 +19,7 @@ from __future__ import annotations
 import duckdb
 from duckdb import DuckDBPyRelation
 
-from ._utils import SOFA2Config, _agg_map
+from ._utils import SOFA2Config, _agg_map, _flag_mechanical_cv_support
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.cv')
@@ -44,6 +45,7 @@ def _calculate_cv_subscore(
     cohort_rel: DuckDBPyRelation,
     meds_rel: DuckDBPyRelation,
     vitals_rel: DuckDBPyRelation,
+    ecmo_rel: DuckDBPyRelation,
     cfg: SOFA2Config,
     *,
     dev: bool = False,
@@ -177,8 +179,9 @@ def _calculate_cv_subscore(
         WHERE t.hospitalization_id IS NOT NULL
     """)
 
-    # Combine all pressor events
-    pressor_events_raw = duckdb.sql("""
+    # Combine all pressor events (materialize to break lazy chain)
+    duckdb.execute("""
+        CREATE OR REPLACE TEMP TABLE pressor_events_raw AS
         SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
         FROM pressor_at_start
         UNION ALL
@@ -188,6 +191,8 @@ def _calculate_cv_subscore(
         SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
         FROM pressor_at_end
     """)
+    pressor_events_raw = duckdb.table("pressor_events_raw")
+    logger.info(f"pressor_events_raw materialized: {pressor_events_raw.count('*').fetchone()[0]} rows")
 
     # =========================================================================
     # Step 3: MAR deduplication
@@ -220,19 +225,24 @@ def _calculate_cv_subscore(
     # Step 4: Unit conversion
     # =========================================================================
     logger.info("Converting pressor doses to standardized weight-based units...")
-    pressor_events, _ = convert_dose_units_by_med_category(
+    pressor_events_rel, _ = convert_dose_units_by_med_category(
         med_df=pressor_events_deduped,
         vitals_df=cohort_vitals,
         return_rel=True,
         preferred_units=PRESSOR_PREFERRED_UNITS,
         override=True
     )
+    # Materialize after unit conversion to isolate external function
+    duckdb.execute("CREATE OR REPLACE TEMP TABLE pressor_events AS SELECT * FROM pressor_events_rel")
+    pressor_events = duckdb.table("pressor_events")
+    logger.info(f"pressor_events materialized: {pressor_events.count('*').fetchone()[0]} rows")
 
     # =========================================================================
     # Step 5: Pivot epi+norepi to wide format
     # =========================================================================
     logger.info("Pivoting epi+norepi to wide format for concurrent dosage calculation...")
-    epi_ne_wide = duckdb.sql("""
+    duckdb.execute("""
+        CREATE OR REPLACE TEMP TABLE epi_ne_wide AS
         FROM pressor_events
         PIVOT (
             ANY_VALUE(med_dose)
@@ -243,6 +253,8 @@ def _calculate_cv_subscore(
             GROUP BY hospitalization_id, start_dttm, admin_dttm
         )
     """)
+    epi_ne_wide = duckdb.table("epi_ne_wide")
+    logger.info(f"epi_ne_wide materialized: {epi_ne_wide.count('*').fetchone()[0]} rows")
 
     logger.info("Forward-filling epi+norepi to get continuous dosage values...")
     # Forward-fill epi+norepi
@@ -262,7 +274,8 @@ def _calculate_cv_subscore(
     # Step 6: Episode detection and 60-min duration validation for epi+norepi
     # =========================================================================
     logger.info("Detecting episodes and validating 60-min duration per footnote j...")
-    epi_ne_duration = duckdb.sql(f"""
+    duckdb.execute(f"""
+        CREATE OR REPLACE TEMP TABLE epi_ne_duration AS
         WITH with_lag AS (
             FROM epi_ne_filled
             SELECT
@@ -311,6 +324,8 @@ def _calculate_cv_subscore(
             , CASE WHEN epi > 0 AND epi_episode_duration >= {min_duration}
                    THEN epi ELSE 0 END AS epi_valid
     """)
+    epi_ne_duration = duckdb.table("epi_ne_duration")
+    logger.info(f"epi_ne_duration materialized: {epi_ne_duration.count('*').fetchone()[0]} rows")
 
     # Aggregate epi+norepi with offset at max dose
     epi_ne_agg = duckdb.sql("""
@@ -401,6 +416,12 @@ def _calculate_cv_subscore(
     """)
 
     # =========================================================================
+    # Step 7b: Mechanical CV support flag (footnote n)
+    # =========================================================================
+    logger.info("Checking mechanical CV support flag (non-VV ECMO, IABP, LVAD, RVAD)...")
+    mech_cv_flag = _flag_mechanical_cv_support(cohort_rel, ecmo_rel)
+
+    # =========================================================================
     # Step 8: Calculate CV score
     # =========================================================================
     logger.info("Applying CV scoring rules based on norepi+epi dose tiers and pressor combinations...")
@@ -408,6 +429,7 @@ def _calculate_cv_subscore(
         FROM cohort_rel c
         LEFT JOIN map_agg m USING (hospitalization_id, start_dttm)
         LEFT JOIN pressor_agg v USING (hospitalization_id, start_dttm)
+        LEFT JOIN mech_cv_flag mcv USING (hospitalization_id, start_dttm)
         SELECT
             c.hospitalization_id
             , c.start_dttm
@@ -421,7 +443,10 @@ def _calculate_cv_subscore(
             -- Composite "other" flag (dopamine OR other non-dopa)
             , CASE WHEN COALESCE(v.dopa_max, 0) > 0 OR COALESCE(v.has_other_non_dopa, 0) = 1
                    THEN 1 ELSE 0 END AS has_other_vaso
+            , COALESCE(mcv.has_mechanical_cv_support, 0) AS has_mechanical_cv_support
             , cv: CASE
+                -- Footnote n: Mechanical CV support → 4 points (highest priority)
+                WHEN COALESCE(mcv.has_mechanical_cv_support, 0) = 1 THEN 4
                 -- Footnote l: Dopamine-only scoring (no norepi/epi, no other pressors)
                 WHEN norepi_epi_maxsum = 0 AND has_other_non_dopa = 0 AND dopa_max > 40 THEN 4
                 WHEN norepi_epi_maxsum = 0 AND has_other_non_dopa = 0 AND dopa_max > 20 THEN 3
@@ -458,6 +483,7 @@ def _calculate_cv_subscore(
             'other_pressor_duration': other_pressor_duration,
             'other_pressor_agg': other_pressor_agg,
             'pressor_agg': pressor_agg,
+            'mech_cv_flag': mech_cv_flag,
         }
 
     return cv_score

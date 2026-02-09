@@ -16,7 +16,8 @@ S/F ratio cutoffs (when PaO2 unavailable and SpO2 < 98%):
 - S/F ≤ 120 + advanced ventilatory support: 4 points
 
 Special rules:
-- ECMO for respiratory failure: 4 points regardless of ratio
+- Any ECMO (VV or non-VV): 4 points in resp regardless of ratio (footnote i)
+  VV-ECMO does NOT score in CV; non-VV ECMO scores 4 in both resp and CV.
 - Advanced ventilatory support includes: IMV, NIPPV, CPAP, High Flow NC
 """
 
@@ -73,9 +74,10 @@ def _calculate_resp_subscore(
     DuckDBPyRelation
         Columns: [hospitalization_id, start_dttm, pf_ratio, sf_ratio, has_advanced_support,
                   pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
-                  fio2_at_worst, fio2_dttm_offset, has_ecmo, resp]
+                  fio2_at_worst, fio2_dttm_offset, pf_sf_dttm_offset, has_ecmo, resp]
         pf_ratio and sf_ratio are mutually exclusive (one will be NULL).
         Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window).
+        pf_sf_dttm_offset is the time gap between the PaO2/SpO2 and FiO2 measurements used for the ratio.
     """
     logger.info("Calculating respiratory subscore...")
 
@@ -392,6 +394,8 @@ def _calculate_resp_subscore(
             t.hospitalization_id
             , c.start_dttm
             , 1 AS has_ecmo
+        WHERE t.mcs_group = 'ecmo'
+            OR t.ecmo_configuration_category IS NOT NULL
     """)
 
     # =========================================================================
@@ -416,6 +420,11 @@ def _calculate_resp_subscore(
             , r.spo2_dttm_offset
             , r.fio2_at_worst
             , r.fio2_dttm_offset
+            , pf_sf_dttm_offset: CASE
+                WHEN r.pf_ratio IS NOT NULL THEN r.pao2_dttm_offset - r.fio2_dttm_offset
+                WHEN r.sf_ratio IS NOT NULL THEN r.spo2_dttm_offset - r.fio2_dttm_offset
+                ELSE NULL
+              END
             , COALESCE(e.has_ecmo, 0) AS has_ecmo
             , resp: CASE
                 -- ECMO override: 4 points regardless of ratio

@@ -34,6 +34,8 @@ class SOFA2Config:
         Minimum vasopressor infusion duration to count (footnote j). Default 60.
     pf_sf_tolerance_hours : float
         Maximum time gap between O2 measurement and FiO2 for concurrent ratio. Default 4.0.
+    post_sedation_gcs_invalidate_hours : float
+        Hours after sedation ends where GCS measurements remain invalid (footnote c). Default 1.0.
     include_timestamps : bool
         If True, include ARGMAX/ARGMIN timestamps for determining measurements. Default False.
     """
@@ -50,8 +52,8 @@ class SOFA2Config:
     # Resp subscore
     pf_sf_tolerance_hours: float = 4.0
 
-    # QA options
-    include_timestamps: bool = False
+    # Brain subscore (footnote c)
+    post_sedation_gcs_invalidate_hours: float = 1.0
 
 
 # =============================================================================
@@ -222,11 +224,25 @@ def _flag_rrt(cohort_rel: DuckDBPyRelation, crrt_rel: DuckDBPyRelation) -> DuckD
     """)
 
 
+DELIRIUM_DRUGS = [
+    'dexmedetomidine',
+    'haloperidol',
+    'quetiapine',
+    'ziprasidone',
+    'olanzapine',
+]
+
+
 def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation) -> DuckDBPyRelation:
     """
     Detect delirium drug administration during each scoring window.
 
-    Per footnote e: dexmedetomidine infusion -> brain subscore minimum 1 point.
+    Per footnote e: delirium drug administration -> brain subscore minimum 1 point.
+    Delirium drugs (per PADIS guideline): dexmedetomidine, haloperidol, quetiapine,
+    ziprasidone, olanzapine.
+
+    Uses pre-window ASOF + in-window pattern (flag-only scenario) to capture drugs
+    that started infusing before the window and are still running.
 
     Parameters
     ----------
@@ -241,18 +257,312 @@ def _flag_delirium_drug(cohort_rel: DuckDBPyRelation, meds_rel: DuckDBPyRelation
         Columns: [hospitalization_id, start_dttm, has_delirium_drug]
         Only includes rows where delirium drug was detected (has_delirium_drug = 1)
     """
-    return duckdb.sql("""
+    delirium_drugs_list = DELIRIUM_DRUGS
+    delirium_drugs_tuple = tuple(DELIRIUM_DRUGS)
+
+    # Pre-window: ASOF JOIN to detect drugs already infusing at window start
+    delirium_pre_window = duckdb.sql(f"""
+        WITH med_cats AS (
+            SELECT UNNEST({delirium_drugs_list}::VARCHAR[]) AS med_category
+        ),
+        cohort_meds AS (
+            FROM cohort_rel c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+        )
+        FROM cohort_meds cm
+        ASOF LEFT JOIN meds_rel t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.start_dttm > t.admin_dttm
+        SELECT
+            cm.hospitalization_id
+            , cm.start_dttm
+        WHERE t.hospitalization_id IS NOT NULL
+            AND t.mar_action_category != 'stop'
+            AND t.med_dose > 0
+    """)
+
+    # In-window: standard events during [start_dttm, end_dttm]
+    delirium_in_window = duckdb.sql(f"""
         FROM meds_rel t
         JOIN cohort_rel c ON
             t.hospitalization_id = c.hospitalization_id
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id
+            , c.start_dttm
+        WHERE t.med_category IN {delirium_drugs_tuple}
+            AND t.med_dose > 0
+    """)
+
+    return duckdb.sql("""
+        FROM (
+            FROM delirium_pre_window SELECT *
+            UNION ALL
+            FROM delirium_in_window SELECT *
+        )
+        SELECT DISTINCT
+            hospitalization_id
+            , start_dttm
+            , 1 AS has_delirium_drug
+    """)
+
+
+def _flag_mechanical_cv_support(
+    cohort_rel: DuckDBPyRelation, ecmo_rel: DuckDBPyRelation
+) -> DuckDBPyRelation:
+    """
+    Detect mechanical cardiovascular support during each scoring window.
+
+    Per footnote n: mechanical CV support -> CV subscore 4 points.
+    Devices include:
+    - Non-VV ECMO: ecmo_configuration_category IN ('va', 'va_v', 'vv_a')
+    - IABP: mcs_group = 'iabp'
+    - LV assist / microaxial flow pump: mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')
+    - RV assist: mcs_group = 'temporary_rvad'
+
+    NOTE: VV-ECMO (ecmo_configuration_category = 'vv') is excluded per footnote i
+    (VV-ECMO is respiratory only, does not score in CV).
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+    ecmo_rel : DuckDBPyRelation
+        ECMO/MCS table (CLIF ecmo_mcs)
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Columns: [hospitalization_id, start_dttm, has_mechanical_cv_support]
+        Only includes rows where mechanical CV support was detected (has_mechanical_cv_support = 1)
+    """
+    return duckdb.sql("""
+        FROM ecmo_rel t
+        JOIN cohort_rel c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.recorded_dttm >= c.start_dttm
+            AND t.recorded_dttm <= c.end_dttm
         SELECT DISTINCT
             t.hospitalization_id
-            , c.start_dttm  -- window identity
-            , 1 AS has_delirium_drug
-        WHERE t.med_category = 'dexmedetomidine'
-            AND t.med_dose > 0  -- actively infusing
+            , c.start_dttm
+            , 1 AS has_mechanical_cv_support
+        WHERE
+            -- Non-VV ECMO configurations (footnote i CV part)
+            t.ecmo_configuration_category IN ('va', 'va_v', 'vv_a')
+            -- IABP (footnote n)
+            OR t.mcs_group = 'iabp'
+            -- LV assist devices / microaxial flow pumps (footnote n)
+            OR t.mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')
+            -- RV assist devices (footnote n)
+            OR t.mcs_group = 'temporary_rvad'
+    """)
+
+
+# =============================================================================
+# Sedation Episode Detection (for brain subscore)
+# =============================================================================
+
+SEDATION_DRUGS = [
+    'propofol',
+    'dexmedetomidine',
+    'ketamine',
+    'midazolam',
+    'fentanyl',
+    'hydromorphone',
+    'morphine',
+    'remifentanil',
+    'pentobarbital',
+    'lorazepam',
+]
+
+
+def _detect_sedation_episodes(
+    cohort_rel: DuckDBPyRelation,
+    meds_rel: DuckDBPyRelation,
+    post_sedation_gcs_invalidate_hours: float = 1.0,
+) -> DuckDBPyRelation:
+    """
+    Detect sedation episodes within each scoring window for brain subscore.
+
+    Uses the window-bounded episode pattern: pre-window ASOF + in-window +
+    forward-fill at end_dttm. This captures sedation that started before the
+    window and extends episodes to the window boundary if the drug is still running.
+
+    Episode detection uses LAG + cumulative SUM (same as CV subscore).
+    Sedation episodes invalidate GCS measurements during the episode and for
+    post_sedation_gcs_invalidate_hours after the episode ends.
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+    meds_rel : DuckDBPyRelation
+        Continuous medication administrations (CLIF medication_admin_continuous)
+    post_sedation_gcs_invalidate_hours : float
+        Hours after sedation episode ends where GCS measurements remain invalid.
+        Default 1.0.
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Columns: [hospitalization_id, start_dttm, sedation_start, sedation_end_extended]
+        One row per sedation episode per window.
+        sedation_end_extended = episode_end + post_sedation_gcs_invalidate_hours
+    """
+    sedation_drugs_list = SEDATION_DRUGS
+    sedation_drugs_tuple = tuple(SEDATION_DRUGS)
+
+    # -------------------------------------------------------------------------
+    # Collect sedation events from 3 temporal slices
+    # -------------------------------------------------------------------------
+
+    # Pre-window: ASOF JOIN to detect drugs already infusing at window start
+    sedation_at_start = duckdb.sql(f"""
+        WITH med_cats AS (
+            SELECT UNNEST({sedation_drugs_list}::VARCHAR[]) AS med_category
+        ),
+        cohort_meds AS (
+            FROM cohort_rel c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+        )
+        FROM cohort_meds cm
+        ASOF LEFT JOIN meds_rel t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.start_dttm > t.admin_dttm
+        SELECT
+            cm.hospitalization_id
+            , cm.start_dttm
+            , t.admin_dttm
+            , cm.med_category
+            , t.med_dose
+            , t.mar_action_category
+        WHERE t.hospitalization_id IS NOT NULL
+    """)
+
+    # In-window: standard events during [start_dttm, end_dttm]
+    sedation_in_window = duckdb.sql(f"""
+        FROM meds_rel t
+        JOIN cohort_rel c ON
+            t.hospitalization_id = c.hospitalization_id
+            AND t.admin_dttm >= c.start_dttm
+            AND t.admin_dttm <= c.end_dttm
+        SELECT
+            t.hospitalization_id
+            , c.start_dttm
+            , t.admin_dttm
+            , t.med_category
+            , t.med_dose
+            , t.mar_action_category
+        WHERE t.med_category IN {sedation_drugs_tuple}
+    """)
+
+    # At-end: forward-fill drug state AT end_dttm (window-bounded, NOT after)
+    # Uses end_dttm as synthetic admin_dttm to extend episodes to window boundary
+    sedation_at_end = duckdb.sql(f"""
+        WITH med_cats AS (
+            SELECT UNNEST({sedation_drugs_list}::VARCHAR[]) AS med_category
+        ),
+        cohort_meds AS (
+            FROM cohort_rel c
+            CROSS JOIN med_cats m
+            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+        )
+        FROM cohort_meds cm
+        ASOF LEFT JOIN meds_rel t
+            ON cm.hospitalization_id = t.hospitalization_id
+            AND cm.med_category = t.med_category
+            AND cm.end_dttm >= t.admin_dttm
+        SELECT
+            cm.hospitalization_id
+            , cm.start_dttm
+            , cm.end_dttm AS admin_dttm  -- synthetic forward-fill at window boundary
+            , cm.med_category
+            , t.med_dose
+            , t.mar_action_category
+        WHERE t.hospitalization_id IS NOT NULL
+    """)
+
+    # Combine all temporal slices
+    sedation_events = duckdb.sql("""
+        FROM sedation_at_start SELECT *
+        UNION ALL
+        FROM sedation_in_window SELECT *
+        UNION ALL
+        FROM sedation_at_end SELECT *
+    """)
+
+    # -------------------------------------------------------------------------
+    # Dedup + episode detection (unchanged pipeline)
+    # -------------------------------------------------------------------------
+
+    return duckdb.sql(f"""
+        WITH deduped AS (
+            -- MAR deduplication (same pattern as CV subscore)
+            FROM sedation_events
+            SELECT *
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY hospitalization_id, start_dttm, admin_dttm, med_category
+                ORDER BY
+                    CASE WHEN mar_action_category IS NULL THEN 10
+                        WHEN mar_action_category IN ('verify', 'not_given') THEN 9
+                        WHEN mar_action_category = 'stop' THEN 8
+                        WHEN mar_action_category = 'going' THEN 7
+                        ELSE 1 END,
+                    CASE WHEN med_dose > 0 THEN 1 ELSE 2 END,
+                    med_dose DESC
+            ) = 1
+        ),
+        any_sedation AS (
+            -- Collapse to single "is_sedated" flag per timestamp
+            -- A patient is sedated if ANY sedation drug is actively infusing
+            FROM deduped
+            SELECT
+                hospitalization_id
+                , start_dttm
+                , admin_dttm
+                , MAX(CASE WHEN med_dose > 0 AND mar_action_category != 'stop' THEN 1 ELSE 0 END) AS is_sedated
+            GROUP BY hospitalization_id, start_dttm, admin_dttm
+        ),
+        with_lag AS (
+            FROM any_sedation
+            SELECT
+                *
+                , LAG(is_sedated) OVER w AS prev_is_sedated
+            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
+        ),
+        episode_groups AS (
+            -- Detect episode transitions: is_sedated=1 AND prev_is_sedated=0
+            FROM with_lag
+            SELECT
+                *
+                , SUM(CASE WHEN is_sedated = 1 AND COALESCE(prev_is_sedated, 0) = 0 THEN 1 ELSE 0 END) OVER w AS sedation_episode
+            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
+        ),
+        with_episode_bounds AS (
+            FROM episode_groups
+            SELECT
+                *
+                , FIRST_VALUE(admin_dttm) OVER episode_w AS episode_start
+                , LAST_VALUE(admin_dttm) OVER episode_w AS episode_end
+            WINDOW episode_w AS (
+                PARTITION BY hospitalization_id, start_dttm, sedation_episode
+                ORDER BY admin_dttm
+                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+            )
+        )
+        -- Return distinct episodes with extended end time
+        FROM with_episode_bounds
+        SELECT DISTINCT
+            hospitalization_id
+            , start_dttm
+            , episode_start AS sedation_start
+            , episode_end + INTERVAL '{post_sedation_gcs_invalidate_hours} hours' AS sedation_end_extended
+        WHERE is_sedated = 1
     """)
 
 
