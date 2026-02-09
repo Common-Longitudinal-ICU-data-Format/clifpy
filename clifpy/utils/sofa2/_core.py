@@ -23,6 +23,50 @@ from clifpy.utils.logging_config import get_logger
 logger = get_logger('utils.sofa2.core')
 
 
+def _load_ecmo_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load ecmo_mcs table; return empty sentinel if unavailable.
+
+    Many sites have not built the ECMO/MCS table yet. Since ECMO scoring
+    only affects a small subset of patients (score 4 in resp and/or CV),
+    the pipeline should gracefully skip ECMO scoring when the table is
+    unavailable rather than crashing.
+
+    Returns an empty DuckDB relation with the correct schema when:
+    1. The file doesn't exist (FileNotFoundError)
+    2. The file exists but is missing required columns
+
+    The empty relation flows harmlessly through the downstream LEFT JOIN +
+    COALESCE pattern, resulting in all ECMO-related flags defaulting to 0.
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm', 'mcs_group', 'ecmo_configuration_category'}
+    EMPTY_ECMO = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::VARCHAR AS mcs_group
+            , NULL::VARCHAR AS ecmo_configuration_category
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('ecmo_mcs', config_path=clif_config_path, return_rel=True)
+    except Exception as e:
+        logger.warning(f"ECMO/MCS table not available ({e}). ECMO scoring will be skipped.")
+        return EMPTY_ECMO
+
+    # Validate required columns exist
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"ECMO/MCS table missing required columns: {missing}. ECMO scoring will be skipped."
+        )
+        return EMPTY_ECMO
+
+    return rel
+
+
 def calculate_sofa2(
     cohort_df: pd.DataFrame | DuckDBPyRelation,
     clif_config_path: str | None = None,
@@ -94,7 +138,7 @@ def calculate_sofa2(
     vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True)
     meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True)
     resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True)
-    ecmo_rel = load_data('ecmo_mcs', config_path=clif_config_path, return_rel=True)
+    ecmo_rel = _load_ecmo_optional(clif_config_path)
 
     # =========================================================================
     # Calculate subscores
