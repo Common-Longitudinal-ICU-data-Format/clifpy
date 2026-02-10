@@ -9,7 +9,7 @@ columns:
     is_category_column: false
     is_group_column: false
   - name: birth_date
-    data_type: DATETIME
+    data_type: DATE
     required: true
     is_category_column: false
     is_group_column: false

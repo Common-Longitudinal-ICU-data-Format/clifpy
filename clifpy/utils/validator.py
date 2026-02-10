@@ -1,1889 +1,2439 @@
-"""Comprehensive validator module for CLIFpy tables.
-
-This module provides validation functions for CLIFpy tables including:
-
-- Column presence and data type validation with casting capability checks
-- Missing data analysis
-- Categorical value validation
-- Duplicate checking
-- Numeric range validation
-- Statistical analysis
-- Unit validation
-- Cohort analysis
-
-Datatype Validation Behavior:
-
-- The validator first checks if columns match their expected types exactly
-- If not, it checks whether the data can be cast to the correct type
-- Castable mismatches generate warnings (type: "datatype_castable")
-- Non-castable mismatches generate errors (type: "datatype_mismatch")
-- This allows for more flexible data handling while maintaining type safety
-
-All validation functions include proper error handling and return
-structured results for integration with the BaseTable class.
 """
-from __future__ import annotations
+Data Quality Assessment (DQA) module for CLIFpy tables.
 
-import json
+This module provides comprehensive DQA functions implementing:
+
+CONFORMANCE CHECKS:
+- A.1. Table presence verification
+- A.2. Required columns presence check
+- B.1. Data type validation
+- B.2. Datetime format validation
+- B.3. Lab reference units validation
+- B.4. Categorical values validation against mCIDE
+
+COMPLETENESS CHECKS:
+- A.1. Missingness analysis for required columns
+- A.2. Conditional required fields validation
+- B. mCIDE value coverage checks
+- C.1. Relational integrity checks
+
+DESIGN PRINCIPLES:
+- Default backend is Polars (memory-efficient, lazy evaluation)
+- Falls back to DuckDB if Polars is unavailable or fails a runtime smoke test
+- Uses garbage collection and cache clearing for memory management
+"""
 import os
 import yaml
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Union
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from multiprocessing import Pool, cpu_count
-from functools import partial
+import logging
+import duckdb
+from pathlib import Path 
+import gc
+
+# Logger for this module
+_logger = logging.getLogger(__name__)
 
 try:
     import polars as pl
+    _logger.debug("Polars imported (version %s), running smoke tests", pl.__version__)
+    # Smoke test: exercise the compute paths used by DQA checks so that
+    # platforms where Polars imports but fails at runtime (e.g. Windows
+    # thread-pool/SIMD issues) fall back to DuckDB immediately.
+    _smoke_a = pl.LazyFrame({"k": [1, 1, 2], "v": [10, 20, 30]})
+    _smoke_a.collect_schema()                                      # 1. schema inspection
+    _smoke_a.group_by("k").agg(pl.col("v").sum()).collect()        # 2. group_by + agg
+    _smoke_b = pl.LazyFrame({"k": [1, 2]})
+    _smoke_a.join(_smoke_b, on="k").collect()                      # 3. join
+    _smoke_a.filter(pl.col("k").is_in([1])).collect()              # 4. filter + is_in
+    _smoke_a.select(pl.col("v").sum()).collect(streaming=True)     # 5. streaming collect
+    del _smoke_a, _smoke_b
     HAS_POLARS = True
-except ImportError:
+except (ImportError, Exception) as _pl_err:
     HAS_POLARS = False
+    if not isinstance(_pl_err, ImportError):
+        _logger.warning("Polars imported but failed runtime check, falling back to DuckDB: %s", _pl_err)
+
+_ACTIVE_BACKEND = 'polars' if HAS_POLARS else 'duckdb'
+_logger.info("DQA backend: %s", _ACTIVE_BACKEND)
+
+
+def _load_schema(table_name: str, schema_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Load YAML schema for a table."""
+    if schema_dir is None:
+        schema_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'schemas')
+
+    schema_file = os.path.join(schema_dir, f'{table_name}_schema.yaml')
+    _logger.debug("Loading schema for '%s' from %s", table_name, schema_file)
+    if not os.path.exists(schema_file):
+        _logger.warning("Schema file not found: %s", schema_file)
+        return None
+
+    with open(schema_file, 'r') as f:
+        return yaml.safe_load(f)
+
+
+class DQAConformanceResult:
+    """Container for DQA conformance check results."""
+
+    def __init__(self, check_type: str, table_name: str):
+        self.check_type = check_type
+        self.table_name = table_name
+        self.passed = True
+        self.errors: List[Dict[str, Any]] = []
+        self.warnings: List[Dict[str, Any]] = []
+        self.info: List[Dict[str, Any]] = []
+        self.metrics: Dict[str, Any] = {}
+
+    def add_error(self, message: str, details: Optional[Dict] = None):
+        self.passed = False
+        self.errors.append({"message": message, "details": details or {}})
+
+    def add_warning(self, message: str, details: Optional[Dict] = None):
+        self.warnings.append({"message": message, "details": details or {}})
+
+    def add_info(self, message: str, details: Optional[Dict] = None):
+        self.info.append({"message": message, "details": details or {}})
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "check_type": self.check_type,
+            "table_name": self.table_name,
+            "passed": self.passed,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "info": self.info,
+            "metrics": self.metrics
+        }
+
+
+class DQACompletenessResult:
+    """Container for DQA completeness check results."""
+
+    def __init__(self, check_type: str, table_name: str):
+        self.check_type = check_type
+        self.table_name = table_name
+        self.passed = True
+        self.errors: List[Dict[str, Any]] = []
+        self.warnings: List[Dict[str, Any]] = []
+        self.info: List[Dict[str, Any]] = []
+        self.metrics: Dict[str, Any] = {}
+
+    def add_error(self, message: str, details: Optional[Dict] = None):
+        self.passed = False
+        self.errors.append({"message": message, "details": details or {}})
+
+    def add_warning(self, message: str, details: Optional[Dict] = None):
+        self.warnings.append({"message": message, "details": details or {}})
+
+    def add_info(self, message: str, details: Optional[Dict] = None):
+        self.info.append({"message": message, "details": details or {}})
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "check_type": self.check_type,
+            "table_name": self.table_name,
+            "passed": self.passed,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "info": self.info,
+            "metrics": self.metrics
+        }
+
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# CONFORMANCE CHECKS - A. Structure Checks
 # ---------------------------------------------------------------------------
 
-def _is_varchar_dtype(series: pd.Series) -> bool:
-    """Check if series is VARCHAR-compatible (string or object dtype with strings)."""
-    # Check for pandas string dtype
-    if pd.api.types.is_string_dtype(series):
-        return True
-    
-    # Check for object dtype that contains strings
-    if pd.api.types.is_object_dtype(series):
-        # Sample a few non-null values to check if they're strings
-        non_null = series.dropna()
-        if len(non_null) == 0:
-            return True  # Empty series is considered valid
-        
-        # Check first few values to see if they're strings
-        sample_size = min(100, len(non_null))
-        sample = non_null.iloc[:sample_size]
-        return all(isinstance(x, str) for x in sample)
-    
-    return False
-
-def _is_integer_dtype(series: pd.Series) -> bool:
-    """Check if series is integer-compatible."""
-    return pd.api.types.is_integer_dtype(series)
-
-def _is_float_dtype(series: pd.Series) -> bool:
-    """Check if series is float-compatible (includes integers)."""
-    return pd.api.types.is_numeric_dtype(series)
-
-def _can_cast_to_varchar(series: pd.Series) -> bool:
-    """Check if series can be cast to VARCHAR (string)."""
-    try:
-        # Almost everything can be converted to string
-        non_null = series.dropna()
-        if len(non_null) == 0:
-            return True
-
-        # Try converting a sample
-        sample_size = min(10, len(non_null))
-        sample = non_null.iloc[:sample_size]
-        sample.astype(str)
-        return True
-    except Exception:
-        return False
-
-def _can_cast_to_datetime(series: pd.Series) -> bool:
-    """Check if series can be cast to DATETIME."""
-    try:
-        non_null = series.dropna()
-        if len(non_null) == 0:
-            return True
-
-        # Try converting a sample
-        sample_size = min(10, len(non_null))
-        sample = non_null.iloc[:sample_size]
-        pd.to_datetime(sample, errors='raise')
-        return True
-    except Exception:
-        return False
-
-def _can_cast_to_integer(series: pd.Series) -> bool:
-    """Check if series can be cast to INTEGER."""
-    try:
-        non_null = series.dropna()
-        if len(non_null) == 0:
-            return True
-
-        # Check if already numeric
-        if pd.api.types.is_numeric_dtype(series):
-            # Check if all values are whole numbers
-            return all(float(x).is_integer() for x in non_null)
-
-        # Try converting string/object to numeric then check if integers
-        sample_size = min(10, len(non_null))
-        sample = non_null.iloc[:sample_size]
-        numeric_sample = pd.to_numeric(sample, errors='raise')
-        return all(float(x).is_integer() for x in numeric_sample)
-    except Exception:
-        return False
-
-def _can_cast_to_float(series: pd.Series) -> bool:
-    """Check if series can be cast to FLOAT."""
-    try:
-        non_null = series.dropna()
-        if len(non_null) == 0:
-            return True
-
-        # Check if already numeric
-        if pd.api.types.is_numeric_dtype(series):
-            return True
-
-        # Try converting string/object to numeric
-        sample_size = min(10, len(non_null))
-        sample = non_null.iloc[:sample_size]
-        pd.to_numeric(sample, errors='raise')
-        return True
-    except Exception:
-        return False
-
-# Map mCIDE "data_type" values to simple pandas dtype checkers.
-# Extend as more types are introduced.
-_DATATYPE_CHECKERS: dict[str, callable[[pd.Series], bool]] = {
-    "VARCHAR": _is_varchar_dtype,
-    "DATETIME": pd.api.types.is_datetime64_any_dtype,
-    "INTEGER": _is_integer_dtype,
-    "INT": _is_integer_dtype,  # Alternative naming
-    "FLOAT": _is_float_dtype,
-    "DOUBLE": _is_float_dtype,  # Alternative naming for float
-}
-
-# Map mCIDE "data_type" values to casting checkers.
-_DATATYPE_CAST_CHECKERS: dict[str, callable[[pd.Series], bool]] = {
-    "VARCHAR": _can_cast_to_varchar,
-    "DATETIME": _can_cast_to_datetime,
-    "INTEGER": _can_cast_to_integer,
-    "INT": _can_cast_to_integer,  # Alternative naming
-    "FLOAT": _can_cast_to_float,
-    "DOUBLE": _can_cast_to_float,  # Alternative naming for float
-}
-
-
-class ValidationError(Exception):
-    """Exception raised when validation fails.
-
-    The *errors* attribute contains a list describing validation issues.
+# A.1. Whether table is present
+def check_table_exists(
+    table_path: Union[str, Path],
+    table_name: str,
+    filetype: str = 'parquet'
+) -> DQAConformanceResult:
     """
+    Check if a table file exists at the specified path.
 
-    def __init__(self, errors: List[Dict[str, Any]]):
-        super().__init__("Validation failed")
-        self.errors = errors
+    Parameters
+    ----------
+    table_path : str or Path
+        Directory containing the table files
+    table_name : str
+        Name of the table to check
+    filetype : str
+        File extension (parquet, csv, etc.)
 
-
-# ---------------------------------------------------------------------------
-# JSON spec utilities
-# ---------------------------------------------------------------------------
-
-_DEF_SPEC_DIR = os.path.join(os.path.dirname(__file__), os.pardir, "mCIDE")
-
-
-def _load_spec(table_name: str, spec_dir: str | None = None) -> dict[str, Any]:
-    """Load and return the mCIDE JSON spec for *table_name*."""
-
-    spec_dir = spec_dir or _DEF_SPEC_DIR
-    filename = f"{table_name.capitalize()}Model.json"
-    path = os.path.join(spec_dir, filename)
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"mCIDE spec not found: {path}")
-
-    with open(path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-# ---------------------------------------------------------------------------
-# Public validation helpers
-# ---------------------------------------------------------------------------
-
-def validate_dataframe(df: pd.DataFrame, spec: dict[str, Any]) -> List[dict[str, Any]]:
-    """Validate *df* against *spec*.
-
-    Returns a list of error dictionaries. An empty list means success.
-
-    For datatype validation:
-    
-    - If a column doesn't match the expected type exactly, the validator checks
-      if the data can be cast to the correct type
-    - Castable type mismatches return warnings with type "datatype_castable"
-    - Non-castable type mismatches return errors with type "datatype_mismatch"
-    - Both include descriptive messages about the casting capability
+    Returns
+    -------
+    DQAConformanceResult
+        Result object with check status
     """
+    result = DQAConformanceResult("table_exists", table_name)
 
-    errors: List[dict[str, Any]] = []
+    table_path = Path(table_path)
+    expected_file = table_path / f"{table_name}.{filetype}"
 
-    # 1. Required columns present ------------------------------------------------
-    req_cols = set(spec.get("required_columns", []))
-    missing = req_cols - set(df.columns)
-    if missing:
-        missing_list = sorted(missing)
-        errors.append({
-            "type": "missing_columns",
-            "columns": missing_list,
-            "message": f"Missing required columns: {', '.join(missing_list)}"
-        })
+    if expected_file.exists():
+        result.add_info(f"Table file found: {expected_file}")
+        result.metrics["file_path"] = str(expected_file)
+        result.metrics["file_size_mb"] = expected_file.stat().st_size / (1024 * 1024)
+    else:
+        result.add_error(
+            f"Table file not found: {expected_file}",
+            {"expected_path": str(expected_file)}
+        )
 
-    # 2. Per-column checks -------------------------------------------------------
-    for col_spec in spec.get("columns", []):
-        name = col_spec["name"]
-        if name not in df.columns:
-            # If it's required the above block already captured the issue.
-            continue
-
-        series = df[name]
-
-        # 2a. NULL checks -----------------------------------------------------
-        if col_spec.get("required", False):
-            null_cnt = int(series.isna().sum())
-            total_cnt = int(len(series))
-            null_pct = (null_cnt / total_cnt * 100) if total_cnt > 0 else 0.0
-            if null_cnt:
-                errors.append({
-                    "type": "null_values",
-                    "column": name,
-                    "count": null_cnt,
-                    "percent": round(null_pct, 2),
-                    "message": f"Column '{name}' has {null_cnt} null values ({null_pct:.2f}%) in required field"
-                })
-
-        # 2b. Datatype checks -------------------------------------------------
-        expected_type = col_spec.get("data_type")
-        checker = _DATATYPE_CHECKERS.get(expected_type)
-        cast_checker = _DATATYPE_CAST_CHECKERS.get(expected_type)
-
-        if checker and not checker(series):
-            # Check if data can be cast to the correct type
-            if cast_checker and cast_checker(series):
-                # Data can be cast - this is a warning, not an error
-                errors.append({
-                    "type": "datatype_castable",
-                    "column": name,
-                    "expected": expected_type,
-                    "actual": str(series.dtype),
-                    "message": f"Column '{name}' has type {series.dtype} but can be cast to {expected_type}"
-                })
-            else:
-                # Data cannot be cast - this is an error
-                errors.append({
-                    "type": "datatype_mismatch",
-                    "column": name,
-                    "expected": expected_type,
-                    "actual": str(series.dtype),
-                    "message": f"Column '{name}' has type {series.dtype} and cannot be cast to {expected_type}"
-                })
-
-        # # 2c. Category values -------------------------------------------------
-        # if col_spec.get("is_category_column") and col_spec.get("permissible_values"):
-        #     allowed = set(col_spec["permissible_values"])
-        #     actual_values = set(series.dropna().unique())
-
-        #     # Check for missing expected values (permissible values not present in data)
-        #     missing_values = [v for v in allowed if v not in actual_values]
-        #     if missing_values:
-        #         errors.append({
-        #             "type": "missing_category_values",
-        #             "column": name,
-        #             "missing_values": missing_values,
-        #             "message": f"Column '{name}' is missing expected category values: {missing_values}"
-        #         })
-
-    return errors
+    return result
 
 
-def validate_table(
-    df: pd.DataFrame, table_name: str, spec_dir: str | None = None
-) -> List[dict[str, Any]]:
-    """Validate *df* using the JSON spec for *table_name*.
-
-    Convenience wrapper combining :pyfunc:`_load_spec` and
-    :pyfunc:`validate_dataframe`.
+# A.1b. Table presence check (DataFrame-level)
+def check_table_presence_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str
+) -> DQAConformanceResult:
     """
+    Check that a loaded DataFrame has rows and columns using Polars.
 
-    spec = _load_spec(table_name, spec_dir)
-    return validate_dataframe(df, spec)
+    Parameters
+    ----------
+    df : pl.DataFrame or pl.LazyFrame
+        The data to validate
+    table_name : str
+        Name of the table
+    """
+    result = DQAConformanceResult("table_presence", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        column_names = lf.collect_schema().names()
+        column_count = len(column_names)
+        row_count = lf.select(pl.len()).collect().item()
+
+        result.metrics["row_count"] = row_count
+        result.metrics["column_count"] = column_count
+
+        if column_count == 0:
+            result.add_error(
+                f"Table '{table_name}' has no columns",
+                {"column_count": column_count},
+            )
+        if row_count == 0:
+            result.add_error(
+                f"Table '{table_name}' has 0 rows",
+                {"row_count": row_count},
+            )
+        if result.passed:
+            result.add_info(
+                f"Table '{table_name}' present with {row_count} rows and {column_count} columns"
+            )
+    except Exception as e:
+        _logger.error("Check 'table_presence' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking table presence: {str(e)}")
+
+    return result
 
 
-# ---------------------------------------------------------------------------
-# Enhanced validation functions
-# ---------------------------------------------------------------------------
+def check_table_presence_duckdb(
+    df: pd.DataFrame,
+    table_name: str
+) -> DQAConformanceResult:
+    """
+    Check that a loaded DataFrame has rows and columns using DuckDB/pandas.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The data to validate
+    table_name : str
+        Name of the table
+    """
+    result = DQAConformanceResult("table_presence", table_name)
+
+    try:
+        row_count = len(df)
+        column_count = len(df.columns)
+
+        result.metrics["row_count"] = row_count
+        result.metrics["column_count"] = column_count
+
+        if column_count == 0:
+            result.add_error(
+                f"Table '{table_name}' has no columns",
+                {"column_count": column_count},
+            )
+        if row_count == 0:
+            result.add_error(
+                f"Table '{table_name}' has 0 rows",
+                {"row_count": row_count},
+            )
+        if result.passed:
+            result.add_info(
+                f"Table '{table_name}' present with {row_count} rows and {column_count} columns"
+            )
+    except Exception as e:
+        _logger.error("Check 'table_presence' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking table presence: {str(e)}")
+
+    return result
+
+
+def check_table_presence(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str
+) -> DQAConformanceResult:
+    """
+    Check that a loaded DataFrame has rows and columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame
+        Data to validate (already loaded)
+    table_name : str
+        Name of the table
+    """
+    _logger.debug("check_table_presence: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_table_presence_polars(df, table_name)
+    else:
+        result = check_table_presence_duckdb(df, table_name)
+    _logger.debug("check_table_presence: table '%s' — rows=%s, cols=%s",
+                  table_name, result.metrics.get("row_count"), result.metrics.get("column_count"))
+    return result
+
+
+# A.2. Whether all required columns are present
+def check_required_columns_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """
+    Check if all required columns are present using Polars.
+
+    Memory-efficient implementation using lazy evaluation.
+    """
+    result = DQAConformanceResult("required_columns", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        actual_columns = set(lf.collect_schema().names())
+        required_columns = set(schema.get('required_columns', []))
+
+        missing = required_columns - actual_columns
+        extra = actual_columns - set(col['name'] for col in schema.get('columns', []))
+
+        result.metrics["total_required"] = len(required_columns)
+        result.metrics["total_present"] = len(required_columns - missing)
+        result.metrics["total_missing"] = len(missing)
+
+        if missing:
+            result.add_error(
+                f"Missing {len(missing)} required columns: {sorted(missing)}",
+                {"missing_columns": sorted(missing)}
+            )
+        else:
+            result.add_info("All required columns present")
+
+        if extra:
+            result.add_info(
+                f"Found {len(extra)} extra columns not in schema",
+                {"extra_columns": sorted(extra)}
+            )
+
+    except Exception as e:
+        _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking columns: {str(e)}")
+
+    return result
+
+
+def check_required_columns_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if all required columns are present using DuckDB."""
+    result = DQAConformanceResult("required_columns", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        # Get columns from relation
+        actual_columns = set(df.columns)
+        required_columns = set(schema.get('required_columns', []))
+
+        missing = required_columns - actual_columns
+
+        result.metrics["total_required"] = len(required_columns)
+        result.metrics["total_present"] = len(required_columns - missing)
+        result.metrics["total_missing"] = len(missing)
+
+        if missing:
+            result.add_error(
+                f"Missing {len(missing)} required columns: {sorted(missing)}",
+                {"missing_columns": sorted(missing)}
+            )
+        else:
+            result.add_info("All required columns present")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking columns: {str(e)}")
+
+    return result
+
 
 def check_required_columns(
-    df: pd.DataFrame, 
-    column_names: List[str], 
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
     table_name: str
-) -> Dict[str, Any]:
+) -> DQAConformanceResult:
     """
-    Validate that required columns are present in the dataframe.
-    
+    Check if all required columns are present.
+
     Parameters
     ----------
-    df : pd.DataFrame
-        The dataframe to validate
-    column_names : List[str]
-        List of required column names
-    table_name : str
-        Name of the table being validated
-        
-    Returns
-    -------
-    dict
-        Dictionary with validation results including missing columns
-    """
-    try:
-        missing_columns = [col for col in column_names if col not in df.columns]
-        
-        if missing_columns:
-            return {
-                "type": "missing_required_columns",
-                "table": table_name,
-                "missing_columns": missing_columns,
-                "status": "error",
-                "message": f"Table '{table_name}' is missing required columns: {', '.join(missing_columns)}"
-            }
-        
-        return {
-            "type": "missing_required_columns",
-            "table": table_name,
-            "status": "success",
-            "message": f"Table '{table_name}' has all required columns"
-        }
-        
-    except Exception as e:
-        return {
-            "type": "missing_required_columns",
-            "table": table_name,
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error checking required columns for table '{table_name}': {str(e)}"
-        }
-
-
-def verify_column_dtypes(df: pd.DataFrame, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Ensure columns have correct data types per schema.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to validate
+    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame
+        Data to validate (already loaded)
     schema : dict
-        Schema containing column definitions
-        
-    Returns
-    -------
-    List[dict]
-        List of datatype mismatch errors
+        Table schema containing required_columns
+    table_name : str
+        Name of the table
     """
-    errors = []
-    
-    try:
-        for col_spec in schema.get("columns", []):
-            name = col_spec["name"]
-            if name not in df.columns:
-                continue
-            
-            expected_type = col_spec.get("data_type")
-            if not expected_type:
-                continue
-            
-            series = df[name]
-            checker = _DATATYPE_CHECKERS.get(expected_type)
-            cast_checker = _DATATYPE_CAST_CHECKERS.get(expected_type)
+    _logger.debug("check_required_columns: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_required_columns_polars(df, schema, table_name)
+    else:
+        result = check_required_columns_duckdb(df, schema, table_name)
+    if result.metrics.get("total_missing", 0) > 0:
+        _logger.info("check_required_columns: table '%s' missing %d of %d required columns",
+                     table_name, result.metrics["total_missing"], result.metrics.get("total_required", 0))
+    _logger.debug("check_required_columns: table '%s' — required=%s, present=%s, missing=%s",
+                  table_name, result.metrics.get("total_required"),
+                  result.metrics.get("total_present"), result.metrics.get("total_missing"))
+    return result
 
-            if checker and not checker(series):
-                # Check if data can be cast to the correct type
-                if cast_checker and cast_checker(series):
-                    # Data can be cast - this is a warning, not an error
-                    errors.append({
-                        "type": "datatype_verification_castable",
-                        "column": name,
+
+# ---------------------------------------------------------------------------
+# CONFORMANCE CHECKS - B. Value Checks
+# ---------------------------------------------------------------------------
+
+# B.1. Data type validation
+def check_column_dtypes_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if columns have correct data types using Polars."""
+    result = DQAConformanceResult("column_dtypes", table_name)
+
+    # mCIDE type to Polars type mapping
+    type_mapping = {
+        'VARCHAR': [pl.Utf8, pl.String, pl.Categorical],
+        'DATETIME': [pl.Datetime],
+        'DATE': [pl.Date],
+        'INTEGER': [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64],
+        'INT': [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64],
+        'FLOAT': [pl.Float32, pl.Float64],
+        'DOUBLE': [pl.Float32, pl.Float64],
+    }
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        schema_dict = lf.collect_schema()
+
+        dtype_errors = []
+        dtype_warnings = []
+
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            expected_type = col_spec.get('data_type')
+
+            if not expected_type or col_name not in schema_dict.names():
+                continue
+
+            actual_dtype = schema_dict[col_name]
+            expected_pl_types = type_mapping.get(expected_type, [])
+
+            type_matches = any(
+                isinstance(actual_dtype, t) or actual_dtype == t
+                for t in expected_pl_types
+            )
+
+            if not type_matches:
+                dtype_str = str(actual_dtype)
+                # Check common patterns
+                if expected_type in ('DATETIME',) and 'Datetime' in dtype_str:
+                    continue
+                if expected_type in ('VARCHAR',) and ('Utf8' in dtype_str or 'String' in dtype_str):
+                    continue
+
+                castable = _check_castable_polars(lf, col_name, expected_type)
+
+                if castable:
+                    dtype_warnings.append({
+                        "column": col_name,
                         "expected": expected_type,
-                        "actual": str(series.dtype),
-                        "status": "warning",
-                        "message": f"Column '{name}' has type {series.dtype} but can be cast to {expected_type}"
+                        "actual": str(actual_dtype),
+                        "castable": True
                     })
                 else:
-                    # Data cannot be cast - this is an error
-                    errors.append({
-                        "type": "datatype_verification",
-                        "column": name,
+                    dtype_errors.append({
+                        "column": col_name,
                         "expected": expected_type,
-                        "actual": str(series.dtype),
-                        "status": "error",
-                        "message": f"Column '{name}' has type {series.dtype} and cannot be cast to {expected_type}"
+                        "actual": str(actual_dtype),
+                        "castable": False
                     })
-                
+
+        result.metrics["columns_checked"] = len(schema.get('columns', []))
+        result.metrics["dtype_errors"] = len(dtype_errors)
+        result.metrics["dtype_warnings"] = len(dtype_warnings)
+
+        for err in dtype_errors:
+            result.add_error(
+                f"Column '{err['column']}' has type {err['actual']}, cannot cast to {err['expected']}",
+                err
+            )
+
+        for warn in dtype_warnings:
+            result.add_warning(
+                f"Column '{warn['column']}' has type {warn['actual']}, can be cast to {warn['expected']}",
+                warn
+            )
+
+        if not dtype_errors and not dtype_warnings:
+            result.add_info("All column data types match schema")
+
     except Exception as e:
-        errors.append({
-            "type": "datatype_verification",
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error during datatype verification: {str(e)}"
-        })
-    
+        _logger.error("Check 'column_dtypes' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking dtypes: {str(e)}")
+
+    return result
+
+
+def _check_castable_polars(lf: 'pl.LazyFrame', col_name: str, target_type: str) -> bool:
+    """Check if a column can be cast to the target type using Polars."""
+    try:
+        if target_type in ('INTEGER', 'INT'):
+            sample = lf.select(pl.col(col_name).drop_nulls().head(100)).collect()
+            if len(sample) > 0:
+                sample.select(pl.col(col_name).cast(pl.Int64))
+            return True
+        elif target_type in ('FLOAT', 'DOUBLE'):
+            sample = lf.select(pl.col(col_name).drop_nulls().head(100)).collect()
+            if len(sample) > 0:
+                sample.select(pl.col(col_name).cast(pl.Float64))
+            return True
+        elif target_type == 'DATETIME':
+            sample = lf.select(pl.col(col_name).drop_nulls().head(100)).collect()
+            if len(sample) > 0:
+                sample.select(pl.col(col_name).str.to_datetime())
+            return True
+        elif target_type == 'VARCHAR':
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def check_column_dtypes_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if columns have correct data types using DuckDB."""
+    result = DQAConformanceResult("column_dtypes", table_name)
+
+    type_mapping = {
+        'VARCHAR': ['VARCHAR', 'TEXT', 'STRING'],
+        'DATE': ['TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'],
+        'DATE': ['DATE'],
+        'INTEGER': ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'INT'],
+        'INT': ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'INT'],
+        'FLOAT': ['FLOAT', 'DOUBLE', 'REAL', 'DECIMAL'],
+        'DOUBLE': ['FLOAT', 'DOUBLE', 'REAL', 'DECIMAL'],
+    }
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        describe_result = con.execute("DESCRIBE df").fetchall()
+        actual_types = {row[0]: row[1].upper() for row in describe_result}
+
+        dtype_errors = []
+        dtype_warnings = []
+
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            expected_type = col_spec.get('data_type')
+
+            if not expected_type or col_name not in actual_types:
+                continue
+
+            actual_dtype = actual_types[col_name]
+            expected_duckdb_types = type_mapping.get(expected_type, [])
+
+            type_matches = any(
+                expected_t in actual_dtype
+                for expected_t in expected_duckdb_types
+            )
+
+            if not type_matches:
+                castable = _check_castable_duckdb(con, col_name, expected_type)
+
+                if castable:
+                    dtype_warnings.append({
+                        "column": col_name,
+                        "expected": expected_type,
+                        "actual": actual_dtype,
+                        "castable": True
+                    })
+                else:
+                    dtype_errors.append({
+                        "column": col_name,
+                        "expected": expected_type,
+                        "actual": actual_dtype,
+                        "castable": False
+                    })
+
+        result.metrics["columns_checked"] = len(schema.get('columns', []))
+        result.metrics["dtype_errors"] = len(dtype_errors)
+        result.metrics["dtype_warnings"] = len(dtype_warnings)
+
+        for err in dtype_errors:
+            result.add_error(
+                f"Column '{err['column']}' has type {err['actual']}, cannot cast to {err['expected']}",
+                err
+            )
+
+        for warn in dtype_warnings:
+            result.add_warning(
+                f"Column '{warn['column']}' has type {warn['actual']}, can be cast to {warn['expected']}",
+                warn
+            )
+
+        if not dtype_errors and not dtype_warnings:
+            result.add_info("All column data types match schema")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'column_dtypes' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking dtypes: {str(e)}")
+
+    return result
+
+
+def _check_castable_duckdb(con, col_name: str, target_type: str) -> bool:
+    """Check if a column can be cast to the target type using DuckDB."""
+    try:
+        if target_type in ('INTEGER', 'INT'):
+            con.execute(f'SELECT TRY_CAST("{col_name}" AS BIGINT) FROM df LIMIT 100')
+        elif target_type in ('FLOAT', 'DOUBLE'):
+            con.execute(f'SELECT TRY_CAST("{col_name}" AS DOUBLE) FROM df LIMIT 100')
+        elif target_type == 'DATETIME':
+            con.execute(f'SELECT TRY_CAST("{col_name}" AS TIMESTAMP) FROM df LIMIT 100')
+        elif target_type == 'VARCHAR':
+            con.execute(f'SELECT CAST("{col_name}" AS VARCHAR) FROM df LIMIT 100')
+        return True
+    except Exception:
+        return False
+
+
+def check_column_dtypes(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """
+    Check if columns have correct data types.
+
+    Parameters
+    ----------
+    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame
+        Data to validate (already loaded)
+    schema : dict
+        Table schema
+    table_name : str
+        Name of the table
+    """
+    _logger.debug("check_column_dtypes: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_column_dtypes_polars(df, schema, table_name)
+    else:
+        result = check_column_dtypes_duckdb(df, schema, table_name)
+    _logger.debug("check_column_dtypes: table '%s' — checked=%s, errors=%s, warnings=%s",
+                  table_name, result.metrics.get("columns_checked"),
+                  result.metrics.get("dtype_errors"), result.metrics.get("dtype_warnings"))
+    return result
+
+
+# B.2. Datetime format validation
+def check_datetime_format_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    expected_tz: str = 'UTC'
+) -> DQAConformanceResult:
+    """Validate datetime columns are in correct format using Polars."""
+    result = DQAConformanceResult("datetime_format", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        schema_dict = lf.collect_schema()
+
+        datetime_columns = [
+            col['name'] for col in schema.get('columns', [])
+            if col.get('data_type') == 'DATETIME' and col['name'] in schema_dict.names()
+        ]
+
+        result.metrics["datetime_columns_checked"] = len(datetime_columns)
+
+        for col in datetime_columns:
+            col_dtype = schema_dict[col]
+            dtype_str = str(col_dtype)
+
+            if 'Datetime' not in dtype_str and 'Date' not in dtype_str:
+                result.add_warning(
+                    f"Column '{col}' should be DATETIME but is {col_dtype}",
+                    {"column": col, "actual_type": str(col_dtype)}
+                )
+                continue
+
+            if expected_tz and 'Datetime' in dtype_str:
+                if expected_tz not in dtype_str and 'time_zone' not in dtype_str:
+                    result.add_info(
+                        f"Column '{col}' may be timezone-naive, expected {expected_tz}",
+                        {"column": col, "expected_tz": expected_tz}
+                    )
+
+        if not result.errors and not result.warnings:
+            result.add_info("All datetime columns are properly formatted")
+
+    except Exception as e:
+        _logger.error("Check 'datetime_format' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking datetime format: {str(e)}")
+
+    return result
+
+
+def check_datetime_format_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str,
+    expected_tz: str = 'UTC'
+) -> DQAConformanceResult:
+    """Validate datetime columns are in correct format using DuckDB."""
+    result = DQAConformanceResult("datetime_format", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        describe_result = con.execute("DESCRIBE df").fetchall()
+        actual_types = {row[0]: row[1].upper() for row in describe_result}
+
+        datetime_columns = [
+            col['name'] for col in schema.get('columns', [])
+            if col.get('data_type') == 'DATETIME' and col['name'] in actual_types
+        ]
+
+        result.metrics["datetime_columns_checked"] = len(datetime_columns)
+
+        for col in datetime_columns:
+            col_dtype = actual_types[col]
+
+            if 'TIMESTAMP' not in col_dtype and 'DATE' not in col_dtype:
+                result.add_warning(
+                    f"Column '{col}' should be DATETIME but is {col_dtype}",
+                    {"column": col, "actual_type": col_dtype}
+                )
+
+        if not result.errors and not result.warnings:
+            result.add_info("All datetime columns are properly formatted")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'datetime_format' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking datetime format: {str(e)}")
+
+    return result
+
+
+def check_datetime_format(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    expected_tz: str = 'UTC'
+) -> DQAConformanceResult:
+    """Validate datetime columns are in correct format."""
+    _logger.debug("check_datetime_format: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_datetime_format_polars(df, schema, table_name, expected_tz)
+    else:
+        result = check_datetime_format_duckdb(df, schema, table_name, expected_tz)
+    _logger.debug("check_datetime_format: table '%s' — columns_checked=%s",
+                  table_name, result.metrics.get("datetime_columns_checked"))
+    return result
+
+
+# B.3. Lab reference units validation
+def check_lab_reference_units_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str = 'labs'
+) -> DQAConformanceResult:
+    """Check if lab reference units match schema definitions using Polars."""
+    result = DQAConformanceResult("lab_reference_units", table_name)
+
+    lab_units = schema.get('lab_reference_units', {})
+    if not lab_units:
+        result.add_info("No lab reference units defined in schema")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        if 'lab_category' not in col_names or 'reference_unit' not in col_names:
+            result.add_error("Missing required columns: lab_category and/or reference_unit")
+            return result
+
+        unit_counts = (
+            lf
+            .group_by(['lab_category', 'reference_unit'])
+            .agg(pl.len().alias('count'))
+            .collect(streaming=True)
+        )
+
+        invalid_units = []
+        valid_count = 0
+        total_count = 0
+
+        for row in unit_counts.iter_rows(named=True):
+            lab_cat = row['lab_category']
+            ref_unit = row['reference_unit']
+            count = row['count']
+            total_count += count
+
+            expected_units = lab_units.get(lab_cat, [])
+            if expected_units:
+                ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
+                expected_lower = [str(u).lower().strip() for u in expected_units]
+
+                if ref_unit_lower not in expected_lower and ref_unit not in expected_units:
+                    invalid_units.append({
+                        "lab_category": lab_cat,
+                        "reference_unit": ref_unit,
+                        "expected_units": expected_units,
+                        "count": count
+                    })
+                else:
+                    valid_count += count
+
+        result.metrics["total_records"] = total_count
+        result.metrics["valid_units"] = valid_count
+        result.metrics["invalid_unit_categories"] = len(invalid_units)
+
+        if invalid_units:
+            invalid_units.sort(key=lambda x: x['count'], reverse=True)
+            top_invalid = invalid_units[:20]
+
+            result.add_warning(
+                f"Found {len(invalid_units)} lab categories with non-standard units",
+                {"top_invalid_units": top_invalid}
+            )
+        else:
+            result.add_info("All lab reference units match schema definitions")
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'lab_reference_units' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking lab reference units: {str(e)}")
+
+    return result
+
+
+def check_lab_reference_units_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str = 'labs'
+) -> DQAConformanceResult:
+    """Check if lab reference units match schema definitions using DuckDB."""
+    result = DQAConformanceResult("lab_reference_units", table_name)
+
+    lab_units = schema.get('lab_reference_units', {})
+    if not lab_units:
+        result.add_info("No lab reference units defined in schema")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('labs_df', df)
+
+        if 'lab_category' not in df.columns or 'reference_unit' not in df.columns:
+            result.add_error("Missing required columns: lab_category and/or reference_unit")
+            con.close()
+            return result
+
+        unit_counts = con.execute("""
+            SELECT lab_category, reference_unit, COUNT(*) as count
+            FROM labs_df
+            GROUP BY lab_category, reference_unit
+        """).fetchall()
+
+        invalid_units = []
+        valid_count = 0
+        total_count = 0
+
+        for row in unit_counts:
+            lab_cat, ref_unit, count = row
+            total_count += count
+
+            expected_units = lab_units.get(lab_cat, [])
+            if expected_units:
+                ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
+                expected_lower = [str(u).lower().strip() for u in expected_units]
+
+                if ref_unit_lower not in expected_lower and ref_unit not in expected_units:
+                    invalid_units.append({
+                        "lab_category": lab_cat,
+                        "reference_unit": ref_unit,
+                        "expected_units": expected_units,
+                        "count": int(count)
+                    })
+                else:
+                    valid_count += count
+
+        result.metrics["total_records"] = int(total_count)
+        result.metrics["valid_units"] = int(valid_count)
+        result.metrics["invalid_unit_categories"] = len(invalid_units)
+
+        if invalid_units:
+            invalid_units.sort(key=lambda x: x['count'], reverse=True)
+            top_invalid = invalid_units[:20]
+
+            result.add_warning(
+                f"Found {len(invalid_units)} lab categories with non-standard units",
+                {"top_invalid_units": top_invalid}
+            )
+        else:
+            result.add_info("All lab reference units match schema definitions")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'lab_reference_units' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking lab reference units: {str(e)}")
+
+    return result
+
+
+def check_lab_reference_units(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str = 'labs'
+) -> DQAConformanceResult:
+    """Check if lab reference units match schema definitions."""
+    _logger.debug("check_lab_reference_units: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_lab_reference_units_polars(df, schema, table_name)
+    else:
+        result = check_lab_reference_units_duckdb(df, schema, table_name)
+    _logger.debug("check_lab_reference_units: table '%s' — valid=%s, invalid_categories=%s",
+                  table_name, result.metrics.get("valid_units"),
+                  result.metrics.get("invalid_unit_categories"))
+    return result
+
+
+# B.4. Categorical values validation
+def check_categorical_values_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if categorical values match mCIDE permissible values using Polars."""
+    result = DQAConformanceResult("categorical_values", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        category_columns = schema.get('category_columns', [])
+        invalid_values_by_col = {}
+
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            permissible = col_spec.get('permissible_values', [])
+
+            if not permissible or col_name not in col_names:
+                continue
+
+            if col_name not in category_columns:
+                continue
+
+            unique_vals = (
+                lf
+                .select(pl.col(col_name))
+                .drop_nulls()
+                .group_by(col_name)
+                .agg(pl.len().alias('count'))
+                .collect(streaming=True)
+            )
+
+            permissible_lower = {str(v).lower() for v in permissible}
+
+            invalid_for_col = []
+            for row in unique_vals.iter_rows(named=True):
+                val = row[col_name]
+                count = row['count']
+
+                val_str = str(val).lower() if val is not None else ''
+                if val_str not in permissible_lower and val not in permissible:
+                    invalid_for_col.append({
+                        "value": val,
+                        "count": count
+                    })
+
+            if invalid_for_col:
+                invalid_for_col.sort(key=lambda x: x['count'], reverse=True)
+                invalid_values_by_col[col_name] = {
+                    "invalid_values": invalid_for_col[:20],
+                    "total_invalid_unique": len(invalid_for_col),
+                    "permissible_values": permissible
+                }
+
+        result.metrics["category_columns_checked"] = len(category_columns)
+        result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
+
+        for col_name, details in invalid_values_by_col.items():
+            result.add_error(
+                f"Column '{col_name}' has {details['total_invalid_unique']} invalid categorical values",
+                {
+                    "column": col_name,
+                    "top_invalid": details['invalid_values'][:10],
+                    "permissible_values": details['permissible_values']
+                }
+            )
+
+        if not invalid_values_by_col:
+            result.add_info("All categorical values match mCIDE permissible values")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'categorical_values' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking categorical values: {str(e)}")
+
+    return result
+
+
+def check_categorical_values_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if categorical values match mCIDE permissible values using DuckDB."""
+    result = DQAConformanceResult("categorical_values", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        category_columns = schema.get('category_columns', [])
+        invalid_values_by_col = {}
+
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            permissible = col_spec.get('permissible_values', [])
+
+            if not permissible or col_name not in df.columns:
+                continue
+
+            if col_name not in category_columns:
+                continue
+
+            unique_vals = con.execute(f"""
+                SELECT "{col_name}", COUNT(*) as count
+                FROM df
+                WHERE "{col_name}" IS NOT NULL
+                GROUP BY "{col_name}"
+            """).fetchdf()
+
+            permissible_lower = {str(v).lower() for v in permissible}
+
+            invalid_for_col = []
+            for _, row in unique_vals.iterrows():
+                val = row[col_name]
+                count = row['count']
+
+                val_str = str(val).lower() if val is not None else ''
+                if val_str not in permissible_lower and val not in permissible:
+                    invalid_for_col.append({
+                        "value": val,
+                        "count": int(count)
+                    })
+
+            if invalid_for_col:
+                invalid_for_col.sort(key=lambda x: x['count'], reverse=True)
+                invalid_values_by_col[col_name] = {
+                    "invalid_values": invalid_for_col[:20],
+                    "total_invalid_unique": len(invalid_for_col),
+                    "permissible_values": permissible
+                }
+
+        result.metrics["category_columns_checked"] = len(category_columns)
+        result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
+
+        for col_name, details in invalid_values_by_col.items():
+            result.add_error(
+                f"Column '{col_name}' has {details['total_invalid_unique']} invalid categorical values",
+                {
+                    "column": col_name,
+                    "top_invalid": details['invalid_values'][:10],
+                    "permissible_values": details['permissible_values']
+                }
+            )
+
+        if not invalid_values_by_col:
+            result.add_info("All categorical values match mCIDE permissible values")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'categorical_values' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking categorical values: {str(e)}")
+
+    return result
+
+
+def check_categorical_values(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if categorical values match mCIDE permissible values."""
+    _logger.debug("check_categorical_values: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_categorical_values_polars(df, schema, table_name)
+    else:
+        result = check_categorical_values_duckdb(df, schema, table_name)
+    _logger.debug("check_categorical_values: table '%s' — columns_checked=%s, columns_with_invalid=%s",
+                  table_name, result.metrics.get("category_columns_checked"),
+                  result.metrics.get("columns_with_invalid_values"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# COMPLETENESS CHECKS
+# ---------------------------------------------------------------------------
+
+# A.1. Missingness in required columns
+def check_missingness_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    error_threshold: float = 50.0,
+    warning_threshold: float = 10.0
+) -> DQACompletenessResult:
+    """Check missingness in required columns using Polars."""
+    result = DQACompletenessResult("missingness", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        required_columns = schema.get('required_columns', [])
+        required_in_df = [c for c in required_columns if c in col_names]
+
+        total_rows = lf.select(pl.len()).collect()[0, 0]
+
+        if total_rows == 0:
+            result.add_error("DataFrame is empty")
+            return result
+
+        null_exprs = [
+            pl.col(c).is_null().sum().alias(f"{c}_null")
+            for c in required_in_df
+        ]
+
+        null_counts = lf.select(null_exprs).collect(streaming=True)
+
+        missingness_stats = []
+        high_missingness = []
+
+        for col in required_in_df:
+            null_count = null_counts[0, f"{col}_null"]
+            pct_missing = (null_count / total_rows) * 100
+
+            missingness_stats.append({
+                "column": col,
+                "null_count": int(null_count),
+                "total_rows": int(total_rows),
+                "percent_missing": round(pct_missing, 2)
+            })
+
+            if pct_missing >= error_threshold:
+                high_missingness.append({
+                    "column": col,
+                    "percent_missing": round(pct_missing, 2),
+                    "severity": "error"
+                })
+            elif pct_missing >= warning_threshold:
+                high_missingness.append({
+                    "column": col,
+                    "percent_missing": round(pct_missing, 2),
+                    "severity": "warning"
+                })
+
+        missingness_stats.sort(key=lambda x: x['percent_missing'], reverse=True)
+
+        result.metrics["total_rows"] = int(total_rows)
+        result.metrics["required_columns_checked"] = len(required_in_df)
+        result.metrics["missingness_stats"] = missingness_stats
+
+        for item in high_missingness:
+            if item["severity"] == "error":
+                result.add_error(
+                    f"Column '{item['column']}' has {item['percent_missing']}% missing values",
+                    item
+                )
+            else:
+                result.add_warning(
+                    f"Column '{item['column']}' has {item['percent_missing']}% missing values",
+                    item
+                )
+
+        if not high_missingness:
+            result.add_info("All required columns have acceptable missingness levels")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'missingness' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking missingness: {str(e)}")
+
+    return result
+
+
+def check_missingness_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str,
+    error_threshold: float = 50.0,
+    warning_threshold: float = 10.0
+) -> DQACompletenessResult:
+    """Check missingness in required columns using DuckDB."""
+    result = DQACompletenessResult("missingness", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        required_columns = schema.get('required_columns', [])
+        required_in_df = [c for c in required_columns if c in df.columns]
+
+        total_rows = con.execute("SELECT COUNT(*) FROM df").fetchone()[0]
+
+        if total_rows == 0:
+            result.add_error("DataFrame is empty")
+            con.close()
+            return result
+
+        # Build a single query for all null counts (efficient single scan)
+        null_count_exprs = [f'COUNT(*) - COUNT("{col}") as "{col}_null"' for col in required_in_df]
+        if null_count_exprs:
+            null_query = f"SELECT {', '.join(null_count_exprs)} FROM df"
+            null_counts = con.execute(null_query).fetchone()
+        else:
+            null_counts = []
+
+        missingness_stats = []
+        high_missingness = []
+
+        for i, col in enumerate(required_in_df):
+            null_count = null_counts[i] if null_counts else 0
+            pct_missing = (null_count / total_rows) * 100
+
+            missingness_stats.append({
+                "column": col,
+                "null_count": int(null_count),
+                "total_rows": int(total_rows),
+                "percent_missing": round(pct_missing, 2)
+            })
+
+            if pct_missing >= error_threshold:
+                high_missingness.append({
+                    "column": col,
+                    "percent_missing": round(pct_missing, 2),
+                    "severity": "error"
+                })
+            elif pct_missing >= warning_threshold:
+                high_missingness.append({
+                    "column": col,
+                    "percent_missing": round(pct_missing, 2),
+                    "severity": "warning"
+                })
+
+        missingness_stats.sort(key=lambda x: x['percent_missing'], reverse=True)
+
+        result.metrics["total_rows"] = int(total_rows)
+        result.metrics["required_columns_checked"] = len(required_in_df)
+        result.metrics["missingness_stats"] = missingness_stats
+
+        for item in high_missingness:
+            if item["severity"] == "error":
+                result.add_error(
+                    f"Column '{item['column']}' has {item['percent_missing']}% missing values",
+                    item
+                )
+            else:
+                result.add_warning(
+                    f"Column '{item['column']}' has {item['percent_missing']}% missing values",
+                    item
+                )
+
+        if not high_missingness:
+            result.add_info("All required columns have acceptable missingness levels")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'missingness' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking missingness: {str(e)}")
+
+    return result
+
+
+def check_missingness(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    error_threshold: float = 50.0,
+    warning_threshold: float = 10.0
+) -> DQACompletenessResult:
+    """
+    Check missingness in required columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame
+        Data to validate (already loaded)
+    schema : dict
+        Table schema containing required_columns
+    table_name : str
+        Name of the table
+    error_threshold : float
+        Percent missing above which an error is raised
+    warning_threshold : float
+        Percent missing above which a warning is raised
+
+    Returns
+    -------
+    DQACompletenessResult
+        Result containing missingness statistics
+    """
+    _logger.debug("check_missingness: starting for table '%s' (error_threshold=%.1f%%, warning_threshold=%.1f%%)",
+                  table_name, error_threshold, warning_threshold)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_missingness_polars(df, schema, table_name, error_threshold, warning_threshold)
+    else:
+        result = check_missingness_duckdb(df, schema, table_name, error_threshold, warning_threshold)
+    if result.errors:
+        for err in result.errors:
+            _logger.info("check_missingness: table '%s' — %s", table_name, err["message"])
+    _logger.debug("check_missingness: table '%s' — columns_checked=%s",
+                  table_name, result.metrics.get("required_columns_checked"))
+    return result
+
+
+# A.2. Conditional required fields
+def check_conditional_requirements_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    conditions: Optional[List[Dict[str, Any]]] = None
+) -> DQACompletenessResult:
+    """Check conditional required fields using Polars."""
+    result = DQACompletenessResult("conditional_requirements", table_name)
+
+    default_conditions = {
+        'adt': [
+            {
+                'when_column': 'location_category',
+                'when_value': ['icu'],
+                'then_required': ['location_type'],
+                'description': 'ICU locations must have location_type specified'
+            }
+        ],
+        'respiratory_support': [
+            {
+                'when_column': 'device_category',
+                'when_value': ['IMV', 'NIPPV'],
+                'then_required': ['mode_category'],
+                'description': 'IMV/NIPPV must have mode_category specified'
+            },
+            {
+                'when_column': 'device_category',
+                'when_value': ['IMV'],
+                'then_required': ['fio2_set', 'peep_set'],
+                'description': 'IMV must have fio2_set and peep_set specified'
+            }
+        ],
+        'crrt_therapy': [
+            {
+                'when_column': 'crrt_status',
+                'when_value': ['running', 'active'],
+                'then_required': ['blood_flow_rate', 'dialysate_flow_rate'],
+                'description': 'Active CRRT must have flow rates specified'
+            }
+        ]
+    }
+
+    if conditions is None:
+        conditions = default_conditions.get(table_name, [])
+
+    if not conditions:
+        result.add_info("No conditional requirements defined for this table")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        for cond in conditions:
+            when_col = cond['when_column']
+            when_values = cond['when_value']
+            then_required = cond['then_required']
+            description = cond.get('description', '')
+
+            if when_col not in col_names:
+                continue
+
+            if not isinstance(when_values, list):
+                when_values = [when_values]
+
+            filtered = lf.filter(pl.col(when_col).is_in(when_values))
+
+            for req_col in then_required:
+                if req_col not in col_names:
+                    continue
+
+                stats = filtered.select([
+                    pl.len().alias('total'),
+                    pl.col(req_col).is_null().sum().alias('null_count')
+                ]).collect(streaming=True)
+
+                total = stats[0, 'total']
+                null_count = stats[0, 'null_count']
+
+                if total > 0 and null_count > 0:
+                    pct_missing = (null_count / total) * 100
+                    result.add_warning(
+                        f"Conditional requirement violated: {description}",
+                        {
+                            "condition": f"{when_col} IN {when_values}",
+                            "required_column": req_col,
+                            "rows_meeting_condition": int(total),
+                            "rows_with_missing": int(null_count),
+                            "percent_missing": round(pct_missing, 2)
+                        }
+                    )
+
+        if not result.warnings and not result.errors:
+            result.add_info("All conditional requirements satisfied")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'conditional_requirements' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking conditional requirements: {str(e)}")
+
+    return result
+
+
+def check_conditional_requirements_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    conditions: Optional[List[Dict[str, Any]]] = None
+) -> DQACompletenessResult:
+    """Check conditional required fields using DuckDB."""
+    result = DQACompletenessResult("conditional_requirements", table_name)
+
+    default_conditions = {
+        'adt': [
+            {
+                'when_column': 'location_category',
+                'when_value': ['icu'],
+                'then_required': ['location_type'],
+                'description': 'ICU locations must have location_type specified'
+            }
+        ],
+        'respiratory_support': [
+            {
+                'when_column': 'device_category',
+                'when_value': ['IMV', 'NIPPV'],
+                'then_required': ['mode_category'],
+                'description': 'IMV/NIPPV must have mode_category specified'
+            }
+        ]
+    }
+
+    if conditions is None:
+        conditions = default_conditions.get(table_name, [])
+
+    if not conditions:
+        result.add_info("No conditional requirements defined for this table")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        for cond in conditions:
+            when_col = cond['when_column']
+            when_values = cond['when_value']
+            then_required = cond['then_required']
+            description = cond.get('description', '')
+
+            if when_col not in df.columns:
+                continue
+
+            if not isinstance(when_values, list):
+                when_values = [when_values]
+
+            for req_col in then_required:
+                if req_col not in df.columns:
+                    continue
+
+                values_str = ', '.join([f"'{v.lower()}'" for v in when_values])
+                stats = con.execute(f"""
+                    SELECT
+                        COUNT(*) as total,
+                        COUNT(*) - COUNT("{req_col}") as null_count
+                    FROM df
+                    WHERE LOWER("{when_col}") IN ({values_str})
+                """).fetchone()
+
+                total, null_count = stats
+
+                if total > 0 and null_count > 0:
+                    pct_missing = (null_count / total) * 100
+                    result.add_warning(
+                        f"Conditional requirement violated: {description}",
+                        {
+                            "condition": f"{when_col} IN {when_values}",
+                            "required_column": req_col,
+                            "rows_meeting_condition": int(total),
+                            "rows_with_missing": int(null_count),
+                            "percent_missing": round(pct_missing, 2)
+                        }
+                    )
+
+        if not result.warnings and not result.errors:
+            result.add_info("All conditional requirements satisfied")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'conditional_requirements' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking conditional requirements: {str(e)}")
+
+    return result
+
+
+def check_conditional_requirements(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    conditions: Optional[List[Dict[str, Any]]] = None
+) -> DQACompletenessResult:
+    """Check conditional required fields."""
+    n_conditions = len(conditions) if conditions else 0
+    _logger.debug("check_conditional_requirements: starting for table '%s' (%d explicit conditions)",
+                  table_name, n_conditions)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_conditional_requirements_polars(df, table_name, conditions)
+    else:
+        result = check_conditional_requirements_duckdb(df, table_name, conditions)
+    if result.warnings:
+        _logger.info("check_conditional_requirements: table '%s' — %d violations found",
+                     table_name, len(result.warnings))
+    _logger.debug("check_conditional_requirements: table '%s' complete", table_name)
+    return result
+
+# B. mCIDE value coverage
+def check_mcide_value_coverage_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQACompletenessResult:
+    """Check if all mCIDE standardized values are present in the data using Polars."""
+    result = DQACompletenessResult("mcide_value_coverage", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        category_columns = schema.get('category_columns', [])
+        coverage_by_col = {}
+
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            permissible = col_spec.get('permissible_values', [])
+
+            if not permissible or col_name not in col_names:
+                continue
+
+            if col_name not in category_columns:
+                continue
+
+            unique_vals = (
+                lf
+                .select(pl.col(col_name).drop_nulls().unique())
+                .collect(streaming=True)
+                .to_series()
+                .to_list()
+            )
+
+            unique_vals_lower = {str(v).lower() for v in unique_vals if v is not None}
+
+            missing_vals = [
+                v for v in permissible
+                if str(v).lower() not in unique_vals_lower
+            ]
+
+            coverage_pct = ((len(permissible) - len(missing_vals)) / len(permissible)) * 100
+
+            coverage_by_col[col_name] = {
+                "expected_values": len(permissible),
+                "found_values": len(permissible) - len(missing_vals),
+                "missing_values": missing_vals,
+                "coverage_percent": round(coverage_pct, 2)
+            }
+
+        result.metrics["category_columns_checked"] = len(coverage_by_col)
+        result.metrics["coverage_by_column"] = coverage_by_col
+
+        for col_name, details in coverage_by_col.items():
+            if details['missing_values']:
+                result.add_info(
+                    f"Column '{col_name}' is missing {len(details['missing_values'])} mCIDE values",
+                    {
+                        "column": col_name,
+                        "missing_values": details['missing_values'],
+                        "coverage_percent": details['coverage_percent']
+                    }
+                )
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'mcide_value_coverage' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking mCIDE value coverage: {str(e)}")
+
+    return result
+
+
+def check_mcide_value_coverage_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQACompletenessResult:
+    """Check if all mCIDE standardized values are present in the data using DuckDB."""
+    result = DQACompletenessResult("mcide_value_coverage", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        category_columns = schema.get('category_columns', [])
+        coverage_by_col = {}
+
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            permissible = col_spec.get('permissible_values', [])
+
+            if not permissible or col_name not in df.columns:
+                continue
+
+            if col_name not in category_columns:
+                continue
+
+            unique_vals = con.execute(f"""
+                SELECT DISTINCT "{col_name}" FROM df WHERE "{col_name}" IS NOT NULL
+            """).fetchdf()[col_name].tolist()
+
+            unique_vals_lower = {str(v).lower() for v in unique_vals if v is not None}
+
+            missing_vals = [
+                v for v in permissible
+                if str(v).lower() not in unique_vals_lower
+            ]
+
+            coverage_pct = ((len(permissible) - len(missing_vals)) / len(permissible)) * 100
+
+            coverage_by_col[col_name] = {
+                "expected_values": len(permissible),
+                "found_values": len(permissible) - len(missing_vals),
+                "missing_values": missing_vals,
+                "coverage_percent": round(coverage_pct, 2)
+            }
+
+        result.metrics["category_columns_checked"] = len(coverage_by_col)
+        result.metrics["coverage_by_column"] = coverage_by_col
+
+        for col_name, details in coverage_by_col.items():
+            if details['missing_values']:
+                result.add_info(
+                    f"Column '{col_name}' is missing {len(details['missing_values'])} mCIDE values",
+                    {
+                        "column": col_name,
+                        "missing_values": details['missing_values'],
+                        "coverage_percent": details['coverage_percent']
+                    }
+                )
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'mcide_value_coverage' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking mCIDE value coverage: {str(e)}")
+
+    return result
+
+
+def check_mcide_value_coverage(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQACompletenessResult:
+    """Check if all mCIDE standardized values are present in the data."""
+    _logger.debug("check_mcide_value_coverage: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_mcide_value_coverage_polars(df, schema, table_name)
+    else:
+        result = check_mcide_value_coverage_duckdb(df, schema, table_name)
+    _logger.debug("check_mcide_value_coverage: table '%s' — columns_checked=%s",
+                  table_name, result.metrics.get("category_columns_checked"))
+    return result
+
+# C. Relational integrity checks
+def check_relational_integrity_polars(
+    source_df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    reference_df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    source_table: str,
+    reference_table: str,
+    key_column: str
+) -> DQACompletenessResult:
+    """Check relational integrity between tables using Polars."""
+    result = DQACompletenessResult("relational_integrity", f"{source_table}->{reference_table}")
+
+    try:
+        source_lf = source_df if isinstance(source_df, pl.LazyFrame) else source_df.lazy()
+        ref_lf = reference_df if isinstance(reference_df, pl.LazyFrame) else reference_df.lazy()
+
+        source_ids = (
+            source_lf
+            .select(pl.col(key_column).drop_nulls().unique())
+            .collect(streaming=True)
+        )
+
+        ref_ids = (
+            ref_lf
+            .select(pl.col(key_column).drop_nulls().unique())
+            .collect(streaming=True)
+        )
+
+        source_id_set = set(source_ids[key_column].to_list())
+        ref_id_set = set(ref_ids[key_column].to_list())
+
+        orphan_ids = source_id_set - ref_id_set
+
+        total_source = len(source_id_set)
+        total_orphan = len(orphan_ids)
+        coverage_pct = ((total_source - total_orphan) / total_source * 100) if total_source > 0 else 100
+
+        result.metrics["source_unique_ids"] = total_source
+        result.metrics["reference_unique_ids"] = len(ref_id_set)
+        result.metrics["orphan_ids"] = total_orphan
+        result.metrics["coverage_percent"] = round(coverage_pct, 2)
+
+        if orphan_ids:
+            result.add_warning(
+                f"{total_orphan} {key_column} values in {source_table} not found in {reference_table}",
+                {
+                    "orphan_count": total_orphan,
+                    "sample_orphan_ids": list(orphan_ids)[:10],
+                    "coverage_percent": round(coverage_pct, 2)
+                }
+            )
+        else:
+            result.add_info(f"All {key_column} values in {source_table} exist in {reference_table}")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'relational_integrity' failed for '%s' -> '%s': %s", source_table, reference_table, e)
+        result.add_error(f"Error checking relational integrity: {str(e)}")
+
+    return result
+
+
+def check_relational_integrity_duckdb(
+    source_df: pd.DataFrame,
+    reference_df: pd.DataFrame,
+    source_table: str,
+    reference_table: str,
+    key_column: str
+) -> DQACompletenessResult:
+    """Check relational integrity between tables using DuckDB."""
+    result = DQACompletenessResult("relational_integrity", f"{source_table}->{reference_table}")
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('source_tbl', source_df)
+        con.register('ref_tbl', reference_df)
+
+        # Efficient anti-join query
+        orphan_query = f"""
+            WITH source_ids AS (
+                SELECT DISTINCT "{key_column}" as id
+                FROM source_tbl
+                WHERE "{key_column}" IS NOT NULL
+            ),
+            ref_ids AS (
+                SELECT DISTINCT "{key_column}" as id
+                FROM ref_tbl
+                WHERE "{key_column}" IS NOT NULL
+            )
+            SELECT
+                (SELECT COUNT(*) FROM source_ids) as total_source,
+                (SELECT COUNT(*) FROM ref_ids) as total_ref,
+                (SELECT COUNT(*) FROM source_ids s
+                 WHERE NOT EXISTS (SELECT 1 FROM ref_ids r WHERE r.id = s.id)) as orphan_count
+        """
+
+        stats = con.execute(orphan_query).fetchone()
+        total_source, total_ref, orphan_count = stats
+
+        coverage_pct = ((total_source - orphan_count) / total_source * 100) if total_source > 0 else 100
+
+        result.metrics["source_unique_ids"] = int(total_source)
+        result.metrics["reference_unique_ids"] = int(total_ref)
+        result.metrics["orphan_ids"] = int(orphan_count)
+        result.metrics["coverage_percent"] = round(coverage_pct, 2)
+
+        if orphan_count > 0:
+            # Fetch sample orphans lazily with LIMIT
+            sample_query = f"""
+                SELECT DISTINCT s."{key_column}"
+                FROM source_tbl s
+                WHERE s."{key_column}" IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM ref_tbl r
+                      WHERE r."{key_column}" = s."{key_column}"
+                  )
+                LIMIT 10
+            """
+            sample_result = con.execute(sample_query).fetchall()
+            sample_orphans = [row[0] for row in sample_result]
+
+            result.add_warning(
+                f"{orphan_count} {key_column} values in {source_table} not found in {reference_table}",
+                {
+                    "orphan_count": int(orphan_count),
+                    "sample_orphan_ids": sample_orphans,
+                    "coverage_percent": round(coverage_pct, 2)
+                }
+            )
+        else:
+            result.add_info(f"All {key_column} values in {source_table} exist in {reference_table}")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'relational_integrity' failed for '%s' -> '%s': %s", source_table, reference_table, e)
+        result.add_error(f"Error checking relational integrity: {str(e)}")
+
+    return result
+
+
+def check_relational_integrity(
+    source_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    reference_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    source_table: str,
+    reference_table: str,
+    key_column: str
+) -> DQACompletenessResult:
+    """Check relational integrity between tables."""
+    _logger.debug("check_relational_integrity: starting for '%s' -> '%s' on key '%s'",
+                  source_table, reference_table, key_column)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_relational_integrity_polars(
+            source_df, reference_df, source_table, reference_table, key_column
+        )
+    else:
+        result = check_relational_integrity_duckdb(
+            source_df, reference_df,
+            source_table, reference_table, key_column
+        )
+    orphan_count = result.metrics.get("orphan_ids", 0)
+    if orphan_count > 0:
+        _logger.info("check_relational_integrity: '%s' -> '%s' — %d orphan IDs found",
+                     source_table, reference_table, orphan_count)
+    _logger.debug("check_relational_integrity: '%s' -> '%s' — source_ids=%s, ref_ids=%s, orphans=%s",
+                  source_table, reference_table, result.metrics.get("source_unique_ids"),
+                  result.metrics.get("reference_unique_ids"), orphan_count)
+    return result
+
+# ---------------------------------------------------------------------------
+# DQA: PLAUSIBILITY CHECKS
+# ---------------------------------------------------------------------------
+# Placeholder for future plausibility checks (e.g., value range validation)
+
+
+# ---------------------------------------------------------------------------
+# COMPREHENSIVE DQA RUNNER
+# ---------------------------------------------------------------------------
+
+def run_conformance_checks(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> Dict[str, DQAConformanceResult]:
+    """
+    Run all conformance checks on a table.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The data to validate
+    schema : dict
+        Schema for the table
+    table_name : str
+        Name of the table
+
+    Returns
+    -------
+    Dict[str, DQAConformanceResult]
+        Dictionary of check results keyed by check type
+    """
+    _logger.info("Running conformance checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
+
+    # Convert pandas DataFrame to Polars if the active backend is Polars
+    if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+        _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
+        df = pl.from_pandas(df)
+
+    results = {}
+
+    results['table_presence'] = check_table_presence(df, table_name)
+    gc.collect()
+
+    results['required_columns'] = check_required_columns(df, schema, table_name)
+    gc.collect()
+
+    results['column_dtypes'] = check_column_dtypes(df, schema, table_name)
+    gc.collect()
+
+    results['datetime_format'] = check_datetime_format(df, schema, table_name)
+    gc.collect()
+
+    if table_name == 'labs':
+        results['lab_reference_units'] = check_lab_reference_units(df, schema, table_name)
+        gc.collect()
+
+    results['categorical_values'] = check_categorical_values(df, schema, table_name)
+    gc.collect()
+
+    passed = sum(1 for r in results.values() if r.passed)
+    failed = len(results) - passed
+    _logger.info("Conformance checks complete for '%s': %d passed, %d failed", table_name, passed, failed)
+
+    return results
+
+
+def run_completeness_checks(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    error_threshold: float = 50.0,
+    warning_threshold: float = 10.0
+) -> Dict[str, DQACompletenessResult]:
+    """
+    Run all completeness checks on a table.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The data to validate
+    schema : dict
+        Schema for the table
+    table_name : str
+        Name of the table
+    error_threshold : float
+        Percent missing above which an error is raised
+    warning_threshold : float
+        Percent missing above which a warning is raised
+
+    Returns
+    -------
+    Dict[str, DQACompletenessResult]
+        Dictionary of check results keyed by check type
+    """
+    _logger.info("Running completeness checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
+
+    # Convert pandas DataFrame to Polars if the active backend is Polars
+    if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+        _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
+        df = pl.from_pandas(df)
+
+    results = {}
+
+    results['missingness'] = check_missingness(
+        df, schema, table_name, error_threshold, warning_threshold
+    )
+    gc.collect()
+
+    results['conditional_requirements'] = check_conditional_requirements(df, table_name)
+    gc.collect()
+
+    results['mcide_value_coverage'] = check_mcide_value_coverage(df, schema, table_name)
+    gc.collect()
+
+    passed = sum(1 for r in results.values() if r.passed)
+    failed = len(results) - passed
+    _logger.info("Completeness checks complete for '%s': %d passed, %d failed", table_name, passed, failed)
+
+    return results
+
+
+# def run_full_dqa(
+#     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+#     schema: Dict[str, Any],
+#     table_name: str,
+#     reference_tables: Optional[Dict[str, Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame']]] = None
+# ) -> Dict[str, Any]:
+#     """
+#     Run complete DQA suite on a table.
+
+#     Parameters
+#     ----------
+#     df : DataFrame
+#         The data to validate
+#     schema : dict
+#         Schema for the table
+#     table_name : str
+#         Name of the table
+#     reference_tables : dict, optional
+#         Dictionary of reference tables for relational checks
+#         Keys should be 'patient' and/or 'hospitalization'
+
+#     Returns
+#     -------
+#     Dict[str, Any]
+#         Complete DQA results including conformance and completeness checks
+#     """
+#     _logger.info(f"Starting full DQA for table: {table_name}")
+
+#     # Determine backend for reporting
+#     backend = 'polars' if HAS_POLARS else ('duckdb' if HAS_DUCKDB else 'none')
+
+#     results = {
+#         'table_name': table_name,
+#         'backend': backend,
+#         'conformance': {},
+#         'completeness': {},
+#         'relational': {}
+#     }
+
+#     results['conformance'] = {
+#         k: v.to_dict()
+#         for k, v in run_conformance_checks(df, schema, table_name).items()
+#     }
+
+#     results['completeness'] = {
+#         k: v.to_dict()
+#         for k, v in run_completeness_checks(df, schema, table_name).items()
+#     }
+
+#     if reference_tables:
+#         if HAS_POLARS:
+#             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+#             col_names = lf.collect_schema().names()
+#         else:
+#             col_names = df.columns.tolist()
+
+#         if 'patient' in reference_tables and 'patient_id' in col_names:
+#             results['relational']['patient_id'] = check_relational_integrity(
+#                 df, reference_tables['patient'], table_name, 'patient', 'patient_id'
+#             ).to_dict()
+
+#         if 'hospitalization' in reference_tables and 'hospitalization_id' in col_names:
+#             results['relational']['hospitalization_id'] = check_relational_integrity(
+#                 df, reference_tables['hospitalization'], table_name, 'hospitalization', 'hospitalization_id'
+#             ).to_dict()
+
+#     _clear_memory()
+#     _logger.info(f"Completed full DQA for table: {table_name}")
+
+#     return results
+
+
+# ---------------------------------------------------------------------------
+# CLIF-TABLEONE COMPATIBILITY LAYER
+# ---------------------------------------------------------------------------
+# These functions provide backward compatibility with CLIF-TableOne's
+# validation interface expectations.
+
+def validate_dataframe(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Validate a dataframe against schema and return list of errors.
+
+    This function provides compatibility with CLIF-TableOne's expected
+    validation interface.
+
+    Parameters
+    ----------
+    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame
+        Data to validate
+    schema : dict
+        Table schema containing columns, required_columns, etc.
+    table_name : str, optional
+        Name of the table (inferred from schema if not provided)
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        List of error dictionaries with keys:
+        - type: str - Error type/check name
+        - description: str - Human-readable error description
+        - details: dict - Additional error details
+        - category: str - 'schema' or 'data_quality'
+    """
+    table_name = table_name or schema.get('table_name', 'unknown')
+    _logger.info("validate_dataframe: starting validation for table '%s'", table_name)
+    errors = []
+
+    # Schema-level checks (affect 'incomplete' status)
+    schema_checks = ['required_columns', 'column_dtypes']
+
+    # Run conformance checks
+    conformance_results = run_conformance_checks(df, schema, table_name)
+    for check_name, result in conformance_results.items():
+        category = 'schema' if check_name in schema_checks else 'data_quality'
+
+        for err in result.errors:
+            errors.append({
+                'type': _format_check_type(check_name),
+                'description': err['message'],
+                'details': err.get('details', {}),
+                'category': category
+            })
+
+        # Include warnings as data quality issues
+        for warn in result.warnings:
+            errors.append({
+                'type': _format_check_type(check_name),
+                'description': warn['message'],
+                'details': warn.get('details', {}),
+                'category': 'data_quality',
+                'severity': 'warning'
+            })
+
+    # Run completeness checks
+    completeness_results = run_completeness_checks(df, schema, table_name)
+    for check_name, result in completeness_results.items():
+        for err in result.errors:
+            errors.append({
+                'type': _format_check_type(check_name),
+                'description': err['message'],
+                'details': err.get('details', {}),
+                'category': 'data_quality'
+            })
+
+        for warn in result.warnings:
+            errors.append({
+                'type': _format_check_type(check_name),
+                'description': warn['message'],
+                'details': warn.get('details', {}),
+                'category': 'data_quality',
+                'severity': 'warning'
+            })
+
+    gc.collect()
+    error_count = sum(1 for e in errors if e.get('severity', 'error') == 'error')
+    warning_count = sum(1 for e in errors if e.get('severity') == 'warning')
+    _logger.info("validate_dataframe: table '%s' complete — %d errors, %d warnings",
+                 table_name, error_count, warning_count)
     return errors
 
 
-def validate_datetime_timezone(
-    df: pd.DataFrame, 
-    datetime_columns: List[str]
-) -> List[Dict[str, Any]]:
-    """
-    Validate that all datetime columns are in UTC format.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to validate
-    datetime_columns : List[str]
-        List of datetime column names
-        
-    Returns
-    -------
-    List[dict]
-        List of timezone validation results
-    """
-    results = []
-    
-    try:
-        for col in datetime_columns:
-            if col not in df.columns:
-                continue
-            
-            if pd.api.types.is_datetime64_any_dtype(df[col]):
-                # Check if timezone-aware
-                if df[col].dt.tz is not None:
-                    # Check if UTC
-                    if str(df[col].dt.tz) != 'UTC':
-                        results.append({
-                            "type": "datetime_timezone",
-                            "column": col,
-                            "timezone": str(df[col].dt.tz),
-                            "expected": "UTC",
-                            "status": "warning",
-                            "message": f"Column '{col}' has timezone '{df[col].dt.tz}' but expected 'UTC'"
-                        })
-                else:
-                    # Timezone-naive datetime
-                    results.append({
-                        "type": "datetime_timezone",
-                        "column": col,
-                        "timezone": "naive",
-                        "expected": "UTC",
-                        "status": "info",
-                        "message": f"Column '{col}' is timezone-naive, expected UTC timezone"
-                    })
-                    
-    except Exception as e:
-        results.append({
-            "type": "datetime_timezone",
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error validating datetime timezones: {str(e)}"
-        })
-    
-    return results
+def _format_check_type(check_name: str) -> str:
+    """Convert internal check names to human-readable format."""
+    type_mapping = {
+        'required_columns': 'Missing Required Columns',
+        'column_dtypes': 'Data Type Mismatch',
+        'datetime_format': 'Datetime Format Issue',
+        'lab_reference_units': 'Lab Unit Mismatch',
+        'categorical_values': 'Invalid Categorical Values',
+        'missingness': 'High Missingness',
+        'conditional_requirements': 'Conditional Requirement Violation',
+        'mcide_value_coverage': 'mCIDE Coverage Gap'
+    }
+    return type_mapping.get(check_name, check_name.replace('_', ' ').title())
 
 
-def calculate_missing_stats(
-    df: pd.DataFrame,
-    format: str = 'long'
-) -> pd.DataFrame:
-    """
-    Report count and percentage of missing values as a DataFrame.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to analyze
-    format : str, default='long'
-        Output format:
-        - 'long': One row per column (better for many columns)
-        - 'wide': Transposed format (better for few columns)
-
-    Returns
-    -------
-    pd.DataFrame
-        Missing data statistics with columns:
-        - column: Column name
-        - missing_count: Number of missing values
-        - missing_percent: Percentage missing
-        - total_rows: Total row count (long format only)
-    """
-    try:
-        # Get comprehensive summary from the core function
-        summary = report_missing_data_summary(df)
-
-        # Handle error case
-        if "error" in summary:
-            return pd.DataFrame({'error': [summary['error']]})
-
-        # Convert to DataFrame format
-        if format == 'long':
-            # Include all columns (even those with no missing data)
-            all_columns_data = []
-
-            # Add columns with missing data (already sorted by missing_percent descending)
-            for item in summary['columns_with_missing']:
-                all_columns_data.append({
-                    'column': item['column'],
-                    'missing_count': item['missing_count'],
-                    'missing_percent': round(item['missing_percent'], 2),
-                    'total_rows': summary['total_rows']
-                })
-
-            # Add complete columns (no missing data)
-            for col in summary['complete_columns']:
-                all_columns_data.append({
-                    'column': col,
-                    'missing_count': 0,
-                    'missing_percent': 0.0,
-                    'total_rows': summary['total_rows']
-                })
-
-            # Create DataFrame
-            stats_df = pd.DataFrame(all_columns_data)
-
-        else:  # wide format
-            # Create dict for all columns
-            missing_counts = {}
-            missing_percents = {}
-
-            for item in summary['columns_with_missing']:
-                missing_counts[item['column']] = item['missing_count']
-                missing_percents[item['column']] = round(item['missing_percent'], 2)
-
-            for col in summary['complete_columns']:
-                missing_counts[col] = 0
-                missing_percents[col] = 0.0
-
-            stats_df = pd.DataFrame({
-                'missing_count': missing_counts,
-                'missing_percent': missing_percents
-            }).T
-
-        return stats_df
-
-    except Exception as e:
-        return pd.DataFrame({'error': [str(e)]})
-
-
-def report_missing_data_summary(df: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Generate comprehensive missing data report.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to analyze
-        
-    Returns
-    -------
-    dict
-        Comprehensive missing data summary
-    """
-    try:
-        total_cells = df.shape[0] * df.shape[1]
-        total_missing = df.isnull().sum().sum()
-        
-        summary = {
-            "total_rows": len(df),
-            "total_columns": len(df.columns),
-            "total_cells": total_cells,
-            "total_missing_cells": int(total_missing),
-            "overall_missing_percent": (total_missing / total_cells) * 100 if total_cells > 0 else 0,
-            "columns_with_missing": [],
-            "complete_columns": []
-        }
-        
-        for col in df.columns:
-            missing_count = df[col].isnull().sum()
-            if missing_count > 0:
-                summary["columns_with_missing"].append({
-                    "column": col,
-                    "missing_count": int(missing_count),
-                    "missing_percent": (missing_count / len(df)) * 100
-                })
-            else:
-                summary["complete_columns"].append(col)
-        
-        # Sort columns by missing percentage
-        summary["columns_with_missing"] = sorted(
-            summary["columns_with_missing"],
-            key=lambda x: x["missing_percent"],
-            reverse=True
-        )
-        
-        return summary
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def validate_categorical_values(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    detect_invalid_values: bool = False,
-    return_invalid_df: bool = False
-) -> List[Dict[str, Any]] | Tuple[List[Dict[str, Any]], pd.DataFrame]:
-    """
-    Check values against permitted categories.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to validate
-    schema : dict
-        Schema containing category definitions
-    detect_invalid_values : bool, optional
-        If True, detect and report values in data that are not in permissible_values list.
-        If False (default), only check for missing expected values (backward compatible).
-    return_invalid_df : bool, optional
-        If True and detect_invalid_values=True, return a tuple of (errors, invalid_values_df).
-        The invalid_values_df contains all rows with invalid categorical values.
-        Default is False for backward compatibility.
-
-    Returns
-    -------
-    List[dict] or Tuple[List[dict], pd.DataFrame]
-        If return_invalid_df=False: List of validation errors (backward compatible)
-        If return_invalid_df=True: Tuple of (errors_list, invalid_values_dataframe)
-
-    Notes
-    -----
-    Categorical matching is case-insensitive (e.g., "Male" matches "MALE").
-
-    For backward compatibility, set detect_invalid_values=False (default).
-    This will only report missing expected values, not invalid values in the data.
-    """
-    errors = []
-    invalid_rows_indices = []  # Track rows with invalid values
-
-    try:
-        category_columns = schema.get("category_columns") or []
-
-        for col_spec in schema.get("columns", []):
-            name = col_spec["name"]
-            
-            if name not in df.columns or name not in category_columns:
-                continue
-            
-            if col_spec.get("permissible_values"):
-                # Original permissible values from schema
-                allowed = set(col_spec["permissible_values"])
-                # Convert to lowercase for case-insensitive comparison
-                allowed_lower = {str(v).lower() for v in allowed}
-
-                # Get actual unique values from data
-                unique_values_raw = df[name].dropna().unique()
-                unique_values_lower = {str(v).lower() for v in unique_values_raw}
-
-                # 1. Check for missing expected values (case-insensitive)
-                # This check is always performed for backward compatibility
-                missing_values = [v for v in allowed if str(v).lower() not in unique_values_lower]
-
-                # Report missing expected values
-                if missing_values:
-                    errors.append({
-                                "type": "missing_categorical_values",
-                                "column": name,
-                                "missing_values": missing_values,
-                                "total_missing": len(missing_values),
-                                "message": f"Column '{name}' is missing {len(missing_values)} expected category values: {missing_values}"
-                            })
-
-                # 2. Check for INVALID values (ONLY if detect_invalid_values=True)
-                if detect_invalid_values:
-                    invalid_values = []
-                    invalid_value_counts = {}
-
-                    # Identify and count occurrences of each invalid value
-                    for val in unique_values_raw:
-                        if str(val).lower() not in allowed_lower:
-                            invalid_values.append(val)
-                            # Count how many times this invalid value appears
-                            count = int((df[name] == val).sum())
-                            invalid_value_counts[str(val)] = count
-
-                            # Track row indices for creating invalid_df later
-                            if return_invalid_df:
-                                invalid_mask = (df[name] == val)
-                                invalid_rows_indices.extend(df[invalid_mask].index.tolist())
-
-                    # Sort invalid values by frequency (most common first)
-                    invalid_values_sorted = sorted(invalid_values,
-                                                   key=lambda x: invalid_value_counts.get(str(x), 0),
-                                                   reverse=True)
-
-                    # Report INVALID values found in data
-                    if invalid_values:
-                        # Show top 10 most common invalid values with their counts
-                        top_invalid_display = []
-                        for val in invalid_values_sorted[:10]:
-                            count = invalid_value_counts[str(val)]
-                            top_invalid_display.append(f"{val} ({count:,} occurrences)")
-
-                        errors.append({
-                            "type": "invalid_categorical_values",
-                            "column": name,
-                            "invalid_values": invalid_values_sorted[:20],  # Store top 20 for reference
-                            "invalid_value_counts": invalid_value_counts,  # Full counts for analysis
-                            "total_invalid_unique": len(invalid_values),
-                            "total_invalid_rows": sum(invalid_value_counts.values()),
-                            "permissible_values": list(allowed),  # Include what IS allowed for reference
-                            "status": "error",
-                            "message": f"Column '{name}' contains {len(invalid_values)} unique invalid categorical values affecting {sum(invalid_value_counts.values()):,} rows. Top invalid: {', '.join(top_invalid_display[:5])}"
-                        })
-                    
-    except Exception as e:
-        errors.append({
-            "type": "categorical_validation",
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error validating categorical values: {str(e)}"
-        })
-
-    # Return based on parameters
-    if return_invalid_df and detect_invalid_values:
-        # Create DataFrame of rows with invalid categorical values
-        if invalid_rows_indices:
-            # Remove duplicates and sort
-            unique_indices = sorted(set(invalid_rows_indices))
-            invalid_df = df.loc[unique_indices].copy()
-        else:
-            # Return empty DataFrame with same columns if no invalid rows
-            invalid_df = pd.DataFrame(columns=df.columns)
-
-        return errors, invalid_df
-    else:
-        # Backward compatible return
-        return errors
-
-
-def check_for_duplicates(
-    df: pd.DataFrame, 
-    composite_keys: List[str]
+def format_clifpy_error(
+    error: Dict[str, Any],
+    row_count: int,
+    table_name: str
 ) -> Dict[str, Any]:
     """
-    Validate uniqueness constraints on composite keys.
-    
+    Format a validation error for display.
+
     Parameters
     ----------
-    df : pd.DataFrame
-        The dataframe to validate
-    composite_keys : List[str]
-        List of columns forming the composite key
-        
-    Returns
-    -------
-    dict
-        Duplicate checking results
-    """
-    try:
-        # Filter to only keys that exist in the dataframe
-        existing_keys = [key for key in composite_keys if key in df.columns]
-        
-        if not existing_keys:
-            return {
-                "type": "duplicate_check",
-                "status": "skipped",
-                "message": "No composite key columns found in dataframe"
-            }
-        
-        # Check for duplicates
-        duplicated = df.duplicated(subset=existing_keys, keep=False)
-        num_duplicates = duplicated.sum()
-        
-        result = {
-            "type": "duplicate_check",
-            "composite_keys": existing_keys,
-            "total_rows": len(df),
-            "duplicate_rows": int(num_duplicates),
-            "unique_rows": len(df) - int(num_duplicates),
-            "has_duplicates": num_duplicates > 0
-        }
-
-        if num_duplicates > 0:
-            # Get examples of duplicate keys (limit to 5)
-            duplicate_df = df[duplicated]
-            duplicate_examples = (
-                duplicate_df[existing_keys]
-                .drop_duplicates()
-                .head(5)
-                .to_dict('records')
-            )
-            result["duplicate_examples"] = duplicate_examples
-            result["status"] = "warning"
-            result["message"] = f"Found {int(num_duplicates)} duplicate rows out of {len(df)} total rows based on keys: {', '.join(existing_keys)}"
-        else:
-            result["status"] = "success"
-            result["message"] = f"No duplicate rows found based on composite keys: {', '.join(existing_keys)}"
-        
-        return result
-        
-    except Exception as e:
-        return {
-            "type": "duplicate_check",
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error checking for duplicates: {str(e)}"
-        }
-
-
-def generate_summary_statistics(
-    df: pd.DataFrame, 
-    numeric_columns: List[str],
-    output_path: str = None,
-    table_name: str = None
-) -> pd.DataFrame:
-    """
-    Calculate Q1, Q3, median for numeric columns.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to analyze
-    numeric_columns : List[str]
-        List of numeric column names
-    output_path : str, optional
-        Path to save the statistics CSV
-    table_name : str, optional
-        Table name for file naming
-        
-    Returns
-    -------
-    pd.DataFrame
-        Summary statistics
-    """
-    try:
-        # Filter to existing numeric columns
-        existing_cols = [col for col in numeric_columns if col in df.columns]
-        
-        if not existing_cols:
-            return pd.DataFrame()
-        
-        # Calculate statistics
-        stats = df[existing_cols].describe(percentiles=[0.25, 0.5, 0.75])
-        
-        # Select specific statistics
-        summary_stats = stats.loc[['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']]
-        summary_stats = summary_stats.rename(index={'25%': 'Q1', '50%': 'median', '75%': 'Q3'})
-        
-        # Save to CSV if output path provided
-        if output_path and table_name:
-            filename = os.path.join(output_path, f'summary_statistics_{table_name}.csv')
-            summary_stats.to_csv(filename)
-        
-        return summary_stats
-        
-    except Exception as e:
-        return pd.DataFrame({'error': [str(e)]})
-
-
-def analyze_skewed_distributions(
-    df: pd.DataFrame,
-    output_path: str = None,
-    table_name: str = None
-) -> pd.DataFrame:
-    """
-    Identify and report skewed variables.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to analyze
-    output_path : str, optional
-        Path to save the analysis CSV
-    table_name : str, optional
-        Table name for file naming
-        
-    Returns
-    -------
-    pd.DataFrame
-        Skewness analysis results
-    """
-    try:
-        numeric_df = df.select_dtypes(include=['number'])
-        
-        if numeric_df.empty:
-            return pd.DataFrame()
-        
-        skewness = numeric_df.skew()
-        kurtosis = numeric_df.kurtosis()
-        
-        analysis = pd.DataFrame({
-            'column': skewness.index,
-            'skewness': skewness.values,
-            'kurtosis': kurtosis.values,
-            'skew_interpretation': pd.cut(
-                skewness.values,
-                bins=[-float('inf'), -1, -0.5, 0.5, 1, float('inf')],
-                labels=['Highly left-skewed', 'Moderately left-skewed', 
-                       'Approximately symmetric', 'Moderately right-skewed', 
-                       'Highly right-skewed']
-            )
-        })
-        
-        # Sort by absolute skewness
-        analysis['abs_skewness'] = analysis['skewness'].abs()
-        analysis = analysis.sort_values('abs_skewness', ascending=False)
-        analysis = analysis.drop('abs_skewness', axis=1)
-        
-        # Save to CSV if output path provided
-        if output_path and table_name:
-            filename = os.path.join(output_path, f'skewness_analysis_{table_name}.csv')
-            analysis.to_csv(filename, index=False)
-        
-        return analysis
-        
-    except Exception as e:
-        return pd.DataFrame({'error': [str(e)]})
-
-
-def validate_units(
-    df: pd.DataFrame, 
-    unit_mappings: Dict[str, Any], 
-    table_name: str
-) -> List[Dict[str, Any]]:
-    """
-    Verify units match schema (critical for labs and vitals).
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to validate
-    unit_mappings : dict
-        Expected units for each category
+    error : dict
+        Error dictionary from validate_dataframe()
+    row_count : int
+        Total row count of the table
     table_name : str
-        Name of the table being validated
-        
-    Returns
-    -------
-    List[dict]
-        List of unit validation results
-    """
-    results = []
-    
-    try:
-        # Table-specific unit validation
-        if table_name == 'vitals' and 'vital_category' in df.columns:
-            # For vitals, check if categories match expected units
-            for category, expected_unit in unit_mappings.items():
-                category_data = df[df['vital_category'] == category]
-                if not category_data.empty:
-                    results.append({
-                        "type": "unit_validation",
-                        "table": table_name,
-                        "category": category,
-                        "expected_unit": expected_unit,
-                        "row_count": len(category_data),
-                        "status": "info",
-                        "message": f"Table '{table_name}' category '{category}' found with {len(category_data)} rows, expected unit: {expected_unit}"
-                    })
-                    
-        elif table_name == 'labs' and 'lab_category' in df.columns and 'reference_unit' in df.columns:
-            # For labs, check if reference units match expected
-            for category, expected_units in unit_mappings.items():
-                category_data = df[df['lab_category'] == category]
-                if not category_data.empty:
-                    actual_units = category_data['reference_unit'].dropna().unique()
-                    
-                    # Check if any unexpected units
-                    unexpected_units = [u for u in actual_units if u not in expected_units]
-                    
-                    if unexpected_units:
-                        results.append({
-                            "type": "unit_validation",
-                            "table": table_name,
-                            "category": category,
-                            "expected_units": expected_units,
-                            "unexpected_units": list(unexpected_units),
-                            "status": "warning",
-                            "message": f"Table '{table_name}' category '{category}' has unexpected units: {', '.join(unexpected_units)}, expected: {', '.join(expected_units)}"
-                        })
-                        
-    except Exception as e:
-        results.append({
-            "type": "unit_validation",
-            "table": table_name,
-            "status": "error",
-            "error_message": str(e),
-            "message": f"Error validating units for table '{table_name}': {str(e)}"
-        })
-    
-    return results
+        Name of the table
 
-
-def calculate_cohort_sizes(
-    df: pd.DataFrame, 
-    id_columns: List[str]
-) -> Dict[str, int]:
-    """
-    Calculate distinct counts of ID columns.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to analyze
-    id_columns : List[str]
-        List of ID column names
-        
     Returns
     -------
     dict
-        Distinct counts for each ID column
+        Formatted error with type, description, category, and details
     """
-    try:
-        cohort_sizes = {}
-        
-        for col in id_columns:
-            if col in df.columns:
-                cohort_sizes[col] = df[col].nunique()
-                cohort_sizes[f"{col}_with_nulls"] = df[col].isnull().sum()
-        
-        # Add total row count
-        cohort_sizes["total_rows"] = len(df)
-        
-        return cohort_sizes
-        
-    except Exception as e:
-        return {"error": str(e)}
+    formatted = {
+        'type': error.get('type', 'Unknown Error'),
+        'description': error.get('description', str(error)),
+        'category': error.get('category', 'other'),
+        'details': error.get('details', {}),
+        'table_name': table_name,
+        'row_count': row_count
+    }
+
+    # Add severity if present
+    if 'severity' in error:
+        formatted['severity'] = error['severity']
+
+    return formatted
 
 
-def get_distinct_counts(
-    df: pd.DataFrame, 
-    columns: List[str]
-) -> Dict[str, int]:
+def determine_validation_status(
+    errors: List[Dict[str, Any]],
+    required_columns: Optional[List[str]] = None,
+    table_name: Optional[str] = None
+) -> str:
     """
-    General distinct count function.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The dataframe to analyze
-    columns : List[str]
-        List of column names
-        
-    Returns
-    -------
-    dict
-        Distinct counts for each column
-    """
-    try:
-        distinct_counts = {}
-        
-        for col in columns:
-            if col in df.columns:
-                distinct_counts[col] = {
-                    "distinct_count": df[col].nunique(),
-                    "total_count": len(df[col]),
-                    "null_count": df[col].isnull().sum(),
-                    "distinct_ratio": df[col].nunique() / len(df) if len(df) > 0 else 0
-                }
-        
-        return distinct_counts
-        
-    except Exception as e:
-        return {"error": str(e)}
+    Determine validation status based on errors.
 
-# ---------------------------------------------------------------------------
-# Outlier range validation from outlier_config.yaml
-# ---------------------------------------------------------------------------
-
-def load_outlier_config(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Load outlier configuration from YAML file."""
-    try:
-        if config_path is None:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'schemas',
-                'outlier_config.yaml'
-            )
-        if not os.path.exists(config_path):
-            return None
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
-    except Exception:
-        return None
-
-
-def _validate_range(df: pd.DataFrame, mask: pd.Series, column: str,
-                    min_val: float, max_val: float) -> Tuple[int, int]:
-    """Helper to check min/max violations for masked data."""
-    data = df.loc[mask, column].dropna()
-    if len(data) == 0:
-        return 0, 0
-    return int((data < min_val).sum()), int((data > max_val).sum())
-
-
-def _validate_range_polars(df_pl: 'pl.DataFrame', mask_expr: 'pl.Expr', column: str,
-                           min_val: float, max_val: float) -> Tuple[int, int]:
-    """Helper to check min/max violations for masked data using Polars."""
-    data = df_pl.filter(mask_expr).select(pl.col(column).drop_nulls())
-    if data.height == 0:
-        return 0, 0
-
-    col_data = data[column]
-    below = (col_data < min_val).sum()
-    above = (col_data > max_val).sum()
-    return int(below), int(above)
-
-
-def _validate_simple_range(
-    df: pd.DataFrame,
-    table_name: str,
-    col_name: str,
-    col_config: Dict[str, Any]
-) -> List[Dict[str, Any]]:
-    """Validate simple range pattern: {min: X, max: Y}"""
-    results = []
-    below, above = _validate_range(df, df.index, col_name, col_config['min'], col_config['max'])
-    if below > 0 or above > 0:
-        total_values = int(df[col_name].notna().sum())
-        total_outliers = below + above
-
-        results.append({
-            "type": "outlier_validation",
-            "table": table_name,
-            "column": col_name,
-            "min_expected": col_config['min'],
-            "max_expected": col_config['max'],
-            "total_values": total_values,
-            "below_min_count": below,
-            "above_max_count": above,
-            "total_outliers": total_outliers,
-            "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
-            "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
-            "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
-            "status": "warning",
-            "message": f"Column '{col_name}' has {below} values below minimum *{col_config['min']}* & {above} values above maximum *{col_config['max']}*"
-        })
-    return results
-
-
-def _validate_simple_range_polars(
-    df_pl: 'pl.DataFrame',
-    table_name: str,
-    col_name: str,
-    col_config: Dict[str, Any]
-) -> List[Dict[str, Any]]:
-    """Validate simple range pattern using Polars: {min: X, max: Y}"""
-    results = []
-    col_data = df_pl.select(pl.col(col_name).drop_nulls())
-
-    if col_data.height == 0:
-        return results
-
-    below = int((col_data[col_name] < col_config['min']).sum())
-    above = int((col_data[col_name] > col_config['max']).sum())
-
-    if below > 0 or above > 0:
-        total_values = col_data.height
-        total_outliers = below + above
-
-        results.append({
-            "type": "outlier_validation",
-            "table": table_name,
-            "column": col_name,
-            "min_expected": col_config['min'],
-            "max_expected": col_config['max'],
-            "total_values": total_values,
-            "below_min_count": below,
-            "above_max_count": above,
-            "total_outliers": total_outliers,
-            "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
-            "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
-            "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
-            "status": "warning",
-            "message": f"Column '{col_name}' has {below} values below minimum *{col_config['min']}* & {above} values above maximum *{col_config['max']}*"
-        })
-    return results
-
-
-def _validate_single_category(
-    df: pd.DataFrame,
-    table_name: str,
-    col_name: str,
-    col_config: Dict[str, Any],
-    category_col: str
-) -> List[Dict[str, Any]]:
-    """Validate single category pattern: {category: {min: X, max: Y}}"""
-    results = []
-    for category, ranges in col_config.items():
-        mask = df[category_col].astype(str).str.lower() == category.lower()
-        if not mask.any():
-            continue
-        below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
-        if below > 0 or above > 0:
-            total_values = int(df.loc[mask, col_name].notna().sum())
-            total_outliers = below + above
-
-            results.append({
-                "type": "outlier_validation",
-                "category": category,
-                "column": col_name,
-                "min_expected": ranges['min'],
-                "max_expected": ranges['max'],
-                "total_values": total_values,
-                "below_min_count": below,
-                "above_max_count": above,
-                "total_outliers": total_outliers,
-                "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
-                "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
-                "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
-                "status": "warning",
-                "message": f"Category {category} for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
-            })
-    return results
-
-
-def _validate_single_category_polars(
-    df_pl: 'pl.DataFrame',
-    table_name: str,
-    col_name: str,
-    col_config: Dict[str, Any],
-    category_col: str
-) -> List[Dict[str, Any]]:
-    """Validate single category pattern using Polars: {category: {min: X, max: Y}}"""
-    results = []
-    for category, ranges in col_config.items():
-        mask = pl.col(category_col).cast(pl.Utf8).str.to_lowercase() == category.lower()
-        filtered = df_pl.filter(mask)
-
-        if filtered.height == 0:
-            continue
-
-        below, above = _validate_range_polars(df_pl, mask, col_name, ranges['min'], ranges['max'])
-        if below > 0 or above > 0:
-            total_values = int(filtered.select(pl.col(col_name).is_not_null().sum())[0, 0])
-            total_outliers = below + above
-
-            results.append({
-                "type": "outlier_validation",
-                "category": category,
-                "column": col_name,
-                "min_expected": ranges['min'],
-                "max_expected": ranges['max'],
-                "total_values": total_values,
-                "below_min_count": below,
-                "above_max_count": above,
-                "total_outliers": total_outliers,
-                "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
-                "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
-                "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
-                "status": "warning",
-                "message": f"Category {category} for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
-            })
-    return results
-
-
-def _validate_double_category(
-    df: pd.DataFrame,
-    table_name: str,
-    col_name: str,
-    col_config: Dict[str, Any],
-    primary_col: str,
-    secondary_col: str
-) -> List[Dict[str, Any]]:
-    """Validate double category pattern: {cat1: {cat2: {min: X, max: Y}}}"""
-    results = []
-    for cat1, sub_config in col_config.items():
-        for cat2, ranges in sub_config.items():
-            if not isinstance(ranges, dict) or 'min' not in ranges:
-                continue
-            mask = (
-                (df[primary_col].astype(str).str.lower() == cat1.lower()) &
-                (df[secondary_col].astype(str).str.lower() == cat2.lower())
-            )
-            if not mask.any():
-                continue
-            below, above = _validate_range(df, mask, col_name, ranges['min'], ranges['max'])
-            if below > 0 or above > 0:
-                total_values = int(df.loc[mask, col_name].notna().sum())
-                total_outliers = below + above
-
-                results.append({
-                    "type": "outlier_validation",
-                    "primary_category": cat1,
-                    "secondary_category": cat2,
-                    "column": col_name,
-                    "min_expected": ranges['min'],
-                    "max_expected": ranges['max'],
-                    "total_values": total_values,
-                    "below_min_count": below,
-                    "above_max_count": above,
-                    "total_outliers": total_outliers,
-                    "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
-                    "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
-                    "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
-                    "status": "warning",
-                    "message": f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
-                })
-    return results
-
-
-def _validate_double_category_polars(
-    df_pl: 'pl.DataFrame',
-    table_name: str,
-    col_name: str,
-    col_config: Dict[str, Any],
-    primary_col: str,
-    secondary_col: str
-) -> List[Dict[str, Any]]:
-    """Validate double category pattern using Polars: {cat1: {cat2: {min: X, max: Y}}}"""
-    results = []
-    for cat1, sub_config in col_config.items():
-        for cat2, ranges in sub_config.items():
-            if not isinstance(ranges, dict) or 'min' not in ranges:
-                continue
-            mask = (
-                (pl.col(primary_col).cast(pl.Utf8).str.to_lowercase() == cat1.lower()) &
-                (pl.col(secondary_col).cast(pl.Utf8).str.to_lowercase() == cat2.lower())
-            )
-            filtered = df_pl.filter(mask)
-            if filtered.height == 0:
-                continue
-
-            below, above = _validate_range_polars(df_pl, mask, col_name, ranges['min'], ranges['max'])
-            if below > 0 or above > 0:
-                total_values = int(filtered.select(pl.col(col_name).is_not_null().sum())[0, 0])
-                total_outliers = below + above
-
-                results.append({
-                    "type": "outlier_validation",
-                    "primary_category": cat1,
-                    "secondary_category": cat2,
-                    "column": col_name,
-                    "min_expected": ranges['min'],
-                    "max_expected": ranges['max'],
-                    "total_values": total_values,
-                    "below_min_count": below,
-                    "above_max_count": above,
-                    "total_outliers": total_outliers,
-                    "outlier_percent": round((total_outliers / total_values * 100), 2) if total_values > 0 else 0.0,
-                    "below_min_percent": round((below / total_values * 100), 2) if total_values > 0 else 0.0,
-                    "above_max_percent": round((above / total_values * 100), 2) if total_values > 0 else 0.0,
-                    "status": "warning",
-                    "message": f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{ranges['min']}* & {above} values above maximum *{ranges['max']}*"
-                })
-    return results
-
-
-def _find_category_column(
-    df: pd.DataFrame,
-    col_config: Dict[str, Any],
-    cat_cols: set
-) -> Optional[str]:
-    """Find which category column matches the config categories."""
-    config_cats = set(col_config.keys())
-    config_cats_lower = {c.lower() for c in config_cats}
-    for cat_col in cat_cols:
-        if cat_col in df.columns:
-            df_cats = {str(c).lower() for c in df[cat_col].dropna().unique()}
-            if config_cats_lower & df_cats:
-                return cat_col
-    return None
-
-
-def _find_secondary_category_column(
-    df: pd.DataFrame,
-    col_config: Dict[str, Any],
-    cat_cols: set,
-    primary_col: str
-) -> Optional[str]:
-    """Find the secondary category column for double-nested patterns."""
-    first_val = col_config[list(col_config.keys())[0]]
-    sec_cats = set(first_val.keys())
-
-    for potential_col in cat_cols:
-        if potential_col != primary_col and potential_col in df.columns:
-            df_vals = {str(v).lower() for v in df[potential_col].dropna().unique()}
-            if sec_cats & {c.lower() for c in df_vals}:
-                return potential_col
-    return None
-
-
-def validate_numeric_ranges_from_config(
-    df: pd.DataFrame,
-    table_name: str,
-    schema: Dict[str, Any],
-    outlier_config: Dict[str, Any],
-    use_polars: bool = True,
-    chunk_size: Optional[int] = None,
-    n_jobs: Optional[int] = None
-) -> List[Dict[str, Any]]:
-    """
-    Validate numeric ranges using outlier config with automatic pattern detection.
-
-    Automatically handles three patterns:
-    - Simple range: {min: X, max: Y}
-    - Single-category: {category: {min: X, max: Y}}
-    - Double-category: {cat1: {cat2: {min: X, max: Y}}}
+    Status Logic:
+    - INCOMPLETE (red): Missing required columns OR non-castable datatype errors
+      OR 100% null in required columns
+    - PARTIAL (yellow): Required columns present but has data quality issues
+      (missing categorical values, high missingness, etc.)
+    - COMPLETE (green): All required columns present, no critical issues
 
     Parameters
     ----------
-    df : pd.DataFrame
-        The dataframe to validate
-    table_name : str
-        Name of the table being validated
-    schema : dict
-        Table schema with column definitions
-    outlier_config : dict
-        Outlier configuration from outlier_config.yaml
-    use_polars : bool, default=True
-        Use Polars for faster processing if available. Falls back to pandas if False or unavailable.
-    chunk_size : int, optional
-        Process data in chunks of this size. Useful for very large datasets.
-        If None, processes entire dataset at once.
-    n_jobs : int, optional
-        Number of parallel jobs for chunk processing. Defaults to CPU count.
-        Only used when chunk_size is specified.
+    errors : list
+        List of formatted error dictionaries
+    required_columns : list, optional
+        List of required column names
+    table_name : str, optional
+        Name of the table (for table-specific logic)
 
     Returns
     -------
-    List[dict]
-        List of outlier summaries with type "outlier_summary"
-
-    Examples
-    --------
-    >>> from clifpy.utils.validator import load_outlier_config, validate_numeric_ranges_from_config
-    >>>
-    >>> # Load config once
-    >>> outlier_config = load_outlier_config()
-    >>>
-    >>> # Validate multiple tables with Polars (fast)
-    >>> vitals_outliers = validate_numeric_ranges_from_config(
-    ...     vitals_df, 'vitals', vitals_schema, outlier_config
-    ... )
-    >>>
-    >>> # For very large datasets, use chunking
-    >>> large_outliers = validate_numeric_ranges_from_config(
-    ...     large_df, 'vitals', vitals_schema, outlier_config,
-    ...     chunk_size=100000, n_jobs=4
-    ... )
+    str
+        'complete', 'partial', or 'incomplete'
     """
-    table_config = outlier_config.get('tables', {}).get(table_name, {})
-    if not table_config:
-        return []
+    if not errors:
+        _logger.debug("determine_validation_status: no errors — status='complete'")
+        return 'complete'
 
-    # Use chunking for large datasets
-    if chunk_size and len(df) > chunk_size:
-        return _validate_with_chunking(
-            df, table_name, schema, outlier_config, chunk_size, n_jobs, use_polars
-        )
+    # Check for schema-level errors that make data incomplete
+    for error in errors:
+        error_type = error.get('type', '').lower()
+        category = error.get('category', '')
+        details = error.get('details', {})
+        severity = error.get('severity', 'error')
 
-    # Use Polars if available and requested
-    if use_polars and HAS_POLARS:
-        return _validate_numeric_ranges_polars(df, table_name, schema, table_config)
-    else:
-        return _validate_numeric_ranges_pandas(df, table_name, schema, table_config)
+        # Missing required columns -> incomplete
+        if 'missing required columns' in error_type or 'missing_columns' in details:
+            _logger.debug("determine_validation_status: missing required columns — status='incomplete'")
+            return 'incomplete'
 
+        # Non-castable data type errors -> incomplete
+        if 'data type' in error_type and category == 'schema':
+            if details.get('castable') is False:
+                _logger.debug("determine_validation_status: non-castable dtype — status='incomplete'")
+                return 'incomplete'
 
-def _validate_numeric_ranges_pandas(
-    df: pd.DataFrame,
-    table_name: str,
-    schema: Dict[str, Any],
-    table_config: Dict[str, Any]
-) -> List[Dict[str, Any]]:
-    """Pandas implementation of numeric range validation."""
-    results = []
+        # 100% missingness in required columns -> incomplete
+        if 'missingness' in error_type and severity != 'warning':
+            pct_missing = details.get('percent_missing', 0)
+            column = details.get('column', '')
+            if pct_missing >= 100 and required_columns and column in required_columns:
+                _logger.debug("determine_validation_status: 100%% null in '%s' — status='incomplete'", column)
+                return 'incomplete'
 
-    # Get category columns from schema
-    cat_cols = {col['name'] for col in schema.get('columns', [])
-                if col.get('is_category_column')}
-
-    # Process each column in config
-    for col_name, col_config in table_config.items():
-        if col_name not in df.columns:
-            continue
-
-        # Pattern 1: Simple range {min: X, max: Y}
-        if 'min' in col_config and 'max' in col_config:
-            results.extend(_validate_simple_range(df, table_name, col_name, col_config))
-            continue
-
-        # Pattern 2 & 3: Category-dependent
-        category_col = _find_category_column(df, col_config, cat_cols)
-        if not category_col:
-            continue
-
-        first_val = col_config[list(col_config.keys())[0]]
-
-        # Pattern 2: Single category {category: {min: X, max: Y}}
-        if isinstance(first_val, dict) and 'min' in first_val:
-            results.extend(_validate_single_category(
-                df, table_name, col_name, col_config, category_col
-            ))
-
-        # Pattern 3: Double category {cat1: {cat2: {min: X, max: Y}}}
-        else:
-            sec_col = _find_secondary_category_column(df, col_config, cat_cols, category_col)
-            if sec_col:
-                results.extend(_validate_double_category(
-                    df, table_name, col_name, col_config, category_col, sec_col
-                ))
-
-    return results
-
-
-def _validate_numeric_ranges_polars(
-    df: pd.DataFrame,
-    table_name: str,
-    schema: Dict[str, Any],
-    table_config: Dict[str, Any]
-) -> List[Dict[str, Any]]:
-    """Polars implementation of numeric range validation (much faster)."""
-    results = []
-
-    # Convert to Polars DataFrame
-    df_pl = pl.from_pandas(df)
-
-    # Get category columns from schema
-    cat_cols = {col['name'] for col in schema.get('columns', [])
-                if col.get('is_category_column')}
-
-    # Process each column in config
-    for col_name, col_config in table_config.items():
-        if col_name not in df.columns:
-            continue
-
-        # Pattern 1: Simple range {min: X, max: Y}
-        if 'min' in col_config and 'max' in col_config:
-            results.extend(_validate_simple_range_polars(df_pl, table_name, col_name, col_config))
-            continue
-
-        # Pattern 2 & 3: Category-dependent
-        category_col = _find_category_column(df, col_config, cat_cols)
-        if not category_col:
-            continue
-
-        first_val = col_config[list(col_config.keys())[0]]
-
-        # Pattern 2: Single category {category: {min: X, max: Y}}
-        if isinstance(first_val, dict) and 'min' in first_val:
-            results.extend(_validate_single_category_polars(
-                df_pl, table_name, col_name, col_config, category_col
-            ))
-
-        # Pattern 3: Double category {cat1: {cat2: {min: X, max: Y}}}
-        else:
-            sec_col = _find_secondary_category_column(df, col_config, cat_cols, category_col)
-            if sec_col:
-                results.extend(_validate_double_category_polars(
-                    df_pl, table_name, col_name, col_config, category_col, sec_col
-                ))
-
-    return results
-
-
-def _process_chunk(
-    chunk: pd.DataFrame,
-    table_name: str,
-    schema: Dict[str, Any],
-    outlier_config: Dict[str, Any],
-    use_polars: bool
-) -> List[Dict[str, Any]]:
-    """Process a single chunk of data."""
-    return validate_numeric_ranges_from_config(
-        chunk, table_name, schema, outlier_config,
-        use_polars=use_polars, chunk_size=None
+    # Has errors but not critical -> partial
+    has_errors = any(
+        e.get('severity', 'error') == 'error'
+        for e in errors
     )
 
+    if has_errors:
+        _logger.debug("determine_validation_status: has non-critical errors — status='partial'")
+        return 'partial'
 
-def _validate_with_chunking(
-    df: pd.DataFrame,
+    # Only warnings -> complete
+    _logger.debug("determine_validation_status: warnings only — status='complete'")
+    return 'complete'
+
+
+def classify_errors_by_status_impact(
+    errors: Dict[str, List[Dict[str, Any]]],
+    required_columns: List[str],
     table_name: str,
-    schema: Dict[str, Any],
-    outlier_config: Dict[str, Any],
-    chunk_size: int,
-    n_jobs: Optional[int],
-    use_polars: bool
-) -> List[Dict[str, Any]]:
-    """Process large datasets in chunks with multiprocessing."""
-    if n_jobs is None:
-        n_jobs = max(1, cpu_count() - 1)
-
-    # Split dataframe into chunks
-    chunks = [df[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
-
-    # Process chunks in parallel
-    process_func = partial(
-        _process_chunk,
-        table_name=table_name,
-        schema=schema,
-        outlier_config=outlier_config,
-        use_polars=use_polars
-    )
-
-    with Pool(n_jobs) as pool:
-        chunk_results = pool.map(process_func, chunks)
-
-    # Merge results from all chunks
-    merged_results = {}
-    for chunk_result in chunk_results:
-        for result in chunk_result:
-            # Create unique key for each validation
-            if 'category' in result:
-                key = (result['column'], result.get('category'))
-            elif 'primary_category' in result:
-                key = (result['column'], result.get('primary_category'), result.get('secondary_category'))
-            else:
-                key = (result['column'],)
-
-            # Aggregate counts
-            if key in merged_results:
-                merged_results[key]['below_min_count'] += result['below_min_count']
-                merged_results[key]['above_max_count'] += result['above_max_count']
-            else:
-                merged_results[key] = result.copy()
-
-    # Update messages with merged counts
-    final_results = []
-    for result in merged_results.values():
-        below = result['below_min_count']
-        above = result['above_max_count']
-
-        if 'category' in result:
-            category = result['category']
-            col_name = result['column']
-            result['message'] = f"Category {category} for column '{col_name}' has {below} values below minimum *{result['min_expected']}* & {above} values above maximum *{result['max_expected']}*"
-        elif 'primary_category' in result:
-            cat1 = result['primary_category']
-            cat2 = result['secondary_category']
-            col_name = result['column']
-            result['message'] = f"{cat1} ({cat2}) for column '{col_name}' has {below} values below minimum *{result['min_expected']}* & {above} values above maximum *{result['max_expected']}*"
-        else:
-            col_name = result['column']
-            result['message'] = f"Column '{col_name}' has {below} values below minimum *{result['min_expected']}* & {above} values above maximum *{result['max_expected']}*"
-
-        final_results.append(result)
-
-    return final_results
-
-
-def plot_outlier_distribution(
-    df: pd.DataFrame,
-    table_name: str,
-    schema: Dict[str, Any],
-    outlier_config: Dict[str, Any],
-    save_path: Optional[str] = None,
-    show_plot: bool = True,
-    figsize: Optional[Tuple[int, int]] = None,
-    max_cols: int = 3,
-    max_plots_per_figure: Optional[int] = 6
-) -> Optional[List[plt.Figure]]:
+    config_timezone: Optional[str] = None
+) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
     """
-    Create boxplots showing outlier distributions for numeric columns.
+    Classify errors into status-affecting and informational categories.
 
-    This function creates visualizations that show:
-    - Data distribution via boxplots
-    - Expected min/max ranges as red horizontal lines
-    - Outliers beyond the expected ranges highlighted
+    Used by PDF/report generators to separate critical errors from
+    informational messages.
 
     Parameters
     ----------
-    df : pd.DataFrame
-        The dataframe to visualize
+    errors : dict
+        Dictionary with keys 'schema_errors', 'data_quality_issues', 'other_errors'
+    required_columns : list
+        List of required column names
     table_name : str
-        Name of the table being validated
-    schema : dict
-        Table schema with column definitions
-    outlier_config : dict
-        Outlier configuration from outlier_config.yaml
-    save_path : str, optional
-        Path to save the figure. If None, figure is not saved.
-        If multiple figures are created, saves as 'path_part1.png', 'path_part2.png', etc.
-    show_plot : bool, default=True
-        Whether to display the plot
-    figsize : tuple, optional
-        Figure size as (width, height). If None, automatically calculated based on number of plots.
-    max_cols : int, default=3
-        Maximum number of columns in the grid layout
-    max_plots_per_figure : int, optional, default=6
-        Maximum number of plots per figure. If more plots exist, splits into multiple figures.
-        Set to None to disable splitting. Default creates 2 rows × 3 columns layout.
+        Name of the table
+    config_timezone : str, optional
+        Configured timezone (to filter timezone-related errors)
 
     Returns
     -------
-    List[matplotlib.figure.Figure] or None
-        List of figure objects if plots were created, None otherwise
-
-    Examples
-    --------
-    >>> from clifpy.utils.validator import load_outlier_config, plot_outlier_distribution
-    >>>
-    >>> outlier_config = load_outlier_config()
-    >>> fig = plot_outlier_distribution(
-    ...     vitals_df, 'vitals', vitals_schema, outlier_config,
-    ...     save_path='vitals_outliers.png'
-    ... )
+    dict
+        Dictionary with 'status_affecting' and 'informational', each containing
+        'schema_errors', 'data_quality_issues', and 'other_errors' lists
     """
-    table_config = outlier_config.get('tables', {}).get(table_name, {})
-    if not table_config:
-        return None
+    status_affecting = {
+        'schema_errors': [],
+        'data_quality_issues': [],
+        'other_errors': []
+    }
+    informational = {
+        'schema_errors': [],
+        'data_quality_issues': [],
+        'other_errors': []
+    }
 
-    # Get category columns from schema
-    cat_cols = {col['name'] for col in schema.get('columns', [])
-                if col.get('is_category_column')}
+    # Columns that are optional and shouldn't affect status
+    optional_columns = {
+        'patient': ['race', 'ethnicity', 'language'],
+        'hospitalization': ['discharge_category'],
+    }
+    table_optional = optional_columns.get(table_name, [])
 
-    # Collect plot data
-    plot_data = []
+    # Process each error category
+    for category_key in ['schema_errors', 'data_quality_issues', 'other_errors']:
+        for error in errors.get(category_key, []):
+            error_type = error.get('type', '').lower()
+            details = error.get('details', {})
+            description = error.get('description', '').lower()
 
-    for col_name, col_config in table_config.items():
-        if col_name not in df.columns:
-            continue
+            is_informational = False
 
-        # Pattern 1: Simple range {min: X, max: Y}
-        if 'min' in col_config and 'max' in col_config:
-            data = df[col_name].dropna()
-            if len(data) > 0:
-                plot_data.append({
-                    'label': col_name,
-                    'data': data,
-                    'min': col_config['min'],
-                    'max': col_config['max']
-                })
-        else:
-            # Pattern 2 & 3: Category-dependent
-            category_col = _find_category_column(df, col_config, cat_cols)
-            if not category_col:
-                continue
+            # Filter out timezone errors for configured timezone
+            if config_timezone and 'timezone' in error_type:
+                if config_timezone.lower() in description:
+                    is_informational = True
 
-            first_val = col_config[list(col_config.keys())[0]]
+            # Filter out optional column issues
+            column = details.get('column', '')
+            if column in table_optional:
+                is_informational = True
 
-            # Pattern 2: Single category
-            if isinstance(first_val, dict) and 'min' in first_val:
-                for category, ranges in col_config.items():
-                    mask = df[category_col].astype(str).str.lower() == category.lower()
-                    if mask.any():
-                        data = df.loc[mask, col_name].dropna()
-                        if len(data) > 0:
-                            plot_data.append({
-                                'label': f"{category}\n({col_name})",
-                                'data': data,
-                                'min': ranges['min'],
-                                'max': ranges['max']
-                            })
+            # mCIDE coverage gaps are informational
+            if 'mcide' in error_type or 'coverage' in error_type:
+                is_informational = True
 
-            # Pattern 3: Double category
+            # Warnings are generally informational
+            if error.get('severity') == 'warning':
+                is_informational = True
+
+            # Classify into appropriate bucket
+            if is_informational:
+                informational[category_key].append(error)
             else:
-                sec_col = _find_secondary_category_column(df, col_config, cat_cols, category_col)
-                if sec_col:
-                    for cat1, sub_config in col_config.items():
-                        for cat2, ranges in sub_config.items():
-                            if not isinstance(ranges, dict) or 'min' not in ranges:
-                                continue
-                            mask = (
-                                (df[category_col].astype(str).str.lower() == cat1.lower()) &
-                                (df[sec_col].astype(str).str.lower() == cat2.lower())
-                            )
-                            if mask.any():
-                                data = df.loc[mask, col_name].dropna()
-                                if len(data) > 0:
-                                    plot_data.append({
-                                        'label': f"{cat1}\n{cat2}\n({col_name})",
-                                        'data': data,
-                                        'min': ranges['min'],
-                                        'max': ranges['max']
-                                    })
+                status_affecting[category_key].append(error)
 
-    if not plot_data:
-        return None
+    return {
+        'status_affecting': status_affecting,
+        'informational': informational
+    }
 
-    # Split into multiple figures if needed
-    n_total = len(plot_data)
-    if max_plots_per_figure and n_total > max_plots_per_figure:
-        n_figures = (n_total + max_plots_per_figure - 1) // max_plots_per_figure
-        plot_chunks = [plot_data[i:i + max_plots_per_figure]
-                       for i in range(0, n_total, max_plots_per_figure)]
+
+def get_validation_summary(validation_results: Dict[str, Any]) -> str:
+    """
+    Generate a text summary of validation results.
+
+    Parameters
+    ----------
+    validation_results : dict
+        Validation results from validate() method
+
+    Returns
+    -------
+    str
+        Human-readable summary string
+    """
+    status = validation_results.get('status', 'unknown')
+    errors = validation_results.get('errors', {})
+
+    schema_count = len(errors.get('schema_errors', []))
+    dq_count = len(errors.get('data_quality_issues', []))
+    other_count = len(errors.get('other_errors', []))
+    total = schema_count + dq_count + other_count
+
+    status_emoji = {
+        'complete': '✓',
+        'partial': '⚠',
+        'incomplete': '✗'
+    }
+
+    summary_parts = [
+        f"Status: {status_emoji.get(status, '?')} {status.upper()}"
+    ]
+
+    if total > 0:
+        summary_parts.append(f"Issues: {total} total")
+        if schema_count:
+            summary_parts.append(f"  - Schema: {schema_count}")
+        if dq_count:
+            summary_parts.append(f"  - Data Quality: {dq_count}")
+        if other_count:
+            summary_parts.append(f"  - Other: {other_count}")
     else:
-        n_figures = 1
-        plot_chunks = [plot_data]
+        summary_parts.append("No issues found")
 
-    figures = []
-
-    for fig_idx, chunk in enumerate(plot_chunks):
-        n_plots = len(chunk)
-        n_cols = min(max_cols, n_plots)
-        n_rows = (n_plots + n_cols - 1) // n_cols  # Ceiling division
-
-        # Auto-calculate figsize if not provided
-        if figsize is None:
-            width = min(4 * n_cols, 20)  # Cap at 20 inches wide
-            height = 4 * n_rows
-            current_figsize = (width, height)
-        else:
-            current_figsize = figsize
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=current_figsize, squeeze=False)
-        axes = axes.flatten()
-
-        # Hide unused subplots
-        for idx in range(n_plots, len(axes)):
-            axes[idx].axis('off')
-
-        for idx, item in enumerate(chunk):
-            ax = axes[idx]
-            data = item['data']
-
-            # Create boxplot
-            bp = ax.boxplot([data], widths=0.6, patch_artist=True,
-                            boxprops=dict(facecolor='lightblue', alpha=0.7),
-                            medianprops=dict(color='darkblue', linewidth=2),
-                            flierprops=dict(marker='o', markerfacecolor='red',
-                                           markersize=4, alpha=0.5))
-
-            # Add expected range lines
-            ax.axhline(y=item['min'], color='red', linestyle='--',
-                       linewidth=2, label=f"Min: {item['min']}")
-            ax.axhline(y=item['max'], color='red', linestyle='--',
-                       linewidth=2, label=f"Max: {item['max']}")
-
-            # Shade the acceptable range
-            ax.axhspan(item['min'], item['max'], alpha=0.1, color='green')
-
-            # Count outliers
-            below = (data < item['min']).sum()
-            above = (data > item['max']).sum()
-
-            # Set labels and title
-            ax.set_title(f"{item['label']}\n(n={len(data)})", fontsize=9, pad=10)
-            ax.set_ylabel('Value', fontsize=8)
-            ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
-            ax.legend(fontsize=7, loc='best')
-            ax.grid(True, alpha=0.3, axis='y')
-
-            # Add outlier counts as text
-            if below > 0 or above > 0:
-                outlier_text = f"Below: {below}\nAbove: {above}"
-                ax.text(0.02, 0.98, outlier_text, transform=ax.transAxes,
-                       fontsize=7, verticalalignment='top',
-                       bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-
-        # Add title with part number if multiple figures
-        if n_figures > 1:
-            fig.suptitle(f'Outlier Distribution: {table_name} (Part {fig_idx + 1}/{n_figures})',
-                        fontsize=12, y=0.995)
-        else:
-            fig.suptitle(f'Outlier Distribution: {table_name}', fontsize=12, y=0.995)
-
-        plt.tight_layout(rect=[0, 0, 1, 0.99])
-
-        # Save with part number if multiple figures
-        if save_path:
-            if n_figures > 1:
-                base, ext = save_path.rsplit('.', 1) if '.' in save_path else (save_path, 'png')
-                current_save_path = f"{base}_part{fig_idx + 1}.{ext}"
-            else:
-                current_save_path = save_path
-            fig.savefig(current_save_path, dpi=150, bbox_inches='tight')
-
-        if show_plot:
-            plt.show()
-
-        figures.append(fig)
-
-    return figures if figures else None
+    return '\n'.join(summary_parts)
