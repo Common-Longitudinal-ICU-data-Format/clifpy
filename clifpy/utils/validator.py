@@ -8,8 +8,8 @@ CONFORMANCE CHECKS:
 - A.2. Required columns presence check
 - B.1. Data type validation
 - B.2. Datetime format validation
-- B.3. Lab reference units validation
 - B.4. Categorical values validation against mCIDE
+- B.5. Category-to-group mapping validation
 
 COMPLETENESS CHECKS:
 - A.1. Missingness analysis for required columns
@@ -1130,6 +1130,208 @@ def check_categorical_values(
     return result
 
 
+# B.5. Category-to-group mapping validation
+
+def check_category_group_mapping_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if category-to-group mappings match schema definitions using Polars."""
+    result = DQAConformanceResult("category_group_mapping", table_name)
+
+    # Discover all *_category_to_group_mapping keys in the schema
+    mapping_keys = [k for k in schema if k.endswith('_category_to_group_mapping')]
+    if not mapping_keys:
+        result.add_info("No category-to-group mappings defined in schema")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        for mapping_key in mapping_keys:
+            mapping = schema[mapping_key]
+            if not mapping:
+                continue
+
+            # Derive column names: e.g. "med_category_to_group_mapping" -> category_col="med_category", group_col="med_group"
+            category_col = mapping_key.replace('_to_group_mapping', '')
+            group_col = category_col.replace('_category', '_group')
+
+            if category_col not in col_names or group_col not in col_names:
+                result.add_info(
+                    f"Skipping mapping '{mapping_key}': columns '{category_col}' and/or '{group_col}' not in DataFrame"
+                )
+                continue
+
+            # Group by (category_col, group_col) where both non-null
+            pair_counts = (
+                lf
+                .filter(pl.col(category_col).is_not_null() & pl.col(group_col).is_not_null())
+                .group_by([category_col, group_col])
+                .agg(pl.len().alias('count'))
+                .collect(streaming=True)
+            )
+
+            mismatched = []
+            valid_count = 0
+            total_count = 0
+
+            for row in pair_counts.iter_rows(named=True):
+                cat_val = row[category_col]
+                grp_val = row[group_col]
+                count = row['count']
+                total_count += count
+
+                expected_group = mapping.get(cat_val)
+                if expected_group is None:
+                    # Category not in mapping — not a mismatch, just unmapped
+                    valid_count += count
+                    continue
+
+                cat_lower = str(grp_val).lower().strip() if grp_val else ''
+                expected_lower = str(expected_group).lower().strip()
+
+                if cat_lower == expected_lower or grp_val == expected_group:
+                    valid_count += count
+                else:
+                    mismatched.append({
+                        "category": cat_val,
+                        "actual_group": grp_val,
+                        "expected_group": expected_group,
+                        "count": count
+                    })
+
+            result.metrics[f"{mapping_key}_total_records"] = total_count
+            result.metrics[f"{mapping_key}_valid_count"] = valid_count
+            result.metrics[f"{mapping_key}_mismatch_count"] = len(mismatched)
+
+            if mismatched:
+                mismatched.sort(key=lambda x: x['count'], reverse=True)
+                result.add_warning(
+                    f"Found {len(mismatched)} mismatched category-group pairs for '{mapping_key}'",
+                    {"mismatched_pairs": mismatched[:20]}
+                )
+            else:
+                result.add_info(f"All category-group pairs match for '{mapping_key}'")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'category_group_mapping' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking category-group mapping: {str(e)}")
+
+    return result
+
+
+def check_category_group_mapping_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if category-to-group mappings match schema definitions using DuckDB."""
+    result = DQAConformanceResult("category_group_mapping", table_name)
+
+    # Discover all *_category_to_group_mapping keys in the schema
+    mapping_keys = [k for k in schema if k.endswith('_category_to_group_mapping')]
+    if not mapping_keys:
+        result.add_info("No category-to-group mappings defined in schema")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('mapping_df', df)
+        col_names = list(df.columns)
+
+        for mapping_key in mapping_keys:
+            mapping = schema[mapping_key]
+            if not mapping:
+                continue
+
+            # Derive column names
+            category_col = mapping_key.replace('_to_group_mapping', '')
+            group_col = category_col.replace('_category', '_group')
+
+            if category_col not in col_names or group_col not in col_names:
+                result.add_info(
+                    f"Skipping mapping '{mapping_key}': columns '{category_col}' and/or '{group_col}' not in DataFrame"
+                )
+                continue
+
+            # Group by (category_col, group_col) where both non-null
+            pair_counts = con.execute(f"""
+                SELECT "{category_col}", "{group_col}", COUNT(*) as count
+                FROM mapping_df
+                WHERE "{category_col}" IS NOT NULL AND "{group_col}" IS NOT NULL
+                GROUP BY "{category_col}", "{group_col}"
+            """).fetchall()
+
+            mismatched = []
+            valid_count = 0
+            total_count = 0
+
+            for row in pair_counts:
+                cat_val, grp_val, count = row
+                total_count += count
+
+                expected_group = mapping.get(cat_val)
+                if expected_group is None:
+                    # Category not in mapping — not a mismatch, just unmapped
+                    valid_count += count
+                    continue
+
+                cat_lower = str(grp_val).lower().strip() if grp_val else ''
+                expected_lower = str(expected_group).lower().strip()
+
+                if cat_lower == expected_lower or grp_val == expected_group:
+                    valid_count += count
+                else:
+                    mismatched.append({
+                        "category": cat_val,
+                        "actual_group": grp_val,
+                        "expected_group": expected_group,
+                        "count": int(count)
+                    })
+
+            result.metrics[f"{mapping_key}_total_records"] = int(total_count)
+            result.metrics[f"{mapping_key}_valid_count"] = int(valid_count)
+            result.metrics[f"{mapping_key}_mismatch_count"] = len(mismatched)
+
+            if mismatched:
+                mismatched.sort(key=lambda x: x['count'], reverse=True)
+                result.add_warning(
+                    f"Found {len(mismatched)} mismatched category-group pairs for '{mapping_key}'",
+                    {"mismatched_pairs": mismatched[:20]}
+                )
+            else:
+                result.add_info(f"All category-group pairs match for '{mapping_key}'")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'category_group_mapping' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking category-group mapping: {str(e)}")
+
+    return result
+
+
+def check_category_group_mapping(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str
+) -> DQAConformanceResult:
+    """Check if category-to-group mappings match schema definitions."""
+    _logger.debug("check_category_group_mapping: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_category_group_mapping_polars(df, schema, table_name)
+    else:
+        result = check_category_group_mapping_duckdb(df, schema, table_name)
+    _logger.debug("check_category_group_mapping: table '%s' — completed", table_name)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # COMPLETENESS CHECKS
 # ---------------------------------------------------------------------------
@@ -1355,6 +1557,24 @@ def check_missingness(
 
 
 # A.2. Conditional required fields
+def _load_validation_rules() -> Dict[str, Any]:
+    """Load the centralised validation rules YAML."""
+    rules_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), 'schemas', 'validation_rules.yaml'
+    )
+    if not os.path.exists(rules_path):
+        _logger.warning("Validation rules file not found: %s", rules_path)
+        return {}
+    with open(rules_path, 'r') as f:
+        return yaml.safe_load(f) or {}
+
+
+def _get_default_conditions(table_name: str) -> List[Dict[str, Any]]:
+    """Load default conditional requirements for a table from validation_rules.yaml."""
+    rules = _load_validation_rules()
+    return rules.get('conditional_requirements', {}).get(table_name, [])
+
+
 def check_conditional_requirements_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -1363,41 +1583,8 @@ def check_conditional_requirements_polars(
     """Check conditional required fields using Polars."""
     result = DQACompletenessResult("conditional_requirements", table_name)
 
-    default_conditions = {
-        'adt': [
-            {
-                'when_column': 'location_category',
-                'when_value': ['icu'],
-                'then_required': ['location_type'],
-                'description': 'ICU locations must have location_type specified'
-            }
-        ],
-        'respiratory_support': [
-            {
-                'when_column': 'device_category',
-                'when_value': ['IMV', 'NIPPV'],
-                'then_required': ['mode_category'],
-                'description': 'IMV/NIPPV must have mode_category specified'
-            },
-            {
-                'when_column': 'device_category',
-                'when_value': ['IMV'],
-                'then_required': ['fio2_set', 'peep_set'],
-                'description': 'IMV must have fio2_set and peep_set specified'
-            }
-        ],
-        'crrt_therapy': [
-            {
-                'when_column': 'crrt_status',
-                'when_value': ['running', 'active'],
-                'then_required': ['blood_flow_rate', 'dialysate_flow_rate'],
-                'description': 'Active CRRT must have flow rates specified'
-            }
-        ]
-    }
-
     if conditions is None:
-        conditions = default_conditions.get(table_name, [])
+        conditions = _get_default_conditions(table_name)
 
     if not conditions:
         result.add_info("No conditional requirements defined for this table")
@@ -1421,6 +1608,20 @@ def check_conditional_requirements_polars(
 
             filtered = lf.filter(pl.col(when_col).is_in(when_values))
 
+            # Optional compound condition: and_column / and_value
+            and_col = cond.get('and_column')
+            and_values = cond.get('and_value')
+            if and_col and and_values is not None:
+                if and_col not in col_names:
+                    continue
+                if not isinstance(and_values, list):
+                    and_values = [and_values]
+                filtered = filtered.filter(pl.col(and_col).is_in(and_values))
+
+            condition_label = f"{when_col} IN {when_values}"
+            if and_col and and_values is not None:
+                condition_label += f" AND {and_col} IN {and_values}"
+
             for req_col in then_required:
                 if req_col not in col_names:
                     continue
@@ -1438,7 +1639,7 @@ def check_conditional_requirements_polars(
                     result.add_warning(
                         f"Conditional requirement violated: {description}",
                         {
-                            "condition": f"{when_col} IN {when_values}",
+                            "condition": condition_label,
                             "required_column": req_col,
                             "rows_meeting_condition": int(total),
                             "rows_with_missing": int(null_count),
@@ -1466,27 +1667,8 @@ def check_conditional_requirements_duckdb(
     """Check conditional required fields using DuckDB."""
     result = DQACompletenessResult("conditional_requirements", table_name)
 
-    default_conditions = {
-        'adt': [
-            {
-                'when_column': 'location_category',
-                'when_value': ['icu'],
-                'then_required': ['location_type'],
-                'description': 'ICU locations must have location_type specified'
-            }
-        ],
-        'respiratory_support': [
-            {
-                'when_column': 'device_category',
-                'when_value': ['IMV', 'NIPPV'],
-                'then_required': ['mode_category'],
-                'description': 'IMV/NIPPV must have mode_category specified'
-            }
-        ]
-    }
-
     if conditions is None:
-        conditions = default_conditions.get(table_name, [])
+        conditions = _get_default_conditions(table_name)
 
     if not conditions:
         result.add_info("No conditional requirements defined for this table")
@@ -1508,6 +1690,22 @@ def check_conditional_requirements_duckdb(
             if not isinstance(when_values, list):
                 when_values = [when_values]
 
+            # Optional compound condition: and_column / and_value
+            and_col = cond.get('and_column')
+            and_values = cond.get('and_value')
+            and_clause = ""
+            if and_col and and_values is not None:
+                if and_col not in df.columns:
+                    continue
+                if not isinstance(and_values, list):
+                    and_values = [and_values]
+                and_values_str = ', '.join([f"'{v.lower()}'" for v in and_values])
+                and_clause = f' AND LOWER("{and_col}") IN ({and_values_str})'
+
+            condition_label = f"{when_col} IN {when_values}"
+            if and_col and and_values is not None:
+                condition_label += f" AND {and_col} IN {and_values}"
+
             for req_col in then_required:
                 if req_col not in df.columns:
                     continue
@@ -1518,7 +1716,7 @@ def check_conditional_requirements_duckdb(
                         COUNT(*) as total,
                         COUNT(*) - COUNT("{req_col}") as null_count
                     FROM df
-                    WHERE LOWER("{when_col}") IN ({values_str})
+                    WHERE LOWER("{when_col}") IN ({values_str}){and_clause}
                 """).fetchone()
 
                 total, null_count = stats
@@ -1528,7 +1726,7 @@ def check_conditional_requirements_duckdb(
                     result.add_warning(
                         f"Conditional requirement violated: {description}",
                         {
-                            "condition": f"{when_col} IN {when_values}",
+                            "condition": condition_label,
                             "required_column": req_col,
                             "rows_meeting_condition": int(total),
                             "rows_with_missing": int(null_count),
@@ -1866,32 +2064,105 @@ def check_relational_integrity_duckdb(
 
 
 def check_relational_integrity(
-    source_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    target_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     reference_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
-    source_table: str,
+    target_table: str,
     reference_table: str,
     key_column: str
 ) -> DQACompletenessResult:
-    """Check relational integrity between tables."""
-    _logger.debug("check_relational_integrity: starting for '%s' -> '%s' on key '%s'",
-                  source_table, reference_table, key_column)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_relational_integrity_polars(
-            source_df, reference_df, source_table, reference_table, key_column
+    """Check bidirectional relational integrity between tables.
+
+    Runs the backend-specific check in both directions:
+    - **Forward** (reference → target): What percentage of reference IDs
+      appear in the target table?  (e.g., "what % of hospitalizations
+      have labs?")
+    - **Reverse** (target → reference): What percentage of target IDs
+      exist in the reference table?  (e.g., "what % of lab hosp_ids are
+      valid?")
+
+    Parameters
+    ----------
+    target_df : DataFrame
+        The target table (e.g., labs).
+    reference_df : DataFrame
+        The reference table (e.g., hospitalization).
+    target_table : str
+        Name of the target table.
+    reference_table : str
+        Name of the reference table.
+    key_column : str
+        The shared key column (e.g., ``hospitalization_id``).
+
+    Returns
+    -------
+    DQACompletenessResult
+        Consolidated result with forward/reverse coverage metrics.
+    """
+    _logger.debug(
+        "check_relational_integrity: '%s' <-> '%s' on key '%s'",
+        target_table, reference_table, key_column,
+    )
+    result = DQACompletenessResult(
+        "relational_integrity",
+        f"{target_table}<->{reference_table}",
+    )
+
+    # Pick the right backend dispatcher
+    _backend_fn = (check_relational_integrity_polars
+                   if _ACTIVE_BACKEND == 'polars'
+                   else check_relational_integrity_duckdb)
+
+    try:
+        # Forward: reference → target  (source=reference, ref=target)
+        fwd = _backend_fn(
+            reference_df, target_df, reference_table, target_table, key_column
         )
-    else:
-        result = check_relational_integrity_duckdb(
-            source_df, reference_df,
-            source_table, reference_table, key_column
+        # Reverse: target → reference  (source=target, ref=reference)
+        rev = _backend_fn(
+            target_df, reference_df, target_table, reference_table, key_column
         )
-    orphan_count = result.metrics.get("orphan_ids", 0)
-    if orphan_count > 0:
-        _logger.info("check_relational_integrity: '%s' -> '%s' — %d orphan IDs found",
-                     source_table, reference_table, orphan_count)
-    _logger.debug("check_relational_integrity: '%s' -> '%s' — source_ids=%s, ref_ids=%s, orphans=%s",
-                  source_table, reference_table, result.metrics.get("source_unique_ids"),
-                  result.metrics.get("reference_unique_ids"), orphan_count)
+
+        result.metrics["forward_coverage_percent"] = fwd.metrics.get("coverage_percent", 0)
+        result.metrics["forward_orphan_ids"] = fwd.metrics.get("orphan_ids", 0)
+        result.metrics["forward_reference_unique_ids"] = fwd.metrics.get("source_unique_ids", 0)
+        result.metrics["reverse_coverage_percent"] = rev.metrics.get("coverage_percent", 0)
+        result.metrics["reverse_orphan_ids"] = rev.metrics.get("orphan_ids", 0)
+        result.metrics["reverse_target_unique_ids"] = rev.metrics.get("source_unique_ids", 0)
+
+        # Propagate warnings/errors from both directions
+        for w in fwd.warnings:
+            result.add_warning(f"[forward] {w['message']}", w.get("details", {}))
+        for w in rev.warnings:
+            result.add_warning(f"[reverse] {w['message']}", w.get("details", {}))
+        for e in fwd.errors:
+            result.add_error(f"[forward] {e['message']}", e.get("details", {}))
+        for e in rev.errors:
+            result.add_error(f"[reverse] {e['message']}", e.get("details", {}))
+
+        # Info when both directions are clean
+        if fwd.passed and rev.passed:
+            result.add_info(
+                f"Full bidirectional coverage for {key_column} between "
+                f"{target_table} and {reference_table}"
+            )
+
+        _logger.info(
+            "check_relational_integrity: '%s' <-> '%s' — "
+            "fwd_coverage=%.1f%%, rev_coverage=%.1f%%",
+            target_table, reference_table,
+            result.metrics["forward_coverage_percent"],
+            result.metrics["reverse_coverage_percent"],
+        )
+
+    except Exception as e:
+        _logger.error(
+            "Check 'relational_integrity' failed for '%s' <-> '%s': %s",
+            target_table, reference_table, e,
+        )
+        result.add_error(f"Error checking relational integrity: {str(e)}")
+
     return result
+
 
 # ---------------------------------------------------------------------------
 # DQA: PLAUSIBILITY CHECKS
@@ -1951,6 +2222,9 @@ def run_conformance_checks(
         gc.collect()
 
     results['categorical_values'] = check_categorical_values(df, schema, table_name)
+    gc.collect()
+
+    results['category_group_mapping'] = check_category_group_mapping(df, schema, table_name)
     gc.collect()
 
     passed = sum(1 for r in results.values() if r.passed)
@@ -2015,76 +2289,166 @@ def run_completeness_checks(
     return results
 
 
-# def run_full_dqa(
-#     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
-#     schema: Dict[str, Any],
-#     table_name: str,
-#     reference_tables: Optional[Dict[str, Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame']]] = None
-# ) -> Dict[str, Any]:
-#     """
-#     Run complete DQA suite on a table.
+def run_relational_integrity_checks(
+    tables: list,
+) -> Dict[str, Dict[str, DQACompletenessResult]]:
+    """Auto-detect and run relational integrity checks for loaded tables.
 
-#     Parameters
-#     ----------
-#     df : DataFrame
-#         The data to validate
-#     schema : dict
-#         Schema for the table
-#     table_name : str
-#         Name of the table
-#     reference_tables : dict, optional
-#         Dictionary of reference tables for relational checks
-#         Keys should be 'patient' and/or 'hospitalization'
+    Reads FK rules from ``validation_rules.yaml`` and runs
+    :func:`check_relational_integrity` for every applicable
+    (table, fk_column) pair.
 
-#     Returns
-#     -------
-#     Dict[str, Any]
-#         Complete DQA results including conformance and completeness checks
-#     """
-#     _logger.info(f"Starting full DQA for table: {table_name}")
+    Parameters
+    ----------
+    tables : list
+        Objects with ``.table_name`` (str) and ``.df`` (DataFrame)
+        attributes — typically :class:`BaseTable` instances.
 
-#     # Determine backend for reporting
-#     backend = 'polars' if HAS_POLARS else ('duckdb' if HAS_DUCKDB else 'none')
+    Returns
+    -------
+    Dict[str, Dict[str, DQACompletenessResult]]
+        ``{table_name: {fk_column: DQACompletenessResult}}``.
+    """
+    _logger.info("run_relational_integrity_checks: starting with %d tables", len(tables))
 
-#     results = {
-#         'table_name': table_name,
-#         'backend': backend,
-#         'conformance': {},
-#         'completeness': {},
-#         'relational': {}
-#     }
+    # Build lookup: table_name -> DataFrame
+    # Convert pandas DataFrames to Polars when the Polars backend is active,
+    # matching the pattern used by run_conformance_checks / run_completeness_checks.
+    lookup = {}
+    for obj in tables:
+        df = obj.df
+        if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+            _logger.debug("Converting pandas DataFrame to Polars for table '%s'", obj.table_name)
+            df = pl.from_pandas(df)
+        lookup[obj.table_name] = df
 
-#     results['conformance'] = {
-#         k: v.to_dict()
-#         for k, v in run_conformance_checks(df, schema, table_name).items()
-#     }
+    # Load FK rules
+    fk_rules = _load_validation_rules().get('relational_integrity', {})
+    _logger.debug("run_relational_integrity_checks: loaded %d FK rules", len(fk_rules))
 
-#     results['completeness'] = {
-#         k: v.to_dict()
-#         for k, v in run_completeness_checks(df, schema, table_name).items()
-#     }
+    results: Dict[str, Dict[str, DQACompletenessResult]] = {}
 
-#     if reference_tables:
-#         if HAS_POLARS:
-#             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-#             col_names = lf.collect_schema().names()
-#         else:
-#             col_names = df.columns.tolist()
+    for table_name, df in lookup.items():
+        # Determine column names from the DataFrame
+        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+            col_names = lf.collect_schema().names()
+        else:
+            col_names = df.columns.tolist()
 
-#         if 'patient' in reference_tables and 'patient_id' in col_names:
-#             results['relational']['patient_id'] = check_relational_integrity(
-#                 df, reference_tables['patient'], table_name, 'patient', 'patient_id'
-#             ).to_dict()
+        for fk_column, rule in fk_rules.items():
+            if fk_column not in col_names:
+                continue
 
-#         if 'hospitalization' in reference_tables and 'hospitalization_id' in col_names:
-#             results['relational']['hospitalization_id'] = check_relational_integrity(
-#                 df, reference_tables['hospitalization'], table_name, 'hospitalization', 'hospitalization_id'
-#             ).to_dict()
+            ref_table_name = rule['references_table']
 
-#     _clear_memory()
-#     _logger.info(f"Completed full DQA for table: {table_name}")
+            # Skip self-references
+            if ref_table_name == table_name:
+                _logger.debug(
+                    "run_relational_integrity_checks: skipping self-ref "
+                    "%s.%s -> %s", table_name, fk_column, ref_table_name,
+                )
+                continue
 
-#     return results
+            # Skip if the reference table isn't loaded
+            if ref_table_name not in lookup:
+                _logger.debug(
+                    "run_relational_integrity_checks: skipping %s.%s — "
+                    "reference table '%s' not loaded",
+                    table_name, fk_column, ref_table_name,
+                )
+                continue
+
+            _logger.info(
+                "run_relational_integrity_checks: checking %s.%s -> %s",
+                table_name, fk_column, ref_table_name,
+            )
+            result = check_relational_integrity(
+                target_df=df,
+                reference_df=lookup[ref_table_name],
+                target_table=table_name,
+                reference_table=ref_table_name,
+                key_column=fk_column,
+            )
+            results.setdefault(table_name, {})[fk_column] = result
+
+    checked = sum(len(v) for v in results.values())
+    _logger.info(
+        "run_relational_integrity_checks: completed %d checks across %d tables",
+        checked, len(results),
+    )
+    return results
+
+
+def run_full_dqa(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    tables: Optional[list] = None,
+    error_threshold: float = 50.0,
+    warning_threshold: float = 10.0,
+) -> Dict[str, Any]:
+    """Run the complete DQA suite on a single table.
+
+    Orchestrates conformance checks, completeness checks, and — when
+    *tables* is provided — auto-detected relational integrity checks.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The data to validate.
+    schema : dict
+        Schema for the table.
+    table_name : str
+        Name of the table.
+    tables : list, optional
+        Objects with ``.table_name`` and ``.df`` attributes (e.g.
+        :class:`BaseTable` instances).  When provided, relational
+        integrity checks are run automatically.
+    error_threshold : float
+        Percent missing above which an error is raised (default 50).
+    warning_threshold : float
+        Percent missing above which a warning is raised (default 10).
+
+    Returns
+    -------
+    Dict[str, Any]
+        Keys: ``table_name``, ``backend``, ``conformance``,
+        ``completeness``, ``relational``.
+    """
+    _logger.info("Starting full DQA for table: %s", table_name)
+
+    results: Dict[str, Any] = {
+        'table_name': table_name,
+        'backend': _ACTIVE_BACKEND,
+        'conformance': {},
+        'completeness': {},
+        'relational': {},
+    }
+
+    results['conformance'] = {
+        k: v.to_dict()
+        for k, v in run_conformance_checks(df, schema, table_name).items()
+    }
+
+    results['completeness'] = {
+        k: v.to_dict()
+        for k, v in run_completeness_checks(
+            df, schema, table_name, error_threshold, warning_threshold
+        ).items()
+    }
+
+    if tables is not None:
+        rel_results = run_relational_integrity_checks(tables)
+        if table_name in rel_results:
+            results['relational'] = {
+                k: v.to_dict()
+                for k, v in rel_results[table_name].items()
+            }
+
+    gc.collect()
+    _logger.info("Completed full DQA for table: %s", table_name)
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -2190,7 +2554,8 @@ def _format_check_type(check_name: str) -> str:
         'categorical_values': 'Invalid Categorical Values',
         'missingness': 'High Missingness',
         'conditional_requirements': 'Conditional Requirement Violation',
-        'mcide_value_coverage': 'mCIDE Coverage Gap'
+        'mcide_value_coverage': 'mCIDE Coverage Gap',
+        'relational_integrity': 'Relational Integrity',
     }
     return type_mapping.get(check_name, check_name.replace('_', ' ').title())
 
