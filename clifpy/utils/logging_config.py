@@ -107,7 +107,7 @@ def setup_logging(
     # Handler 1: Main log file (all messages INFO and above)
     all_handler = logging.FileHandler(
         os.path.join(log_dir, 'clifpy_all.log'),
-        mode='w',
+        mode='a',
         encoding='utf-8'
     )
     all_handler.setLevel(level)
@@ -118,7 +118,7 @@ def setup_logging(
     if separate_error_log:
         error_handler = logging.FileHandler(
             os.path.join(log_dir, 'clifpy_errors.log'),
-            mode='w',
+            mode='a',
             encoding='utf-8'
         )
         error_handler.setLevel(logging.WARNING)

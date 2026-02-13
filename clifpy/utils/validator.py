@@ -141,6 +141,40 @@ class DQACompletenessResult:
         }
 
 
+class DQAPlausibilityResult:
+    """Container for DQA plausibility check results."""
+
+    def __init__(self, check_type: str, table_name: str):
+        self.check_type = check_type
+        self.table_name = table_name
+        self.passed = True
+        self.errors: List[Dict[str, Any]] = []
+        self.warnings: List[Dict[str, Any]] = []
+        self.info: List[Dict[str, Any]] = []
+        self.metrics: Dict[str, Any] = {}
+
+    def add_error(self, message: str, details: Optional[Dict] = None):
+        self.passed = False
+        self.errors.append({"message": message, "details": details or {}})
+
+    def add_warning(self, message: str, details: Optional[Dict] = None):
+        self.warnings.append({"message": message, "details": details or {}})
+
+    def add_info(self, message: str, details: Optional[Dict] = None):
+        self.info.append({"message": message, "details": details or {}})
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "check_type": self.check_type,
+            "table_name": self.table_name,
+            "passed": self.passed,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "info": self.info,
+            "metrics": self.metrics
+        }
+
+
 # ---------------------------------------------------------------------------
 # CONFORMANCE CHECKS - A. Structure Checks
 # ---------------------------------------------------------------------------
@@ -2165,11 +2199,1628 @@ def check_relational_integrity(
 
 
 # ---------------------------------------------------------------------------
-# DQA: PLAUSIBILITY CHECKS
+# PLAUSIBILITY CHECKS
 # ---------------------------------------------------------------------------
-# Placeholder for future plausibility checks (e.g., value range validation)
+
+# Helpers for plausibility checks
+
+def _load_outlier_config() -> Dict[str, Any]:
+    """Load the outlier_config.yaml for numeric range checks."""
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), 'schemas', 'outlier_config.yaml'
+    )
+    if not os.path.exists(config_path):
+        _logger.warning("Outlier config file not found: %s", config_path)
+        return {}
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f) or {}
 
 
+def _get_temporal_ordering_rules(table_name: str) -> List[Dict[str, str]]:
+    """Load temporal ordering rules for a table from validation_rules.yaml."""
+    rules = _load_validation_rules()
+    return rules.get('temporal_ordering', {}).get(table_name, [])
+
+
+def _get_field_plausibility_rules(table_name: str) -> List[Dict[str, Any]]:
+    """Load field plausibility rules for a table from validation_rules.yaml."""
+    rules = _load_validation_rules()
+    return rules.get('field_plausibility_rules', {}).get(table_name, [])
+
+
+def _get_composite_keys(table_name: str, schema: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Get composite keys for a table from schema or validation_rules.yaml."""
+    if schema and 'composite_keys' in schema:
+        return schema['composite_keys']
+    rules = _load_validation_rules()
+    entry = rules.get('composite_keys', {}).get(table_name, {})
+    return entry.get('keys', [])
+
+
+# Category column mapping for numeric range checks
+_CATEGORY_COLUMN_MAP = {
+    'labs': {'lab_value_numeric': 'lab_category'},
+    'vitals': {'vital_value': 'vital_category'},
+    'patient_assessments': {'numerical_value': 'assessment_category'},
+    'medication_admin_continuous': {'med_dose': ('med_category', 'med_dose_unit')},
+    'medication_admin_intermittent': {'med_dose': ('med_category', 'med_dose_unit')},
+    'ecmo_mcs': {'sweep': 'device_category', 'flow': 'device_category', 'fdO2': 'device_category'},
+}
+
+# Datetime columns per table for cross-table temporal checks
+_CROSS_TABLE_TIME_COLUMNS = {
+    'adt': ['in_dttm', 'out_dttm'],
+    'labs': ['lab_order_dttm', 'lab_collect_dttm', 'lab_result_dttm'],
+    'vitals': ['recorded_dttm'],
+    'respiratory_support': ['recorded_dttm'],
+    'medication_admin_continuous': ['admin_dttm'],
+    'medication_admin_intermittent': ['admin_dttm'],
+    'patient_assessments': ['recorded_dttm'],
+    'position': ['recorded_dttm'],
+    'microbiology_culture': ['order_dttm', 'collect_dttm', 'result_dttm'],
+    'microbiology_nonculture': ['order_dttm', 'collect_dttm', 'result_dttm'],
+    'crrt_therapy': ['recorded_dttm'],
+    'ecmo_mcs': ['recorded_dttm'],
+}
+
+# Time-denominator patterns for medication dose unit checks
+_TIME_DENOMINATOR_PATTERNS = ['/sec', '/min', '/hr', '/hour', '/day']
+
+
+# ---------------------------------------------------------------------------
+# A.1 Temporal ordering
+# ---------------------------------------------------------------------------
+
+def check_temporal_ordering_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    temporal_rules: Optional[List[Dict[str, str]]] = None,
+) -> DQAPlausibilityResult:
+    """Check that datetime pairs follow expected temporal ordering using Polars."""
+    result = DQAPlausibilityResult("temporal_ordering", table_name)
+
+    if temporal_rules is None:
+        temporal_rules = _get_temporal_ordering_rules(table_name)
+
+    if not temporal_rules:
+        result.add_info("No temporal ordering rules defined for this table")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+        violations_by_pair = {}
+
+        for rule in temporal_rules:
+            earlier = rule['earlier']
+            later = rule['later']
+            description = rule.get('description', f"{earlier} <= {later}")
+
+            if earlier not in col_names or later not in col_names:
+                continue
+
+            applicable = lf.filter(
+                pl.col(earlier).is_not_null() & pl.col(later).is_not_null()
+            )
+
+            stats = applicable.select([
+                pl.len().alias('total'),
+                (pl.col(earlier) > pl.col(later)).sum().alias('violations')
+            ]).collect(streaming=True)
+
+            total = stats[0, 'total']
+            violation_count = stats[0, 'violations']
+            pct = (violation_count / total * 100) if total > 0 else 0
+
+            violations_by_pair[f"{earlier}->{later}"] = {
+                "total_applicable": int(total),
+                "violations": int(violation_count),
+                "violation_percent": round(pct, 2),
+                "description": description,
+            }
+
+            if pct > 5:
+                result.add_error(
+                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                     "total": int(total), "percent": round(pct, 2)}
+                )
+            elif violation_count > 0:
+                result.add_warning(
+                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                     "total": int(total), "percent": round(pct, 2)}
+                )
+
+        result.metrics["pairs_checked"] = len(violations_by_pair)
+        result.metrics["violations_by_pair"] = violations_by_pair
+
+        if not result.errors and not result.warnings:
+            result.add_info("All temporal ordering constraints satisfied")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'temporal_ordering' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking temporal ordering: {str(e)}")
+
+    return result
+
+
+def check_temporal_ordering_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    temporal_rules: Optional[List[Dict[str, str]]] = None,
+) -> DQAPlausibilityResult:
+    """Check that datetime pairs follow expected temporal ordering using DuckDB."""
+    result = DQAPlausibilityResult("temporal_ordering", table_name)
+
+    if temporal_rules is None:
+        temporal_rules = _get_temporal_ordering_rules(table_name)
+
+    if not temporal_rules:
+        result.add_info("No temporal ordering rules defined for this table")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+        violations_by_pair = {}
+
+        for rule in temporal_rules:
+            earlier = rule['earlier']
+            later = rule['later']
+            description = rule.get('description', f"{earlier} <= {later}")
+
+            if earlier not in df.columns or later not in df.columns:
+                continue
+
+            stats = con.execute(f"""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN "{earlier}" > "{later}" THEN 1 ELSE 0 END) as violations
+                FROM df
+                WHERE "{earlier}" IS NOT NULL AND "{later}" IS NOT NULL
+            """).fetchone()
+
+            total, violation_count = stats
+            pct = (violation_count / total * 100) if total > 0 else 0
+
+            violations_by_pair[f"{earlier}->{later}"] = {
+                "total_applicable": int(total),
+                "violations": int(violation_count),
+                "violation_percent": round(pct, 2),
+                "description": description,
+            }
+
+            if pct > 5:
+                result.add_error(
+                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                     "total": int(total), "percent": round(pct, 2)}
+                )
+            elif violation_count > 0:
+                result.add_warning(
+                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                     "total": int(total), "percent": round(pct, 2)}
+                )
+
+        result.metrics["pairs_checked"] = len(violations_by_pair)
+        result.metrics["violations_by_pair"] = violations_by_pair
+
+        if not result.errors and not result.warnings:
+            result.add_info("All temporal ordering constraints satisfied")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'temporal_ordering' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking temporal ordering: {str(e)}")
+
+    return result
+
+
+def check_temporal_ordering(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    temporal_rules: Optional[List[Dict[str, str]]] = None,
+) -> DQAPlausibilityResult:
+    """Check that datetime pairs follow expected temporal ordering."""
+    _logger.debug("check_temporal_ordering: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_temporal_ordering_polars(df, table_name, temporal_rules)
+    else:
+        result = check_temporal_ordering_duckdb(df, table_name, temporal_rules)
+    _logger.debug("check_temporal_ordering: table '%s' — pairs_checked=%s",
+                  table_name, result.metrics.get("pairs_checked"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# A.2 Numeric range plausibility
+# ---------------------------------------------------------------------------
+
+def check_numeric_range_plausibility_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    outlier_config: Optional[Dict[str, Any]] = None,
+) -> DQAPlausibilityResult:
+    """Check numeric values are within plausible ranges using Polars."""
+    result = DQAPlausibilityResult("numeric_range_plausibility", table_name)
+
+    if outlier_config is None:
+        outlier_config = _load_outlier_config()
+
+    table_config = outlier_config.get('tables', {}).get(table_name, {})
+    if not table_config:
+        result.add_info("No numeric range configuration for this table")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+        oor_summary = {}
+        cat_map = _CATEGORY_COLUMN_MAP.get(table_name, {})
+
+        for col_name, col_ranges in table_config.items():
+            if col_name not in col_names:
+                continue
+
+            if isinstance(col_ranges, dict) and 'min' in col_ranges and 'max' in col_ranges:
+                # Simple range
+                rmin, rmax = col_ranges['min'], col_ranges['max']
+                stats = lf.select([
+                    pl.col(col_name).drop_nulls().len().alias('total'),
+                    ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
+                    (pl.col(col_name) < rmin).sum().alias('below'),
+                    (pl.col(col_name) > rmax).sum().alias('above'),
+                ]).collect(streaming=True)
+
+                total = stats[0, 'total']
+                oor = stats[0, 'oor']
+                below = stats[0, 'below']
+                above = stats[0, 'above']
+                pct = (oor / total * 100) if total > 0 else 0
+
+                oor_summary[col_name] = {
+                    "total_non_null": int(total), "out_of_range": int(oor),
+                    "out_of_range_percent": round(pct, 2),
+                    "below_min": int(below), "above_max": int(above),
+                    "min": rmin, "max": rmax,
+                }
+
+                if pct > 10:
+                    result.add_warning(
+                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
+                        {"column": col_name, "percent": round(pct, 2)}
+                    )
+
+            elif isinstance(col_ranges, dict):
+                # Category-dependent ranges
+                cat_col_info = cat_map.get(col_name)
+                if cat_col_info is None:
+                    continue
+
+                if isinstance(cat_col_info, tuple):
+                    # 2-level: (category_col, unit_col)
+                    cat_col, unit_col = cat_col_info
+                    if cat_col not in col_names or unit_col not in col_names:
+                        continue
+                    total_oor = 0
+                    total_count = 0
+                    for cat_val, unit_ranges in col_ranges.items():
+                        if not isinstance(unit_ranges, dict):
+                            continue
+                        for unit_val, ranges in unit_ranges.items():
+                            if not isinstance(ranges, dict) or 'min' not in ranges:
+                                continue
+                            rmin, rmax = ranges['min'], ranges['max']
+                            filtered = lf.filter(
+                                (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase() == str(cat_val).lower()) &
+                                (pl.col(unit_col).cast(pl.Utf8).str.to_lowercase() == str(unit_val).lower()) &
+                                pl.col(col_name).is_not_null()
+                            )
+                            stats = filtered.select([
+                                pl.len().alias('total'),
+                                ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
+                            ]).collect(streaming=True)
+                            total_count += stats[0, 'total']
+                            total_oor += stats[0, 'oor']
+
+                    pct = (total_oor / total_count * 100) if total_count > 0 else 0
+                    oor_summary[col_name] = {
+                        "total_non_null": int(total_count), "out_of_range": int(total_oor),
+                        "out_of_range_percent": round(pct, 2),
+                    }
+                    if pct > 10:
+                        result.add_warning(
+                            f"Column '{col_name}': {total_oor}/{total_count} values ({pct:.1f}%) outside plausible ranges",
+                            {"column": col_name, "percent": round(pct, 2)}
+                        )
+                else:
+                    # 1-level category-dependent
+                    cat_col = cat_col_info
+                    if cat_col not in col_names:
+                        continue
+                    total_oor = 0
+                    total_count = 0
+                    for cat_val, ranges in col_ranges.items():
+                        if not isinstance(ranges, dict) or 'min' not in ranges:
+                            continue
+                        rmin, rmax = ranges['min'], ranges['max']
+                        filtered = lf.filter(
+                            (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase() == str(cat_val).lower()) &
+                            pl.col(col_name).is_not_null()
+                        )
+                        stats = filtered.select([
+                            pl.len().alias('total'),
+                            ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
+                        ]).collect(streaming=True)
+                        total_count += stats[0, 'total']
+                        total_oor += stats[0, 'oor']
+
+                    pct = (total_oor / total_count * 100) if total_count > 0 else 0
+                    oor_summary[col_name] = {
+                        "total_non_null": int(total_count), "out_of_range": int(total_oor),
+                        "out_of_range_percent": round(pct, 2),
+                    }
+                    if pct > 10:
+                        result.add_warning(
+                            f"Column '{col_name}': {total_oor}/{total_count} values ({pct:.1f}%) outside plausible ranges",
+                            {"column": col_name, "percent": round(pct, 2)}
+                        )
+
+        result.metrics["columns_checked"] = len(oor_summary)
+        result.metrics["out_of_range_summary"] = oor_summary
+
+        if not result.warnings and not result.errors:
+            result.add_info("All numeric values within plausible ranges")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'numeric_range_plausibility' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking numeric range plausibility: {str(e)}")
+
+    return result
+
+
+def check_numeric_range_plausibility_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    outlier_config: Optional[Dict[str, Any]] = None,
+) -> DQAPlausibilityResult:
+    """Check numeric values are within plausible ranges using DuckDB."""
+    result = DQAPlausibilityResult("numeric_range_plausibility", table_name)
+
+    if outlier_config is None:
+        outlier_config = _load_outlier_config()
+
+    table_config = outlier_config.get('tables', {}).get(table_name, {})
+    if not table_config:
+        result.add_info("No numeric range configuration for this table")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+        actual_cols = list(df.columns)
+        oor_summary = {}
+        cat_map = _CATEGORY_COLUMN_MAP.get(table_name, {})
+
+        for col_name, col_ranges in table_config.items():
+            if col_name not in actual_cols:
+                continue
+
+            if isinstance(col_ranges, dict) and 'min' in col_ranges and 'max' in col_ranges:
+                rmin, rmax = col_ranges['min'], col_ranges['max']
+                stats = con.execute(f"""
+                    SELECT
+                        COUNT("{col_name}") as total,
+                        SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END) as oor,
+                        SUM(CASE WHEN "{col_name}" < {rmin} THEN 1 ELSE 0 END) as below,
+                        SUM(CASE WHEN "{col_name}" > {rmax} THEN 1 ELSE 0 END) as above
+                    FROM df
+                    WHERE "{col_name}" IS NOT NULL
+                """).fetchone()
+
+                total, oor, below, above = stats
+                pct = (oor / total * 100) if total > 0 else 0
+
+                oor_summary[col_name] = {
+                    "total_non_null": int(total), "out_of_range": int(oor),
+                    "out_of_range_percent": round(pct, 2),
+                    "below_min": int(below), "above_max": int(above),
+                    "min": rmin, "max": rmax,
+                }
+
+                if pct > 10:
+                    result.add_warning(
+                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
+                        {"column": col_name, "percent": round(pct, 2)}
+                    )
+
+            elif isinstance(col_ranges, dict):
+                cat_col_info = cat_map.get(col_name)
+                if cat_col_info is None:
+                    continue
+
+                total_oor = 0
+                total_count = 0
+
+                if isinstance(cat_col_info, tuple):
+                    cat_col, unit_col = cat_col_info
+                    if cat_col not in actual_cols or unit_col not in actual_cols:
+                        continue
+                    for cat_val, unit_ranges in col_ranges.items():
+                        if not isinstance(unit_ranges, dict):
+                            continue
+                        for unit_val, ranges in unit_ranges.items():
+                            if not isinstance(ranges, dict) or 'min' not in ranges:
+                                continue
+                            rmin, rmax = ranges['min'], ranges['max']
+                            stats = con.execute(f"""
+                                SELECT COUNT(*) as total,
+                                       SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END) as oor
+                                FROM df
+                                WHERE LOWER(CAST("{cat_col}" AS VARCHAR)) = '{str(cat_val).lower()}'
+                                  AND LOWER(CAST("{unit_col}" AS VARCHAR)) = '{str(unit_val).lower()}'
+                                  AND "{col_name}" IS NOT NULL
+                            """).fetchone()
+                            total_count += stats[0]
+                            total_oor += stats[1]
+                else:
+                    cat_col = cat_col_info
+                    if cat_col not in actual_cols:
+                        continue
+                    for cat_val, ranges in col_ranges.items():
+                        if not isinstance(ranges, dict) or 'min' not in ranges:
+                            continue
+                        rmin, rmax = ranges['min'], ranges['max']
+                        stats = con.execute(f"""
+                            SELECT COUNT(*) as total,
+                                   SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END) as oor
+                            FROM df
+                            WHERE LOWER(CAST("{cat_col}" AS VARCHAR)) = '{str(cat_val).lower()}'
+                              AND "{col_name}" IS NOT NULL
+                        """).fetchone()
+                        total_count += stats[0]
+                        total_oor += stats[1]
+
+                pct = (total_oor / total_count * 100) if total_count > 0 else 0
+                oor_summary[col_name] = {
+                    "total_non_null": int(total_count), "out_of_range": int(total_oor),
+                    "out_of_range_percent": round(pct, 2),
+                }
+                if pct > 10:
+                    result.add_warning(
+                        f"Column '{col_name}': {total_oor}/{total_count} values ({pct:.1f}%) outside plausible ranges",
+                        {"column": col_name, "percent": round(pct, 2)}
+                    )
+
+        result.metrics["columns_checked"] = len(oor_summary)
+        result.metrics["out_of_range_summary"] = oor_summary
+
+        if not result.warnings and not result.errors:
+            result.add_info("All numeric values within plausible ranges")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'numeric_range_plausibility' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking numeric range plausibility: {str(e)}")
+
+    return result
+
+
+def check_numeric_range_plausibility(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    outlier_config: Optional[Dict[str, Any]] = None,
+) -> DQAPlausibilityResult:
+    """Check numeric values are within plausible ranges."""
+    _logger.debug("check_numeric_range_plausibility: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_numeric_range_plausibility_polars(df, table_name, outlier_config)
+    else:
+        result = check_numeric_range_plausibility_duckdb(df, table_name, outlier_config)
+    _logger.debug("check_numeric_range_plausibility: table '%s' — columns_checked=%s",
+                  table_name, result.metrics.get("columns_checked"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# A.3 Field-level plausibility rules
+# ---------------------------------------------------------------------------
+
+def check_field_plausibility_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    rules: Optional[List[Dict[str, Any]]] = None,
+) -> DQAPlausibilityResult:
+    """Check field-level plausibility constraints using Polars."""
+    result = DQAPlausibilityResult("field_plausibility", table_name)
+
+    if rules is None:
+        rules = _get_field_plausibility_rules(table_name)
+
+    if not rules:
+        result.add_info("No field plausibility rules defined for this table")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+        violations_by_rule = {}
+
+        for rule in rules:
+            when_col = rule['when_column']
+            when_not_values = rule['when_not_value']
+            then_null_cols = rule['then_null_or_absent']
+            description = rule.get('description', '')
+
+            if when_col not in col_names:
+                continue
+
+            if not isinstance(when_not_values, list):
+                when_not_values = [when_not_values]
+
+            # Filter rows where when_col is NOT in the specified values
+            filtered = lf.filter(
+                ~pl.col(when_col).cast(pl.Utf8).str.to_lowercase().is_in(
+                    [str(v).lower() for v in when_not_values]
+                )
+            )
+
+            for check_col in then_null_cols:
+                if check_col not in col_names:
+                    continue
+
+                stats = filtered.select([
+                    pl.len().alias('total'),
+                    pl.col(check_col).is_not_null().sum().alias('non_null')
+                ]).collect(streaming=True)
+
+                total = stats[0, 'total']
+                non_null = stats[0, 'non_null']
+                pct = (non_null / total * 100) if total > 0 else 0
+
+                if non_null > 0:
+                    violations_by_rule[description] = {
+                        "total_applicable": int(total),
+                        "violations": int(non_null),
+                        "violation_percent": round(pct, 2),
+                    }
+                    result.add_warning(
+                        f"Field plausibility violation: {description} — {non_null}/{total} rows ({pct:.1f}%)",
+                        {"rule": description, "violations": int(non_null),
+                         "total": int(total), "percent": round(pct, 2)}
+                    )
+
+        result.metrics["rules_checked"] = len(rules)
+        result.metrics["violations_by_rule"] = violations_by_rule
+
+        if not result.warnings and not result.errors:
+            result.add_info("All field plausibility rules satisfied")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'field_plausibility' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking field plausibility: {str(e)}")
+
+    return result
+
+
+def check_field_plausibility_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    rules: Optional[List[Dict[str, Any]]] = None,
+) -> DQAPlausibilityResult:
+    """Check field-level plausibility constraints using DuckDB."""
+    result = DQAPlausibilityResult("field_plausibility", table_name)
+
+    if rules is None:
+        rules = _get_field_plausibility_rules(table_name)
+
+    if not rules:
+        result.add_info("No field plausibility rules defined for this table")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+        violations_by_rule = {}
+
+        for rule in rules:
+            when_col = rule['when_column']
+            when_not_values = rule['when_not_value']
+            then_null_cols = rule['then_null_or_absent']
+            description = rule.get('description', '')
+
+            if when_col not in df.columns:
+                continue
+
+            if not isinstance(when_not_values, list):
+                when_not_values = [when_not_values]
+
+            values_str = ', '.join([f"'{str(v).lower()}'" for v in when_not_values])
+
+            for check_col in then_null_cols:
+                if check_col not in df.columns:
+                    continue
+
+                stats = con.execute(f"""
+                    SELECT
+                        COUNT(*) as total,
+                        SUM(CASE WHEN "{check_col}" IS NOT NULL THEN 1 ELSE 0 END) as non_null
+                    FROM df
+                    WHERE LOWER(CAST("{when_col}" AS VARCHAR)) NOT IN ({values_str})
+                """).fetchone()
+
+                total, non_null = stats
+                pct = (non_null / total * 100) if total > 0 else 0
+
+                if non_null > 0:
+                    violations_by_rule[description] = {
+                        "total_applicable": int(total),
+                        "violations": int(non_null),
+                        "violation_percent": round(pct, 2),
+                    }
+                    result.add_warning(
+                        f"Field plausibility violation: {description} — {non_null}/{total} rows ({pct:.1f}%)",
+                        {"rule": description, "violations": int(non_null),
+                         "total": int(total), "percent": round(pct, 2)}
+                    )
+
+        result.metrics["rules_checked"] = len(rules)
+        result.metrics["violations_by_rule"] = violations_by_rule
+
+        if not result.warnings and not result.errors:
+            result.add_info("All field plausibility rules satisfied")
+
+        con.close()
+
+    except Exception as e:
+        _logger.error("Check 'field_plausibility' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking field plausibility: {str(e)}")
+
+    return result
+
+
+def check_field_plausibility(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    rules: Optional[List[Dict[str, Any]]] = None,
+) -> DQAPlausibilityResult:
+    """Check field-level plausibility constraints."""
+    _logger.debug("check_field_plausibility: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_field_plausibility_polars(df, table_name, rules)
+    else:
+        result = check_field_plausibility_duckdb(df, table_name, rules)
+    _logger.debug("check_field_plausibility: table '%s' — rules_checked=%s",
+                  table_name, result.metrics.get("rules_checked"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# A.4 Medication dose unit consistency
+# ---------------------------------------------------------------------------
+
+def check_medication_dose_unit_consistency_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+) -> DQAPlausibilityResult:
+    """Check medication dose unit consistency using Polars."""
+    result = DQAPlausibilityResult("medication_dose_unit_consistency", table_name)
+
+    if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        result.add_info("Medication dose unit check not applicable to this table")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        if 'med_dose_unit' not in col_names:
+            result.add_info("Column 'med_dose_unit' not found in table")
+            return result
+
+        rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
+        expect = rules.get('expect', 'per_time' if 'continuous' in table_name else 'discrete')
+
+        # Build expression to detect time denominators
+        has_time_denom = pl.lit(False)
+        for pat in _TIME_DENOMINATOR_PATTERNS:
+            has_time_denom = has_time_denom | pl.col('med_dose_unit').cast(pl.Utf8).str.contains(pat.replace('/', '\\/'))
+
+        non_null = lf.filter(pl.col('med_dose_unit').is_not_null())
+        total = non_null.select(pl.len()).collect(streaming=True).item()
+
+        if total == 0:
+            result.add_info("No non-null med_dose_unit values to check")
+            return result
+
+        if expect == 'per_time':
+            # Continuous: expect time denominators
+            violations = non_null.filter(~has_time_denom).select(pl.len()).collect(streaming=True).item()
+        else:
+            # Intermittent: expect NO time denominators
+            violations = non_null.filter(has_time_denom).select(pl.len()).collect(streaming=True).item()
+
+        pct = (violations / total * 100) if total > 0 else 0
+
+        result.metrics["total_rows"] = int(total)
+        result.metrics["unit_pattern_violations"] = int(violations)
+        result.metrics["violation_percent"] = round(pct, 2)
+
+        if violations > 0:
+            # Get sample violations
+            if expect == 'per_time':
+                sample = non_null.filter(~has_time_denom)
+            else:
+                sample = non_null.filter(has_time_denom)
+
+            sample_cols = ['med_dose_unit']
+            if 'med_category' in col_names:
+                sample_cols.insert(0, 'med_category')
+
+            sample_data = (
+                sample
+                .group_by(sample_cols)
+                .agg(pl.len().alias('count'))
+                .sort('count', descending=True)
+                .head(10)
+                .collect(streaming=True)
+            )
+            sample_list = sample_data.to_dicts()
+            result.metrics["sample_violations"] = sample_list
+
+            if pct > 10:
+                result.add_warning(
+                    f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) have unexpected unit patterns",
+                    {"violations": int(violations), "total": int(total), "percent": round(pct, 2)}
+                )
+            else:
+                result.add_warning(
+                    f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) have unexpected unit patterns",
+                    {"violations": int(violations), "total": int(total), "percent": round(pct, 2)}
+                )
+        else:
+            result.add_info("All medication dose units consistent with administration type")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'medication_dose_unit_consistency' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking medication dose unit consistency: {str(e)}")
+
+    return result
+
+
+def check_medication_dose_unit_consistency_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+) -> DQAPlausibilityResult:
+    """Check medication dose unit consistency using DuckDB."""
+    result = DQAPlausibilityResult("medication_dose_unit_consistency", table_name)
+
+    if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        result.add_info("Medication dose unit check not applicable to this table")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        if 'med_dose_unit' not in df.columns:
+            result.add_info("Column 'med_dose_unit' not found in table")
+            con.close()
+            return result
+
+        rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
+        expect = rules.get('expect', 'per_time' if 'continuous' in table_name else 'discrete')
+
+        # Build CASE expression for time denominator detection
+        time_conditions = ' OR '.join([
+            f"CAST(\"med_dose_unit\" AS VARCHAR) LIKE '%{pat}%'"
+            for pat in _TIME_DENOMINATOR_PATTERNS
+        ])
+
+        total_row = con.execute("""
+            SELECT COUNT(*) FROM df WHERE "med_dose_unit" IS NOT NULL
+        """).fetchone()
+        total = total_row[0]
+
+        if total == 0:
+            result.add_info("No non-null med_dose_unit values to check")
+            con.close()
+            return result
+
+        if expect == 'per_time':
+            violation_query = f"""
+                SELECT COUNT(*) FROM df
+                WHERE "med_dose_unit" IS NOT NULL AND NOT ({time_conditions})
+            """
+        else:
+            violation_query = f"""
+                SELECT COUNT(*) FROM df
+                WHERE "med_dose_unit" IS NOT NULL AND ({time_conditions})
+            """
+
+        violations = con.execute(violation_query).fetchone()[0]
+        pct = (violations / total * 100) if total > 0 else 0
+
+        result.metrics["total_rows"] = int(total)
+        result.metrics["unit_pattern_violations"] = int(violations)
+        result.metrics["violation_percent"] = round(pct, 2)
+
+        if violations > 0:
+            result.add_warning(
+                f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) have unexpected unit patterns",
+                {"violations": int(violations), "total": int(total), "percent": round(pct, 2)}
+            )
+        else:
+            result.add_info("All medication dose units consistent with administration type")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'medication_dose_unit_consistency' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking medication dose unit consistency: {str(e)}")
+
+    return result
+
+
+def check_medication_dose_unit_consistency(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+) -> DQAPlausibilityResult:
+    """Check medication dose unit consistency."""
+    _logger.debug("check_medication_dose_unit_consistency: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_medication_dose_unit_consistency_polars(df, table_name)
+    else:
+        result = check_medication_dose_unit_consistency_duckdb(df, table_name)
+    _logger.debug("check_medication_dose_unit_consistency: table '%s' — violations=%s",
+                  table_name, result.metrics.get("unit_pattern_violations"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# B.1 Cross-table temporal plausibility
+# ---------------------------------------------------------------------------
+
+def check_cross_table_temporal_plausibility_polars(
+    target_df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    hospitalization_df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    target_table: str,
+    time_columns: List[str],
+) -> DQAPlausibilityResult:
+    """Check that datetime values fall within hospitalization bounds using Polars."""
+    result = DQAPlausibilityResult("cross_table_temporal", target_table)
+
+    try:
+        target_lf = target_df if isinstance(target_df, pl.LazyFrame) else target_df.lazy()
+        hosp_lf = hospitalization_df if isinstance(hospitalization_df, pl.LazyFrame) else hospitalization_df.lazy()
+
+        target_cols = target_lf.collect_schema().names()
+        hosp_cols = hosp_lf.collect_schema().names()
+
+        if 'hospitalization_id' not in target_cols or 'hospitalization_id' not in hosp_cols:
+            result.add_info("Missing hospitalization_id column; skipping cross-table check")
+            return result
+
+        if 'admission_dttm' not in hosp_cols or 'discharge_dttm' not in hosp_cols:
+            result.add_info("Missing admission/discharge columns in hospitalization table")
+            return result
+
+        hosp_bounds = hosp_lf.select([
+            'hospitalization_id', 'admission_dttm', 'discharge_dttm'
+        ])
+
+        joined = target_lf.join(hosp_bounds, on='hospitalization_id', how='inner')
+        violations_by_col = {}
+
+        for time_col in time_columns:
+            if time_col not in target_cols:
+                continue
+
+            applicable = joined.filter(
+                pl.col(time_col).is_not_null() &
+                pl.col('admission_dttm').is_not_null() &
+                pl.col('discharge_dttm').is_not_null()
+            )
+
+            stats = applicable.select([
+                pl.len().alias('total'),
+                (pl.col(time_col) < pl.col('admission_dttm')).sum().alias('before_admission'),
+                (pl.col(time_col) > pl.col('discharge_dttm')).sum().alias('after_discharge'),
+            ]).collect(streaming=True)
+
+            total = stats[0, 'total']
+            before = stats[0, 'before_admission']
+            after = stats[0, 'after_discharge']
+            violation_total = before + after
+            pct = (violation_total / total * 100) if total > 0 else 0
+
+            violations_by_col[time_col] = {
+                "total_joined": int(total),
+                "before_admission": int(before),
+                "after_discharge": int(after),
+                "violation_count": int(violation_total),
+                "violation_percent": round(pct, 2),
+            }
+
+            if pct > 5:
+                result.add_error(
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    {"column": time_col, "before_admission": int(before),
+                     "after_discharge": int(after), "percent": round(pct, 2)}
+                )
+            elif violation_total > 0:
+                result.add_warning(
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    {"column": time_col, "before_admission": int(before),
+                     "after_discharge": int(after), "percent": round(pct, 2)}
+                )
+
+        result.metrics["time_columns_checked"] = list(violations_by_col.keys())
+        result.metrics["violations_by_column"] = violations_by_col
+
+        if not result.errors and not result.warnings:
+            result.add_info("All records fall within hospitalization bounds")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'cross_table_temporal' failed for table '%s': %s", target_table, e)
+        result.add_error(f"Error checking cross-table temporal plausibility: {str(e)}")
+
+    return result
+
+
+def check_cross_table_temporal_plausibility_duckdb(
+    target_df: pd.DataFrame,
+    hospitalization_df: pd.DataFrame,
+    target_table: str,
+    time_columns: List[str],
+) -> DQAPlausibilityResult:
+    """Check that datetime values fall within hospitalization bounds using DuckDB."""
+    result = DQAPlausibilityResult("cross_table_temporal", target_table)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('target_tbl', target_df)
+        con.register('hosp_tbl', hospitalization_df)
+
+        if 'hospitalization_id' not in target_df.columns or 'hospitalization_id' not in hospitalization_df.columns:
+            result.add_info("Missing hospitalization_id column; skipping cross-table check")
+            con.close()
+            return result
+
+        if 'admission_dttm' not in hospitalization_df.columns or 'discharge_dttm' not in hospitalization_df.columns:
+            result.add_info("Missing admission/discharge columns in hospitalization table")
+            con.close()
+            return result
+
+        violations_by_col = {}
+
+        for time_col in time_columns:
+            if time_col not in target_df.columns:
+                continue
+
+            stats = con.execute(f"""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN t."{time_col}" < h.admission_dttm THEN 1 ELSE 0 END) as before_admission,
+                    SUM(CASE WHEN t."{time_col}" > h.discharge_dttm THEN 1 ELSE 0 END) as after_discharge
+                FROM target_tbl t
+                INNER JOIN hosp_tbl h ON t.hospitalization_id = h.hospitalization_id
+                WHERE t."{time_col}" IS NOT NULL
+                  AND h.admission_dttm IS NOT NULL
+                  AND h.discharge_dttm IS NOT NULL
+            """).fetchone()
+
+            total, before, after = stats
+            violation_total = before + after
+            pct = (violation_total / total * 100) if total > 0 else 0
+
+            violations_by_col[time_col] = {
+                "total_joined": int(total),
+                "before_admission": int(before),
+                "after_discharge": int(after),
+                "violation_count": int(violation_total),
+                "violation_percent": round(pct, 2),
+            }
+
+            if pct > 5:
+                result.add_error(
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    {"column": time_col, "before_admission": int(before),
+                     "after_discharge": int(after), "percent": round(pct, 2)}
+                )
+            elif violation_total > 0:
+                result.add_warning(
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    {"column": time_col, "before_admission": int(before),
+                     "after_discharge": int(after), "percent": round(pct, 2)}
+                )
+
+        result.metrics["time_columns_checked"] = list(violations_by_col.keys())
+        result.metrics["violations_by_column"] = violations_by_col
+
+        if not result.errors and not result.warnings:
+            result.add_info("All records fall within hospitalization bounds")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'cross_table_temporal' failed for table '%s': %s", target_table, e)
+        result.add_error(f"Error checking cross-table temporal plausibility: {str(e)}")
+
+    return result
+
+
+def check_cross_table_temporal_plausibility(
+    target_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    hospitalization_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    target_table: str,
+    time_columns: List[str],
+) -> DQAPlausibilityResult:
+    """Check that datetime values fall within hospitalization bounds."""
+    _logger.debug("check_cross_table_temporal_plausibility: starting for table '%s'", target_table)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_cross_table_temporal_plausibility_polars(
+            target_df, hospitalization_df, target_table, time_columns)
+    else:
+        result = check_cross_table_temporal_plausibility_duckdb(
+            target_df, hospitalization_df, target_table, time_columns)
+    _logger.debug("check_cross_table_temporal_plausibility: table '%s' complete", target_table)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# C.1 Overlapping time periods
+# ---------------------------------------------------------------------------
+
+def check_overlapping_periods_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    entity_col: str = 'hospitalization_id',
+    start_col: str = 'in_dttm',
+    end_col: str = 'out_dttm',
+) -> DQAPlausibilityResult:
+    """Check for overlapping time periods within entities using Polars."""
+    result = DQAPlausibilityResult("overlapping_periods", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        if entity_col not in col_names or start_col not in col_names or end_col not in col_names:
+            result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
+            return result
+
+        # Filter to rows where both start and end are non-null, sort, then compare with previous
+        sorted_lf = lf.filter(
+            pl.col(start_col).is_not_null() & pl.col(end_col).is_not_null()
+        ).sort([entity_col, start_col])
+
+        with_prev = sorted_lf.with_columns(
+            pl.col(end_col).shift(1).over(entity_col).alias('_prev_end')
+        )
+
+        overlaps_df = with_prev.filter(
+            pl.col('_prev_end').is_not_null() & (pl.col(start_col) < pl.col('_prev_end'))
+        )
+
+        total_records = sorted_lf.select(pl.len()).collect(streaming=True).item()
+        overlap_count = overlaps_df.select(pl.len()).collect(streaming=True).item()
+        entities_checked = sorted_lf.select(
+            pl.col(entity_col).n_unique()
+        ).collect(streaming=True).item()
+        pct = (overlap_count / total_records * 100) if total_records > 0 else 0
+
+        result.metrics["total_records"] = int(total_records)
+        result.metrics["entities_checked"] = int(entities_checked)
+        result.metrics["overlapping_records"] = int(overlap_count)
+        result.metrics["overlap_percent"] = round(pct, 2)
+
+        if overlap_count > 0:
+            result.add_warning(
+                f"{overlap_count} overlapping time periods detected ({pct:.1f}% of records)",
+                {"overlapping_records": int(overlap_count), "percent": round(pct, 2)}
+            )
+        else:
+            result.add_info("No overlapping time periods detected")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'overlapping_periods' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking overlapping periods: {str(e)}")
+
+    return result
+
+
+def check_overlapping_periods_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    entity_col: str = 'hospitalization_id',
+    start_col: str = 'in_dttm',
+    end_col: str = 'out_dttm',
+) -> DQAPlausibilityResult:
+    """Check for overlapping time periods within entities using DuckDB."""
+    result = DQAPlausibilityResult("overlapping_periods", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        if entity_col not in df.columns or start_col not in df.columns or end_col not in df.columns:
+            result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
+            con.close()
+            return result
+
+        stats = con.execute(f"""
+            WITH filtered AS (
+                SELECT * FROM df
+                WHERE "{start_col}" IS NOT NULL AND "{end_col}" IS NOT NULL
+            ),
+            ordered AS (
+                SELECT *,
+                       LAG("{end_col}") OVER (
+                           PARTITION BY "{entity_col}" ORDER BY "{start_col}"
+                       ) AS prev_end
+                FROM filtered
+            )
+            SELECT
+                (SELECT COUNT(*) FROM filtered) as total_records,
+                (SELECT COUNT(DISTINCT "{entity_col}") FROM filtered) as entities_checked,
+                COUNT(*) as overlap_count
+            FROM ordered
+            WHERE prev_end IS NOT NULL AND "{start_col}" < prev_end
+        """).fetchone()
+
+        total_records, entities_checked, overlap_count = stats
+        pct = (overlap_count / total_records * 100) if total_records > 0 else 0
+
+        result.metrics["total_records"] = int(total_records)
+        result.metrics["entities_checked"] = int(entities_checked)
+        result.metrics["overlapping_records"] = int(overlap_count)
+        result.metrics["overlap_percent"] = round(pct, 2)
+
+        if overlap_count > 0:
+            result.add_warning(
+                f"{overlap_count} overlapping time periods detected ({pct:.1f}% of records)",
+                {"overlapping_records": int(overlap_count), "percent": round(pct, 2)}
+            )
+        else:
+            result.add_info("No overlapping time periods detected")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'overlapping_periods' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking overlapping periods: {str(e)}")
+
+    return result
+
+
+def check_overlapping_periods(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    entity_col: str = 'hospitalization_id',
+    start_col: str = 'in_dttm',
+    end_col: str = 'out_dttm',
+) -> DQAPlausibilityResult:
+    """Check for overlapping time periods within entities."""
+    _logger.debug("check_overlapping_periods: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_overlapping_periods_polars(df, table_name, entity_col, start_col, end_col)
+    else:
+        result = check_overlapping_periods_duckdb(df, table_name, entity_col, start_col, end_col)
+    _logger.debug("check_overlapping_periods: table '%s' — overlaps=%s",
+                  table_name, result.metrics.get("overlapping_records"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# C.2 Category temporal consistency
+# ---------------------------------------------------------------------------
+
+def _detect_time_column(col_names: List[str], table_name: str) -> Optional[str]:
+    """Auto-detect the primary datetime column for a table."""
+    candidates = ['recorded_dttm', 'admin_dttm', 'admission_dttm',
+                   'lab_result_dttm', 'in_dttm', 'procedure_billed_dttm',
+                   'result_dttm', 'start_dttm']
+    for c in candidates:
+        if c in col_names:
+            return c
+    return None
+
+
+def check_category_temporal_consistency_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    time_column: Optional[str] = None,
+) -> DQAPlausibilityResult:
+    """Check category distribution consistency over time using Polars."""
+    result = DQAPlausibilityResult("category_temporal_consistency", table_name)
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        if time_column is None:
+            time_column = _detect_time_column(col_names, table_name)
+
+        if time_column is None or time_column not in col_names:
+            result.add_info("No suitable datetime column found for temporal consistency check")
+            return result
+
+        # Find category columns from schema
+        category_columns = schema.get('category_columns', [])
+        cat_cols_present = [c for c in category_columns if c in col_names]
+
+        if not cat_cols_present:
+            result.add_info("No category columns found for temporal consistency check")
+            return result
+
+        # Need hospitalization_id for unique ID counting
+        id_col = 'hospitalization_id' if 'hospitalization_id' in col_names else (
+            'patient_id' if 'patient_id' in col_names else None
+        )
+
+        yearly_distributions = {}
+        missing_in_years = {}
+
+        for cat_col in cat_cols_present:
+            # Get yearly distribution
+            if id_col:
+                yearly = (
+                    lf.filter(pl.col(time_column).is_not_null() & pl.col(cat_col).is_not_null())
+                    .with_columns(pl.col(time_column).dt.year().alias('_year'))
+                    .group_by(['_year', cat_col])
+                    .agg(pl.col(id_col).n_unique().alias('unique_ids'))
+                    .sort(['_year', cat_col])
+                    .collect(streaming=True)
+                )
+            else:
+                yearly = (
+                    lf.filter(pl.col(time_column).is_not_null() & pl.col(cat_col).is_not_null())
+                    .with_columns(pl.col(time_column).dt.year().alias('_year'))
+                    .group_by(['_year', cat_col])
+                    .agg(pl.len().alias('unique_ids'))
+                    .sort(['_year', cat_col])
+                    .collect(streaming=True)
+                )
+
+            if len(yearly) == 0:
+                continue
+
+            # Build year -> {value: count} dict
+            dist = {}
+            all_years = set()
+            all_values = set()
+            for row in yearly.iter_rows(named=True):
+                year = int(row['_year'])
+                val = row[cat_col]
+                count = row['unique_ids']
+                all_years.add(year)
+                all_values.add(val)
+                dist.setdefault(year, {})[val] = int(count)
+
+            yearly_distributions[cat_col] = dist
+
+            # Check for values absent in some years (requires >= 2 years)
+            if len(all_years) >= 2:
+                absent = {}
+                for val in all_values:
+                    absent_years = [y for y in sorted(all_years) if val not in dist.get(y, {})]
+                    if absent_years and len(absent_years) < len(all_years):
+                        absent[str(val)] = absent_years
+                if absent:
+                    missing_in_years[cat_col] = absent
+
+        result.metrics["category_columns_checked"] = len(cat_cols_present)
+        result.metrics["yearly_distributions"] = yearly_distributions
+        result.metrics["missing_in_years"] = missing_in_years
+
+        for cat_col, absent in missing_in_years.items():
+            for val, years in absent.items():
+                result.add_warning(
+                    f"Category '{cat_col}' value '{val}' absent in years: {years}",
+                    {"column": cat_col, "value": val, "absent_years": years}
+                )
+
+        if not result.warnings and not result.errors:
+            result.add_info("Category distributions are consistent over time")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'category_temporal_consistency' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking category temporal consistency: {str(e)}")
+
+    return result
+
+
+def check_category_temporal_consistency_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str,
+    time_column: Optional[str] = None,
+) -> DQAPlausibilityResult:
+    """Check category distribution consistency over time using DuckDB."""
+    result = DQAPlausibilityResult("category_temporal_consistency", table_name)
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+        actual_cols = list(df.columns)
+
+        if time_column is None:
+            time_column = _detect_time_column(actual_cols, table_name)
+
+        if time_column is None or time_column not in actual_cols:
+            result.add_info("No suitable datetime column found for temporal consistency check")
+            con.close()
+            return result
+
+        category_columns = schema.get('category_columns', [])
+        cat_cols_present = [c for c in category_columns if c in actual_cols]
+
+        if not cat_cols_present:
+            result.add_info("No category columns found for temporal consistency check")
+            con.close()
+            return result
+
+        id_col = 'hospitalization_id' if 'hospitalization_id' in actual_cols else (
+            'patient_id' if 'patient_id' in actual_cols else None
+        )
+
+        yearly_distributions = {}
+        missing_in_years = {}
+
+        for cat_col in cat_cols_present:
+            if id_col:
+                agg_expr = f'COUNT(DISTINCT "{id_col}") as unique_ids'
+            else:
+                agg_expr = 'COUNT(*) as unique_ids'
+
+            rows = con.execute(f"""
+                SELECT EXTRACT(YEAR FROM "{time_column}") as yr,
+                       "{cat_col}",
+                       {agg_expr}
+                FROM df
+                WHERE "{time_column}" IS NOT NULL AND "{cat_col}" IS NOT NULL
+                GROUP BY yr, "{cat_col}"
+                ORDER BY yr, "{cat_col}"
+            """).fetchall()
+
+            if not rows:
+                continue
+
+            dist = {}
+            all_years = set()
+            all_values = set()
+            for row in rows:
+                year = int(row[0])
+                val = row[1]
+                count = int(row[2])
+                all_years.add(year)
+                all_values.add(val)
+                dist.setdefault(year, {})[val] = count
+
+            yearly_distributions[cat_col] = dist
+
+            if len(all_years) >= 2:
+                absent = {}
+                for val in all_values:
+                    absent_years = [y for y in sorted(all_years) if val not in dist.get(y, {})]
+                    if absent_years and len(absent_years) < len(all_years):
+                        absent[str(val)] = absent_years
+                if absent:
+                    missing_in_years[cat_col] = absent
+
+        result.metrics["category_columns_checked"] = len(cat_cols_present)
+        result.metrics["yearly_distributions"] = yearly_distributions
+        result.metrics["missing_in_years"] = missing_in_years
+
+        for cat_col, absent in missing_in_years.items():
+            for val, years in absent.items():
+                result.add_warning(
+                    f"Category '{cat_col}' value '{val}' absent in years: {years}",
+                    {"column": cat_col, "value": val, "absent_years": years}
+                )
+
+        if not result.warnings and not result.errors:
+            result.add_info("Category distributions are consistent over time")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'category_temporal_consistency' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking category temporal consistency: {str(e)}")
+
+    return result
+
+
+def check_category_temporal_consistency(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+    time_column: Optional[str] = None,
+) -> DQAPlausibilityResult:
+    """Check category distribution consistency over time."""
+    _logger.debug("check_category_temporal_consistency: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_category_temporal_consistency_polars(df, schema, table_name, time_column)
+    else:
+        result = check_category_temporal_consistency_duckdb(df, schema, table_name, time_column)
+    _logger.debug("check_category_temporal_consistency: table '%s' — columns_checked=%s",
+                  table_name, result.metrics.get("category_columns_checked"))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# D.1 Duplicate composite keys
+# ---------------------------------------------------------------------------
+
+def check_duplicate_composite_keys_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    composite_keys: Optional[List[str]] = None,
+    schema: Optional[Dict[str, Any]] = None,
+) -> DQAPlausibilityResult:
+    """Check for duplicate composite keys using Polars."""
+    result = DQAPlausibilityResult("duplicate_composite_keys", table_name)
+
+    if composite_keys is None:
+        composite_keys = _get_composite_keys(table_name, schema)
+
+    if not composite_keys:
+        result.add_info("No composite keys defined for this table")
+        return result
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        col_names = lf.collect_schema().names()
+
+        # Verify all key columns exist
+        missing_keys = [k for k in composite_keys if k not in col_names]
+        if missing_keys:
+            result.add_info(f"Composite key columns missing: {missing_keys}")
+            return result
+
+        total = lf.select(pl.len()).collect().item()
+        unique = lf.select(composite_keys).unique().select(pl.len()).collect().item()
+        duplicates = total - unique
+        pct = (duplicates / total * 100) if total > 0 else 0
+
+        result.metrics["composite_keys"] = composite_keys
+        result.metrics["total_records"] = int(total)
+        result.metrics["unique_records"] = int(unique)
+        result.metrics["duplicate_records"] = int(duplicates)
+        result.metrics["duplicate_percent"] = round(pct, 2)
+
+        if pct > 10:
+            result.add_error(
+                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                {"duplicate_records": int(duplicates), "percent": round(pct, 2),
+                 "keys": composite_keys}
+            )
+        elif duplicates > 0:
+            result.add_warning(
+                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                {"duplicate_records": int(duplicates), "percent": round(pct, 2),
+                 "keys": composite_keys}
+            )
+        else:
+            result.add_info("No duplicate composite keys found")
+
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'duplicate_composite_keys' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking duplicate composite keys: {str(e)}")
+
+    return result
+
+
+def check_duplicate_composite_keys_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    composite_keys: Optional[List[str]] = None,
+    schema: Optional[Dict[str, Any]] = None,
+) -> DQAPlausibilityResult:
+    """Check for duplicate composite keys using DuckDB."""
+    result = DQAPlausibilityResult("duplicate_composite_keys", table_name)
+
+    if composite_keys is None:
+        composite_keys = _get_composite_keys(table_name, schema)
+
+    if not composite_keys:
+        result.add_info("No composite keys defined for this table")
+        return result
+
+    try:
+        con = duckdb.connect(':memory:')
+        con.register('df', df)
+
+        missing_keys = [k for k in composite_keys if k not in df.columns]
+        if missing_keys:
+            result.add_info(f"Composite key columns missing: {missing_keys}")
+            con.close()
+            return result
+
+        key_cols_str = ', '.join([f'"{k}"' for k in composite_keys])
+        stats = con.execute(f"""
+            SELECT
+                (SELECT COUNT(*) FROM df) as total,
+                (SELECT COUNT(*) FROM (SELECT DISTINCT {key_cols_str} FROM df)) as unique_count
+        """).fetchone()
+
+        total, unique = stats
+        duplicates = total - unique
+        pct = (duplicates / total * 100) if total > 0 else 0
+
+        result.metrics["composite_keys"] = composite_keys
+        result.metrics["total_records"] = int(total)
+        result.metrics["unique_records"] = int(unique)
+        result.metrics["duplicate_records"] = int(duplicates)
+        result.metrics["duplicate_percent"] = round(pct, 2)
+
+        if pct > 10:
+            result.add_error(
+                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                {"duplicate_records": int(duplicates), "percent": round(pct, 2),
+                 "keys": composite_keys}
+            )
+        elif duplicates > 0:
+            result.add_warning(
+                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                {"duplicate_records": int(duplicates), "percent": round(pct, 2),
+                 "keys": composite_keys}
+            )
+        else:
+            result.add_info("No duplicate composite keys found")
+
+        con.close()
+        gc.collect()
+
+    except Exception as e:
+        _logger.error("Check 'duplicate_composite_keys' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking duplicate composite keys: {str(e)}")
+
+    return result
+
+
+def check_duplicate_composite_keys(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    table_name: str,
+    composite_keys: Optional[List[str]] = None,
+    schema: Optional[Dict[str, Any]] = None,
+) -> DQAPlausibilityResult:
+    """Check for duplicate composite keys."""
+    _logger.debug("check_duplicate_composite_keys: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_duplicate_composite_keys_polars(df, table_name, composite_keys, schema)
+    else:
+        result = check_duplicate_composite_keys_duckdb(df, table_name, composite_keys, schema)
+    _logger.debug("check_duplicate_composite_keys: table '%s' — duplicates=%s",
+                  table_name, result.metrics.get("duplicate_records"))
+    return result
 # ---------------------------------------------------------------------------
 # COMPREHENSIVE DQA RUNNER
 # ---------------------------------------------------------------------------
@@ -2380,6 +4031,139 @@ def run_relational_integrity_checks(
     return results
 
 
+def run_plausibility_checks(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+) -> Dict[str, DQAPlausibilityResult]:
+    """
+    Run all single-table plausibility checks on a table.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The data to validate
+    schema : dict
+        Schema for the table
+    table_name : str
+        Name of the table
+
+    Returns
+    -------
+    Dict[str, DQAPlausibilityResult]
+        Dictionary of check results keyed by check type
+    """
+    _logger.info("Running plausibility checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
+
+    if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+        _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
+        df = pl.from_pandas(df)
+
+    results = {}
+
+    # A.1 Temporal ordering
+    results['temporal_ordering'] = check_temporal_ordering(df, table_name)
+    gc.collect()
+
+    # A.2 Numeric range plausibility
+    results['numeric_range_plausibility'] = check_numeric_range_plausibility(df, table_name)
+    gc.collect()
+
+    # A.3 Field-level plausibility
+    results['field_plausibility'] = check_field_plausibility(df, table_name)
+    gc.collect()
+
+    # A.4 Medication dose unit consistency (only for med tables)
+    if table_name in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        results['medication_dose_unit_consistency'] = check_medication_dose_unit_consistency(df, table_name)
+        gc.collect()
+
+    # C.1 Overlapping periods
+    overlap_rules = _load_validation_rules().get('overlapping_periods', {}).get(table_name)
+    if overlap_rules:
+        results['overlapping_periods'] = check_overlapping_periods(
+            df, table_name,
+            entity_col=overlap_rules.get('entity_column', 'hospitalization_id'),
+            start_col=overlap_rules.get('start_column', 'in_dttm'),
+            end_col=overlap_rules.get('end_column', 'out_dttm'),
+        )
+        gc.collect()
+
+    # C.2 Category temporal consistency
+    results['category_temporal_consistency'] = check_category_temporal_consistency(df, schema, table_name)
+    gc.collect()
+
+    # D.1 Duplicate composite keys
+    results['duplicate_composite_keys'] = check_duplicate_composite_keys(df, table_name, schema=schema)
+    gc.collect()
+
+    passed = sum(1 for r in results.values() if r.passed)
+    failed = len(results) - passed
+    _logger.info("Plausibility checks complete for '%s': %d passed, %d failed", table_name, passed, failed)
+    return results
+
+
+def run_cross_table_plausibility_checks(
+    tables: list,
+) -> Dict[str, Dict[str, DQAPlausibilityResult]]:
+    """Run cross-table plausibility checks (B.1).
+
+    Parameters
+    ----------
+    tables : list
+        Objects with ``.table_name`` and ``.df`` attributes.
+
+    Returns
+    -------
+    Dict[str, Dict[str, DQAPlausibilityResult]]
+        ``{table_name: {"cross_table_temporal": DQAPlausibilityResult}}``.
+    """
+    _logger.info("run_cross_table_plausibility_checks: starting with %d tables", len(tables))
+
+    lookup = {}
+    for obj in tables:
+        tdf = obj.df
+        if _ACTIVE_BACKEND == 'polars' and isinstance(tdf, pd.DataFrame):
+            tdf = pl.from_pandas(tdf)
+        lookup[obj.table_name] = tdf
+
+    if 'hospitalization' not in lookup:
+        _logger.info("Hospitalization table not loaded; skipping cross-table plausibility")
+        return {}
+
+    hosp_df = lookup['hospitalization']
+    results: Dict[str, Dict[str, DQAPlausibilityResult]] = {}
+
+    for tbl_name, tdf in lookup.items():
+        if tbl_name == 'hospitalization':
+            continue
+        time_cols = _CROSS_TABLE_TIME_COLUMNS.get(tbl_name, [])
+        if not time_cols:
+            continue
+
+        if HAS_POLARS and isinstance(tdf, (pl.DataFrame, pl.LazyFrame)):
+            lf = tdf if isinstance(tdf, pl.LazyFrame) else tdf.lazy()
+            actual_cols = lf.collect_schema().names()
+        else:
+            actual_cols = tdf.columns.tolist()
+
+        available_time_cols = [c for c in time_cols if c in actual_cols]
+        if not available_time_cols or 'hospitalization_id' not in actual_cols:
+            continue
+
+        result = check_cross_table_temporal_plausibility(
+            tdf, hosp_df, tbl_name, available_time_cols
+        )
+        results.setdefault(tbl_name, {})["cross_table_temporal"] = result
+
+    checked = sum(len(v) for v in results.values())
+    _logger.info(
+        "run_cross_table_plausibility_checks: completed %d checks across %d tables",
+        checked, len(results),
+    )
+    return results
+
+
 def run_full_dqa(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -2390,8 +4174,9 @@ def run_full_dqa(
 ) -> Dict[str, Any]:
     """Run the complete DQA suite on a single table.
 
-    Orchestrates conformance checks, completeness checks, and — when
-    *tables* is provided — auto-detected relational integrity checks.
+    Orchestrates conformance checks, completeness checks, plausibility
+    checks, and — when *tables* is provided — auto-detected relational
+    integrity and cross-table plausibility checks.
 
     Parameters
     ----------
@@ -2404,7 +4189,7 @@ def run_full_dqa(
     tables : list, optional
         Objects with ``.table_name`` and ``.df`` attributes (e.g.
         :class:`BaseTable` instances).  When provided, relational
-        integrity checks are run automatically.
+        integrity and cross-table plausibility checks are run.
     error_threshold : float
         Percent missing above which an error is raised (default 50).
     warning_threshold : float
@@ -2414,7 +4199,7 @@ def run_full_dqa(
     -------
     Dict[str, Any]
         Keys: ``table_name``, ``backend``, ``conformance``,
-        ``completeness``, ``relational``.
+        ``completeness``, ``relational``, ``plausibility``.
     """
     _logger.info("Starting full DQA for table: %s", table_name)
 
@@ -2424,6 +4209,7 @@ def run_full_dqa(
         'conformance': {},
         'completeness': {},
         'relational': {},
+        'plausibility': {},
     }
 
     results['conformance'] = {
@@ -2445,6 +4231,19 @@ def run_full_dqa(
                 k: v.to_dict()
                 for k, v in rel_results[table_name].items()
             }
+
+    # Plausibility checks (single-table)
+    results['plausibility'] = {
+        k: v.to_dict()
+        for k, v in run_plausibility_checks(df, schema, table_name).items()
+    }
+
+    # Cross-table plausibility checks (when tables provided)
+    if tables is not None:
+        cross_plaus = run_cross_table_plausibility_checks(tables)
+        if table_name in cross_plaus:
+            for k, v in cross_plaus[table_name].items():
+                results['plausibility'][k] = v.to_dict()
 
     gc.collect()
     _logger.info("Completed full DQA for table: %s", table_name)
@@ -2536,6 +4335,26 @@ def validate_dataframe(
                 'severity': 'warning'
             })
 
+    # Run plausibility checks
+    plausibility_results = run_plausibility_checks(df, schema, table_name)
+    for check_name, result in plausibility_results.items():
+        for err in result.errors:
+            errors.append({
+                'type': _format_check_type(check_name),
+                'description': err['message'],
+                'details': err.get('details', {}),
+                'category': 'data_quality'
+            })
+
+        for warn in result.warnings:
+            errors.append({
+                'type': _format_check_type(check_name),
+                'description': warn['message'],
+                'details': warn.get('details', {}),
+                'category': 'data_quality',
+                'severity': 'warning'
+            })
+
     gc.collect()
     error_count = sum(1 for e in errors if e.get('severity', 'error') == 'error')
     warning_count = sum(1 for e in errors if e.get('severity') == 'warning')
@@ -2556,6 +4375,14 @@ def _format_check_type(check_name: str) -> str:
         'conditional_requirements': 'Conditional Requirement Violation',
         'mcide_value_coverage': 'mCIDE Coverage Gap',
         'relational_integrity': 'Relational Integrity',
+        'temporal_ordering': 'Temporal Ordering Violation',
+        'numeric_range_plausibility': 'Numeric Range Implausibility',
+        'field_plausibility': 'Field Plausibility Violation',
+        'medication_dose_unit_consistency': 'Medication Dose Unit Inconsistency',
+        'cross_table_temporal': 'Cross-Table Temporal Implausibility',
+        'overlapping_periods': 'Overlapping Time Periods',
+        'category_temporal_consistency': 'Category Distribution Shift',
+        'duplicate_composite_keys': 'Duplicate Composite Keys',
     }
     return type_mapping.get(check_name, check_name.replace('_', ' ').title())
 
@@ -2740,6 +4567,14 @@ def classify_errors_by_status_impact(
 
             # mCIDE coverage gaps are informational
             if 'mcide' in error_type or 'coverage' in error_type:
+                is_informational = True
+
+            # Plausibility warnings are informational; plausibility errors affect status
+            plausibility_keywords = ['temporal ordering', 'numeric range', 'field plausibility',
+                                     'dose unit', 'overlapping', 'distribution shift',
+                                     'duplicate composite', 'cross-table temporal']
+            is_plausibility = any(p in error_type for p in plausibility_keywords)
+            if is_plausibility and error.get('severity') == 'warning':
                 is_informational = True
 
             # Warnings are generally informational

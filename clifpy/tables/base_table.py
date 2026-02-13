@@ -17,6 +17,7 @@ from datetime import datetime
 
 from ..utils.io import load_data
 from ..utils import validator
+from ..utils.outlier_handler import _load_outlier_config
 from ..utils.config import get_config_or_params
 from ..utils.logging_config import setup_logging
 
@@ -173,7 +174,7 @@ class BaseTable:
     def _load_outlier_config(self):
         """Load the outlier configuration for validation."""
         try:
-            self.outlier_config = validator.load_outlier_config()
+            self.outlier_config = _load_outlier_config()
             if self.outlier_config:
                 self.logger.info("Loaded outlier configuration")
             else:

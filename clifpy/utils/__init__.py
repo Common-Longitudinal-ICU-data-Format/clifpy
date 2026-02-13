@@ -31,6 +31,8 @@ from .validator import (
     # Orchestration functions
     run_conformance_checks,
     run_completeness_checks,
+    run_relational_integrity_checks,
+    run_full_dqa,
 )
 
 from .waterfall import process_resp_support_waterfall
@@ -87,4 +89,6 @@ __all__ = [
       'check_relational_integrity',
       'run_conformance_checks',
       'run_completeness_checks',
+      'run_relational_integrity_checks',
+      'run_full_dqa',
   ]

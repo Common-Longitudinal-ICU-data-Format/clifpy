@@ -1,0 +1,174 @@
+conditional_requirements:
+  adt:
+    - when_column: location_category
+      when_value: [icu]
+      then_required: [location_type]
+      description: "ICU locations must have location_type specified"
+  respiratory_support:
+    # --- General ---
+    - when_column: device_category
+      when_value: [IMV, NIPPV]
+      then_required: [mode_category]
+      description: "IMV/NIPPV must have mode_category specified"
+
+    # --- Non-IMV device rules ---
+    - when_column: device_category
+      when_value: [CPAP]
+      then_required: [fio2_set, peep_set, tidal_volume_obs, resp_rate_obs]
+      description: "CPAP requires fio2_set, peep_set settings and tidal_volume_obs, resp_rate_obs observations"
+    - when_column: device_category
+      when_value: [Face Mask]
+      then_required: [lpm_set]
+      description: "Face Mask requires lpm_set"
+    - when_column: device_category
+      when_value: [High Flow NC]
+      then_required: [fio2_set, lpm_set]
+      description: "High Flow NC requires fio2_set and lpm_set"
+    - when_column: device_category
+      when_value: [Nasal Cannula]
+      then_required: [lpm_set]
+      description: "Nasal Cannula requires lpm_set"
+    - when_column: device_category
+      when_value: [Trach Collar]
+      then_required: [lpm_set, fio2_set]
+      description: "Trach Collar requires lpm_set and fio2_set"
+
+    # --- NIPPV by mode ---
+    - when_column: device_category
+      when_value: [NIPPV]
+      and_column: mode_category
+      and_value: [Volume Support]
+      then_required: [fio2_set, peep_set, tidal_volume_set, resp_rate_set, inspiratory_time_set]
+      description: "NIPPV Volume Support requires fio2_set, peep_set, tidal_volume_set, resp_rate_set, and inspiratory_time_set"
+    - when_column: device_category
+      when_value: [NIPPV]
+      and_column: mode_category
+      and_value: [Pressure Support/CPAP]
+      then_required: [fio2_set, peep_set, peak_inspiratory_pressure_set, resp_rate_set, inspiratory_time_set]
+      description: "NIPPV PS/CPAP requires fio2_set, peep_set, peak_inspiratory_pressure_set, resp_rate_set, and inspiratory_time_set"
+
+    # --- IMV: all modes require fio2_set and peep_set ---
+    - when_column: device_category
+      when_value: [IMV]
+      then_required: [fio2_set, peep_set]
+      description: "IMV requires fio2_set and peep_set for all modes"
+
+    # --- IMV by mode (Expected settings only) ---
+    - when_column: device_category
+      when_value: [IMV]
+      and_column: mode_category
+      and_value: [Assist Control-Volume Control]
+      then_required: [tidal_volume_set, resp_rate_set]
+      description: "IMV Assist Control-Volume Control requires tidal_volume_set and resp_rate_set"
+    - when_column: device_category
+      when_value: [IMV]
+      and_column: mode_category
+      and_value: [Pressure Support/CPAP]
+      then_required: [pressure_support_set]
+      description: "IMV Pressure Support/CPAP requires pressure_support_set"
+    - when_column: device_category
+      when_value: [IMV]
+      and_column: mode_category
+      and_value: [Pressure Control]
+      then_required: [resp_rate_set, pressure_control_set, inspiratory_time_set]
+      description: "IMV Pressure Control requires resp_rate_set, pressure_control_set, and inspiratory_time_set"
+    - when_column: device_category
+      when_value: [IMV]
+      and_column: mode_category
+      and_value: [Pressure-Regulated Volume Control]
+      then_required: [tidal_volume_set, resp_rate_set]
+      description: "IMV PRVC requires tidal_volume_set and resp_rate_set"
+    - when_column: device_category
+      when_value: [IMV]
+      and_column: mode_category
+      and_value: [SIMV]
+      then_required: [resp_rate_set, pressure_support_set]
+      description: "IMV SIMV requires resp_rate_set and pressure_support_set"
+    - when_column: device_category
+      when_value: [IMV]
+      and_column: mode_category
+      and_value: [Volume Support]
+      then_required: [tidal_volume_set]
+      description: "IMV Volume Support requires tidal_volume_set"
+  crrt_therapy:
+    - when_column: crrt_mode_category
+      when_value: [cvvh, cvvhdf]
+      then_required: [pre_filter_replacement_fluid_rate, post_filter_replacement_fluid_rate]
+      description: "CVVH and CVVHDF modes require pre- and post-filter replacement fluid rates"
+    - when_column: crrt_mode_category
+      when_value: [cvvhd, cvvhdf]
+      then_required: [dialysate_flow_rate]
+      description: "CVVHD and CVVHDF modes require dialysate flow rate"
+
+relational_integrity:
+  hospitalization_id:
+    references_table: hospitalization
+  patient_id:
+    references_table: patient
+  organism_id:
+    references_table: microbiology_culture
+
+# ---------------------------------------------------------------------------
+# PLAUSIBILITY CHECKS CONFIGURATION
+# ---------------------------------------------------------------------------
+
+temporal_ordering:
+  hospitalization:
+    - earlier: admission_dttm
+      later: discharge_dttm
+      description: "Admission must be before or equal to discharge"
+  adt:
+    - earlier: in_dttm
+      later: out_dttm
+      description: "ADT in_dttm must be before or equal to out_dttm"
+  labs:
+    - earlier: lab_order_dttm
+      later: lab_collect_dttm
+      description: "Lab order must be before or equal to collection"
+    - earlier: lab_collect_dttm
+      later: lab_result_dttm
+      description: "Lab collection must be before or equal to result"
+  microbiology_culture:
+    - earlier: order_dttm
+      later: collect_dttm
+      description: "Culture order must be before or equal to collection"
+    - earlier: collect_dttm
+      later: result_dttm
+      description: "Culture collection must be before or equal to result"
+  microbiology_nonculture:
+    - earlier: order_dttm
+      later: collect_dttm
+      description: "Nonculture order must be before or equal to collection"
+    - earlier: collect_dttm
+      later: result_dttm
+      description: "Nonculture collection must be before or equal to result"
+
+field_plausibility_rules:
+  adt:
+    - when_column: location_category
+      when_not_value: [icu]
+      then_null_or_absent: [location_type]
+      description: "Non-ICU locations should not have ICU location_type"
+
+medication_dose_unit_rules:
+  medication_admin_continuous:
+    expect: per_time
+    description: "Continuous med dose units must be rate-based (contain time denominator)"
+  medication_admin_intermittent:
+    expect: discrete
+    description: "Intermittent med dose units must be discrete (no time denominator)"
+
+overlapping_periods:
+  adt:
+    entity_column: hospitalization_id
+    start_column: in_dttm
+    end_column: out_dttm
+    description: "ADT records for same hospitalization should not overlap"
+
+composite_keys:
+  hospitalization:
+    keys: [hospitalization_id]
+  adt:
+    keys: [hospitalization_id, in_dttm]
+  patient:
+    keys: [patient_id]
