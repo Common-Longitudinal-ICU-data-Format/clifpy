@@ -8,7 +8,7 @@ with app.setup:
     from clifpy.utils.logging_config import setup_logging
     setup_logging()
 
-    COHORT_SIZE = 1000
+    COHORT_SIZE = 10000
     VIZ_N = 20
     CONFIG_PATH = 'config/mimic_config.yaml'
 
@@ -213,6 +213,7 @@ def _():
 def _(intm_sedation_df):
     all_sedation_df = mo.sql(
         f"""
+        SELECT *
         -- Combined sedation events with source label
         FROM (
             FROM cont_sedation_df
@@ -225,7 +226,6 @@ def _(intm_sedation_df):
                 , mar_action_category, sedation_episode_id, is_sedated
                 , source: 'intermittent'
         )
-        SELECT *
         ORDER BY hospitalization_id, dttm
         """
     )
@@ -628,6 +628,338 @@ def _(all_sedation_df, gcs_df):
                 SELECT ROUND(QUANTILE_CONT(gap_hours, 0.75), 1) FROM gcs_after_intm)
         """
     )
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## GCS Recovery After Continuous Sedation Episodes
+
+    For each continuous sedation episode, identify the **last active drug** (latest admin with dose > 0)
+    and track `gcs_total` measurements in the inter-episode gap (after episode end, before next episode start).
+
+    Two views:
+
+    - **Hourly-binned**: average GCS per hour-bin after episode end, by drug
+
+    - **Smooth continuous**: gaussian-smoothed GCS trajectory on fine-grained bins
+    """)
+    return
+
+
+@app.cell
+def _(all_sedation_df, gcs_df):
+    gcs_post_episode_df = mo.sql(
+        f"""
+        -- GCS recovery after continuous sedation episodes, by last active drug
+        WITH episode_bounds AS (
+            -- Episode start/end from continuous sedation events
+            FROM all_sedation_df
+            SELECT
+                hospitalization_id
+                , sedation_episode_id
+                , episode_start: MIN(dttm)
+                , episode_end: MAX(dttm)
+            WHERE source = 'continuous'
+                AND is_sedated = 1
+                AND sedation_episode_id IS NOT NULL
+            GROUP BY hospitalization_id, sedation_episode_id
+        ),
+        episode_drug AS (
+            -- Last active drug per episode (latest admin with dose > 0)
+            FROM all_sedation_df a
+            JOIN episode_bounds e ON
+                a.hospitalization_id = e.hospitalization_id
+                AND a.sedation_episode_id = e.sedation_episode_id
+            SELECT
+                e.hospitalization_id
+                , e.sedation_episode_id
+                , sedation_drug: a.sedation_category
+            WHERE a.source = 'continuous'
+                AND a.is_sedated = 1
+                AND a.sedation_dose > 0
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY e.hospitalization_id, e.sedation_episode_id
+                ORDER BY a.dttm DESC
+            ) = 1
+        ),
+        episodes_with_neighbors AS (
+            -- Add next episode start and previous episode end to bound the window
+            FROM episode_bounds
+            SELECT
+                *
+                , next_episode_start: LEAD(episode_start) OVER (
+                    PARTITION BY hospitalization_id ORDER BY episode_start)
+                , prev_episode_end: LAG(episode_end) OVER (
+                    PARTITION BY hospitalization_id ORDER BY episode_start)
+        ),
+        gcs_between_episodes AS (
+            -- GCS measurements: 12h before episode end through next episode start
+            FROM gcs_df g
+            JOIN episodes_with_neighbors e ON
+                g.hospitalization_id = e.hospitalization_id
+                AND g.dttm >= e.episode_end - INTERVAL '12 hours'
+                AND (e.next_episode_start IS NULL OR g.dttm < e.next_episode_start)
+                -- Don't overlap into previous episode's recovery window
+                AND (e.prev_episode_end IS NULL OR g.dttm > e.prev_episode_end)
+            JOIN episode_drug d ON
+                e.hospitalization_id = d.hospitalization_id
+                AND e.sedation_episode_id = d.sedation_episode_id
+            SELECT
+                g.hospitalization_id
+                , e.sedation_episode_id
+                , d.sedation_drug
+                , g.dttm
+                , g.gcs_total
+                , hours_after_episode: EXTRACT(EPOCH FROM (g.dttm - e.episode_end)) / 3600
+            WHERE g.gcs_total IS NOT NULL
+        )
+        FROM gcs_between_episodes
+        SELECT *
+        ORDER BY sedation_drug, hours_after_episode
+        """
+    )
+    return (gcs_post_episode_df,)
+
+
+@app.cell(hide_code=True)
+def _(gcs_post_episode_df):
+    import matplotlib.pyplot as _plt_h
+    import numpy as _np_h
+
+    _df = gcs_post_episode_df.copy()
+    _df['hour_bin'] = _np_h.floor(_df['hours_after_episode']).astype(int)
+
+    # Aggregate: mean GCS per (drug, hour_bin)
+    _agg = _df.groupby(['sedation_drug', 'hour_bin']).agg(
+        avg_gcs=('gcs_total', 'mean'),
+        n=('gcs_total', 'count'),
+    ).reset_index()
+
+    # Filter: require >= 3 observations per bin for stability
+    _agg = _agg[_agg['n'] >= 3]
+
+    # Cap at -12 to 48 hours
+    _agg = _agg[(_agg['hour_bin'] >= -12) & (_agg['hour_bin'] <= 48)]
+
+    # Color map per drug
+    _drugs = sorted(_agg['sedation_drug'].unique())
+    _colors = _plt_h.cm.tab10.colors
+    _drug_colors = {d: _colors[i % len(_colors)] for i, d in enumerate(_drugs)}
+
+    _fig, _ax = _plt_h.subplots(figsize=(12, 5))
+    for _drug in _drugs:
+        _drug_df = _agg[_agg['sedation_drug'] == _drug].sort_values('hour_bin')
+        _ax.plot(
+            _drug_df['hour_bin'], _drug_df['avg_gcs'],
+            color=_drug_colors[_drug], linewidth=1.5, label=_drug,
+        )
+        _ax.scatter(
+            _drug_df['hour_bin'], _drug_df['avg_gcs'],
+            c=[_drug_colors[_drug]], s=15, alpha=0.7,
+        )
+        # Sample size labels at every data point
+        for _, _row in _drug_df.iterrows():
+            _ax.text(
+                _row['hour_bin'], _row['avg_gcs'] + 0.3,
+                str(int(_row['n'])),
+                fontsize=6, alpha=0.6, ha='center', color=_drug_colors[_drug],
+            )
+
+    _ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+    _ax.set_xlabel('Hours after sedation episode end')
+    _ax.set_ylabel('Mean GCS Total')
+    _ax.set_title('GCS Recovery After Continuous Sedation — Hourly Binned')
+    _ax.set_ylim(0, 16)
+    _ax.set_xticks(range(-12, 49, 4))
+    _ax.legend(fontsize=8)
+    _ax.grid(alpha=0.2)
+    _plt_h.tight_layout()
+    _plt_h.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(gcs_post_episode_df):
+    import matplotlib.pyplot as _plt_s
+    import numpy as _np_s
+    from scipy.ndimage import gaussian_filter1d as _gaussian_filter1d
+
+    _df = gcs_post_episode_df.copy()
+
+    # Cap at -12 to 48 hours
+    _df = _df[(_df['hours_after_episode'] >= -12) & (_df['hours_after_episode'] <= 48)]
+
+    # Fine bins (15-minute intervals)
+    _df['fine_bin'] = _np_s.floor(_df['hours_after_episode'] * 4) / 4
+
+    _drugs = sorted(_df['sedation_drug'].unique())
+    _colors = _plt_s.cm.tab10.colors
+    _drug_colors = {d: _colors[i % len(_colors)] for i, d in enumerate(_drugs)}
+
+    _fig, _ax = _plt_s.subplots(figsize=(12, 5))
+
+    for _drug in _drugs:
+        _drug_df = _df[_df['sedation_drug'] == _drug]
+
+        # Fine-bin averages then gaussian smooth
+        _bin_agg = _drug_df.groupby('fine_bin')['gcs_total'].mean().sort_index()
+        if len(_bin_agg) >= 5:
+            _smoothed = _gaussian_filter1d(_bin_agg.values, sigma=4)
+            _ax.plot(
+                _bin_agg.index, _smoothed,
+                color=_drug_colors[_drug], linewidth=2, label=_drug,
+            )
+
+            # Sample size labels at every 4th hour along the smooth curve
+            _hourly_n = _drug_df.groupby(
+                _np_s.floor(_drug_df['hours_after_episode']).astype(int)
+            )['gcs_total'].count()
+            for _hr in range(-12, 49, 4):
+                if _hr in _hourly_n.index and len(_bin_agg) > 0:
+                    _idx = _np_s.abs(_bin_agg.index.to_numpy() - _hr).argmin()
+                    _y_val = _smoothed[_idx]
+                    _ax.text(
+                        _hr, _y_val + 0.3,
+                        str(int(_hourly_n[_hr])),
+                        fontsize=6, alpha=0.6, ha='center',
+                        color=_drug_colors[_drug],
+                    )
+
+    _ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+    _ax.set_xlabel('Hours after sedation episode end')
+    _ax.set_ylabel('Mean GCS Total (smoothed)')
+    _ax.set_title('GCS Recovery After Continuous Sedation — Smooth')
+    _ax.set_ylim(0, 16)
+    _ax.set_xticks(range(-12, 49, 4))
+    _ax.legend(fontsize=8)
+    _ax.grid(alpha=0.2)
+    _plt_s.tight_layout()
+    _plt_s.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(gcs_post_episode_df):
+    import matplotlib.pyplot as _plt_fh
+    import numpy as _np_fh
+
+    _df = gcs_post_episode_df.copy()
+    _df['hour_bin'] = _np_fh.floor(_df['hours_after_episode']).astype(int)
+
+    _agg = _df.groupby(['sedation_drug', 'hour_bin']).agg(
+        avg_gcs=('gcs_total', 'mean'),
+        n=('gcs_total', 'count'),
+    ).reset_index()
+    _agg = _agg[_agg['n'] >= 3]
+    _agg = _agg[(_agg['hour_bin'] >= -12) & (_agg['hour_bin'] <= 48)]
+
+    _drugs = sorted(_agg['sedation_drug'].unique())
+    _colors = _plt_fh.cm.tab10.colors
+    _drug_colors = {d: _colors[i % len(_colors)] for i, d in enumerate(_drugs)}
+
+    _fig, _axes = _plt_fh.subplots(
+        nrows=len(_drugs), ncols=1,
+        figsize=(12, 3 * len(_drugs)),
+        sharex=True, sharey=True, squeeze=False,
+    )
+
+    for _i, _drug in enumerate(_drugs):
+        _ax = _axes[_i, 0]
+        _drug_df = _agg[_agg['sedation_drug'] == _drug].sort_values('hour_bin')
+        _ax.plot(
+            _drug_df['hour_bin'], _drug_df['avg_gcs'],
+            color=_drug_colors[_drug], linewidth=1.5,
+        )
+        _ax.scatter(
+            _drug_df['hour_bin'], _drug_df['avg_gcs'],
+            c=[_drug_colors[_drug]], s=15, alpha=0.7,
+        )
+        for _, _row in _drug_df.iterrows():
+            _ax.text(
+                _row['hour_bin'], _row['avg_gcs'] + 0.3,
+                str(int(_row['n'])),
+                fontsize=6, alpha=0.6, ha='center', color=_drug_colors[_drug],
+            )
+        _ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        _ax.set_ylabel('Mean GCS')
+        _ax.set_title(_drug, fontsize=10, loc='left')
+        _ax.set_ylim(0, 16)
+        _ax.set_xticks(range(-12, 49, 4))
+        _ax.tick_params(labelbottom=True)
+        _ax.grid(alpha=0.2)
+
+    _axes[-1, 0].set_xlabel('Hours after sedation episode end')
+    _fig.suptitle('GCS Recovery — Hourly Binned (Faceted by Drug)', fontsize=13, y=1.01)
+    _plt_fh.tight_layout()
+    _plt_fh.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(gcs_post_episode_df):
+    import matplotlib.pyplot as _plt_fs
+    import numpy as _np_fs
+    from scipy.ndimage import gaussian_filter1d as _gf1d
+
+    _df = gcs_post_episode_df.copy()
+    _df = _df[(_df['hours_after_episode'] >= -12) & (_df['hours_after_episode'] <= 48)]
+    _df['fine_bin'] = _np_fs.floor(_df['hours_after_episode'] * 4) / 4
+
+    _drugs = sorted(_df['sedation_drug'].unique())
+    _colors = _plt_fs.cm.tab10.colors
+    _drug_colors = {d: _colors[i % len(_colors)] for i, d in enumerate(_drugs)}
+
+    _fig, _axes = _plt_fs.subplots(
+        nrows=len(_drugs), ncols=1,
+        figsize=(12, 3 * len(_drugs)),
+        sharex=True, sharey=True, squeeze=False,
+    )
+
+    for _i, _drug in enumerate(_drugs):
+        _ax = _axes[_i, 0]
+        _drug_df = _df[_df['sedation_drug'] == _drug]
+
+        _bin_agg = _drug_df.groupby('fine_bin')['gcs_total'].mean().sort_index()
+        if len(_bin_agg) >= 5:
+            _smoothed = _gf1d(_bin_agg.values, sigma=4)
+            _ax.plot(
+                _bin_agg.index, _smoothed,
+                color=_drug_colors[_drug], linewidth=2,
+            )
+
+            _hourly_n = _drug_df.groupby(
+                _np_fs.floor(_drug_df['hours_after_episode']).astype(int)
+            )['gcs_total'].count()
+            for _hr in range(-12, 49, 4):
+                if _hr in _hourly_n.index and len(_bin_agg) > 0:
+                    _idx = _np_fs.abs(_bin_agg.index.to_numpy() - _hr).argmin()
+                    _y_val = _smoothed[_idx]
+                    _ax.text(
+                        _hr, _y_val + 0.3,
+                        str(int(_hourly_n[_hr])),
+                        fontsize=6, alpha=0.6, ha='center',
+                        color=_drug_colors[_drug],
+                    )
+
+        _ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        _ax.set_ylabel('Mean GCS')
+        _ax.set_title(_drug, fontsize=10, loc='left')
+        _ax.set_ylim(0, 16)
+        _ax.set_xticks(range(-12, 49, 4))
+        _ax.tick_params(labelbottom=True)
+        _ax.grid(alpha=0.2)
+
+    _axes[-1, 0].set_xlabel('Hours after sedation episode end')
+    _fig.suptitle('GCS Recovery — Smooth (Faceted by Drug)', fontsize=13, y=1.01)
+    _plt_fs.tight_layout()
+    _plt_fs.show()
+    return
+
+
+@app.cell
+def _():
     return
 
 
