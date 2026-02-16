@@ -53,9 +53,7 @@ class SOFA2Config:
     pf_sf_tolerance_hours: float = 4.0
 
     # Brain subscore (footnote c)
-    # NOTE: DEPRECATED — no longer used. Retained for backward compatibility.
-    # Sedation now uses earliest-onset approach (see _find_earliest_sedation).
-    post_sedation_gcs_invalidate_hours: float = 1.0
+    post_sedation_gcs_invalidate_hours: float = 12.0
 
 
 # =============================================================================
@@ -210,7 +208,7 @@ def _flag_rrt(cohort_rel: DuckDBPyRelation, crrt_rel: DuckDBPyRelation) -> DuckD
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, has_rrt]
+        Columns: [hospitalization_id, start_dttm, has_rrt, rrt_dttm_offset]
         Only includes rows where RRT was detected (has_rrt = 1)
     """
     return duckdb.sql("""
@@ -219,10 +217,12 @@ def _flag_rrt(cohort_rel: DuckDBPyRelation, crrt_rel: DuckDBPyRelation) -> DuckD
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
-        SELECT DISTINCT
+        SELECT
             t.hospitalization_id
             , c.start_dttm
             , 1 AS has_rrt
+            , MIN(t.recorded_dttm) - c.start_dttm AS rrt_dttm_offset
+        GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
 
@@ -259,8 +259,9 @@ def _flag_delirium_drug(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, has_delirium_drug]
-        Only includes rows where delirium drug was detected (has_delirium_drug = 1)
+        Columns: [hospitalization_id, start_dttm, has_delirium_drug, delirium_drug_dttm_offset]
+        Only includes rows where delirium drug was detected (has_delirium_drug = 1).
+        delirium_drug_dttm_offset = interval from start_dttm to earliest admin.
     """
     cont_delirium_list = CONT_DELIRIUM_DRUGS
     cont_delirium_tuple = tuple(CONT_DELIRIUM_DRUGS)
@@ -286,6 +287,7 @@ def _flag_delirium_drug(
         SELECT
             cm.hospitalization_id
             , cm.start_dttm
+            , t.admin_dttm
         WHERE t.hospitalization_id IS NOT NULL
             AND t.mar_action_category != 'stop'
             AND t.med_dose > 0
@@ -301,6 +303,7 @@ def _flag_delirium_drug(
         SELECT
             t.hospitalization_id
             , c.start_dttm
+            , t.admin_dttm
         WHERE t.med_category IN {cont_delirium_tuple}
             AND t.med_dose > 0
     """)
@@ -316,6 +319,7 @@ def _flag_delirium_drug(
         SELECT
             t.hospitalization_id
             , c.start_dttm
+            , t.admin_dttm
         WHERE t.med_category IN {intm_delirium_tuple}
             AND t.med_dose > 0
             AND t.mar_action_category != 'not_given'
@@ -329,10 +333,12 @@ def _flag_delirium_drug(
             UNION ALL
             FROM intm_in_window SELECT *
         )
-        SELECT DISTINCT
+        SELECT
             hospitalization_id
             , start_dttm
             , 1 AS has_delirium_drug
+            , MIN(admin_dttm) - start_dttm AS delirium_drug_dttm_offset
+        GROUP BY hospitalization_id, start_dttm
     """)
 
 
@@ -362,7 +368,7 @@ def _flag_mechanical_cv_support(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, has_mechanical_cv_support]
+        Columns: [hospitalization_id, start_dttm, has_mechanical_cv_support, mechanical_cv_dttm_offset]
         Only includes rows where mechanical CV support was detected (has_mechanical_cv_support = 1)
     """
     return duckdb.sql("""
@@ -371,10 +377,11 @@ def _flag_mechanical_cv_support(
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
-        SELECT DISTINCT
+        SELECT
             t.hospitalization_id
             , c.start_dttm
             , 1 AS has_mechanical_cv_support
+            , MIN(t.recorded_dttm) - c.start_dttm AS mechanical_cv_dttm_offset
         WHERE
             -- Non-VV ECMO configurations (footnote i CV part)
             t.ecmo_configuration_category IN ('va', 'va_v', 'vv_a')
@@ -384,6 +391,7 @@ def _flag_mechanical_cv_support(
             OR t.mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')
             -- RV assist devices (footnote n)
             OR t.mcs_group = 'temporary_rvad'
+        GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
 
@@ -405,12 +413,17 @@ SEDATION_DRUGS = [
 ]
 
 
+# NOTE: DEPRECATED — retained for reference. Use _detect_sedation_episodes() instead.
+# The earliest-onset approach was simpler but clinicians preferred episode-based
+# GCS invalidation with post_sedation_gcs_invalidate_hours.
 def _find_earliest_sedation(
     cohort_rel: DuckDBPyRelation,
     cont_meds_rel: DuckDBPyRelation,
     intm_meds_rel: DuckDBPyRelation,
 ) -> DuckDBPyRelation:
     """
+    DEPRECATED: Use _detect_sedation_episodes() instead. Retained for reference only.
+
     Find earliest sedation drug administration per scoring window.
 
     Checks three sources:
@@ -441,7 +454,6 @@ def _find_earliest_sedation(
     sedation_drugs_tuple = tuple(SEDATION_DRUGS)
 
     # Source 1: Pre-window ASOF for continuous drugs already infusing at window start
-    # If active, earliest_sedation_dttm = start_dttm (drug was on before window)
     cont_pre_window = duckdb.sql(f"""
         WITH med_cats AS (
             SELECT UNNEST({sedation_drugs_list}::VARCHAR[]) AS med_category
@@ -459,8 +471,8 @@ def _find_earliest_sedation(
         SELECT
             cm.hospitalization_id
             , cm.start_dttm
-            -- Drug was already running before window → use start_dttm as onset FIXME: should use admin_dttm as sedation_dttm
-            , cm.start_dttm AS sedation_dttm
+            -- Actual pre-window admin time (negative offset from start_dttm)
+            , t.admin_dttm AS sedation_dttm
         WHERE t.hospitalization_id IS NOT NULL
             AND t.mar_action_category != 'stop'
             AND t.med_dose > 0
@@ -514,17 +526,12 @@ def _find_earliest_sedation(
     """)
 
 
-# NOTE: DEPRECATED — retained for reference in case we need to revert to
-# episode-based sedation detection. The new approach uses _find_earliest_sedation()
-# which simply finds the earliest sedation drug admin and invalidates all GCS after it.
 def _detect_sedation_episodes(
     cohort_rel: DuckDBPyRelation,
     cont_meds_rel: DuckDBPyRelation,
     post_sedation_gcs_invalidate_hours: float = 1.0,
 ) -> DuckDBPyRelation:
     """
-    DEPRECATED: Use _find_earliest_sedation() instead. Retained for reference only.
-
     Detect sedation episodes within each scoring window for brain subscore.
 
     Uses the window-bounded episode pattern: pre-window ASOF + in-window +
@@ -701,6 +708,7 @@ def _detect_sedation_episodes(
             hospitalization_id
             , start_dttm
             , episode_start AS sedation_start
+            , episode_end
             , episode_end + INTERVAL '{post_sedation_gcs_invalidate_hours} hours' AS sedation_end_extended
         WHERE is_sedated = 1
     """)

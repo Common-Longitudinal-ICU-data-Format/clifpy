@@ -444,6 +444,7 @@ def _calculate_cv_subscore(
             , CASE WHEN COALESCE(v.dopa_max, 0) > 0 OR COALESCE(v.has_other_non_dopa, 0) = 1
                    THEN 1 ELSE 0 END AS has_other_vaso
             , COALESCE(mcv.has_mechanical_cv_support, 0) AS has_mechanical_cv_support
+            , mcv.mechanical_cv_dttm_offset
             , cv: CASE
                 -- Footnote n: Mechanical CV support → 4 points (highest priority)
                 WHEN COALESCE(mcv.has_mechanical_cv_support, 0) = 1 THEN 4

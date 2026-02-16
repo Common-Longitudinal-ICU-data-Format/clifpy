@@ -129,15 +129,26 @@ def _calculate_kidney_subscore(
             AND lab_dttm_offset >= -INTERVAL '{lookback_hours} hours'
     """)
 
-    # Step 4: Pivot pre-window labs to wide format (values and offsets in single pass)
-    # DuckDB PIVOT supports multiple aggregations: creates {category}_{alias} columns
+    # Step 4: Pivot pre-window labs to wide format using conditional aggregation
+    # NOTE: Dynamic PIVOT (ON lab_category) only creates columns for values present
+    # in the data. If a category has no rows, the column is missing → Binder Error.
+    # Explicit FILTER aggregation always creates all columns (NULL when no data).
     logger.info("Pivoting pre-window labs to enable per-lab fallback pattern...")
     labs_pre_window = duckdb.sql("""
-        PIVOT labs_pre_window_long
-        ON lab_category
-        USING
-            ANY_VALUE(lab_value) AS val
-            , ANY_VALUE(lab_dttm_offset) AS dttm_offset
+        FROM labs_pre_window_long
+        SELECT
+            hospitalization_id
+            , start_dttm
+            , ANY_VALUE(lab_value) FILTER(lab_category = 'creatinine') AS creatinine_val
+            , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'creatinine') AS creatinine_dttm_offset
+            , ANY_VALUE(lab_value) FILTER(lab_category = 'potassium') AS potassium_val
+            , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'potassium') AS potassium_dttm_offset
+            , ANY_VALUE(lab_value) FILTER(lab_category = 'ph_arterial') AS ph_arterial_val
+            , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'ph_arterial') AS ph_arterial_dttm_offset
+            , ANY_VALUE(lab_value) FILTER(lab_category = 'ph_venous') AS ph_venous_val
+            , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'ph_venous') AS ph_venous_dttm_offset
+            , ANY_VALUE(lab_value) FILTER(lab_category = 'bicarbonate') AS bicarbonate_val
+            , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'bicarbonate') AS bicarbonate_dttm_offset
         GROUP BY hospitalization_id, start_dttm
     """)
 
@@ -145,7 +156,6 @@ def _calculate_kidney_subscore(
     # Use pre-window value only if no in-window value exists for that specific lab
     logger.info("Applying fallback: use pre-window only when in-window is missing...")
 
-    # Note: PIVOT creates columns as {category}_{alias}, e.g. creatinine_val, creatinine_dttm_offset
     labs_with_fallback = duckdb.sql("""
         FROM cohort_rel c
         LEFT JOIN labs_in_window l USING (hospitalization_id, start_dttm)
@@ -187,6 +197,7 @@ def _calculate_kidney_subscore(
             , l.bicarbonate
             , l.bicarbonate_dttm_offset
             , COALESCE(r.has_rrt, 0) AS has_rrt
+            , r.rrt_dttm_offset
             -- Footnote p: RRT criteria met (window-level, no concurrency check)
             , rrt_criteria_met: CASE
                 WHEN l.creatinine > 1.2

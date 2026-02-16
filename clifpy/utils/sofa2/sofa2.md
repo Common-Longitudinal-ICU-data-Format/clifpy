@@ -27,11 +27,12 @@ daily_sofa2_results = calculate_sofa2_daily(
 ```python
 @dataclass
 class SOFA2Config:
+  # DISCUSSION
   # Pre-window lookback (hours) - per subscore type
   resp_lookback_hours: float = 4.0
   liver_lookback_hours: float = 24.0
   kidney_lookback_hours: float = 12.0
-  hemo_lookback_hours: float = 12.0
+  hemo_lookback_hours: float = 24.0 # DONE: changed from 12 to 24
 
   # CV subscore
   pressor_min_duration_minutes: int = 60
@@ -39,8 +40,8 @@ class SOFA2Config:
   # Resp subscore
   pf_sf_tolerance_hours: float = 4.0
 
-  # Brain subscore (footnote c) — DEPRECATED, no longer used
-  post_sedation_gcs_invalidate_hours: float = 1.0
+  # Brain subscore (footnote c)
+  post_sedation_gcs_invalidate_hours: float = 12.0
 ```
 ---
 
@@ -61,8 +62,8 @@ class SOFA2Config:
 
 | footnote | status |
 |----------|----------|
-| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: finds the earliest sedation drug admin from BOTH continuous and intermittent tables (`_find_earliest_sedation()`). Only GCS recorded BEFORE this onset time are valid; all GCS after are invalidated. Pre-window ASOF is used for continuous drugs (to detect drugs already infusing at window start). `post_sedation_gcs_invalidate_hours` is deprecated. Sedation drugs: `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']` |
-| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. before earliest sedation onset) gcs_total is available. |
+| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: uses episode-based sedation detection (`_detect_sedation_episodes()`) from continuous meds only. GCS measurements falling within any sedation episode (from `sedation_start` to `sedation_end_extended`, where extended = `sedation_end + post_sedation_gcs_invalidate_hours`) are invalidated. If no valid GCS and sedation present, score 0. Sedation drugs: `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']` DISCUSSION |
+| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. outside sedation episodes) gcs_total is available. |
 | e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: continuous delirium drugs (`['dexmedetomidine']`) use pre-window ASOF + in-window from `medication_admin_continuous`; intermittent delirium drugs (`['haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']`) use in-window only from `medication_admin_intermittent` with `med_dose > 0 AND mar_action_category != 'not_given'`. |
 
 delirium drugs:
@@ -89,7 +90,7 @@ delirium drugs:
 |----------|----------| 
 | impute fio2 from lpm_set and room air (see detailsbelow) | DONE |
 | fio2 are matched to their most recent pao2 or spo2 measurements up to `pf_sf_tolerance_hours` (default = 4 hrs) | DONE; `pf_sf_dttm_offset` column added showing the time gap between PaO2/SpO2 and FiO2 measurements |
-| if no pao2, spo2, or fio2 is found within the target window, the most recent values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 4 hr) | DONE |
+| if no pao2, spo2, or fio2 is found within the target window, the most recent values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 6 hr) | DONE |
 
 ### fio2_set imputation
 ```sql
@@ -136,7 +137,7 @@ END AS fio2_imputed
 
 | additional specs | status |
 |----------|----------| 
-| if no bilirubin_total is found within the target window, values from before the `start_dttm` of the target window are used, up to `liver_lookback_hours` (default = 24 hr) | DONE |
+| if no bilirubin_total is found within the target window, the most recent value from before the `start_dttm` of the target window is used, up to `liver_lookback_hours` (default = 24 hr) DISCUSSION | DONE |
 
 # Kidney
 | score | spec | status |
@@ -244,15 +245,14 @@ All medication patterns use ASOF JOINs to capture the continuous state of drug i
 
 | Scenario | Pre-window | In-window | Post-window | Used by |
 |----------|-----------|-----------|-------------|---------|
-| **Earliest onset** (cont) | ASOF: `start_dttm > admin_dttm` → onset = `start_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Sedation (cont) |
-| **Earliest onset** (intm) | none | `admin_dttm >= start_dttm AND <= end_dttm`, `med_dose > 0`, `mar_action_category != 'not_given'` | none | Sedation (intm) |
+| **Window-bounded episodes** (cont) | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Sedation (cont only) |
 | **Flag only** (cont) | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | none | Delirium drugs (cont: dexmedetomidine) |
 | **Flag only** (intm) | none | `admin_dttm >= start_dttm AND <= end_dttm`, `med_dose > 0`, `mar_action_category != 'not_given'` | none | Delirium drugs (intm: haloperidol, quetiapine, ziprasidone, olanzapine) |
 | **Exact duration episodes** | ASOF: `start_dttm > admin_dttm` | `admin_dttm >= start_dttm AND <= end_dttm` | First event after: `end_dttm < admin_dttm` | Vasopressors |
 
 **Why these scenarios?**
 
-- **Earliest onset**: Find the MIN(admin_dttm) across all sedation drug sources (cont pre-window ASOF + cont in-window + intm in-window). All GCS after this time are invalidated. Much simpler than episode detection — no need to track episode boundaries.
+- **Window-bounded episodes**: Detect sedation episodes from continuous meds only using the episode detection pipeline (dedup → collapse → LAG → cumulative SUM → episode boundaries). GCS within any episode's `[sedation_start, sedation_end + post_sedation_gcs_invalidate_hours]` range are invalidated. Captures intermittent sedation gaps (e.g., drug stopped and restarted).
 
 - **Flag only**: Just need boolean "was drug active?" — no duration needed. Continuous drugs (dexmedetomidine) use pre-window ASOF + in-window; intermittent drugs only need in-window check.
 
@@ -280,7 +280,7 @@ All medication patterns use ASOF JOINs to capture the continuous state of drug i
 | Liver | 24h | Bilirubin | Labs/vitals fallback |
 | Kidney | 12h | Creatinine, potassium, pH, bicarbonate | Labs/vitals fallback |
 | Hemo | 12h | Platelets | Labs/vitals fallback |
-| Brain | GCS in-window only; sedation cont pre+in, intm in; delirium cont pre+in, intm in | GCS, sedation drugs, delirium drugs | Mixed |
+| Brain | GCS in-window only; sedation cont pre+in only; delirium cont pre+in, intm in | GCS, sedation drugs, delirium drugs | Mixed |
 | CV | Vasopressors pre+in+post; mechanical CV support in-window only | Vasopressors, ECMO/MCS | Exact duration + in-window flag |
 
 ## Optional Tables

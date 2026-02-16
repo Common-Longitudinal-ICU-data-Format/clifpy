@@ -390,12 +390,14 @@ def _calculate_resp_subscore(
             t.hospitalization_id = c.hospitalization_id
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
-        SELECT DISTINCT
+        SELECT
             t.hospitalization_id
             , c.start_dttm
             , 1 AS has_ecmo
+            , MIN(t.recorded_dttm) - c.start_dttm AS ecmo_dttm_offset
         WHERE t.mcs_group = 'ecmo'
             OR t.ecmo_configuration_category IS NOT NULL
+        GROUP BY t.hospitalization_id, c.start_dttm
     """)
 
     # =========================================================================
@@ -426,6 +428,7 @@ def _calculate_resp_subscore(
                 ELSE NULL
               END
             , COALESCE(e.has_ecmo, 0) AS has_ecmo
+            , e.ecmo_dttm_offset
             , resp: CASE
                 -- ECMO override: 4 points regardless of ratio
                 WHEN COALESCE(e.has_ecmo, 0) = 1 THEN 4

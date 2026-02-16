@@ -139,19 +139,23 @@ def calculate_sofa2(
     pd.DataFrame | DuckDBPyRelation | tuple
         If dev=False: DataFrame or relation with columns:
             - hospitalization_id, start_dttm, end_dttm (from input)
-            - Brain: gcs_min, gcs_type, gcs_min_dttm_offset, has_sedation, has_delirium_drug, brain
+            - sofa2_total (sum of subscores, 0-24)
+            - sofa2_brain, sofa2_resp, sofa2_cv, sofa2_liver, sofa2_kidney, sofa2_hemo
+            - Brain: gcs_min, gcs_type, gcs_min_dttm_offset, has_sedation,
+              sedation_start_dttm_offset, sedation_end_dttm_offset,
+              has_delirium_drug, delirium_drug_dttm_offset
             - Resp: pf_ratio, sf_ratio, has_advanced_support, device_category,
               pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
-              fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
+              fio2_at_worst, fio2_dttm_offset, has_ecmo, ecmo_dttm_offset
             - CV: map_min, map_min_dttm_offset, norepi_epi_maxsum,
               norepi_epi_maxsum_dttm_offset, dopa_max, dopa_max_dttm_offset,
-              has_other_non_dopa, has_other_vaso, cv
-            - Liver: bilirubin_total, bilirubin_dttm_offset, liver
+              has_other_non_dopa, has_other_vaso, has_mechanical_cv_support,
+              mechanical_cv_dttm_offset
+            - Liver: bilirubin_total, bilirubin_dttm_offset
             - Kidney: creatinine, creatinine_dttm_offset, potassium,
               potassium_dttm_offset, ph, ph_type, ph_dttm_offset, bicarbonate,
-              bicarbonate_dttm_offset, has_rrt, rrt_criteria_met, kidney
-            - Hemo: platelet_count, platelet_dttm_offset, hemo
-            - sofa_total (sum of subscores, 0-24)
+              bicarbonate_dttm_offset, has_rrt, rrt_dttm_offset, rrt_criteria_met
+            - Hemo: platelet_count, platelet_dttm_offset
         If dev=True: (results, intermediates_dict)
     """
     from clifpy import load_data
@@ -266,14 +270,29 @@ def calculate_sofa2(
             c.hospitalization_id
             , c.start_dttm
             , c.end_dttm
-            -- Brain subscore
+            -- SOFA-2 total and subscores
+            , sofa2_total: COALESCE(b.brain, 0)
+                + COALESCE(resp.resp, 0)
+                + COALESCE(cv.cv, 0)
+                + COALESCE(li.liver, 0)
+                + COALESCE(k.kidney, 0)
+                + COALESCE(h.hemo, 0)
+            , sofa2_brain: b.brain
+            , sofa2_resp: resp.resp
+            , sofa2_cv: cv.cv
+            , sofa2_liver: li.liver
+            , sofa2_kidney: k.kidney
+            , sofa2_hemo: h.hemo
+            -- Brain scoring variables
             , b.gcs_min
             , b.gcs_type
             , b.gcs_min_dttm_offset
             , b.has_sedation
+            , b.sedation_start_dttm_offset
+            , b.sedation_end_dttm_offset
             , b.has_delirium_drug
-            , b.brain
-            -- Respiratory subscore
+            , b.delirium_drug_dttm_offset
+            -- Respiratory scoring variables
             , resp.pf_ratio
             , resp.sf_ratio
             , resp.has_advanced_support
@@ -285,8 +304,8 @@ def calculate_sofa2(
             , resp.fio2_at_worst
             , resp.fio2_dttm_offset
             , resp.has_ecmo
-            , resp.resp
-            -- Cardiovascular subscore
+            , resp.ecmo_dttm_offset
+            -- Cardiovascular scoring variables
             , cv.map_min
             , cv.map_min_dttm_offset
             , cv.norepi_epi_maxsum
@@ -296,12 +315,11 @@ def calculate_sofa2(
             , cv.has_other_non_dopa
             , cv.has_other_vaso
             , cv.has_mechanical_cv_support
-            , cv.cv
-            -- Liver subscore
+            , cv.mechanical_cv_dttm_offset
+            -- Liver scoring variables
             , li.bilirubin_total
             , li.bilirubin_dttm_offset
-            , li.liver
-            -- Kidney subscore
+            -- Kidney scoring variables
             , k.creatinine
             , k.creatinine_dttm_offset
             , k.potassium
@@ -312,19 +330,11 @@ def calculate_sofa2(
             , k.bicarbonate
             , k.bicarbonate_dttm_offset
             , k.has_rrt
+            , k.rrt_dttm_offset
             , k.rrt_criteria_met
-            , k.kidney
-            -- Hemostasis subscore
+            -- Hemostasis scoring variables
             , h.platelet_count
             , h.platelet_dttm_offset
-            , h.hemo
-            -- SOFA Total (sum of all 6 components)
-            , sofa_total: COALESCE(h.hemo, 0)
-                + COALESCE(li.liver, 0)
-                + COALESCE(k.kidney, 0)
-                + COALESCE(b.brain, 0)
-                + COALESCE(cv.cv, 0)
-                + COALESCE(resp.resp, 0)
     """)
 
     logger.info("SOFA-2 calculation complete")
@@ -378,8 +388,11 @@ def calculate_sofa2_daily(
     Returns
     -------
     pd.DataFrame | DuckDBPyRelation
-        Columns: hospitalization_id, start_dttm, end_dttm, nth_day,
-        hemo, liver, kidney, brain, cv, resp, sofa_total.
+        Same columns as calculate_sofa2 output, plus nth_day.
+        Column order: hospitalization_id, start_dttm, end_dttm, nth_day,
+        sofa2_total, sofa2_brain, sofa2_resp, sofa2_cv, sofa2_liver,
+        sofa2_kidney, sofa2_hemo, then all scoring variables.
+        Subscores are carried forward; scoring variables are raw per-window.
 
     Notes
     -----
@@ -421,65 +434,110 @@ def calculate_sofa2_daily(
             FROM raw_scores r
             LEFT JOIN expanded_cohort e USING (hospitalization_id, start_dttm)
             SELECT
-                r.hospitalization_id
-                , r.start_dttm
-                , r.end_dttm
+                r.*
                 , e.nth_day
-                , r.hemo
-                , r.liver
-                , r.kidney
-                , r.brain
-                , r.cv
-                , r.resp
         ),
         with_carryforward AS (
             FROM with_nth_day
             SELECT *
                 -- For each subscore, fill NULLs with last non-null value (day 2+)
                 -- Day 1 NULLs become 0 at the end
-                , CASE WHEN nth_day = 1 THEN hemo
-                       ELSE COALESCE(hemo, LAST_VALUE(hemo IGNORE NULLS) OVER w)
-                  END AS hemo_filled
-                , CASE WHEN nth_day = 1 THEN liver
-                       ELSE COALESCE(liver, LAST_VALUE(liver IGNORE NULLS) OVER w)
-                  END AS liver_filled
-                , CASE WHEN nth_day = 1 THEN kidney
-                       ELSE COALESCE(kidney, LAST_VALUE(kidney IGNORE NULLS) OVER w)
-                  END AS kidney_filled
-                , CASE WHEN nth_day = 1 THEN brain
-                       ELSE COALESCE(brain, LAST_VALUE(brain IGNORE NULLS) OVER w)
-                  END AS brain_filled
-                , CASE WHEN nth_day = 1 THEN cv
-                       ELSE COALESCE(cv, LAST_VALUE(cv IGNORE NULLS) OVER w)
-                  END AS cv_filled
-                , CASE WHEN nth_day = 1 THEN resp
-                       ELSE COALESCE(resp, LAST_VALUE(resp IGNORE NULLS) OVER w)
-                  END AS resp_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_brain
+                       ELSE COALESCE(sofa2_brain, LAST_VALUE(sofa2_brain IGNORE NULLS) OVER w)
+                  END AS sofa2_brain_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_resp
+                       ELSE COALESCE(sofa2_resp, LAST_VALUE(sofa2_resp IGNORE NULLS) OVER w)
+                  END AS sofa2_resp_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_cv
+                       ELSE COALESCE(sofa2_cv, LAST_VALUE(sofa2_cv IGNORE NULLS) OVER w)
+                  END AS sofa2_cv_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_liver
+                       ELSE COALESCE(sofa2_liver, LAST_VALUE(sofa2_liver IGNORE NULLS) OVER w)
+                  END AS sofa2_liver_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_kidney
+                       ELSE COALESCE(sofa2_kidney, LAST_VALUE(sofa2_kidney IGNORE NULLS) OVER w)
+                  END AS sofa2_kidney_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_hemo
+                       ELSE COALESCE(sofa2_hemo, LAST_VALUE(sofa2_hemo IGNORE NULLS) OVER w)
+                  END AS sofa2_hemo_filled
             WINDOW w AS (
                 PARTITION BY hospitalization_id
                 ORDER BY start_dttm
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             )
         )
-        -- Fill day 1 NULLs with 0, recalculate total
+        -- Fill day 1 NULLs with 0, recalculate total from carried-forward subscores
         FROM with_carryforward
         SELECT
             hospitalization_id
             , start_dttm
             , end_dttm
             , nth_day
-            , COALESCE(hemo_filled, 0) AS hemo
-            , COALESCE(liver_filled, 0) AS liver
-            , COALESCE(kidney_filled, 0) AS kidney
-            , COALESCE(brain_filled, 0) AS brain
-            , COALESCE(cv_filled, 0) AS cv
-            , COALESCE(resp_filled, 0) AS resp
-            , sofa_total: COALESCE(hemo_filled, 0)
-                + COALESCE(liver_filled, 0)
-                + COALESCE(kidney_filled, 0)
-                + COALESCE(brain_filled, 0)
-                + COALESCE(cv_filled, 0)
-                + COALESCE(resp_filled, 0)
+            -- SOFA-2 total and subscores (carried forward)
+            , sofa2_total: COALESCE(sofa2_brain_filled, 0)
+                + COALESCE(sofa2_resp_filled, 0)
+                + COALESCE(sofa2_cv_filled, 0)
+                + COALESCE(sofa2_liver_filled, 0)
+                + COALESCE(sofa2_kidney_filled, 0)
+                + COALESCE(sofa2_hemo_filled, 0)
+            , sofa2_brain: COALESCE(sofa2_brain_filled, 0)
+            , sofa2_resp: COALESCE(sofa2_resp_filled, 0)
+            , sofa2_cv: COALESCE(sofa2_cv_filled, 0)
+            , sofa2_liver: COALESCE(sofa2_liver_filled, 0)
+            , sofa2_kidney: COALESCE(sofa2_kidney_filled, 0)
+            , sofa2_hemo: COALESCE(sofa2_hemo_filled, 0)
+            -- Brain scoring variables
+            , gcs_min
+            , gcs_type
+            , gcs_min_dttm_offset
+            , has_sedation
+            , sedation_start_dttm_offset
+            , sedation_end_dttm_offset
+            , has_delirium_drug
+            , delirium_drug_dttm_offset
+            -- Respiratory scoring variables
+            , pf_ratio
+            , sf_ratio
+            , has_advanced_support
+            , device_category
+            , pao2_at_worst
+            , pao2_dttm_offset
+            , spo2_at_worst
+            , spo2_dttm_offset
+            , fio2_at_worst
+            , fio2_dttm_offset
+            , has_ecmo
+            , ecmo_dttm_offset
+            -- Cardiovascular scoring variables
+            , map_min
+            , map_min_dttm_offset
+            , norepi_epi_maxsum
+            , norepi_epi_maxsum_dttm_offset
+            , dopa_max
+            , dopa_max_dttm_offset
+            , has_other_non_dopa
+            , has_other_vaso
+            , has_mechanical_cv_support
+            , mechanical_cv_dttm_offset
+            -- Liver scoring variables
+            , bilirubin_total
+            , bilirubin_dttm_offset
+            -- Kidney scoring variables
+            , creatinine
+            , creatinine_dttm_offset
+            , potassium
+            , potassium_dttm_offset
+            , ph
+            , ph_type
+            , ph_dttm_offset
+            , bicarbonate
+            , bicarbonate_dttm_offset
+            , has_rrt
+            , rrt_dttm_offset
+            , rrt_criteria_met
+            -- Hemostasis scoring variables
+            , platelet_count
+            , platelet_dttm_offset
     """)
 
     logger.info("Daily SOFA-2 calculation complete")
