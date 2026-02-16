@@ -72,6 +72,13 @@ delirium drugs:
 - Mentioned in the PADIS guideline but NOT already in MCIDE and we are NOT proposing to add to MCIDE: statin (rosuvastatin)
 - Screened in the Fei et al. study: Dexmedetomidine, Haloperidol, Olanzapine, Quetiapine, and Ziprasidone (all covered in the MCIDE expansion)
 
+### NOTE: Dexmedetomidine dual-role (footnotes c + e interaction)
+Dexmedetomidine appears in both `SEDATION_DRUGS` (footnote c) and `CONT_DELIRIUM_DRUGS` (footnote e). This is clinically intentional — dex is genuinely used for both sedation and delirium treatment. When dex is administered:
+- **Sedation (c)**: creates sedation episodes, invalidating GCS measured during the infusion (and up to `post_sedation_gcs_invalidate_hours` after)
+- **Delirium (e)**: flags `has_delirium_drug=1`, forcing a minimum brain score of 1 when valid GCS = 15
+
+Consequence: GCS recorded **before** dex starts remains valid (not within a sedation episode), and the delirium minimum-score-1 rule still applies. When valid GCS < 13, the delirium flag has no effect (scores 2-4 already exceed the minimum of 1). Test cases 107-108 exercise this interaction.
+
 ## Respiratory (footnote f) 
 - score 0 = PaO₂:FiO₂ ratio >300 mm Hg (>40 kPa) (or, when applicable, SpO₂:FiO₂ ratio >300 mm Hg)
 - score 1 = PaO₂:FiO₂ ratio ≤300 mm Hg (≤40 kPa) (or, when applicable, SpO₂:FiO₂ ratio ≤300 mm Hg)
