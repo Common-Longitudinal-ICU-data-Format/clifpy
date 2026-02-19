@@ -911,7 +911,7 @@ def calculate_qad(
         MedicationAdminIntermittent,
         config,
         filters={'hospitalization_id': hospitalization_ids,
-                 'med_group': ['CMS_sepsis_qualifying_antibiotics']},
+                 'med_group': ['CMS_sepsis_qualifying_antibiotics', 'cms_sepsis_qualifying_antibiotics']},
         con=con,
         table_name='antibiotics_raw',
         verbose=verbose
