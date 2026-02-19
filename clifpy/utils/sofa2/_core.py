@@ -7,6 +7,8 @@ This module contains the main public functions:
 
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
 import duckdb
 from duckdb import DuckDBPyRelation
@@ -18,6 +20,7 @@ from ._cv import _calculate_cv_subscore
 from ._liver import _calculate_liver_subscore
 from ._kidney import _calculate_kidney_subscore
 from ._hemo import _calculate_hemo_subscore
+from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.core')
@@ -114,6 +117,7 @@ def calculate_sofa2(
     dev: bool = False,
     *,
     sofa2_config: SOFA2Config | None = None,
+    perf_profile: bool = False,
 ) -> pd.DataFrame | DuckDBPyRelation | tuple:
     """
     Calculate SOFA-2 scores for a cohort with time windows.
@@ -162,6 +166,7 @@ def calculate_sofa2(
 
     cfg = sofa2_config or SOFA2Config()
     intermediates = {} if dev else None
+    timer = StepTimer() if perf_profile else NoOpTimer()
 
     logger.info("Starting SOFA-2 calculation...")
     logger.info(f"Config: {cfg}")
@@ -175,15 +180,16 @@ def calculate_sofa2(
     # =========================================================================
     # Load CLIF tables
     # =========================================================================
-    logger.info("Loading CLIF tables (vitals, labs, meds, respiratory_support, crrt_therapy)...")
-    labs_rel = load_data('labs', config_path=clif_config_path, return_rel=True)
-    crrt_rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True)
-    assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True)
-    vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True)
-    cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True)
-    resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True)
-    ecmo_rel = _load_ecmo_optional(clif_config_path)
-    intm_meds_rel = _load_intm_meds_optional(clif_config_path)
+    with timer.step("load_tables"):
+        logger.info("Loading CLIF tables (vitals, labs, meds, respiratory_support, crrt_therapy)...")
+        labs_rel = load_data('labs', config_path=clif_config_path, return_rel=True)
+        crrt_rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True)
+        assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True)
+        vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True)
+        cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True)
+        resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True)
+        ecmo_rel = _load_ecmo_optional(clif_config_path)
+        intm_meds_rel = _load_intm_meds_optional(clif_config_path)
 
     # =========================================================================
     # Calculate subscores
@@ -191,165 +197,184 @@ def calculate_sofa2(
     logger.info("Calculating all 6 organ subscores in sequence...")
 
     # Brain subscore
-    if dev:
-        brain_score, brain_intermediates = _calculate_brain_subscore(
-            cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg, dev=True
-        )
-        intermediates.update({f'brain_{k}': v for k, v in brain_intermediates.items()})
-        intermediates['brain_score'] = brain_score
-    else:
-        brain_score = _calculate_brain_subscore(
-            cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg
-        )
+    cv_timer = StepTimer() if perf_profile else None
+    with timer.step("brain"):
+        if dev:
+            brain_score, brain_intermediates = _calculate_brain_subscore(
+                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg, dev=True
+            )
+            intermediates.update({f'brain_{k}': v for k, v in brain_intermediates.items()})
+            intermediates['brain_score'] = brain_score
+        else:
+            brain_score = _calculate_brain_subscore(
+                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg
+            )
 
     # Respiratory subscore
-    if dev:
-        resp_score, resp_intermediates = _calculate_resp_subscore(
-            cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg, dev=True
-        )
-        intermediates.update({f'resp_{k}': v for k, v in resp_intermediates.items()})
-        intermediates['resp_score'] = resp_score
-    else:
-        resp_score = _calculate_resp_subscore(
-            cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg
-        )
+    with timer.step("resp"):
+        if dev:
+            resp_score, resp_intermediates = _calculate_resp_subscore(
+                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg, dev=True
+            )
+            intermediates.update({f'resp_{k}': v for k, v in resp_intermediates.items()})
+            intermediates['resp_score'] = resp_score
+        else:
+            resp_score = _calculate_resp_subscore(
+                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg
+            )
 
     # Cardiovascular subscore
-    if dev:
-        cv_score, cv_intermediates = _calculate_cv_subscore(
-            cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg, dev=True
-        )
-        intermediates.update({f'cv_{k}': v for k, v in cv_intermediates.items()})
-        intermediates['cv_score'] = cv_score
-    else:
-        cv_score = _calculate_cv_subscore(cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg)
+    with timer.step("cv"):
+        if dev:
+            cv_score, cv_intermediates = _calculate_cv_subscore(
+                cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg, dev=True,
+                _timer=cv_timer,
+            )
+            intermediates.update({f'cv_{k}': v for k, v in cv_intermediates.items()})
+            intermediates['cv_score'] = cv_score
+        else:
+            cv_score = _calculate_cv_subscore(
+                cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg,
+                _timer=cv_timer,
+            )
 
     # Liver subscore
-    if dev:
-        liver_score, liver_intermediates = _calculate_liver_subscore(
-            cohort_rel, labs_rel, cfg, dev=True
-        )
-        intermediates.update({f'liver_{k}': v for k, v in liver_intermediates.items()})
-        intermediates['liver_score'] = liver_score
-    else:
-        liver_score = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
+    with timer.step("liver"):
+        if dev:
+            liver_score, liver_intermediates = _calculate_liver_subscore(
+                cohort_rel, labs_rel, cfg, dev=True
+            )
+            intermediates.update({f'liver_{k}': v for k, v in liver_intermediates.items()})
+            intermediates['liver_score'] = liver_score
+        else:
+            liver_score = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
 
     # Kidney subscore
-    if dev:
-        kidney_score, kidney_intermediates = _calculate_kidney_subscore(
-            cohort_rel, labs_rel, crrt_rel, cfg, dev=True
-        )
-        intermediates.update({f'kidney_{k}': v for k, v in kidney_intermediates.items()})
-        intermediates['kidney_score'] = kidney_score
-    else:
-        kidney_score = _calculate_kidney_subscore(cohort_rel, labs_rel, crrt_rel, cfg)
+    with timer.step("kidney"):
+        if dev:
+            kidney_score, kidney_intermediates = _calculate_kidney_subscore(
+                cohort_rel, labs_rel, crrt_rel, cfg, dev=True
+            )
+            intermediates.update({f'kidney_{k}': v for k, v in kidney_intermediates.items()})
+            intermediates['kidney_score'] = kidney_score
+        else:
+            kidney_score = _calculate_kidney_subscore(cohort_rel, labs_rel, crrt_rel, cfg)
 
     # Hemostasis subscore
-    if dev:
-        hemo_score, hemo_intermediates = _calculate_hemo_subscore(
-            cohort_rel, labs_rel, cfg, dev=True
-        )
-        intermediates.update({f'hemo_{k}': v for k, v in hemo_intermediates.items()})
-        intermediates['hemo_score'] = hemo_score
-    else:
-        hemo_score = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg)
+    with timer.step("hemo"):
+        if dev:
+            hemo_score, hemo_intermediates = _calculate_hemo_subscore(
+                cohort_rel, labs_rel, cfg, dev=True
+            )
+            intermediates.update({f'hemo_{k}': v for k, v in hemo_intermediates.items()})
+            intermediates['hemo_score'] = hemo_score
+        else:
+            hemo_score = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg)
 
     # =========================================================================
     # Combine all subscores
     # =========================================================================
-    logger.info("Combining subscores into final SOFA-2 total (0-24 scale)...")
-    sofa_scores = duckdb.sql("""
-        FROM cohort_rel c
-        LEFT JOIN hemo_score h USING (hospitalization_id, start_dttm)
-        LEFT JOIN liver_score li USING (hospitalization_id, start_dttm)
-        LEFT JOIN kidney_score k USING (hospitalization_id, start_dttm)
-        LEFT JOIN brain_score b USING (hospitalization_id, start_dttm)
-        LEFT JOIN cv_score cv USING (hospitalization_id, start_dttm)
-        LEFT JOIN resp_score resp USING (hospitalization_id, start_dttm)
-        SELECT
-            c.hospitalization_id
-            , c.start_dttm
-            , c.end_dttm
-            -- SOFA-2 total and subscores
-            , sofa2_total: COALESCE(b.brain, 0)
-                + COALESCE(resp.resp, 0)
-                + COALESCE(cv.cv, 0)
-                + COALESCE(li.liver, 0)
-                + COALESCE(k.kidney, 0)
-                + COALESCE(h.hemo, 0)
-            , sofa2_brain: b.brain
-            , sofa2_resp: resp.resp
-            , sofa2_cv: cv.cv
-            , sofa2_liver: li.liver
-            , sofa2_kidney: k.kidney
-            , sofa2_hemo: h.hemo
-            -- Brain scoring variables
-            , b.gcs_min
-            , b.gcs_type
-            , b.gcs_min_dttm_offset
-            , b.has_sedation
-            , b.sedation_start_dttm_offset
-            , b.sedation_end_dttm_offset
-            , b.has_delirium_drug
-            , b.delirium_drug_dttm_offset
-            -- Respiratory scoring variables
-            , resp.pf_ratio
-            , resp.sf_ratio
-            , resp.has_advanced_support
-            , resp.device_category
-            , resp.pao2_at_worst
-            , resp.pao2_dttm_offset
-            , resp.spo2_at_worst
-            , resp.spo2_dttm_offset
-            , resp.fio2_at_worst
-            , resp.fio2_dttm_offset
-            , resp.has_ecmo
-            , resp.ecmo_dttm_offset
-            -- Cardiovascular scoring variables
-            , cv.map_min
-            , cv.map_min_dttm_offset
-            , cv.norepi_epi_maxsum
-            , cv.norepi_epi_maxsum_dttm_offset
-            , cv.dopa_max
-            , cv.dopa_max_dttm_offset
-            , cv.has_other_non_dopa
-            , cv.has_other_vaso
-            , cv.has_mechanical_cv_support
-            , cv.mechanical_cv_dttm_offset
-            -- Liver scoring variables
-            , li.bilirubin_total
-            , li.bilirubin_dttm_offset
-            -- Kidney scoring variables
-            , k.creatinine
-            , k.creatinine_dttm_offset
-            , k.potassium
-            , k.potassium_dttm_offset
-            , k.ph
-            , k.ph_type
-            , k.ph_dttm_offset
-            , k.bicarbonate
-            , k.bicarbonate_dttm_offset
-            , k.has_rrt
-            , k.rrt_dttm_offset
-            , k.rrt_criteria_met
-            -- Hemostasis scoring variables
-            , h.platelet_count
-            , h.platelet_dttm_offset
-    """)
+    with timer.step("assembly"):
+        logger.info("Combining subscores into final SOFA-2 total (0-24 scale)...")
+        sofa_scores = duckdb.sql("""
+            FROM cohort_rel c
+            LEFT JOIN hemo_score h USING (hospitalization_id, start_dttm)
+            LEFT JOIN liver_score li USING (hospitalization_id, start_dttm)
+            LEFT JOIN kidney_score k USING (hospitalization_id, start_dttm)
+            LEFT JOIN brain_score b USING (hospitalization_id, start_dttm)
+            LEFT JOIN cv_score cv USING (hospitalization_id, start_dttm)
+            LEFT JOIN resp_score resp USING (hospitalization_id, start_dttm)
+            SELECT
+                c.hospitalization_id
+                , c.start_dttm
+                , c.end_dttm
+                -- SOFA-2 total and subscores
+                , sofa2_total: COALESCE(b.brain, 0)
+                    + COALESCE(resp.resp, 0)
+                    + COALESCE(cv.cv, 0)
+                    + COALESCE(li.liver, 0)
+                    + COALESCE(k.kidney, 0)
+                    + COALESCE(h.hemo, 0)
+                , sofa2_brain: b.brain
+                , sofa2_resp: resp.resp
+                , sofa2_cv: cv.cv
+                , sofa2_liver: li.liver
+                , sofa2_kidney: k.kidney
+                , sofa2_hemo: h.hemo
+                -- Brain scoring variables
+                , b.gcs_min
+                , b.gcs_type
+                , b.gcs_min_dttm_offset
+                , b.has_sedation
+                , b.sedation_start_dttm_offset
+                , b.sedation_end_dttm_offset
+                , b.has_delirium_drug
+                , b.delirium_drug_dttm_offset
+                -- Respiratory scoring variables
+                , resp.pf_ratio
+                , resp.sf_ratio
+                , resp.has_advanced_support
+                , resp.device_category
+                , resp.pao2_at_worst
+                , resp.pao2_dttm_offset
+                , resp.spo2_at_worst
+                , resp.spo2_dttm_offset
+                , resp.fio2_at_worst
+                , resp.fio2_dttm_offset
+                , resp.has_ecmo
+                , resp.ecmo_dttm_offset
+                -- Cardiovascular scoring variables
+                , cv.map_min
+                , cv.map_min_dttm_offset
+                , cv.norepi_epi_maxsum
+                , cv.norepi_epi_maxsum_dttm_offset
+                , cv.dopa_max
+                , cv.dopa_max_dttm_offset
+                , cv.has_other_non_dopa
+                , cv.has_other_vaso
+                , cv.has_mechanical_cv_support
+                , cv.mechanical_cv_dttm_offset
+                -- Liver scoring variables
+                , li.bilirubin_total
+                , li.bilirubin_dttm_offset
+                -- Kidney scoring variables
+                , k.creatinine
+                , k.creatinine_dttm_offset
+                , k.potassium
+                , k.potassium_dttm_offset
+                , k.ph
+                , k.ph_type
+                , k.ph_dttm_offset
+                , k.bicarbonate
+                , k.bicarbonate_dttm_offset
+                , k.has_rrt
+                , k.rrt_dttm_offset
+                , k.rrt_criteria_met
+                -- Hemostasis scoring variables
+                , h.platelet_count
+                , h.platelet_dttm_offset
+        """)
 
     logger.info("SOFA-2 calculation complete")
 
     # Return based on options
+    # NOTE: Cleanup temp tables after .df() forces evaluation of the lazy DAG.
+    # When return_rel=True, skip cleanup — caller owns evaluation lifetime.
     if dev:
         if return_rel:
-            return sofa_scores, intermediates
+            result = sofa_scores, intermediates
         else:
-            return sofa_scores.df(), intermediates
-
-    if return_rel:
-        return sofa_scores
+            result = sofa_scores.df(), intermediates
+            _cleanup_temp_tables()
+    elif return_rel:
+        result = sofa_scores
     else:
-        return sofa_scores.df()
+        result = sofa_scores.df()
+        _cleanup_temp_tables()
+
+    if perf_profile:
+        return result, timer, cv_timer
+    return result
 
 
 def calculate_sofa2_daily(
@@ -358,6 +383,7 @@ def calculate_sofa2_daily(
     return_rel: bool = False,
     *,
     sofa2_config: SOFA2Config | None = None,
+    perf_profile: bool = False,
 ) -> pd.DataFrame | DuckDBPyRelation:
     """
     Calculate daily SOFA-2 scores with carry-forward for missing data.
@@ -403,6 +429,7 @@ def calculate_sofa2_daily(
     - Example: 47h window → 1 row (nth_day=1); 49h window → 2 rows (nth_day=1, 2)
     """
     logger.info("Starting daily SOFA-2 calculation...")
+    timer = StepTimer() if perf_profile else NoOpTimer()
 
     # Convert to relation if needed
     if isinstance(cohort_df, pd.DataFrame):
@@ -411,19 +438,35 @@ def calculate_sofa2_daily(
         cohort_rel = cohort_df
 
     # Step 1: Expand arbitrary windows to complete 24h periods
-    logger.info("Expanding windows to 24h periods...")
-    expanded_cohort = _expand_to_daily_windows(cohort_rel)
-    logger.info(f"Input cohort: {cohort_rel.count('*').df().iloc[0, 0]} rows")
-    logger.info(f"Expanded cohort: {expanded_cohort.count('*').df().iloc[0, 0]} rows")
+    with timer.step("expand_windows"):
+        logger.info("Expanding windows to 24h periods...")
+        expanded_cohort = _expand_to_daily_windows(cohort_rel)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Input cohort: {cohort_rel.count('*').df().iloc[0, 0]} rows")
+            logger.debug(f"Expanded cohort: {expanded_cohort.count('*').df().iloc[0, 0]} rows")
+        else:
+            logger.info("Cohort expanded to 24h periods")
 
     # Step 2: Calculate raw scores for each 24h window
-    raw_scores = calculate_sofa2(
-        expanded_cohort,
-        clif_config_path=clif_config_path,
-        return_rel=False,
-        dev=False,
-        sofa2_config=sofa2_config,
-    )
+    with timer.step("calculate_sofa2"):
+        if perf_profile:
+            raw_result, inner_timer, inner_cv_timer = calculate_sofa2(
+                expanded_cohort,
+                clif_config_path=clif_config_path,
+                return_rel=False,
+                dev=False,
+                sofa2_config=sofa2_config,
+                perf_profile=True,
+            )
+            raw_scores = raw_result
+        else:
+            raw_scores = calculate_sofa2(
+                expanded_cohort,
+                clif_config_path=clif_config_path,
+                return_rel=False,
+                dev=False,
+                sofa2_config=sofa2_config,
+            )
     logger.info(f"Raw scores: {len(raw_scores)} rows")
 
     # Step 3: Join back to get nth_day and apply carry-forward logic
@@ -543,6 +586,11 @@ def calculate_sofa2_daily(
     logger.info("Daily SOFA-2 calculation complete")
 
     if return_rel:
-        return filled_scores
+        result = filled_scores
     else:
-        return filled_scores.df()
+        result = filled_scores.df()
+        _cleanup_temp_tables()
+
+    if perf_profile:
+        return result, timer, inner_timer, inner_cv_timer
+    return result

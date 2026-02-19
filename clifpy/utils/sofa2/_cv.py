@@ -16,10 +16,13 @@ Special rules:
 
 from __future__ import annotations
 
+import logging
+
 import duckdb
 from duckdb import DuckDBPyRelation
 
 from ._utils import SOFA2Config, _agg_map, _flag_mechanical_cv_support
+from ._perf import NoOpTimer, StepTimer, _register_temp_table
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.cv')
@@ -49,6 +52,7 @@ def _calculate_cv_subscore(
     cfg: SOFA2Config,
     *,
     dev: bool = False,
+    _timer: StepTimer | None = None,
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 cardiovascular subscore.
@@ -82,6 +86,7 @@ def _calculate_cv_subscore(
         Offset columns are intervals from start_dttm (always positive for in-window).
     """
     logger.info("Calculating cardiovascular subscore...")
+    timer = _timer or NoOpTimer()
 
     from clifpy.utils.unit_converter import convert_dose_units_by_med_category
 
@@ -92,6 +97,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     # Step 1: Get MAP aggregation (in-window only)
     # =========================================================================
+    timer.start("cv.map_agg_and_asof")
     logger.info("Aggregating in-window MAP to identify hypotension without pressors...")
     map_agg = _agg_map(cohort_rel, vitals_rel)
 
@@ -192,11 +198,17 @@ def _calculate_cv_subscore(
         FROM pressor_at_end
     """)
     pressor_events_raw = duckdb.table("pressor_events_raw")
-    logger.info(f"pressor_events_raw materialized: {pressor_events_raw.count('*').fetchone()[0]} rows")
+    _register_temp_table("pressor_events_raw")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"pressor_events_raw materialized: {pressor_events_raw.count('*').fetchone()[0]} rows")
+    else:
+        logger.info("pressor_events_raw materialized")
+    timer.stop("cv.map_agg_and_asof")
 
     # =========================================================================
-    # Step 3: MAR deduplication
+    # Step 3: MAR deduplication + unit conversion
     # =========================================================================
+    timer.start("cv.dedup_and_unit_conversion")
     logger.info("Deduplicating MAR actions to resolve simultaneous entries...")
     pressor_events_deduped = duckdb.sql("""
         FROM pressor_events_raw t
@@ -235,11 +247,17 @@ def _calculate_cv_subscore(
     # Materialize after unit conversion to isolate external function
     duckdb.execute("CREATE OR REPLACE TEMP TABLE pressor_events AS SELECT * FROM pressor_events_rel")
     pressor_events = duckdb.table("pressor_events")
-    logger.info(f"pressor_events materialized: {pressor_events.count('*').fetchone()[0]} rows")
+    _register_temp_table("pressor_events")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"pressor_events materialized: {pressor_events.count('*').fetchone()[0]} rows")
+    else:
+        logger.info("pressor_events materialized")
+    timer.stop("cv.dedup_and_unit_conversion")
 
     # =========================================================================
     # Step 5: Pivot epi+norepi to wide format
     # =========================================================================
+    timer.start("cv.pivot_and_episodes")
     logger.info("Pivoting epi+norepi to wide format for concurrent dosage calculation...")
     duckdb.execute("""
         CREATE OR REPLACE TEMP TABLE epi_ne_wide AS
@@ -254,7 +272,11 @@ def _calculate_cv_subscore(
         )
     """)
     epi_ne_wide = duckdb.table("epi_ne_wide")
-    logger.info(f"epi_ne_wide materialized: {epi_ne_wide.count('*').fetchone()[0]} rows")
+    _register_temp_table("epi_ne_wide")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"epi_ne_wide materialized: {epi_ne_wide.count('*').fetchone()[0]} rows")
+    else:
+        logger.info("epi_ne_wide materialized")
 
     logger.info("Forward-filling epi+norepi to get continuous dosage values...")
     # Forward-fill epi+norepi
@@ -325,7 +347,11 @@ def _calculate_cv_subscore(
                    THEN epi ELSE 0 END AS epi_valid
     """)
     epi_ne_duration = duckdb.table("epi_ne_duration")
-    logger.info(f"epi_ne_duration materialized: {epi_ne_duration.count('*').fetchone()[0]} rows")
+    _register_temp_table("epi_ne_duration")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"epi_ne_duration materialized: {epi_ne_duration.count('*').fetchone()[0]} rows")
+    else:
+        logger.info("epi_ne_duration materialized")
 
     # Aggregate epi+norepi with offset at max dose
     epi_ne_agg = duckdb.sql("""
@@ -340,9 +366,12 @@ def _calculate_cv_subscore(
         GROUP BY hospitalization_id, start_dttm
     """)
 
+    timer.stop("cv.pivot_and_episodes")
+
     # =========================================================================
     # Step 7: Duration validation for dopamine + other pressors
     # =========================================================================
+    timer.start("cv.aggregation_and_scoring")
     logger.info("Validating duration for dopamine and other pressors per footnote l...")
     other_pressor_duration = duckdb.sql(f"""
         WITH filtered AS (
@@ -466,6 +495,7 @@ def _calculate_cv_subscore(
             END
     """)
 
+    timer.stop("cv.aggregation_and_scoring")
     logger.info("Cardiovascular subscore complete")
 
     if dev:
