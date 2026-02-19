@@ -54,7 +54,7 @@ class YearlySparkBar(Flowable):
                 self.canv.setFillColor(absent_color)
             self.canv.rect(x, 0, bar_w, bar_h, stroke=0, fill=1)
 
-DQA_CATEGORIES = ('conformance', 'completeness', 'relational', 'plausibility')
+DQA_CATEGORIES = ('conformance', 'completeness', 'plausibility')
 
 
 def collect_dqa_issues(validation_data: Dict[str, Any]):

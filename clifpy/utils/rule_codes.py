@@ -16,8 +16,7 @@ RULE_CODES: Dict[tuple, tuple] = {
     ('completeness', 'missingness'):                ('K.1', 'Required column missingness'),
     ('completeness', 'conditional_requirements'):   ('K.2', 'Conditional field requirements'),
     ('completeness', 'mcide_value_coverage'):       ('K.3', 'mCIDE value coverage'),
-
-    ('relational', 'relational_integrity'):         ('R.1', 'Foreign key referential integrity'),
+    ('completeness', 'relational_integrity'):       ('K.4', 'Foreign key referential coverage'),
 
     ('plausibility', 'temporal_ordering'):          ('P.1', 'Temporal ordering constraints'),
     ('plausibility', 'numeric_range_plausibility'): ('P.2', 'Numeric range plausibility'),
@@ -37,9 +36,13 @@ _NOT_APPLICABLE_PREFIXES = (
     "No conditional requirements defined for this table",
     "No temporal ordering rules defined for this table",
     "No field plausibility rules defined for this table",
+    "No numeric range configuration for this table",
     "Medication dose unit check not applicable",
     "Missing hospitalization_id column; skipping",
     "No composite keys defined for this table",
+    "No suitable datetime column found for temporal consistency check",
+    "No category columns found for temporal consistency check",
+    "No numeric columns with range configuration to check",
 )
 
 
@@ -62,10 +65,26 @@ def extract_column_field(issue: Dict[str, Any]) -> str:
     if extra and isinstance(extra, list):
         return ', '.join(str(c) for c in extra[:3])
 
+    # required_column (from conditional_requirements check)
+    req_col = details.get('required_column')
+    if req_col:
+        return str(req_col)
+
+    # columns_checked (from temporal consistency and similar checks)
+    checked = details.get('columns_checked')
+    if checked and isinstance(checked, list):
+        return ', '.join(str(c) for c in checked[:3])
+
     # missing_columns (from required_columns check)
     missing = details.get('missing_columns')
     if missing and isinstance(missing, list):
         return ', '.join(str(c) for c in missing[:3])
+
+    # Category-group mapping columns
+    cat_col = details.get('category_column')
+    grp_col = details.get('group_column')
+    if cat_col and grp_col:
+        return f"{cat_col}, {grp_col}"
 
     # invalid_values list with column names
     invalid = details.get('invalid_values')
@@ -113,9 +132,9 @@ def build_finding(message: str, details: Dict[str, Any]) -> str:
         suffix = f" ... ({len(top_invalid)} total)" if len(top_invalid) > 5 else ""
         parts = [f"Invalid: {', '.join(items)}{suffix}"]
 
-    # Missing columns
+    # Missing columns — skip if the base message already lists them
     missing_cols = details.get('missing_columns')
-    if missing_cols and isinstance(missing_cols, list):
+    if missing_cols and isinstance(missing_cols, list) and 'required columns' not in message:
         cols = ', '.join(str(c) for c in missing_cols[:5])
         suffix = f" ... ({len(missing_cols)} total)" if len(missing_cols) > 5 else ""
         parts.append(f"Missing: {cols}{suffix}")
@@ -133,24 +152,28 @@ def build_finding(message: str, details: Dict[str, Any]) -> str:
                 items.append(str(it))
         parts.append(f"Units: {', '.join(items)}")
 
-    # Category-group mapping: mismatched pairs
+    # Category-group mapping: mismatched pairs (replaces generic message)
     mismatched = details.get('mismatched_pairs')
     if mismatched and isinstance(mismatched, list):
         items = []
         for it in mismatched[:3]:
             if isinstance(it, dict):
                 cat = it.get('category', '?')
-                grp = it.get('group', '?')
-                items.append(f"{cat}->{grp}")
+                actual = it.get('actual_group', '?')
+                expected = it.get('expected_group', '?')
+                items.append(f"{cat}: found '{actual}', expected '{expected}'")
             else:
                 items.append(str(it))
-        parts.append(f"Mismatched: {', '.join(items)}")
+        suffix = f" ... ({len(mismatched)} total)" if len(mismatched) > 3 else ""
+        parts = [f"Mismatched: {', '.join(items)}{suffix}"]
 
-    # Relational: orphan sample
-    orphans = details.get('sample_orphan_ids')
-    if orphans and isinstance(orphans, list):
-        sample = ', '.join(str(o) for o in orphans[:5])
-        parts.append(f"Sample orphans: {sample}")
+    # Conditional requirements: missing counts
+    rows_missing = details.get('rows_with_missing')
+    if rows_missing is not None:
+        total = details.get('rows_meeting_condition', 0)
+        pct = details.get('percent_missing', 0)
+        req_col = details.get('required_column', '')
+        parts.append(f"{req_col}: {rows_missing:,}/{total:,} rows missing ({pct}%)")
 
     # Return joined parts if we added or replaced content beyond the original message
     if parts == [message]:
@@ -158,7 +181,7 @@ def build_finding(message: str, details: Dict[str, Any]) -> str:
     return ' | '.join(parts)
 
 
-def truncate_comment(message: str, max_len: int = 200) -> str:
+def truncate_comment(message: str, max_len: int = 400) -> str:
     """Truncate a message for PDF display, preserving full text in CSV."""
     if len(message) <= max_len:
         return message
@@ -194,17 +217,13 @@ def enrich_issue(issue: Dict[str, Any], check_key: Optional[str] = None) -> Opti
     # Look up rule code
     code, desc = RULE_CODES.get((category, check_type), ('', ''))
 
-    # For relational checks, the check_key is the FK column name
-    if not code and category == 'relational':
-        code, desc = RULE_CODES.get(('relational', 'relational_integrity'), ('', ''))
-
     issue['rule_code'] = code
     issue['rule_description'] = desc
     issue['column_field'] = extract_column_field(issue)
     issue['finding'] = build_finding(issue.get('message', ''), issue.get('details', {}))
 
     # For relational checks, the check_key IS the FK column
-    if category == 'relational' and check_key and issue['column_field'] == 'NA':
+    if check_type == 'relational_integrity' and check_key and issue['column_field'] == 'NA':
         issue['column_field'] = check_key
 
     return issue

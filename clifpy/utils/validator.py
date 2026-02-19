@@ -999,7 +999,7 @@ def check_categorical_values_polars(
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         col_names = lf.collect_schema().names()
 
-        category_columns = schema.get('category_columns', [])
+        category_columns = schema.get('category_columns') or []
         invalid_values_by_col = {}
 
         for col_spec in schema.get('columns', []):
@@ -1080,7 +1080,7 @@ def check_categorical_values_duckdb(
         con = duckdb.connect(':memory:')
         con.register('df', df)
 
-        category_columns = schema.get('category_columns', [])
+        category_columns = schema.get('category_columns') or []
         invalid_values_by_col = {}
 
         for col_spec in schema.get('columns', []):
@@ -1244,8 +1244,10 @@ def check_category_group_mapping_polars(
             if mismatched:
                 mismatched.sort(key=lambda x: x['count'], reverse=True)
                 result.add_warning(
-                    f"Found {len(mismatched)} mismatched category-group pairs for '{mapping_key}'",
-                    {"mismatched_pairs": mismatched[:20]}
+                    f"Found {len(mismatched)} mismatched category-group pairs",
+                    {"mismatched_pairs": mismatched[:20],
+                     "category_column": category_col,
+                     "group_column": group_col}
                 )
             else:
                 result.add_info(f"All category-group pairs match for '{mapping_key}'")
@@ -1335,8 +1337,10 @@ def check_category_group_mapping_duckdb(
             if mismatched:
                 mismatched.sort(key=lambda x: x['count'], reverse=True)
                 result.add_warning(
-                    f"Found {len(mismatched)} mismatched category-group pairs for '{mapping_key}'",
-                    {"mismatched_pairs": mismatched[:20]}
+                    f"Found {len(mismatched)} mismatched category-group pairs",
+                    {"mismatched_pairs": mismatched[:20],
+                     "category_column": category_col,
+                     "group_column": group_col}
                 )
             else:
                 result.add_info(f"All category-group pairs match for '{mapping_key}'")
@@ -1452,7 +1456,18 @@ def check_missingness_polars(
                 )
 
         if not high_missingness:
-            result.add_info("All required columns have acceptable missingness levels")
+            col_summaries = ", ".join(
+                f"{s['column']}={s['percent_missing']}%"
+                for s in missingness_stats
+            )
+            result.add_info(
+                f"All required columns below thresholds "
+                f"(error\u2265{error_threshold}%, warn\u2265{warning_threshold}%): "
+                f"{col_summaries}",
+                {"error_threshold": error_threshold,
+                 "warning_threshold": warning_threshold,
+                 "missingness_stats": missingness_stats},
+            )
 
         gc.collect()
 
@@ -1546,7 +1561,18 @@ def check_missingness_duckdb(
                 )
 
         if not high_missingness:
-            result.add_info("All required columns have acceptable missingness levels")
+            col_summaries = ", ".join(
+                f"{s['column']}={s['percent_missing']}%"
+                for s in missingness_stats
+            )
+            result.add_info(
+                f"All required columns below thresholds "
+                f"(error\u2265{error_threshold}%, warn\u2265{warning_threshold}%): "
+                f"{col_summaries}",
+                {"error_threshold": error_threshold,
+                 "warning_threshold": warning_threshold,
+                 "missingness_stats": missingness_stats},
+            )
 
         con.close()
         gc.collect()
@@ -1832,7 +1858,7 @@ def check_mcide_value_coverage_polars(
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         col_names = lf.collect_schema().names()
 
-        category_columns = schema.get('category_columns', [])
+        category_columns = schema.get('category_columns') or []
         coverage_by_col = {}
 
         for col_spec in schema.get('columns', []):
@@ -1904,7 +1930,7 @@ def check_mcide_value_coverage_duckdb(
         con = duckdb.connect(':memory:')
         con.register('df', df)
 
-        category_columns = schema.get('category_columns', [])
+        category_columns = schema.get('category_columns') or []
         coverage_by_col = {}
 
         for col_spec in schema.get('columns', []):
@@ -2018,7 +2044,8 @@ def check_relational_integrity_polars(
 
         if orphan_ids:
             result.add_warning(
-                f"{total_orphan} {key_column} values in {source_table} not found in {reference_table}",
+                f"{total_orphan}/{total_source} {key_column} values in {source_table} "
+                f"not found in {reference_table} ({round(coverage_pct, 1)}% coverage)",
                 {
                     "orphan_count": total_orphan,
                     "sample_orphan_ids": list(orphan_ids)[:10],
@@ -2097,7 +2124,8 @@ def check_relational_integrity_duckdb(
             sample_orphans = [row[0] for row in sample_result]
 
             result.add_warning(
-                f"{orphan_count} {key_column} values in {source_table} not found in {reference_table}",
+                f"{orphan_count}/{total_source} {key_column} values in {source_table} "
+                f"not found in {reference_table} ({round(coverage_pct, 1)}% coverage)",
                 {
                     "orphan_count": int(orphan_count),
                     "sample_orphan_ids": sample_orphans,
@@ -2185,16 +2213,16 @@ def check_relational_integrity(
 
         # Propagate warnings/errors from both directions
         for w in fwd.warnings:
-            result.add_warning(f"[forward] {w['message']}", w.get("details", {}))
+            result.add_warning(w['message'], w.get("details", {}))
         for w in rev.warnings:
-            result.add_warning(f"[reverse] {w['message']}", w.get("details", {}))
+            result.add_warning(w['message'], w.get("details", {}))
         for e in fwd.errors:
-            result.add_error(f"[forward] {e['message']}", e.get("details", {}))
+            result.add_error(e['message'], e.get("details", {}))
         for e in rev.errors:
-            result.add_error(f"[reverse] {e['message']}", e.get("details", {}))
+            result.add_error(e['message'], e.get("details", {}))
 
-        # Info when both directions are clean
-        if fwd.passed and rev.passed:
+        # Info when both directions are clean (no errors AND no warnings)
+        if fwd.passed and rev.passed and not fwd.warnings and not rev.warnings:
             result.add_info(
                 f"Full bidirectional coverage for {key_column} between "
                 f"{target_table} and {reference_table}"
@@ -2314,7 +2342,8 @@ def check_temporal_ordering_polars(
         for rule in temporal_rules:
             earlier = rule['earlier']
             later = rule['later']
-            description = rule.get('description', f"{earlier} <= {later}")
+            strict = rule.get('strict', False)
+            description = rule.get('description', f"{earlier} {'<' if strict else '<='} {later}")
 
             if earlier not in col_names or later not in col_names:
                 continue
@@ -2323,9 +2352,14 @@ def check_temporal_ordering_polars(
                 pl.col(earlier).is_not_null() & pl.col(later).is_not_null()
             )
 
+            if strict:
+                violation_expr = (pl.col(earlier) >= pl.col(later)).sum().alias('violations')
+            else:
+                violation_expr = (pl.col(earlier) > pl.col(later)).sum().alias('violations')
+
             stats = applicable.select([
                 pl.len().alias('total'),
-                (pl.col(earlier) > pl.col(later)).sum().alias('violations')
+                violation_expr
             ]).collect(streaming=True)
 
             total = stats[0, 'total']
@@ -2396,15 +2430,17 @@ def check_temporal_ordering_duckdb(
         for rule in temporal_rules:
             earlier = rule['earlier']
             later = rule['later']
-            description = rule.get('description', f"{earlier} <= {later}")
+            strict = rule.get('strict', False)
+            description = rule.get('description', f"{earlier} {'<' if strict else '<='} {later}")
 
             if earlier not in df.columns or later not in df.columns:
                 continue
 
+            op = ">=" if strict else ">"
             stats = con.execute(f"""
                 SELECT
                     COUNT(*) as total,
-                    SUM(CASE WHEN "{earlier}" > "{later}" THEN 1 ELSE 0 END) as violations
+                    SUM(CASE WHEN "{earlier}" {op} "{later}" THEN 1 ELSE 0 END) as violations
                 FROM df
                 WHERE "{earlier}" IS NOT NULL AND "{later}" IS NOT NULL
             """).fetchone()
@@ -2607,7 +2643,14 @@ def check_numeric_range_plausibility_polars(
         result.metrics["out_of_range_summary"] = oor_summary
 
         if not result.warnings and not result.errors:
-            result.add_info("All numeric values within plausible ranges")
+            if oor_summary:
+                cols_str = ', '.join(sorted(oor_summary.keys()))
+                result.add_info(
+                    f"All numeric values within plausible ranges ({cols_str})",
+                    {"columns_checked": sorted(oor_summary.keys())},
+                )
+            else:
+                result.add_info("No numeric columns with range configuration to check")
 
         gc.collect()
 
@@ -2735,7 +2778,14 @@ def check_numeric_range_plausibility_duckdb(
         result.metrics["out_of_range_summary"] = oor_summary
 
         if not result.warnings and not result.errors:
-            result.add_info("All numeric values within plausible ranges")
+            if oor_summary:
+                cols_str = ', '.join(sorted(oor_summary.keys()))
+                result.add_info(
+                    f"All numeric values within plausible ranges ({cols_str})",
+                    {"columns_checked": sorted(oor_summary.keys())},
+                )
+            else:
+                result.add_info("No numeric columns with range configuration to check")
 
         con.close()
         gc.collect()
@@ -3023,18 +3073,19 @@ def check_medication_dose_unit_consistency_polars(
             sample_list = sample_data.to_dicts()
             result.metrics["sample_violations"] = sample_list
 
-            if pct > 10:
-                result.add_warning(
-                    f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) have unexpected unit patterns",
-                    {"violations": int(violations), "total": int(total), "percent": round(pct, 2)}
-                )
+            if expect == 'per_time':
+                warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use non-rate-based units unexpected for continuous administration"
             else:
-                result.add_warning(
-                    f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) have unexpected unit patterns",
-                    {"violations": int(violations), "total": int(total), "percent": round(pct, 2)}
-                )
+                warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use rate-based units unexpected for intermittent administration"
+            if pct > 10:
+                result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
+            else:
+                result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
         else:
-            result.add_info("All medication dose units consistent with administration type")
+            if expect == 'per_time':
+                result.add_info("All med_dose_unit values use rate-based units (e.g. mcg/kg/min) appropriate for continuous administration")
+            else:
+                result.add_info("All med_dose_unit values use dose-based units (e.g. mg, mL) appropriate for intermittent administration")
 
         gc.collect()
 
@@ -3103,12 +3154,16 @@ def check_medication_dose_unit_consistency_duckdb(
         result.metrics["violation_percent"] = round(pct, 2)
 
         if violations > 0:
-            result.add_warning(
-                f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) have unexpected unit patterns",
-                {"violations": int(violations), "total": int(total), "percent": round(pct, 2)}
-            )
+            if expect == 'per_time':
+                warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use non-rate-based units unexpected for continuous administration"
+            else:
+                warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use rate-based units unexpected for intermittent administration"
+            result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
         else:
-            result.add_info("All medication dose units consistent with administration type")
+            if expect == 'per_time':
+                result.add_info("All med_dose_unit values use rate-based units (e.g. mcg/kg/min) appropriate for continuous administration")
+            else:
+                result.add_info("All med_dose_unit values use dose-based units (e.g. mg, mL) appropriate for intermittent administration")
 
         con.close()
         gc.collect()
@@ -3202,13 +3257,13 @@ def check_cross_table_temporal_plausibility_polars(
 
             if pct > 5:
                 result.add_error(
-                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
             elif violation_total > 0:
                 result.add_warning(
-                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
@@ -3217,7 +3272,7 @@ def check_cross_table_temporal_plausibility_polars(
         result.metrics["violations_by_column"] = violations_by_col
 
         if not result.errors and not result.warnings:
-            result.add_info("All records fall within hospitalization bounds")
+            result.add_info("All records fall within admission-to-discharge window")
 
         gc.collect()
 
@@ -3284,13 +3339,13 @@ def check_cross_table_temporal_plausibility_duckdb(
 
             if pct > 5:
                 result.add_error(
-                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
             elif violation_total > 0:
                 result.add_warning(
-                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside hospitalization bounds",
+                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
@@ -3299,7 +3354,7 @@ def check_cross_table_temporal_plausibility_duckdb(
         result.metrics["violations_by_column"] = violations_by_col
 
         if not result.errors and not result.warnings:
-            result.add_info("All records fall within hospitalization bounds")
+            result.add_info("All records fall within admission-to-discharge window")
 
         con.close()
         gc.collect()
@@ -3510,6 +3565,7 @@ def check_category_temporal_consistency_polars(
     schema: Dict[str, Any],
     table_name: str,
     time_column: Optional[str] = None,
+    hosp_years: Optional[set] = None,
 ) -> DQAPlausibilityResult:
     """Check category distribution consistency over time using Polars."""
     result = DQAPlausibilityResult("category_temporal_consistency", table_name)
@@ -3526,7 +3582,7 @@ def check_category_temporal_consistency_polars(
             return result
 
         # Find category columns from schema
-        category_columns = schema.get('category_columns', [])
+        category_columns = schema.get('category_columns') or []
         cat_cols_present = [c for c in category_columns if c in col_names]
 
         if not cat_cols_present:
@@ -3593,10 +3649,13 @@ def check_category_temporal_consistency_polars(
         result.metrics["yearly_distributions"] = yearly_distributions
         result.metrics["missing_in_years"] = missing_in_years
 
+        # Use hospitalization years as denominator when available
+        ref_year_count = len(hosp_years) if hosp_years else None
+
         for cat_col, absent in missing_in_years.items():
             col_dist = yearly_distributions.get(cat_col, {})
             all_col_years = sorted(col_dist.keys())
-            total_years = len(all_col_years)
+            total_years = ref_year_count if ref_year_count else len(all_col_years)
             for val, years in absent.items():
                 yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
                 result.add_warning(
@@ -3611,7 +3670,52 @@ def check_category_temporal_consistency_polars(
                 )
 
         if not result.warnings and not result.errors:
-            result.add_info("Category distributions are consistent over time")
+            for cat_col in cat_cols_present:
+                dist = yearly_distributions.get(cat_col, {})
+                n_years = len(dist)
+                all_vals = {v for yr in dist.values() for v in yr}
+                if n_years >= 2 and hosp_years:
+                    # Per-value info with yearly_counts for sparkline rendering
+                    sorted_years = sorted(dist.keys())
+                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
+                    ref_years_sorted = sorted(hosp_years)
+                    for val in sorted(all_vals, key=str):
+                        yearly_counts = {y: dist.get(y, {}).get(val, 0)
+                                         for y in ref_years_sorted}
+                        n_present = sum(1 for c in yearly_counts.values() if c > 0)
+                        msg = (f"{cat_col}: {val} present in "
+                               f"{n_present}/{ref_year_count} years ({year_range})")
+                        result.add_info(msg, {
+                            "column": cat_col,
+                            "value": str(val),
+                            "yearly_counts": yearly_counts,
+                        })
+                elif n_years >= 2:
+                    n_values = len(all_vals)
+                    sorted_vals = sorted(str(v) for v in all_vals)
+                    if len(sorted_vals) > 5:
+                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
+                    else:
+                        vals_str = ', '.join(sorted_vals)
+                    sorted_years = sorted(dist.keys())
+                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
+                    msg = (f"{cat_col}: {vals_str} present across "
+                           f"all {n_years} years ({year_range})")
+                    result.add_info(msg, {"column": cat_col})
+                elif n_years == 1:
+                    year = next(iter(dist))
+                    n_values = len(all_vals)
+                    sorted_vals = sorted(str(v) for v in all_vals)
+                    if len(sorted_vals) > 5:
+                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
+                    else:
+                        vals_str = ', '.join(sorted_vals)
+                    msg = (f"{cat_col}: {vals_str} found "
+                           f"(single year {year}, trend check requires 2+ years)")
+                    result.add_info(msg, {"column": cat_col})
+                else:
+                    msg = f"No temporal data for {cat_col}"
+                    result.add_info(msg, {"column": cat_col})
 
         gc.collect()
 
@@ -3627,6 +3731,7 @@ def check_category_temporal_consistency_duckdb(
     schema: Dict[str, Any],
     table_name: str,
     time_column: Optional[str] = None,
+    hosp_years: Optional[set] = None,
 ) -> DQAPlausibilityResult:
     """Check category distribution consistency over time using DuckDB."""
     result = DQAPlausibilityResult("category_temporal_consistency", table_name)
@@ -3644,7 +3749,7 @@ def check_category_temporal_consistency_duckdb(
             con.close()
             return result
 
-        category_columns = schema.get('category_columns', [])
+        category_columns = schema.get('category_columns') or []
         cat_cols_present = [c for c in category_columns if c in actual_cols]
 
         if not cat_cols_present:
@@ -3704,10 +3809,13 @@ def check_category_temporal_consistency_duckdb(
         result.metrics["yearly_distributions"] = yearly_distributions
         result.metrics["missing_in_years"] = missing_in_years
 
+        # Use hospitalization years as denominator when available
+        ref_year_count = len(hosp_years) if hosp_years else None
+
         for cat_col, absent in missing_in_years.items():
             col_dist = yearly_distributions.get(cat_col, {})
             all_col_years = sorted(col_dist.keys())
-            total_years = len(all_col_years)
+            total_years = ref_year_count if ref_year_count else len(all_col_years)
             for val, years in absent.items():
                 yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
                 result.add_warning(
@@ -3722,7 +3830,52 @@ def check_category_temporal_consistency_duckdb(
                 )
 
         if not result.warnings and not result.errors:
-            result.add_info("Category distributions are consistent over time")
+            for cat_col in cat_cols_present:
+                dist = yearly_distributions.get(cat_col, {})
+                n_years = len(dist)
+                all_vals = {v for yr in dist.values() for v in yr}
+                if n_years >= 2 and hosp_years:
+                    # Per-value info with yearly_counts for sparkline rendering
+                    sorted_years = sorted(dist.keys())
+                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
+                    ref_years_sorted = sorted(hosp_years)
+                    for val in sorted(all_vals, key=str):
+                        yearly_counts = {y: dist.get(y, {}).get(val, 0)
+                                         for y in ref_years_sorted}
+                        n_present = sum(1 for c in yearly_counts.values() if c > 0)
+                        msg = (f"{cat_col}: {val} present in "
+                               f"{n_present}/{ref_year_count} years ({year_range})")
+                        result.add_info(msg, {
+                            "column": cat_col,
+                            "value": str(val),
+                            "yearly_counts": yearly_counts,
+                        })
+                elif n_years >= 2:
+                    n_values = len(all_vals)
+                    sorted_vals = sorted(str(v) for v in all_vals)
+                    if len(sorted_vals) > 5:
+                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
+                    else:
+                        vals_str = ', '.join(sorted_vals)
+                    sorted_years = sorted(dist.keys())
+                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
+                    msg = (f"{cat_col}: {vals_str} present across "
+                           f"all {n_years} years ({year_range})")
+                    result.add_info(msg, {"column": cat_col})
+                elif n_years == 1:
+                    year = next(iter(dist))
+                    n_values = len(all_vals)
+                    sorted_vals = sorted(str(v) for v in all_vals)
+                    if len(sorted_vals) > 5:
+                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
+                    else:
+                        vals_str = ', '.join(sorted_vals)
+                    msg = (f"{cat_col}: {vals_str} found "
+                           f"(single year {year}, trend check requires 2+ years)")
+                    result.add_info(msg, {"column": cat_col})
+                else:
+                    msg = f"No temporal data for {cat_col}"
+                    result.add_info(msg, {"column": cat_col})
 
         con.close()
         gc.collect()
@@ -3739,13 +3892,14 @@ def check_category_temporal_consistency(
     schema: Dict[str, Any],
     table_name: str,
     time_column: Optional[str] = None,
+    hosp_years: Optional[set] = None,
 ) -> DQAPlausibilityResult:
     """Check category distribution consistency over time."""
     _logger.debug("check_category_temporal_consistency: starting for table '%s'", table_name)
     if _ACTIVE_BACKEND == 'polars':
-        result = check_category_temporal_consistency_polars(df, schema, table_name, time_column)
+        result = check_category_temporal_consistency_polars(df, schema, table_name, time_column, hosp_years)
     else:
-        result = check_category_temporal_consistency_duckdb(df, schema, table_name, time_column)
+        result = check_category_temporal_consistency_duckdb(df, schema, table_name, time_column, hosp_years)
     _logger.debug("check_category_temporal_consistency: table '%s' — columns_checked=%s",
                   table_name, result.metrics.get("category_columns_checked"))
     return result
@@ -4040,7 +4194,7 @@ def run_relational_integrity_checks(
     """
     _logger.info("run_relational_integrity_checks: starting with %d tables", len(tables))
 
-    # Build lookup: table_name -> DataFrame
+    # Build lookup: table_name -> (DataFrame, schema_col_names)
     # Convert pandas DataFrames to Polars when the Polars backend is active,
     # matching the pattern used by run_conformance_checks / run_completeness_checks.
     lookup = {}
@@ -4049,7 +4203,11 @@ def run_relational_integrity_checks(
         if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
             _logger.debug("Converting pandas DataFrame to Polars for table '%s'", obj.table_name)
             df = pl.from_pandas(df)
-        lookup[obj.table_name] = df
+        # Extract schema-defined column names (only check FK columns that belong
+        # to the table's schema, not extra columns that happen to be in the data).
+        schema = getattr(obj, 'schema', None) or {}
+        schema_cols = {c['name'] for c in schema.get('columns', [])} if schema.get('columns') else None
+        lookup[obj.table_name] = (df, schema_cols)
 
     # Load FK rules
     fk_rules = _load_validation_rules().get('relational_integrity', {})
@@ -4057,13 +4215,15 @@ def run_relational_integrity_checks(
 
     results: Dict[str, Dict[str, DQACompletenessResult]] = {}
 
-    for table_name, df in lookup.items():
-        # Determine column names from the DataFrame
-        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+    for table_name, (df, schema_cols) in lookup.items():
+        # Use schema columns when available; fall back to DataFrame columns
+        if schema_cols is not None:
+            col_names = schema_cols
+        elif HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-            col_names = lf.collect_schema().names()
+            col_names = set(lf.collect_schema().names())
         else:
-            col_names = df.columns.tolist()
+            col_names = set(df.columns.tolist())
 
         for fk_column, rule in fk_rules.items():
             if fk_column not in col_names:
@@ -4094,7 +4254,7 @@ def run_relational_integrity_checks(
             )
             result = check_relational_integrity(
                 target_df=df,
-                reference_df=lookup[ref_table_name],
+                reference_df=lookup[ref_table_name][0],
                 target_table=table_name,
                 reference_table=ref_table_name,
                 key_column=fk_column,
@@ -4113,6 +4273,7 @@ def run_plausibility_checks(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
     table_name: str,
+    hosp_years: Optional[set] = None,
 ) -> Dict[str, DQAPlausibilityResult]:
     """
     Run all single-table plausibility checks on a table.
@@ -4168,7 +4329,7 @@ def run_plausibility_checks(
         gc.collect()
 
     # C.2 Category temporal consistency
-    results['category_temporal_consistency'] = check_category_temporal_consistency(df, schema, table_name)
+    results['category_temporal_consistency'] = check_category_temporal_consistency(df, schema, table_name, hosp_years=hosp_years)
     gc.collect()
 
     # D.1 Duplicate composite keys
@@ -4310,10 +4471,35 @@ def run_full_dqa(
                 for k, v in rel_results[table_name].items()
             }
 
+    # Extract hospitalization years for P.6 temporal consistency context
+    hosp_years = None
+    if tables is not None:
+        for obj in tables:
+            tname = getattr(obj, 'table_name', '').replace('clif_', '')
+            if tname == 'hospitalization':
+                hdf = obj.df
+                if HAS_POLARS and isinstance(hdf, (pl.DataFrame, pl.LazyFrame)):
+                    hlf = hdf if isinstance(hdf, pl.LazyFrame) else hdf.lazy()
+                    hcols = hlf.collect_schema().names()
+                    if 'admission_dttm' in hcols:
+                        hosp_years = set(
+                            hlf.select(pl.col('admission_dttm').dt.year().alias('yr'))
+                            .filter(pl.col('yr').is_not_null())
+                            .unique()
+                            .collect()
+                            .get_column('yr')
+                            .to_list()
+                        )
+                elif isinstance(hdf, pd.DataFrame) and 'admission_dttm' in hdf.columns:
+                    hosp_years = set(
+                        int(y) for y in hdf['admission_dttm'].dropna().dt.year.unique()
+                    )
+                break
+
     # Plausibility checks (single-table)
     results['plausibility'] = {
         k: v.to_dict()
-        for k, v in run_plausibility_checks(df, schema, table_name).items()
+        for k, v in run_plausibility_checks(df, schema, table_name, hosp_years=hosp_years).items()
     }
 
     # Cross-table plausibility checks (when tables provided)

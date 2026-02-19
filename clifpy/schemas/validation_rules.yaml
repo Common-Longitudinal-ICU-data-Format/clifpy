@@ -116,11 +116,13 @@ temporal_ordering:
   hospitalization:
     - earlier: admission_dttm
       later: discharge_dttm
-      description: "Admission must be before or equal to discharge"
+      strict: true
+      description: "Admission must be strictly before discharge"
   adt:
     - earlier: in_dttm
       later: out_dttm
-      description: "ADT in_dttm must be before or equal to out_dttm"
+      strict: true
+      description: "ADT in_dttm must be strictly before out_dttm"
   labs:
     - earlier: lab_order_dttm
       later: lab_collect_dttm
