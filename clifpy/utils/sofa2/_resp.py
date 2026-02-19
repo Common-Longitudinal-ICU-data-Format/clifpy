@@ -32,6 +32,75 @@ from clifpy.utils.logging_config import get_logger
 logger = get_logger('utils.sofa2.resp')
 
 
+def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+    """
+    Forward-fill fio2_set within contiguous device_category episodes per hospitalization.
+
+    Creates device episodes by detecting changes in device_category (ordered by
+    recorded_dttm), then forward-fills fio2_set within each episode. This fills
+    gaps where FiO2 was not recorded but the patient remained on the same device.
+
+    The forward-fill does NOT cross device changes — if device_category changes,
+    the FiO2 from the prior device does not carry over.
+
+    This function is intentionally isolated so it can be easily added or removed
+    from the respiratory subscore pipeline.
+
+    Parameters
+    ----------
+    resp_rel : DuckDBPyRelation
+        Respiratory support data. Must have columns:
+        [hospitalization_id, recorded_dttm, device_category, fio2_set]
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Same schema as input, with fio2_set forward-filled within device episodes.
+    """
+    return duckdb.sql("""
+        WITH ordered AS (
+            -- Detect device_category changes to create episode boundaries
+            -- IS DISTINCT FROM is NULL-safe: consecutive NULLs stay in the same episode
+            FROM resp_rel
+            SELECT
+                *
+                , CASE
+                    WHEN device_category IS DISTINCT FROM
+                         LAG(device_category) OVER (
+                             PARTITION BY hospitalization_id
+                             ORDER BY recorded_dttm
+                         )
+                    THEN 1
+                    ELSE 0
+                  END AS _device_change
+        ),
+        with_episode AS (
+            FROM ordered
+            SELECT
+                *
+                , SUM(_device_change) OVER (
+                    PARTITION BY hospitalization_id
+                    ORDER BY recorded_dttm
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                  ) AS _device_episode_id
+        )
+        -- Forward-fill fio2_set within each device episode
+        FROM with_episode
+        SELECT
+            * REPLACE (
+                COALESCE(
+                    fio2_set,
+                    LAST_VALUE(fio2_set IGNORE NULLS) OVER (
+                        PARTITION BY hospitalization_id, _device_episode_id
+                        ORDER BY recorded_dttm
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    )
+                ) AS fio2_set
+            )
+            EXCLUDE (_device_change, _device_episode_id)
+    """)
+
+
 def _calculate_resp_subscore(
     cohort_rel: DuckDBPyRelation,
     resp_rel: DuckDBPyRelation,
@@ -84,6 +153,39 @@ def _calculate_resp_subscore(
     lookback_hours = cfg.resp_lookback_hours
     tolerance_minutes = int(cfg.pf_sf_tolerance_hours * 60)
     logger.info(f"resp_lookback_hours={lookback_hours}, pf_sf_tolerance_minutes={tolerance_minutes}")
+
+    # =========================================================================
+    # Step 0: Device heuristic — infer IMV from mode_category
+    # =========================================================================
+    logger.info("Applying device heuristic: inferring IMV from mode_category...")
+
+    resp_rel = duckdb.sql("""
+        FROM resp_rel
+        SELECT * REPLACE (
+            CASE
+                WHEN device_category IS NULL
+                     AND mode_category IS NOT NULL
+                     AND regexp_matches(
+                         mode_category,
+                         '(?:assist control-volume control|simv|pressure control)',
+                         'i'
+                     )
+                THEN 'imv'
+                ELSE device_category
+            END AS device_category
+        )
+    """)
+    if dev:
+        imv_inferred_from_mode = resp_rel
+
+    # =========================================================================
+    # Step 0b: Forward-fill FiO2 within device episodes
+    # =========================================================================
+    logger.info("Forward-filling FiO2 within device episodes...")
+
+    resp_rel = _forward_fill_fio2(resp_rel)
+    if dev:
+        fio2_ffilled = resp_rel
 
     # =========================================================================
     # Step 1: FiO2 with imputation and pre-window fallback
@@ -452,6 +554,8 @@ def _calculate_resp_subscore(
 
     if dev:
         return resp_score, {
+            'imv_inferred_from_mode': imv_inferred_from_mode,
+            'fio2_ffilled': fio2_ffilled,
             'fio2_in_window': fio2_in_window,
             'fio2_pre_window': fio2_pre_window,
             'fio2_imputed': fio2_imputed,
