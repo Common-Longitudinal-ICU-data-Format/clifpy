@@ -411,6 +411,14 @@ def check_required_columns_duckdb(
         else:
             result.add_info("All required columns present")
 
+        extra = actual_columns - set(col['name'] for col in schema.get('columns', []))
+
+        if extra:
+            result.add_warning(
+                f"Found {len(extra)} extra columns not in schema",
+                {"extra_columns": sorted(extra)}
+            )
+
         con.close()
 
     except Exception as e:
@@ -583,7 +591,7 @@ def check_column_dtypes_duckdb(
 
     type_mapping = {
         'VARCHAR': ['VARCHAR', 'TEXT', 'STRING'],
-        'DATE': ['TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'],
+        'DATETIME': ['TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'],
         'DATE': ['DATE'],
         'INTEGER': ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'INT'],
         'INT': ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'INT'],
@@ -617,6 +625,14 @@ def check_column_dtypes_duckdb(
             )
 
             if not type_matches:
+                # When all values are NULL *and* the pandas dtype is object,
+                # DuckDB infers an arbitrary type (e.g. INTEGER) because it
+                # has no data to work with.  Skip only this ambiguous case.
+                # Columns with a concrete pandas dtype (Int32, datetime64, …)
+                # have a reliable inferred type even when all-null.
+                if col_name in df.columns and df[col_name].isna().all() and df[col_name].dtype == object:
+                    continue
+
                 castable = _check_castable_duckdb(con, col_name, expected_type)
 
                 if castable:
@@ -2737,7 +2753,7 @@ def check_numeric_range_plausibility_duckdb(
                             rmin, rmax = ranges['min'], ranges['max']
                             stats = con.execute(f"""
                                 SELECT COUNT(*) as total,
-                                       SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END) as oor
+                                       COALESCE(SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END), 0) as oor
                                 FROM df
                                 WHERE LOWER(CAST("{cat_col}" AS VARCHAR)) = '{str(cat_val).lower()}'
                                   AND LOWER(CAST("{unit_col}" AS VARCHAR)) = '{str(unit_val).lower()}'
@@ -2755,7 +2771,7 @@ def check_numeric_range_plausibility_duckdb(
                         rmin, rmax = ranges['min'], ranges['max']
                         stats = con.execute(f"""
                             SELECT COUNT(*) as total,
-                                   SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END) as oor
+                                   COALESCE(SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END), 0) as oor
                             FROM df
                             WHERE LOWER(CAST("{cat_col}" AS VARCHAR)) = '{str(cat_val).lower()}'
                               AND "{col_name}" IS NOT NULL
