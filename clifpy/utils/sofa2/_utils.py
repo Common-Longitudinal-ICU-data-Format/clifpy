@@ -708,7 +708,7 @@ def _detect_sedation_episodes(
             hospitalization_id
             , start_dttm
             , episode_start AS sedation_start
-            , episode_end
+            , episode_end AS sedation_end
             , episode_end + INTERVAL '{post_sedation_gcs_invalidate_hours} hours' AS sedation_end_extended
         WHERE is_sedated = 1
     """)
