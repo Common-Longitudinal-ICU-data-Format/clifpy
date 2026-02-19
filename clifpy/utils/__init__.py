@@ -35,6 +35,13 @@ from .validator import (
     run_full_dqa,
 )
 
+from .report_generator import (
+    DQA_CATEGORIES,
+    collect_dqa_issues,
+    generate_validation_pdf,
+    generate_text_report,
+)
+
 from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
@@ -91,4 +98,9 @@ __all__ = [
       'run_completeness_checks',
       'run_relational_integrity_checks',
       'run_full_dqa',
+      # Report generation
+      'DQA_CATEGORIES',
+      'collect_dqa_issues',
+      'generate_validation_pdf',
+      'generate_text_report',
   ]

@@ -369,7 +369,7 @@ def check_required_columns_polars(
             result.add_info("All required columns present")
 
         if extra:
-            result.add_info(
+            result.add_warning(
                 f"Found {len(extra)} extra columns not in schema",
                 {"extra_columns": sorted(extra)}
             )
@@ -1047,8 +1047,8 @@ def check_categorical_values_polars(
         result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
 
         for col_name, details in invalid_values_by_col.items():
-            result.add_error(
-                f"Column '{col_name}' has {details['total_invalid_unique']} invalid categorical values",
+            result.add_warning(
+                f"{details['total_invalid_unique']} invalid categorical values",
                 {
                     "column": col_name,
                     "top_invalid": details['invalid_values'][:10],
@@ -1126,8 +1126,8 @@ def check_categorical_values_duckdb(
         result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
 
         for col_name, details in invalid_values_by_col.items():
-            result.add_error(
-                f"Column '{col_name}' has {details['total_invalid_unique']} invalid categorical values",
+            result.add_warning(
+                f"{details['total_invalid_unique']} invalid categorical values",
                 {
                     "column": col_name,
                     "top_invalid": details['invalid_values'][:10],
@@ -1388,6 +1388,11 @@ def check_missingness_polars(
         required_columns = schema.get('required_columns', [])
         required_in_df = [c for c in required_columns if c in col_names]
 
+        # Skip columns covered by conditional requirements (checked in K.2)
+        conditions = _get_default_conditions(table_name)
+        conditional_cols = {col for cond in conditions for col in cond.get('then_required', [])}
+        required_in_df = [c for c in required_in_df if c not in conditional_cols]
+
         total_rows = lf.select(pl.len()).collect()[0, 0]
 
         if total_rows == 0:
@@ -1474,6 +1479,11 @@ def check_missingness_duckdb(
 
         required_columns = schema.get('required_columns', [])
         required_in_df = [c for c in required_columns if c in df.columns]
+
+        # Skip columns covered by conditional requirements (checked in K.2)
+        conditions = _get_default_conditions(table_name)
+        conditional_cols = {col for cond in conditions for col in cond.get('then_required', [])}
+        required_in_df = [c for c in required_in_df if c not in conditional_cols]
 
         total_rows = con.execute("SELECT COUNT(*) FROM df").fetchone()[0]
 
@@ -1680,9 +1690,14 @@ def check_conditional_requirements_polars(
                             "percent_missing": round(pct_missing, 2)
                         }
                     )
-
-        if not result.warnings and not result.errors:
-            result.add_info("All conditional requirements satisfied")
+                elif total > 0:
+                    result.add_info(
+                        f"Conditional requirement satisfied: {description} — {int(total):,}/{int(total):,} rows present (100%)",
+                        {"column": req_col, "condition": condition_label,
+                         "rows_meeting_condition": int(total),
+                         "rows_present": int(total),
+                         "percent_present": 100.0}
+                    )
 
         gc.collect()
 
@@ -1767,9 +1782,14 @@ def check_conditional_requirements_duckdb(
                             "percent_missing": round(pct_missing, 2)
                         }
                     )
-
-        if not result.warnings and not result.errors:
-            result.add_info("All conditional requirements satisfied")
+                elif total > 0:
+                    result.add_info(
+                        f"Conditional requirement satisfied: {description} — {int(total):,}/{int(total):,} rows present (100%)",
+                        {"column": req_col, "condition": condition_label,
+                         "rows_meeting_condition": int(total),
+                         "rows_present": int(total),
+                         "percent_present": 100.0}
+                    )
 
         con.close()
 
@@ -1854,8 +1874,8 @@ def check_mcide_value_coverage_polars(
 
         for col_name, details in coverage_by_col.items():
             if details['missing_values']:
-                result.add_info(
-                    f"Column '{col_name}' is missing {len(details['missing_values'])} mCIDE values",
+                result.add_error(
+                    f"Missing {len(details['missing_values'])} mCIDE values: {', '.join(str(v) for v in details['missing_values'])}",
                     {
                         "column": col_name,
                         "missing_values": details['missing_values'],
@@ -1922,8 +1942,8 @@ def check_mcide_value_coverage_duckdb(
 
         for col_name, details in coverage_by_col.items():
             if details['missing_values']:
-                result.add_info(
-                    f"Column '{col_name}' is missing {len(details['missing_values'])} mCIDE values",
+                result.add_error(
+                    f"Missing {len(details['missing_values'])} mCIDE values: {', '.join(str(v) for v in details['missing_values'])}",
                     {
                         "column": col_name,
                         "missing_values": details['missing_values'],
@@ -2331,12 +2351,18 @@ def check_temporal_ordering_polars(
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
+            else:
+                if total > 0:
+                    result.add_info(
+                        f"Temporal ordering satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                        {"column": f"{earlier}, {later}",
+                         "rows_checked": int(total),
+                         "rows_valid": int(total),
+                         "percent_valid": 100.0}
+                    )
 
         result.metrics["pairs_checked"] = len(violations_by_pair)
         result.metrics["violations_by_pair"] = violations_by_pair
-
-        if not result.errors and not result.warnings:
-            result.add_info("All temporal ordering constraints satisfied")
 
         gc.collect()
 
@@ -2405,12 +2431,18 @@ def check_temporal_ordering_duckdb(
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
+            else:
+                if total > 0:
+                    result.add_info(
+                        f"Temporal ordering satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                        {"column": f"{earlier}, {later}",
+                         "rows_checked": int(total),
+                         "rows_valid": int(total),
+                         "percent_valid": 100.0}
+                    )
 
         result.metrics["pairs_checked"] = len(violations_by_pair)
         result.metrics["violations_by_pair"] = violations_by_pair
-
-        if not result.errors and not result.warnings:
-            result.add_info("All temporal ordering constraints satisfied")
 
         con.close()
 
@@ -2798,12 +2830,18 @@ def check_field_plausibility_polars(
                         {"rule": description, "violations": int(non_null),
                          "total": int(total), "percent": round(pct, 2)}
                     )
+                else:
+                    if total > 0:
+                        result.add_info(
+                            f"Field plausibility satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                            {"column": check_col,
+                             "rows_checked": int(total),
+                             "rows_valid": int(total),
+                             "percent_valid": 100.0}
+                        )
 
         result.metrics["rules_checked"] = len(rules)
         result.metrics["violations_by_rule"] = violations_by_rule
-
-        if not result.warnings and not result.errors:
-            result.add_info("All field plausibility rules satisfied")
 
         gc.collect()
 
@@ -2874,12 +2912,18 @@ def check_field_plausibility_duckdb(
                         {"rule": description, "violations": int(non_null),
                          "total": int(total), "percent": round(pct, 2)}
                     )
+                else:
+                    if total > 0:
+                        result.add_info(
+                            f"Field plausibility satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                            {"column": check_col,
+                             "rows_checked": int(total),
+                             "rows_valid": int(total),
+                             "percent_valid": 100.0}
+                        )
 
         result.metrics["rules_checked"] = len(rules)
         result.metrics["violations_by_rule"] = violations_by_rule
-
-        if not result.warnings and not result.errors:
-            result.add_info("All field plausibility rules satisfied")
 
         con.close()
 
@@ -3335,10 +3379,17 @@ def check_overlapping_periods_polars(
         if overlap_count > 0:
             result.add_warning(
                 f"{overlap_count} overlapping time periods detected ({pct:.1f}% of records)",
-                {"overlapping_records": int(overlap_count), "percent": round(pct, 2)}
+                {"column": f"{start_col}, {end_col}",
+                 "overlapping_records": int(overlap_count), "percent": round(pct, 2)}
             )
         else:
-            result.add_info("No overlapping time periods detected")
+            result.add_info(
+                f"No overlapping time periods detected for {entity_col} on {start_col}/{end_col} — {int(total_records):,} records checked",
+                {"column": f"{start_col}, {end_col}",
+                 "entity_col": entity_col,
+                 "records_checked": int(total_records),
+                 "entities_checked": int(entities_checked)}
+            )
 
         gc.collect()
 
@@ -3399,10 +3450,17 @@ def check_overlapping_periods_duckdb(
         if overlap_count > 0:
             result.add_warning(
                 f"{overlap_count} overlapping time periods detected ({pct:.1f}% of records)",
-                {"overlapping_records": int(overlap_count), "percent": round(pct, 2)}
+                {"column": f"{start_col}, {end_col}",
+                 "overlapping_records": int(overlap_count), "percent": round(pct, 2)}
             )
         else:
-            result.add_info("No overlapping time periods detected")
+            result.add_info(
+                f"No overlapping time periods detected for {entity_col} on {start_col}/{end_col} — {int(total_records):,} records checked",
+                {"column": f"{start_col}, {end_col}",
+                 "entity_col": entity_col,
+                 "records_checked": int(total_records),
+                 "entities_checked": int(entities_checked)}
+            )
 
         con.close()
         gc.collect()
@@ -3536,10 +3594,20 @@ def check_category_temporal_consistency_polars(
         result.metrics["missing_in_years"] = missing_in_years
 
         for cat_col, absent in missing_in_years.items():
+            col_dist = yearly_distributions.get(cat_col, {})
+            all_col_years = sorted(col_dist.keys())
+            total_years = len(all_col_years)
             for val, years in absent.items():
+                yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
                 result.add_warning(
-                    f"Category '{cat_col}' value '{val}' absent in years: {years}",
-                    {"column": cat_col, "value": val, "absent_years": years}
+                    f"Category '{cat_col}' value '{val}' absent in {len(years)}/{total_years} years",
+                    {
+                        "column": cat_col,
+                        "value": val,
+                        "absent_years": years,
+                        "total_years": total_years,
+                        "yearly_counts": yearly_counts,
+                    }
                 )
 
         if not result.warnings and not result.errors:
@@ -3637,10 +3705,20 @@ def check_category_temporal_consistency_duckdb(
         result.metrics["missing_in_years"] = missing_in_years
 
         for cat_col, absent in missing_in_years.items():
+            col_dist = yearly_distributions.get(cat_col, {})
+            all_col_years = sorted(col_dist.keys())
+            total_years = len(all_col_years)
             for val, years in absent.items():
+                yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
                 result.add_warning(
-                    f"Category '{cat_col}' value '{val}' absent in years: {years}",
-                    {"column": cat_col, "value": val, "absent_years": years}
+                    f"Category '{cat_col}' value '{val}' absent in {len(years)}/{total_years} years",
+                    {
+                        "column": cat_col,
+                        "value": val,
+                        "absent_years": years,
+                        "total_years": total_years,
+                        "yearly_counts": yearly_counts,
+                    }
                 )
 
         if not result.warnings and not result.errors:
