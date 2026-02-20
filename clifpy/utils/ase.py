@@ -1278,16 +1278,7 @@ def combine_components_for_ase(
     ase_query = """
         WITH x AS (
           SELECT
-            c.*,
-            -- Keep day-truncated versions for tie-breaking logic if needed
-            DATE_TRUNC('day', blood_culture_dttm) AS blood_culture_day_ts,
-            CASE WHEN first_qad_dttm IS NOT NULL THEN DATE_TRUNC('day', first_qad_dttm) END AS first_qad_day_ts,
-            CASE WHEN vasopressor_dttm IS NOT NULL THEN DATE_TRUNC('day', vasopressor_dttm) END AS vasopressor_day_ts,
-            CASE WHEN imv_dttm IS NOT NULL THEN DATE_TRUNC('day', imv_dttm) END AS imv_day_ts,
-            CASE WHEN aki_dttm IS NOT NULL THEN DATE_TRUNC('day', aki_dttm) END AS aki_day_ts,
-            CASE WHEN hyperbilirubinemia_dttm IS NOT NULL THEN DATE_TRUNC('day', hyperbilirubinemia_dttm) END AS hyperbili_day_ts,
-            CASE WHEN thrombocytopenia_dttm IS NOT NULL THEN DATE_TRUNC('day', thrombocytopenia_dttm) END AS thrombo_day_ts,
-            CASE WHEN lactate_dttm IS NOT NULL THEN DATE_TRUNC('day', lactate_dttm) END AS lactate_day_ts
+            c.*
           FROM component_b_inputs c
         ),
 
@@ -1374,30 +1365,30 @@ def combine_components_for_ase(
           SELECT
             z.*,
 
-            -- First criteria: USE TRUNCATED VERSIONS for day-level comparison
+            -- First criterion (w/ lactate): which dttm matches the pre-computed onset?
             CASE
               WHEN ase_onset_w_lactate_dttm IS NULL THEN NULL
-              WHEN DATE_TRUNC('day', blood_culture_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'blood_culture'
-              WHEN first_qad_day_ts = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'first_qad'
-              WHEN DATE_TRUNC('day', vasopressor_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'vasopressor'
-              WHEN DATE_TRUNC('day', imv_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'imv'
-              WHEN DATE_TRUNC('day', aki_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'aki'
-              WHEN DATE_TRUNC('day', hyperbilirubinemia_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'hyperbilirubinemia'
-              WHEN DATE_TRUNC('day', thrombocytopenia_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'thrombocytopenia'
-              WHEN DATE_TRUNC('day', lactate_dttm) = DATE_TRUNC('day', ase_onset_w_lactate_dttm) THEN 'lactate'
+              WHEN blood_culture_dttm = ase_onset_w_lactate_dttm THEN 'blood_culture'
+              WHEN first_qad_dttm = ase_onset_w_lactate_dttm THEN 'first_qad'
+              WHEN vasopressor_dttm = ase_onset_w_lactate_dttm THEN 'vasopressor'
+              WHEN imv_dttm = ase_onset_w_lactate_dttm THEN 'imv'
+              WHEN aki_dttm = ase_onset_w_lactate_dttm THEN 'aki'
+              WHEN hyperbilirubinemia_dttm = ase_onset_w_lactate_dttm THEN 'hyperbilirubinemia'
+              WHEN thrombocytopenia_dttm = ase_onset_w_lactate_dttm THEN 'thrombocytopenia'
+              WHEN lactate_dttm = ase_onset_w_lactate_dttm THEN 'lactate'
               ELSE NULL
             END AS ase_first_criteria_w_lactate,
 
-            -- Repeat for without lactate version
+            -- First criterion (w/o lactate): same logic, no lactate
             CASE
               WHEN ase_onset_wo_lactate_dttm IS NULL THEN NULL
-              WHEN DATE_TRUNC('day', blood_culture_dttm) = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'blood_culture'
-              WHEN first_qad_day_ts = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'first_qad'
-              WHEN DATE_TRUNC('day', vasopressor_dttm) = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'vasopressor'
-              WHEN DATE_TRUNC('day', imv_dttm) = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'imv'
-              WHEN DATE_TRUNC('day', aki_dttm) = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'aki'
-              WHEN DATE_TRUNC('day', hyperbilirubinemia_dttm) = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'hyperbilirubinemia'
-              WHEN DATE_TRUNC('day', thrombocytopenia_dttm) = DATE_TRUNC('day', ase_onset_wo_lactate_dttm) THEN 'thrombocytopenia'
+              WHEN blood_culture_dttm = ase_onset_wo_lactate_dttm THEN 'blood_culture'
+              WHEN first_qad_dttm = ase_onset_wo_lactate_dttm THEN 'first_qad'
+              WHEN vasopressor_dttm = ase_onset_wo_lactate_dttm THEN 'vasopressor'
+              WHEN imv_dttm = ase_onset_wo_lactate_dttm THEN 'imv'
+              WHEN aki_dttm = ase_onset_wo_lactate_dttm THEN 'aki'
+              WHEN hyperbilirubinemia_dttm = ase_onset_wo_lactate_dttm THEN 'hyperbilirubinemia'
+              WHEN thrombocytopenia_dttm = ase_onset_wo_lactate_dttm THEN 'thrombocytopenia'
               ELSE NULL
             END AS ase_first_criteria_wo_lactate
           FROM z
