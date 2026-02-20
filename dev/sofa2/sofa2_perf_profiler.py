@@ -1,39 +1,101 @@
-"""SOFA-2 benchmark with per-subscore timing and progressive scaling.
+"""SOFA-2 performance profiler with per-subscore timing and progressive scaling.
 
-Measures wall-clock time, peak memory, and per-subscore breakdown using
-the perf_profile=True parameter on calculate_sofa2().
+Profiles where time is spent in the SOFA-2 pipeline using the
+perf_profile=True parameter on calculate_sofa2().
 
 Usage:
-    python benchmark_sofa2.py -n 100              # Single run with 100 IDs
-    python benchmark_sofa2.py --scale              # Progressive: 100, 500, 1000, 2000
-    python benchmark_sofa2.py --scale --max 5000   # Scale up to 5000 IDs
-    python benchmark_sofa2.py -n 100 --iters 5     # 5 iterations for stability
-    python benchmark_sofa2.py -n 100 --daily       # Use calculate_sofa2_daily
+    python sofa2_perf_profiler.py -n 100              # Single run, 100 ICU stays from ADT
+    python sofa2_perf_profiler.py --scale              # Progressive: 100, 500, 1000, 2000
+    python sofa2_perf_profiler.py --scale --max 5000   # Scale up to 5000 IDs
+    python sofa2_perf_profiler.py -n 100 --iters 5     # 5 iterations for stability
+    python sofa2_perf_profiler.py -n 100 --daily       # Use calculate_sofa2_daily
+    python sofa2_perf_profiler.py --load-external-ids   # Use external CSV for cohort IDs
 
-Requires a cohort CSV at .dev/cohort_hosp_ids.csv (or pass --cohort-csv).
+By default, cohort is built directly from the ADT table with LIMIT {n}.
+Pass --load-external-ids to use an external CSV (at .dev/cohort_hosp_ids.csv or --cohort-csv).
 Requires CLIF config at config/config.yaml (or pass --config).
 """
-import sys
 import time
 import tracemalloc
+import shutil
+import tempfile
+import random
 import argparse
 from pathlib import Path
 
 import pandas as pd
 
-# Reuse existing infrastructure
-sys.path.insert(0, str(Path(__file__).parent))
-from benchmark_simple import clean_duckdb_cache, load_hospitalization_ids
-
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+# ---------------------------------------------------------------------------
+# Helpers (inlined from dev/perf-benchmark/benchmark_simple.py)
+# ---------------------------------------------------------------------------
+
+def clean_duckdb_cache():
+    """Remove DuckDB temporary files to ensure cold cache."""
+    temp_dir = Path(tempfile.gettempdir())
+    for path in temp_dir.glob("duckdb_temp*"):
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except Exception:
+            pass
+
+
+def load_hospitalization_ids(csv_path: str, n: int = None, random_seed: int = 42) -> list:
+    """Load hospitalization IDs from CSV file with optional random sampling."""
+    df = pd.read_csv(csv_path)
+    hosp_ids = df['hospitalization_id'].astype(str).tolist()
+
+    if n is not None:
+        if n > len(hosp_ids):
+            print(f"  Requested n={n} but only {len(hosp_ids)} IDs available. Using all IDs.")
+            return hosp_ids
+        random.seed(random_seed)
+        hosp_ids = random.sample(hosp_ids, n)
+
+    return hosp_ids
+
+
+# ---------------------------------------------------------------------------
+# Cohort builders
+# ---------------------------------------------------------------------------
+
+def build_cohort_from_adt_limit(
+    n: int,
+    config_path: str,
+    daily: bool = False,
+) -> pd.DataFrame:
+    """Default cohort: query ADT directly with LIMIT (no external CSV needed).
+
+    Mirrors the pattern from sofa2_dev.py — filters to ICU stays and limits to n rows.
+    """
+    import duckdb
+    from clifpy import load_data
+
+    adt = load_data('adt', config_path=config_path, return_rel=True)
+    end_expr = "MAX(out_dttm)" if daily else "MIN(in_dttm) + INTERVAL '24 hours'"
+    return duckdb.sql(f"""
+        FROM adt
+        SELECT
+            hospitalization_id
+            , MIN(in_dttm) AS start_dttm
+            , {end_expr} AS end_dttm
+        WHERE location_category = 'icu'
+        GROUP BY hospitalization_id
+        LIMIT {n}
+    """).df()
 
 
 def build_cohort_from_adt(
     hospitalization_ids: list[str],
     config_path: str,
 ) -> pd.DataFrame:
-    """Build single-window cohort from ADT data for benchmarking.
+    """Build single-window cohort from ADT data.
 
     Creates one 24h window per hospitalization_id (from earliest in_dttm).
     """
@@ -58,7 +120,7 @@ def build_cohort_for_daily(
     hospitalization_ids: list[str],
     config_path: str,
 ) -> pd.DataFrame:
-    """Build multi-day cohort from ADT data for daily scoring benchmark.
+    """Build multi-day cohort from ADT data.
 
     Creates one window per hospitalization spanning full stay duration.
     """
@@ -79,28 +141,36 @@ def build_cohort_for_daily(
     return cohort
 
 
-def benchmark_single(
+# ---------------------------------------------------------------------------
+# Profiling
+# ---------------------------------------------------------------------------
+
+def profile_single(
     n: int,
     config_path: str,
-    cohort_csv: str,
-    num_iterations: int = 3,
+    num_iterations: int = 1,
     daily: bool = False,
+    load_external_ids: bool = False,
+    cohort_csv: str | None = None,
 ) -> dict:
-    """Run SOFA-2 benchmark for a single cohort size.
+    """Run SOFA-2 profiler for a single cohort size.
 
     Returns dict with timing, memory, and per-subscore breakdown.
     """
     from clifpy.utils.sofa2 import calculate_sofa2, calculate_sofa2_daily
 
-    hosp_ids = load_hospitalization_ids(cohort_csv, n=n)
-
-    if daily:
-        cohort_df = build_cohort_for_daily(hosp_ids, config_path)
+    if load_external_ids:
+        hosp_ids = load_hospitalization_ids(cohort_csv, n=n)
+        if daily:
+            cohort_df = build_cohort_for_daily(hosp_ids, config_path)
+        else:
+            cohort_df = build_cohort_from_adt(hosp_ids, config_path)
+        print(f"  Cohort: {len(cohort_df)} rows ({len(hosp_ids)} IDs from external CSV)")
     else:
-        cohort_df = build_cohort_from_adt(hosp_ids, config_path)
+        cohort_df = build_cohort_from_adt_limit(n, config_path, daily=daily)
+        print(f"  Cohort: {len(cohort_df)} rows (ADT LIMIT {n})")
 
     actual_n = len(cohort_df)
-    print(f"  Cohort: {actual_n} rows ({len(hosp_ids)} IDs)")
 
     times = []
     memory_peaks = []
@@ -139,7 +209,6 @@ def benchmark_single(
 
     return {
         'n': actual_n,
-        'num_ids': len(hosp_ids),
         'avg_time': sum(times) / len(times),
         'min_time': min(times),
         'max_time': max(times),
@@ -169,9 +238,10 @@ def print_breakdown(results: dict):
 def run_scaling_test(
     sample_sizes: list[int],
     config_path: str,
-    cohort_csv: str,
-    num_iterations: int = 3,
+    num_iterations: int = 1,
     daily: bool = False,
+    load_external_ids: bool = False,
+    cohort_csv: str | None = None,
 ):
     """Run progressive scaling test."""
     all_results = []
@@ -181,7 +251,11 @@ def run_scaling_test(
         print(f"Testing with n={n}")
         print(f"{'='*70}")
 
-        results = benchmark_single(n, config_path, cohort_csv, num_iterations, daily)
+        results = profile_single(
+            n, config_path,
+            num_iterations=num_iterations, daily=daily,
+            load_external_ids=load_external_ids, cohort_csv=cohort_csv,
+        )
         all_results.append(results)
         print_breakdown(results)
 
@@ -189,10 +263,10 @@ def run_scaling_test(
     print(f"\n{'='*70}")
     print("SCALING SUMMARY")
     print(f"{'='*70}")
-    print(f"{'N':<10} {'IDs':<10} {'Avg Time':<12} {'Time/ID (ms)':<15} {'Memory (MB)':<15}")
-    print("-" * 62)
+    print(f"{'N':<10} {'Avg Time':<12} {'Time/ID (ms)':<15} {'Memory (MB)':<15}")
+    print("-" * 52)
     for r in all_results:
-        print(f"{r['n']:<10} {r['num_ids']:<10} {r['avg_time']:<12.3f} {r['time_per_id']:<15.2f} {r['avg_memory']:<15.1f}")
+        print(f"{r['n']:<10} {r['avg_time']:<12.3f} {r['time_per_id']:<15.2f} {r['avg_memory']:<15.1f}")
 
     # Scaling analysis
     if len(all_results) >= 2:
@@ -217,44 +291,54 @@ def run_scaling_test(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="SOFA-2 Performance Benchmark",
+        description="SOFA-2 Performance Profiler",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument('-n', type=int, default=100, help='Number of hospitalization IDs to sample (default: 100)')
+    parser.add_argument('-n', type=int, default=100, help='Number of ICU stays to profile (default: 100)')
     parser.add_argument('--scale', action='store_true', help='Run progressive scaling test')
     parser.add_argument('--max', type=int, default=2000, help='Max cohort size for scaling (default: 2000)')
-    parser.add_argument('--iters', type=int, default=3, help='Iterations per cohort size (default: 3)')
+    parser.add_argument('--iters', type=int, default=1, help='Iterations per cohort size (default: 1)')
     parser.add_argument('--daily', action='store_true', help='Use calculate_sofa2_daily (multi-day windows)')
     parser.add_argument('--config', type=str, default=None, help='Path to CLIF config.yaml')
-    parser.add_argument('--cohort-csv', type=str, default=None, help='Path to cohort hospitalization IDs CSV')
+    parser.add_argument('--load-external-ids', action='store_true', help='Use external CSV for cohort IDs instead of ADT LIMIT')
+    parser.add_argument('--cohort-csv', type=str, default=None, help='Path to cohort CSV (only with --load-external-ids)')
     args = parser.parse_args()
 
     config_path = args.config or str(PROJECT_ROOT / "config" / "config.yaml")
     cohort_csv = args.cohort_csv or str(PROJECT_ROOT / '.dev' / 'cohort_hosp_ids.csv')
 
     mode = "daily" if args.daily else "single-window"
-    print(f"SOFA-2 Benchmark ({mode} mode)")
+    cohort_source = f"external CSV ({cohort_csv})" if args.load_external_ids else "ADT LIMIT"
+    print(f"SOFA-2 Profiler ({mode} mode)")
     print(f"Config: {config_path}")
-    print(f"Cohort CSV: {cohort_csv}")
+    print(f"Cohort source: {cohort_source}")
 
     if args.scale:
         sizes = [100, 500, 1000]
         if args.max > 1000:
             sizes.append(args.max)
-        run_scaling_test(sizes, config_path, cohort_csv, args.iters, args.daily)
+        run_scaling_test(
+            sizes, config_path,
+            num_iterations=args.iters, daily=args.daily,
+            load_external_ids=args.load_external_ids, cohort_csv=cohort_csv,
+        )
     else:
         print(f"\n{'='*70}")
         print(f"Single run with n={args.n}")
         print(f"{'='*70}")
-        results = benchmark_single(args.n, config_path, cohort_csv, args.iters, args.daily)
+        results = profile_single(
+            args.n, config_path,
+            num_iterations=args.iters, daily=args.daily,
+            load_external_ids=args.load_external_ids, cohort_csv=cohort_csv,
+        )
         print_breakdown(results)
 
         # Final summary
         print(f"\n{'='*70}")
         print("RESULTS")
         print(f"{'='*70}")
-        print(f"Cohort size: {results['n']} rows ({results['num_ids']} IDs)")
+        print(f"Cohort size: {results['n']} rows")
         print(f"Average time: {results['avg_time']:.3f}s (min: {results['min_time']:.3f}s, max: {results['max_time']:.3f}s)")
         print(f"Average memory: {results['avg_memory']:.1f} MB")
         print(f"Time per ID: {results['time_per_id']:.2f} ms")
