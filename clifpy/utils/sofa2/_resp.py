@@ -83,21 +83,25 @@ def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
                     ORDER BY recorded_dttm
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                   ) AS _device_episode_id
+        ),
+        filled AS (
+            -- Forward-fill fio2_set within each device episode
+            FROM with_episode
+            SELECT
+                * REPLACE (
+                    COALESCE(
+                        fio2_set,
+                        LAST_VALUE(fio2_set IGNORE NULLS) OVER (
+                            PARTITION BY hospitalization_id, _device_episode_id
+                            ORDER BY recorded_dttm
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        )
+                    ) AS fio2_set
+                )
         )
-        -- Forward-fill fio2_set within each device episode
-        FROM with_episode
-        SELECT
-            * REPLACE (
-                COALESCE(
-                    fio2_set,
-                    LAST_VALUE(fio2_set IGNORE NULLS) OVER (
-                        PARTITION BY hospitalization_id, _device_episode_id
-                        ORDER BY recorded_dttm
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                    )
-                ) AS fio2_set
-            )
-            EXCLUDE (_device_change, _device_episode_id)
+        -- Drop temporary episode columns to preserve original schema
+        FROM filled
+        SELECT * EXCLUDE (_device_change, _device_episode_id)
     """)
 
 
