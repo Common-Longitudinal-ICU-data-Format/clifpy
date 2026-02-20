@@ -94,10 +94,20 @@ Consequence: GCS recorded **before** dex starts remains valid (not within a seda
 | i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | DONE: resp ecmo_flag filters to actual ECMO devices only (`mcs_group = 'ecmo' OR ecmo_configuration_category IS NOT NULL`); non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`) scores 4 in both resp and CV via `_flag_mechanical_cv_support()`. VV-ECMO (`ecmo_configuration_category = 'vv'`) scores 4 in resp only. |
 
 | additional specs | status |
-|----------|----------| 
-| impute fio2 from lpm_set and room air (see detailsbelow) | DONE |
+|----------|----------|
+| impute fio2 from lpm_set and room air (see details below) | DONE |
 | fio2 are matched to their most recent pao2 or spo2 measurements up to `pf_sf_tolerance_hours` (default = 4 hrs) | DONE; `pf_sf_dttm_offset` column added showing the time gap between PaO2/SpO2 and FiO2 measurements |
 | if no pao2, spo2, or fio2 is found within the target window, the most recent values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 6 hr) | DONE |
+| infer `device_category = 'imv'` when NULL but `mode_category` suggests IMV (Step 0 in `_resp.py`) | DONE |
+| forward-fill `fio2_set` within contiguous device_category episodes before imputation (Step 0b via `_forward_fill_fio2()` in `_resp.py`) | DONE |
+
+### Respiratory preprocessing (Steps 0, 0b)
+
+Before FiO2 imputation, two preprocessing steps run on the raw `resp_rel`:
+
+**Step 0 — Device heuristic (mode_category → IMV)**: If `device_category IS NULL` and `mode_category` matches `assist control-volume control`, `simv`, or `pressure control` (case-insensitive), infer `device_category = 'imv'`. This ensures the `is_advanced_support` flag is correctly set for scores 3-4. Adapted from the waterfall pipeline (`waterfall.py` Phase 1a).
+
+**Step 0b — FiO2 forward-fill within device episodes** (`_forward_fill_fio2()`): Forward-fills `fio2_set` within contiguous runs of the same `device_category` per hospitalization. Does NOT cross device boundaries. Uses `IS DISTINCT FROM` for NULL-safe episode detection. This is an isolated function that can be added/removed from the pipeline independently. See `.dev/sofa2_waterfall.md` for comparison with the original waterfall and SOFA v1 Polars approaches.
 
 ### fio2_set imputation
 ```sql
@@ -153,7 +163,7 @@ END AS fio2_imputed
 | 1 | Creatinine ≤2.0 mg/dL (≤170 μmol/L) or urine output <0.5 mL/kg/h for 6–12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
 | 2 | Creatinine ≤3.50 mg/dL (≤300 μmol/L) or urine output <0.5 mL/kg/h for ≥12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
 | 3 | Creatinine >3.50 mg/dL (>300 μmol/L)  OR urine output <0.3 mL/kg/h for ≥24 h OR anuria (0 mL) for ≥12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
-| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | DONE |
+| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | TODO: carry forward score 4 of CRRT for 3 days |
 
 | footnote | status |
 |----------|----------|
