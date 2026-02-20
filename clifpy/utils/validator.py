@@ -4285,6 +4285,337 @@ def run_relational_integrity_checks(
     return results
 
 
+# ---------------------------------------------------------------------------
+# CACHE-BASED CROSS-TABLE FUNCTIONS (memory-optimised pipeline)
+# ---------------------------------------------------------------------------
+
+
+def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
+    """Extract a lightweight cache from a single table object.
+
+    Used by the optimised pipeline in CLIF-TableOne's runner to avoid
+    keeping full DataFrames in memory for cross-table checks.
+
+    Parameters
+    ----------
+    table_obj : BaseTable
+        Object with ``.table_name``, ``.df``, and ``.schema`` attributes.
+
+    Returns
+    -------
+    dict
+        Keys: ``table_name``, ``fk_ids``, ``schema_cols``,
+        ``temporal_df``, ``hosp_bounds_df``, ``hosp_years``.
+    """
+    tname = getattr(table_obj, 'table_name', '').replace('clif_', '')
+    df = table_obj.df
+    schema = getattr(table_obj, 'schema', None) or {}
+
+    # Schema-defined column names
+    schema_cols = (
+        {c['name'] for c in schema.get('columns', [])}
+        if schema.get('columns') else None
+    )
+
+    # Determine actual columns in the DataFrame
+    if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        actual_cols = set(lf.collect_schema().names())
+    else:
+        actual_cols = set(df.columns.tolist())
+
+    # Use schema cols when available; fall back to actual cols
+    col_names = schema_cols if schema_cols is not None else actual_cols
+
+    # --- FK ID sets ---
+    fk_rules = _load_validation_rules().get('relational_integrity', {})
+    fk_ids: Dict[str, set] = {}
+    for fk_column in fk_rules:
+        if fk_column not in col_names or fk_column not in actual_cols:
+            continue
+        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+            id_series = (
+                lf.select(pl.col(fk_column).drop_nulls().unique())
+                .collect(streaming=True)
+            )
+            fk_ids[fk_column] = set(id_series[fk_column].to_list())
+        else:
+            fk_ids[fk_column] = set(df[fk_column].dropna().unique().tolist())
+
+    # --- Temporal subset for cross-table plausibility ---
+    time_cols = _CROSS_TABLE_TIME_COLUMNS.get(tname, [])
+    temporal_df = None
+    if time_cols and 'hospitalization_id' in actual_cols:
+        needed = ['hospitalization_id'] + [c for c in time_cols if c in actual_cols]
+        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+            temporal_df = lf.select(needed).collect()
+        else:
+            temporal_df = df[needed].copy()
+
+    # --- Hospitalization-specific caches ---
+    hosp_bounds_df = None
+    hosp_years = None
+    if tname == 'hospitalization':
+        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+            hosp_cols_available = set(lf.collect_schema().names())
+            bound_cols = [c for c in ['hospitalization_id', 'admission_dttm', 'discharge_dttm']
+                          if c in hosp_cols_available]
+            if 'hospitalization_id' in bound_cols:
+                hosp_bounds_df = lf.select(bound_cols).collect()
+            if 'admission_dttm' in hosp_cols_available:
+                hosp_years = set(
+                    lf.select(pl.col('admission_dttm').dt.year().alias('yr'))
+                    .filter(pl.col('yr').is_not_null())
+                    .unique()
+                    .collect()
+                    .get_column('yr')
+                    .to_list()
+                )
+        elif isinstance(df, pd.DataFrame):
+            bound_cols = [c for c in ['hospitalization_id', 'admission_dttm', 'discharge_dttm']
+                          if c in df.columns]
+            if 'hospitalization_id' in bound_cols:
+                hosp_bounds_df = df[bound_cols].copy()
+            if 'admission_dttm' in df.columns:
+                hosp_years = set(
+                    int(y) for y in df['admission_dttm'].dropna().dt.year.unique()
+                )
+
+    cache = {
+        'table_name': tname,
+        'fk_ids': fk_ids,
+        'schema_cols': schema_cols,
+        'temporal_df': temporal_df,
+        'hosp_bounds_df': hosp_bounds_df,
+        'hosp_years': hosp_years,
+    }
+    _logger.info(
+        "extract_cross_table_cache: table='%s', fk_keys=%s, temporal=%s, hosp_bounds=%s",
+        tname, list(fk_ids.keys()), temporal_df is not None, hosp_bounds_df is not None,
+    )
+    return cache
+
+
+def run_relational_integrity_checks_from_cache(
+    caches: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, DQACompletenessResult]]:
+    """Run relational integrity checks using pre-extracted caches.
+
+    Equivalent to :func:`run_relational_integrity_checks` but operates on
+    Python ``set`` objects (FK ID sets) instead of scanning full DataFrames.
+
+    Parameters
+    ----------
+    caches : dict
+        ``{table_name: cache_dict}`` as returned by
+        :func:`extract_cross_table_cache`.
+
+    Returns
+    -------
+    Dict[str, Dict[str, DQACompletenessResult]]
+        Same structure as :func:`run_relational_integrity_checks`.
+    """
+    _logger.info(
+        "run_relational_integrity_checks_from_cache: starting with %d cached tables",
+        len(caches),
+    )
+
+    fk_rules = _load_validation_rules().get('relational_integrity', {})
+    results: Dict[str, Dict[str, DQACompletenessResult]] = {}
+
+    for table_name, cache in caches.items():
+        col_names = cache['schema_cols'] if cache['schema_cols'] is not None else set(cache['fk_ids'].keys())
+
+        for fk_column, rule in fk_rules.items():
+            if fk_column not in col_names:
+                continue
+
+            ref_table_name = rule['references_table']
+
+            if ref_table_name == table_name:
+                continue
+
+            if ref_table_name not in caches:
+                _logger.debug(
+                    "run_relational_integrity_checks_from_cache: skipping %s.%s — "
+                    "reference table '%s' not cached",
+                    table_name, fk_column, ref_table_name,
+                )
+                continue
+
+            # Get the FK ID sets
+            source_ids = cache['fk_ids'].get(fk_column)
+            if source_ids is None:
+                continue
+
+            ref_cache = caches[ref_table_name]
+            ref_ids = ref_cache['fk_ids'].get(fk_column)
+            if ref_ids is None:
+                # Reference table doesn't have this FK column cached — skip
+                continue
+
+            _logger.info(
+                "run_relational_integrity_checks_from_cache: checking %s.%s -> %s",
+                table_name, fk_column, ref_table_name,
+            )
+
+            # Build the bidirectional result (same structure as check_relational_integrity)
+            result = DQACompletenessResult(
+                "relational_integrity",
+                f"{table_name}<->{ref_table_name}",
+            )
+
+            try:
+                # Forward: reference -> target (source=ref, ref=target)
+                fwd_orphans = ref_ids - source_ids
+                fwd_total = len(ref_ids)
+                fwd_orphan_count = len(fwd_orphans)
+                fwd_coverage = ((fwd_total - fwd_orphan_count) / fwd_total * 100) if fwd_total > 0 else 100
+
+                # Reverse: target -> reference (source=target, ref=reference)
+                rev_orphans = source_ids - ref_ids
+                rev_total = len(source_ids)
+                rev_orphan_count = len(rev_orphans)
+                rev_coverage = ((rev_total - rev_orphan_count) / rev_total * 100) if rev_total > 0 else 100
+
+                result.metrics["forward_coverage_percent"] = round(fwd_coverage, 2)
+                result.metrics["forward_orphan_ids"] = fwd_orphan_count
+                result.metrics["forward_reference_unique_ids"] = fwd_total
+                result.metrics["reverse_coverage_percent"] = round(rev_coverage, 2)
+                result.metrics["reverse_orphan_ids"] = rev_orphan_count
+                result.metrics["reverse_target_unique_ids"] = rev_total
+
+                # Forward warnings/errors
+                if fwd_orphans:
+                    result.add_warning(
+                        f"{fwd_orphan_count}/{fwd_total} {fk_column} values in {ref_table_name} "
+                        f"not found in {table_name} ({round(fwd_coverage, 1)}% coverage)",
+                        {"orphan_count": fwd_orphan_count,
+                         "sample_orphan_ids": list(fwd_orphans)[:10],
+                         "coverage_percent": round(fwd_coverage, 2)}
+                    )
+
+                # Reverse warnings/errors
+                if rev_orphans:
+                    result.add_warning(
+                        f"{rev_orphan_count}/{rev_total} {fk_column} values in {table_name} "
+                        f"not found in {ref_table_name} ({round(rev_coverage, 1)}% coverage)",
+                        {"orphan_count": rev_orphan_count,
+                         "sample_orphan_ids": list(rev_orphans)[:10],
+                         "coverage_percent": round(rev_coverage, 2)}
+                    )
+
+                if not fwd_orphans and not rev_orphans:
+                    result.add_info(
+                        f"Full bidirectional coverage for {fk_column} between "
+                        f"{table_name} and {ref_table_name}"
+                    )
+
+                _logger.info(
+                    "run_relational_integrity_checks_from_cache: '%s' <-> '%s' — "
+                    "fwd_coverage=%.1f%%, rev_coverage=%.1f%%",
+                    table_name, ref_table_name, fwd_coverage, rev_coverage,
+                )
+
+            except Exception as e:
+                _logger.error(
+                    "Cached relational check failed for '%s' <-> '%s': %s",
+                    table_name, ref_table_name, e,
+                )
+                result.add_error(f"Error checking relational integrity: {str(e)}")
+
+            results.setdefault(table_name, {})[fk_column] = result
+
+    checked = sum(len(v) for v in results.values())
+    _logger.info(
+        "run_relational_integrity_checks_from_cache: completed %d checks across %d tables",
+        checked, len(results),
+    )
+    return results
+
+
+def run_cross_table_plausibility_checks_from_cache(
+    caches: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, DQAPlausibilityResult]]:
+    """Run cross-table plausibility checks using pre-extracted caches.
+
+    Equivalent to :func:`run_cross_table_plausibility_checks` but uses
+    cached temporal subset DataFrames and hospitalization bounds instead
+    of full DataFrames.
+
+    Parameters
+    ----------
+    caches : dict
+        ``{table_name: cache_dict}`` as returned by
+        :func:`extract_cross_table_cache`.
+
+    Returns
+    -------
+    Dict[str, Dict[str, DQAPlausibilityResult]]
+        Same structure as :func:`run_cross_table_plausibility_checks`.
+    """
+    _logger.info(
+        "run_cross_table_plausibility_checks_from_cache: starting with %d cached tables",
+        len(caches),
+    )
+
+    # Need hospitalization bounds
+    hosp_cache = caches.get('hospitalization')
+    if hosp_cache is None or hosp_cache.get('hosp_bounds_df') is None:
+        _logger.info("Hospitalization cache not available; skipping cross-table plausibility")
+        return {}
+
+    hosp_bounds_df = hosp_cache['hosp_bounds_df']
+    # Ensure hosp_bounds_df matches active backend
+    if _ACTIVE_BACKEND == 'polars' and isinstance(hosp_bounds_df, pd.DataFrame):
+        hosp_bounds_df = pl.from_pandas(hosp_bounds_df)
+
+    results: Dict[str, Dict[str, DQAPlausibilityResult]] = {}
+
+    for tbl_name, cache in caches.items():
+        if tbl_name == 'hospitalization':
+            continue
+
+        temporal_df = cache.get('temporal_df')
+        if temporal_df is None:
+            continue
+
+        # Ensure temporal_df matches active backend
+        if _ACTIVE_BACKEND == 'polars' and isinstance(temporal_df, pd.DataFrame):
+            temporal_df = pl.from_pandas(temporal_df)
+
+        time_cols = _CROSS_TABLE_TIME_COLUMNS.get(tbl_name, [])
+        if not time_cols:
+            continue
+
+        # Determine available time columns in the cached temporal subset
+        if HAS_POLARS and isinstance(temporal_df, (pl.DataFrame, pl.LazyFrame)):
+            actual_cols = (temporal_df.collect_schema().names()
+                          if isinstance(temporal_df, pl.LazyFrame)
+                          else temporal_df.columns)
+        else:
+            actual_cols = temporal_df.columns.tolist()
+
+        available_time_cols = [c for c in time_cols if c in actual_cols]
+        if not available_time_cols or 'hospitalization_id' not in actual_cols:
+            continue
+
+        result = check_cross_table_temporal_plausibility(
+            temporal_df, hosp_bounds_df, tbl_name, available_time_cols
+        )
+        results.setdefault(tbl_name, {})["cross_table_temporal"] = result
+
+    checked = sum(len(v) for v in results.values())
+    _logger.info(
+        "run_cross_table_plausibility_checks_from_cache: completed %d checks across %d tables",
+        checked, len(results),
+    )
+    return results
+
+
 def run_plausibility_checks(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -4426,6 +4757,7 @@ def run_full_dqa(
     tables: Optional[list] = None,
     error_threshold: float = 50.0,
     warning_threshold: float = 10.0,
+    hosp_years: Optional[set] = None,
 ) -> Dict[str, Any]:
     """Run the complete DQA suite on a single table.
 
@@ -4449,6 +4781,10 @@ def run_full_dqa(
         Percent missing above which an error is raised (default 50).
     warning_threshold : float
         Percent missing above which a warning is raised (default 10).
+    hosp_years : set, optional
+        Pre-extracted hospitalization years for P.6 temporal consistency.
+        When provided, skips scanning the hospitalization table to
+        extract years.
 
     Returns
     -------
@@ -4488,8 +4824,8 @@ def run_full_dqa(
             }
 
     # Extract hospitalization years for P.6 temporal consistency context
-    hosp_years = None
-    if tables is not None:
+    # (skip scan if hosp_years was provided by caller)
+    if hosp_years is None and tables is not None:
         for obj in tables:
             tname = getattr(obj, 'table_name', '').replace('clif_', '')
             if tname == 'hospitalization':
