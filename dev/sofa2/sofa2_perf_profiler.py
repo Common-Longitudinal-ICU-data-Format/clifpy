@@ -25,6 +25,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from clifpy.utils.sofa2._perf import _fmt_time
+
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
@@ -205,7 +207,9 @@ def profile_single(
 
         times.append(elapsed)
         memory_peaks.append(peak / 1024 / 1024)
-        print(f"    Iteration {i+1}: {elapsed:.3f}s, {peak/1024/1024:.1f} MB, {len(result)} output rows")
+        print(f"    Iteration {i+1}: {_fmt_time(elapsed)}, {peak/1024/1024:.1f} MB, {len(result)} output rows")
+        if i == 0 and daily:
+            print(f"    -> Expanded to {len(result)} 24-hr windows ({len(result)/actual_n:.1f}x expansion from {actual_n} input rows)")
 
     return {
         'n': actual_n,
@@ -263,10 +267,10 @@ def run_scaling_test(
     print(f"\n{'='*70}")
     print("SCALING SUMMARY")
     print(f"{'='*70}")
-    print(f"{'N':<10} {'Avg Time':<12} {'Time/ID (ms)':<15} {'Memory (MB)':<15}")
-    print("-" * 52)
+    print(f"{'N':<10} {'Avg Time':<25} {'Time/ID (ms)':<15} {'Memory (MB)':<15}")
+    print("-" * 65)
     for r in all_results:
-        print(f"{r['n']:<10} {r['avg_time']:<12.3f} {r['time_per_id']:<15.2f} {r['avg_memory']:<15.1f}")
+        print(f"{r['n']:<10} {_fmt_time(r['avg_time']):<25} {r['time_per_id']:<15.2f} {r['avg_memory']:<15.1f}")
 
     # Scaling analysis
     if len(all_results) >= 2:
@@ -279,7 +283,7 @@ def run_scaling_test(
         print("SCALING ANALYSIS")
         print(f"{'='*70}")
         print(f"Cohort size increased: {first['n']} -> {last['n']} ({n_ratio:.1f}x)")
-        print(f"Time increased: {first['avg_time']:.3f}s -> {last['avg_time']:.3f}s ({time_ratio:.1f}x)")
+        print(f"Time increased: {_fmt_time(first['avg_time'])} -> {_fmt_time(last['avg_time'])} ({time_ratio:.1f}x)")
         print(f"Scaling efficiency: {efficiency:.1f}%")
         if efficiency < 120:
             print("  -> Excellent linear scaling")
@@ -290,6 +294,9 @@ def run_scaling_test(
 
 
 def main():
+    from clifpy.utils.logging_config import setup_logging
+    setup_logging()
+
     parser = argparse.ArgumentParser(
         description="SOFA-2 Performance Profiler",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -339,7 +346,7 @@ def main():
         print("RESULTS")
         print(f"{'='*70}")
         print(f"Cohort size: {results['n']} rows")
-        print(f"Average time: {results['avg_time']:.3f}s (min: {results['min_time']:.3f}s, max: {results['max_time']:.3f}s)")
+        print(f"Average time: {_fmt_time(results['avg_time'])} (min: {_fmt_time(results['min_time'])}, max: {_fmt_time(results['max_time'])})")
         print(f"Average memory: {results['avg_memory']:.1f} MB")
         print(f"Time per ID: {results['time_per_id']:.2f} ms")
 

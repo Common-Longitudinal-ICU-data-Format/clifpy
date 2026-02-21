@@ -441,7 +441,10 @@ def calculate_sofa2_daily(
     with timer.step("expand_windows"):
         logger.info("Expanding windows to 24h periods...")
         expanded_cohort = _expand_to_daily_windows(cohort_rel)
-        if logger.isEnabledFor(logging.DEBUG):
+        if perf_profile:
+            expanded_n = expanded_cohort.count('*').df().iloc[0, 0]
+            logger.info(f"Expanded cohort: {expanded_n} rows (from input cohort)")
+        elif logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"Input cohort: {cohort_rel.count('*').df().iloc[0, 0]} rows")
             logger.debug(f"Expanded cohort: {expanded_cohort.count('*').df().iloc[0, 0]} rows")
         else:

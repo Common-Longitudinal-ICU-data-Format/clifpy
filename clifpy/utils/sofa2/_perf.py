@@ -38,6 +38,18 @@ def _cleanup_temp_tables():
 
 
 # =============================================================================
+# Formatting
+# =============================================================================
+
+
+def _fmt_time(s: float) -> str:
+    """Format seconds with human-readable minutes when >= 60s."""
+    if s >= 60:
+        return f"{s:.3f}s ({s / 60:.2f} mins)"
+    return f"{s:.3f}s"
+
+
+# =============================================================================
 # Step Timer
 # =============================================================================
 
@@ -85,16 +97,16 @@ class StepTimer:
 
     def report(self, cohort_size: int | None = None) -> str:
         lines = []
-        lines.append(f"{'Step':<35} {'Time (s)':<12} {'% Total':<10}")
-        lines.append("-" * 57)
+        lines.append(f"{'Step':<35} {'Time':<25} {'% Total':<10}")
+        lines.append("-" * 70)
         total = self.total
         for r in self.results:
             pct = r['elapsed_s'] / total * 100 if total > 0 else 0
-            lines.append(f"{r['step']:<35} {r['elapsed_s']:<12.3f} {pct:<10.1f}")
-        lines.append("-" * 57)
-        lines.append(f"{'TOTAL':<35} {total:<12.3f}")
+            lines.append(f"{r['step']:<35} {_fmt_time(r['elapsed_s']):<25} {pct:<10.1f}")
+        lines.append("-" * 70)
+        lines.append(f"{'TOTAL':<35} {_fmt_time(total):<25}")
         if cohort_size:
-            lines.append(f"{'Time per ID (ms)':<35} {total / cohort_size * 1000:<12.2f}")
+            lines.append(f"{'Time per ID (ms)':<35} {total / cohort_size * 1000:<25.2f}")
         return "\n".join(lines)
 
 
