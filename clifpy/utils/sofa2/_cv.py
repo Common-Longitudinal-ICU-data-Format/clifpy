@@ -101,11 +101,15 @@ def _calculate_cv_subscore(
     logger.info("Aggregating in-window MAP to identify hypotension without pressors...")
     map_agg = _agg_map(cohort_rel, vitals_rel)
 
-    # Get vitals for unit conversion (weight for mcg/kg/min)
-    cohort_vitals = duckdb.sql("""
+    # Get weight measurements for unit conversion (mcg/kg/min dosing)
+    # SEMI JOIN filters to cohort patients without duplicating across windows;
+    # pre-filter to weight_kg avoids passing all vital categories downstream.
+    # No time filter: preserves pre-window weights for ASOF forward-fill.
+    cohort_weights = duckdb.sql("""
         FROM vitals_rel t
-        JOIN cohort_rel c ON t.hospitalization_id = c.hospitalization_id
-        SELECT *
+        SEMI JOIN cohort_rel c ON t.hospitalization_id = c.hospitalization_id
+        SELECT t.*
+        WHERE t.vital_category = 'weight_kg' AND t.vital_value IS NOT NULL
     """)
 
     # =========================================================================
@@ -239,7 +243,7 @@ def _calculate_cv_subscore(
     logger.info("Converting pressor doses to standardized weight-based units...")
     pressor_events_rel, _ = convert_dose_units_by_med_category(
         med_df=pressor_events_deduped,
-        vitals_df=cohort_vitals,
+        vitals_df=cohort_weights,
         return_rel=True,
         preferred_units=PRESSOR_PREFERRED_UNITS,
         override=True
