@@ -7,8 +7,6 @@ This module contains the main public functions:
 
 from __future__ import annotations
 
-import logging
-
 import pandas as pd
 import duckdb
 from duckdb import DuckDBPyRelation
@@ -440,15 +438,11 @@ def calculate_sofa2_daily(
     # Step 1: Expand arbitrary windows to complete 24h periods
     with timer.step("expand_windows"):
         logger.info("Expanding windows to 24h periods...")
-        expanded_cohort = _expand_to_daily_windows(cohort_rel)
-        if perf_profile:
-            expanded_n = expanded_cohort.count('*').df().iloc[0, 0]
-            logger.info(f"Expanded cohort: {expanded_n} rows (from input cohort)")
-        elif logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"Input cohort: {cohort_rel.count('*').df().iloc[0, 0]} rows")
-            logger.debug(f"Expanded cohort: {expanded_cohort.count('*').df().iloc[0, 0]} rows")
-        else:
-            logger.info("Cohort expanded to 24h periods")
+        # Materialize expansion to DataFrame so calculate_sofa2() gets
+        # concrete cardinality — prevents DuckDB optimizer from choking on
+        # deeply nested lazy subqueries (observed 5x slowdown without this).
+        expanded_cohort = _expand_to_daily_windows(cohort_rel).df()
+        logger.info(f"Expanded cohort: {len(expanded_cohort)} rows (from input cohort)")
 
     # Step 2: Calculate raw scores for each 24h window
     with timer.step("calculate_sofa2"):
