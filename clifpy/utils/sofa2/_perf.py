@@ -43,10 +43,11 @@ def _cleanup_temp_tables():
 
 
 def _fmt_time(s: float) -> str:
-    """Format seconds with human-readable minutes when >= 60s."""
+    """Format seconds as '7.9s' or '1m6s' or '10m24s'."""
     if s >= 60:
-        return f"{s:.3f}s ({s / 60:.2f} mins)"
-    return f"{s:.3f}s"
+        m, rem = divmod(s, 60)
+        return f"{int(m)}m{int(rem)}s"
+    return f"{s:.1f}s"
 
 
 # =============================================================================
@@ -62,7 +63,7 @@ class StepTimer:
         timer = StepTimer()
         with timer.step("brain"):
             brain_score = _calculate_brain_subscore(...)
-        print(timer.report(cohort_size=1000))
+        print(timer.report())
     """
 
     results: list[dict] = field(default_factory=list)
@@ -95,18 +96,16 @@ class StepTimer:
     def total(self) -> float:
         return sum(r['elapsed_s'] for r in self.results)
 
-    def report(self, cohort_size: int | None = None) -> str:
+    def report(self) -> str:
         lines = []
-        lines.append(f"{'Step':<35} {'Time':<25} {'% Total':<10}")
-        lines.append("-" * 70)
+        lines.append(f"{'Step':<35} {'Time':<15} {'% Total':<10}")
+        lines.append("-" * 60)
         total = self.total
         for r in self.results:
             pct = r['elapsed_s'] / total * 100 if total > 0 else 0
-            lines.append(f"{r['step']:<35} {_fmt_time(r['elapsed_s']):<25} {pct:<10.1f}")
-        lines.append("-" * 70)
-        lines.append(f"{'TOTAL':<35} {_fmt_time(total):<25}")
-        if cohort_size:
-            lines.append(f"{'Time per ID (ms)':<35} {total / cohort_size * 1000:<25.2f}")
+            lines.append(f"{r['step']:<35} {_fmt_time(r['elapsed_s']):<15} {pct:<10.1f}")
+        lines.append("-" * 60)
+        lines.append(f"{'TOTAL':<35} {_fmt_time(total):<15}")
         return "\n".join(lines)
 
 
@@ -129,5 +128,5 @@ class NoOpTimer:
     def total(self) -> float:
         return 0.0
 
-    def report(self, cohort_size: int | None = None) -> str:
+    def report(self) -> str:
         return ""
