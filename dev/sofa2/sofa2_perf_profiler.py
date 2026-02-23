@@ -4,11 +4,11 @@ Profiles where time is spent in the SOFA-2 pipeline using the
 perf_profile=True parameter on calculate_sofa2().
 
 Usage:
-    python sofa2_perf_profiler.py -n 100                  # Single run, 100 ICU stays
-    python sofa2_perf_profiler.py -n 100 1000 5000        # Custom scaling test
-    python sofa2_perf_profiler.py -n 100 --daily           # Daily mode
-    python sofa2_perf_profiler.py --site-test mimic-iv     # One-click site profiling
-    python sofa2_perf_profiler.py --cohort-csv ids.csv     # Use external cohort IDs
+    python sofa2_perf_profiler.py -n 100                           # Single run, generic mode
+    python sofa2_perf_profiler.py -n max --mode daily              # All data, daily mode
+    python sofa2_perf_profiler.py -n 100 1000 5000 --mode daily    # Custom scaling, daily
+    python sofa2_perf_profiler.py --site-test --site ucmc          # Full site profiling (both modes)
+    python sofa2_perf_profiler.py -n max --site ucmc --mode daily  # Max stress test, daily
 
 Requires CLIF config at config/config.yaml (or pass --config).
 """
@@ -395,12 +395,6 @@ def _print_scaling_summary(
             print("    -> Sub-linear scaling detected - investigate bottlenecks")
 
 
-def _print_skipped(skipped: list[int]):
-    """Print skipped sizes in summary."""
-    for s in skipped:
-        print(f"  {s:<10} {'SKIPPED (timeout)':<15}")
-
-
 def run_scaling_test(
     sample_sizes: list[int],
     config_path: str,
@@ -415,7 +409,6 @@ def run_scaling_test(
     Returns list of result dicts (one per completed size).
     """
     all_results = []
-    skipped = []
 
     for i, n in enumerate(sample_sizes):
         is_probe = (i == 0)
@@ -448,62 +441,16 @@ def run_scaling_test(
             if remaining:
                 print(f"\n  TIMEOUT: n={n} took {_fmt_time(elapsed)} (>{step_timeout_mins:.0f} min limit)")
                 print(f"  Skipping remaining sizes: {remaining}")
-                skipped = remaining
             break
 
     return all_results
 
 
-def run_site_test(
-    config_path: str,
-    site_name: str | None = None,
-    max_override: int | None = None,
-    cohort_csv: str | None = None,
-    step_timeout_mins: float = 10.0,
-):
-    """One-click site performance profiling test.
-
-    Runs both generic and daily modes with auto-detected scaling.
-    """
-    # Auto-detect max (generic uses total ICU rows, daily uses distinct IDs)
-    total_icu_rows, distinct_ids = auto_detect_max_icu_stays(config_path)
-    print(f"Detected {total_icu_rows} ICU stays ({distinct_ids} unique hospitalizations) in ADT")
-    if max_override is not None:
-        print(f"Using --max override: {max_override}")
-
-    generic_max = max_override if max_override is not None else total_icu_rows
-    daily_max = max_override if max_override is not None else distinct_ids
-
-    generic_sizes = generate_power_of_10_sizes(generic_max)
-    daily_sizes = generate_power_of_10_sizes(daily_max)
-    print(f"Generic scaling sizes: {generic_sizes}")
-    print(f"Daily scaling sizes:   {daily_sizes}")
-
-    # --- Generic mode ---
-    print(f"\n{_box_double('GENERIC MODE')}")
-    generic_results = run_scaling_test(
-        generic_sizes, config_path,
-        daily=False, cohort_csv=cohort_csv,
-        step_timeout_mins=step_timeout_mins,
-    )
-    _print_scaling_summary(generic_results, title="Generic Summary")
-
-    # --- Daily mode ---
-    print(f"\n{_box_double('DAILY MODE')}")
-    daily_results = run_scaling_test(
-        daily_sizes, config_path,
-        daily=True, cohort_csv=cohort_csv,
-        step_timeout_mins=step_timeout_mins,
-    )
-    _print_scaling_summary(daily_results, title="Daily Summary")
-
-    # --- Final ---
-    generic_max_n = generic_results[-1]['n'] if generic_results else 0
-    daily_max_n = daily_results[-1]['n'] if daily_results else 0
-    print(f"\n{_box_double('SITE PROFILING COMPLETE')}")
-    print(f"Total ICU stays: {total_icu_rows} ({distinct_ids} unique hospitalizations)")
-    print(f"Generic mode: tested up to n={generic_max_n}")
-    print(f"Daily mode: tested up to n={daily_max_n}")
+def _parse_cohort_size(value: str) -> int | str:
+    """Parse cohort size: integer or 'max' for auto-detect."""
+    if value.lower() == 'max':
+        return 'max'
+    return int(value)
 
 
 def main():
@@ -516,16 +463,18 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument(
-        '-n', nargs='+', type=int, default=[100],
-        help='Cohort size(s). Single value = single run; multiple = scaling test (default: 100)',
+        '-n', nargs='+', type=_parse_cohort_size, default=[100],
+        help='Cohort size(s). Use "max" for auto-detected max (default: 100)',
     )
     parser.add_argument(
-        '--site-test', nargs='?', const=True, default=False, metavar='SITE_NAME',
-        help='One-click site profiling (optional: site name for report filename)',
+        '--site-test', action='store_true',
+        help='Power-of-10 scaling with probe (overrides -n). Defaults --mode to "both"',
     )
-    parser.add_argument('--max', type=int, default=None, help='Override max cohort size for --site-test')
+    parser.add_argument('--site', type=str, default=None, help='Site name for report filename (e.g., ucmc, mimic)')
+    parser.add_argument('--mode', choices=['generic', 'daily', 'both'], default=None,
+                        help='Scoring mode (default: generic, or both with --site-test)')
+    parser.add_argument('--max', type=int, default=None, help='Cap auto-detected max cohort size')
     parser.add_argument('--iters', type=int, default=1, help='Iterations per cohort size (default: 1)')
-    parser.add_argument('--daily', action='store_true', help='Use calculate_sofa2_daily (multi-day windows)')
     parser.add_argument('--config', type=str, default=None, help='Path to CLIF config.yaml')
     parser.add_argument('--cohort-csv', type=str, default=None, help='Path to external CSV with hospitalization_ids')
     args = parser.parse_args()
@@ -533,74 +482,100 @@ def main():
     config_path = args.config or str(PROJECT_ROOT / "config" / "config.yaml")
     report_dir = PROJECT_ROOT / "output" / "perf"
 
-    # Install tee for report capture
+    # ── Resolve mode ──────────────────────────────────────────────────────
+    mode = args.mode or ('both' if args.site_test else 'generic')
+    modes = ['generic', 'daily'] if mode == 'both' else [mode]
+
+    # ── Auto-detect if needed ─────────────────────────────────────────────
+    needs_auto_detect = args.site_test or 'max' in args.n
+    max_map = {}
+    if needs_auto_detect:
+        total_icu_rows, distinct_ids = auto_detect_max_icu_stays(config_path)
+        max_map = {'generic': total_icu_rows, 'daily': distinct_ids}
+
+    # ── Resolve sizes per mode ────────────────────────────────────────────
+    sizes_map: dict[str, list[int]] = {}
+    if args.site_test:
+        for m in modes:
+            cap = min(max_map[m], args.max) if args.max else max_map[m]
+            sizes_map[m] = generate_power_of_10_sizes(cap)
+    else:
+        for m in modes:
+            resolved = []
+            for x in args.n:
+                if x == 'max':
+                    cap = min(max_map[m], args.max) if args.max else max_map[m]
+                    resolved.append(cap)
+                else:
+                    resolved.append(x)
+            sizes_map[m] = resolved
+
+    # ── Install tee for report capture ────────────────────────────────────
     tee = TeeOutput(sys.stdout)
     sys.stdout = tee
 
+    # ── Header ────────────────────────────────────────────────────────────
+    site_label = f" ({args.site})" if args.site else ""
     if args.site_test:
-        site_name = args.site_test if isinstance(args.site_test, str) else None
-        label = f" ({site_name})" if site_name else ""
-        print(f"SOFA-2 Site Performance Profile{label}")
-        print(f"Config: {config_path}")
-
-        run_site_test(
-            config_path,
-            site_name=site_name,
-            max_override=args.max,
-            cohort_csv=args.cohort_csv,
-            step_timeout_mins=10.0,
-        )
-
-        # Save report
-        sys.stdout = tee.original
-        filepath = save_report(tee.getvalue(), report_dir, site_name=site_name)
-        print(f"\nReport saved to: {filepath}")
-
-    elif len(args.n) > 1:
-        # Custom scaling test with user-specified sizes
-        mode = "daily" if args.daily else "generic"
-        print(f"SOFA-2 Scaling Test ({mode} mode)")
-        print(f"Config: {config_path}")
-        print(f"Sizes: {args.n}")
-
-        print(f"\n{_box_double(f'{mode.upper()} MODE')}")
-        results = run_scaling_test(
-            args.n, config_path,
-            num_iterations=args.iters, daily=args.daily,
-            cohort_csv=args.cohort_csv,
-        )
-        _print_scaling_summary(results, title=f"{mode.capitalize()} Summary")
-
-        # Save report
-        sys.stdout = tee.original
-        filepath = save_report(tee.getvalue(), report_dir, prefix="sofa2_scaling")
-        print(f"\nReport saved to: {filepath}")
-
+        print(f"SOFA-2 Site Performance Profile{site_label}")
     else:
-        # Single run
-        n = args.n[0]
-        mode = "daily" if args.daily else "generic"
-        cohort_source = f"external CSV ({args.cohort_csv})" if args.cohort_csv else "ADT LIMIT"
-        print(f"SOFA-2 Profiler ({mode} mode)")
-        print(f"Config: {config_path}")
-        print(f"Cohort source: {cohort_source}")
+        print(f"SOFA-2 Performance Profile{site_label}")
+    print(f"Config: {config_path}")
+    if needs_auto_detect:
+        print(f"Detected {max_map.get('generic', '?')} ICU stays ({max_map.get('daily', '?')} unique hospitalizations) in ADT")
+    if args.max:
+        print(f"Max override: {args.max}")
+    for m in modes:
+        print(f"{'  ' if len(modes) > 1 else ''}{m.capitalize()} scaling sizes: {sizes_map[m]}")
 
-        print(f"\n{_box_single(f'n={n}')}")
-        results = profile_single(
-            n, config_path,
-            num_iterations=args.iters, daily=args.daily,
-            cohort_csv=args.cohort_csv,
-        )
-        print_breakdown(results)
+    # ── Run each mode ─────────────────────────────────────────────────────
+    step_timeout = 10.0 if args.site_test else 0
+    for m in modes:
+        sizes = sizes_map[m]
+        is_daily = (m == 'daily')
 
-        # Final summary
-        print(f"\n{_box_single('Results')}")
-        print(f"  Cohort size: {results['n']} rows")
-        print(f"  Average time: {_fmt_time(results['avg_time'])}")
-        print(f"  Average memory: {results['avg_memory']:.1f} MB")
+        print(f"\n{_box_double(f'{m.upper()} MODE')}")
 
-        # Restore stdout (no report saved for single runs)
-        sys.stdout = tee.original
+        if len(sizes) > 1:
+            results = run_scaling_test(
+                sizes, config_path,
+                num_iterations=args.iters, daily=is_daily,
+                cohort_csv=args.cohort_csv,
+                step_timeout_mins=step_timeout,
+            )
+            _print_scaling_summary(results, title=f"{m.capitalize()} Summary")
+        else:
+            print(f"\n{_box_single(f'n={sizes[0]}')}")
+            results = profile_single(
+                sizes[0], config_path,
+                num_iterations=args.iters, daily=is_daily,
+                cohort_csv=args.cohort_csv,
+            )
+            print_breakdown(results)
+
+            print(f"\n{_box_single('Results')}")
+            print(f"  Cohort size: {results['n']} rows")
+            print(f"  Average time: {_fmt_time(results['avg_time'])}")
+            print(f"  Average memory: {results['avg_memory']:.1f} MB")
+
+    # ── Final summary (site-test) ─────────────────────────────────────────
+    if args.site_test:
+        print(f"\n{_box_double('SITE PROFILING COMPLETE')}")
+        if needs_auto_detect:
+            print(f"Total ICU stays: {max_map.get('generic', '?')} ({max_map.get('daily', '?')} unique hospitalizations)")
+        for m in modes:
+            tested_n = sizes_map[m][-1]
+            print(f"{m.capitalize()} mode: tested up to n={tested_n}")
+
+    # ── Save report ───────────────────────────────────────────────────────
+    has_multi_sizes = any(len(sizes_map[m]) > 1 for m in modes)
+    should_save = args.site or args.site_test or has_multi_sizes
+
+    sys.stdout = tee.original
+    if should_save:
+        prefix = "sofa2_profiling" if args.site_test else "sofa2_scaling"
+        filepath = save_report(tee.getvalue(), report_dir, prefix=prefix, site_name=args.site)
+        print(f"\nReport saved to: {filepath}")
 
 
 if __name__ == "__main__":

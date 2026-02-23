@@ -26,9 +26,11 @@ tests/utils/sofa2/
 │   ├── resp_expected.csv
 │   └── test_sofa2_resp.py
 ├── brain/
+│   ├── __init__.py
 │   ├── clif_cohort.csv
 │   ├── clif_patient_assessments.csv
 │   ├── clif_medication_admin_continuous.csv
+│   ├── clif_medication_admin_intermittent.csv
 │   ├── brain_expected.csv
 │   └── test_sofa2_brain.py
 ├── cv/
@@ -97,6 +99,12 @@ spo2_dttm_offset, fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
 
 ---
 
+## Distractor Observations
+
+Most test cases include a **distractor observation** — a second in-window measurement that is "better" than the scoring value (higher platelet/GCS for MIN aggregation, lower bilirubin for MAX aggregation). This verifies that the MIN/MAX aggregation and `ARG_MIN`/`ARG_MAX` timestamp selection correctly pick the worst value from multiple observations. Cases where distractors are not viable (no data, pre-window only, GCS=15/motor=6 ties, all-invalidated sedation cases) are skipped.
+
+---
+
 ## Test Case Outlines (Future Subscores)
 
 ### Resp (hosp_id 1-22)
@@ -128,17 +136,69 @@ spo2_dttm_offset, fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
 | 21-w2 | 350.00 | NULL | 0 | 0 | 0 | Multi-window: recovery w2 |
 | 22 | NULL | NULL | NULL | 0 | NULL | No data |
 
-### Brain (hosp_id 101-107)
+### Brain (hosp_id 101-120)
 
-| hosp_id | gcs_min | has_delirium_drug | brain | notes |
-|---------|---------|-------------------|-------|-------|
-| 101 | 15 | 0 | 0 | GCS >= 15 |
-| 102 | 15 | 1 | 1 | GCS 15 + dexmed -> forced score 1 |
-| 103 | 14 | 0 | 1 | GCS 13-14 |
-| 104 | 10 | 0 | 2 | GCS 9-12 |
-| 105 | 7 | 0 | 3 | GCS 6-8 |
-| 106 | 4 | 0 | 4 | GCS 3-5 |
-| 107 | NULL | 0 | NULL | No GCS data |
+Default post-sedation invalidation: 12hr (`post_sedation_gcs_invalidate_hours`)
+
+**Score boundaries (101-106) — no meds:**
+
+| hosp_id | gcs_min | gcs_type | has_sedation | has_delirium_drug | brain | notes |
+|---------|---------|----------|--------------|-------------------|-------|-------|
+| 101 | 15 | gcs_total | 0 | 0 | 0 | GCS >= 15 |
+| 102 | 14 | gcs_total | 0 | 0 | 1 | GCS 13-14 |
+| 103 | 10 | gcs_total | 0 | 0 | 2 | GCS 9-12 |
+| 104 | 7 | gcs_total | 0 | 0 | 3 | GCS 6-8 |
+| 105 | 4 | gcs_total | 0 | 0 | 4 | GCS 3-5 |
+| 106 | NULL | NULL | 0 | 0 | NULL | No GCS data |
+
+**Delirium drug — footnote e (107-109):**
+
+| hosp_id | gcs_min | gcs_type | has_sedation | has_delirium_drug | brain | notes |
+|---------|---------|----------|--------------|-------------------|-------|-------|
+| 107 | 15 | gcs_total | 1 | 1 | 1 | dexmed: GCS=15 before sed + delirium forces >= 1 |
+| 108 | 10 | gcs_total | 1 | 1 | 2 | dexmed: GCS < 13, delirium doesn't override |
+| 109 | 15 | gcs_total | 0 | 1 | 1 | haloperidol intm: delirium forces >= 1 |
+
+**Sedation — footnote c (110-113):**
+
+| hosp_id | gcs_min | gcs_type | has_sedation | brain | notes |
+|---------|---------|----------|--------------|-------|-------|
+| 110 | NULL | NULL | 1 | 0 | All GCS during sedation invalidated |
+| 111 | 14 | gcs_total | 1 | 1 | Valid GCS=14 before sed used; GCS=6 during sed discarded |
+| 112 | NULL | NULL | 1 | 0 | Two-episode: GCS +5hr after ep1 stop within 12hr post_sed |
+| 113 | 14 | gcs_total | 1 | 1 | Two-episode: GCS +12.5hr after ep1 stop outside 12hr post_sed |
+
+**GCS motor fallback — footnote d (114-116):**
+
+| hosp_id | gcs_min | gcs_type | brain | notes |
+|---------|---------|----------|-------|-------|
+| 114 | 6 | gcs_motor | 0 | motor=6 fallback |
+| 115 | 3 | gcs_motor | 3 | motor=3 fallback |
+| 116 | 14 | gcs_total | 1 | gcs_total preferred over gcs_motor |
+
+**Multi-window (117-118):**
+
+| hosp_id | window | gcs_min | brain | notes |
+|---------|--------|---------|-------|-------|
+| 117 | w1 | 15 | 0 | Stable |
+| 117 | w2 | 7 | 3 | Deterioration |
+| 118 | w1 | 4 | 4 | Critical |
+| 118 | w2 | 14 | 1 | Recovery |
+
+**Edge cases (119-120):**
+
+| hosp_id | has_sedation | has_delirium_drug | brain | notes |
+|---------|--------------|-------------------|-------|-------|
+| 119 | 1 | 0 | 0 | Sedation present, no GCS at all |
+| 120 | 0 | 1 | NULL | Haloperidol intm but no GCS |
+| 121 | 0 | 0 | 2 | Multi-obs: MIN selects worst GCS |
+
+Custom post_sedation_gcs_invalidate_hours tests (via `case` column in `brain_expected.csv`):
+
+| case | hosp_id | post_sed_hours | gcs_min | brain | notes |
+|------|---------|----------------|---------|-------|-------|
+| short_post_sed | 112 | 2hr | 14 | 1 | +5hr after ep1 valid (GCS=14) |
+| long_post_sed | 113 | 14hr | NULL | 0 | +12.5hr after ep1 invalidated |
 
 ### CV (hosp_id 201-213)
 
@@ -158,16 +218,33 @@ spo2_dttm_offset, fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
 | 212 | 60 | 0.2 | 0 | 0 | 2 | Pressor <60 min -> ignored |
 | 213 | 60 | 0.2 | 0 | 0 | 2 | Pressor >=60 min -> counted |
 
-### Liver (hosp_id 301-306)
+### Liver (hosp_id 301-311)
 
-| hosp_id | bilirubin_total | liver | notes |
-|---------|-----------------|-------|-------|
-| 301 | 1.0 | 0 | <= 1.2 |
-| 302 | 2.5 | 1 | <= 3.0 |
-| 303 | 5.0 | 2 | <= 6.0 |
-| 304 | 10.0 | 3 | <= 12.0 |
-| 305 | 15.0 | 4 | > 12.0 |
-| 306 | NULL | NULL | No data |
+Default lookback: 24hr (`liver_lookback_hours`)
+
+| hosp_id | bilirubin_total | bilirubin_dttm_offset | liver | notes |
+|---------|-----------------|----------------------|-------|-------|
+| 301 | 1.0 | +2hr | 0 | <= 1.2 |
+| 302 | 2.5 | +2hr | 1 | <= 3.0 |
+| 303 | 5.0 | +2hr | 2 | <= 6.0 |
+| 304 | 10.0 | +2hr | 3 | <= 12.0 |
+| 305 | 15.0 | +2hr | 4 | > 12.0 |
+| 306 | NULL | NULL | NULL | No data |
+| 307 | 5.0 | -8hr | 2 | Pre-window fallback (no in-window) |
+| 308 | 4.0 | +2hr | 2 | In-window preferred over pre-window |
+| 309 | NULL | NULL | NULL | Pre-window outside 24hr lookback |
+| 310-w1 | 1.0 | +2hr | 0 | Multi-window: stable |
+| 310-w2 | 10.0 | +2hr | 3 | Multi-window: deterioration |
+| 311-w1 | 15.0 | +2hr | 4 | Multi-window: critical |
+| 311-w2 | 2.5 | +2hr | 1 | Multi-window: recovery |
+| 312 | 5.0 | +6hr | 2 | Multi-obs: MAX selects worst |
+
+Custom lookback tests (via `case` column in `liver_expected.csv`):
+
+| case | hosp_id | lookback | bilirubin_total | liver | notes |
+|------|---------|----------|-----------------|-------|-------|
+| short_lookback | 307 | 6hr | NULL | NULL | -8hr pre-window excluded |
+| long_lookback | 309 | 36hr | 8.0 | 3 | -28hr pre-window included |
 
 ### Kidney (hosp_id 401-408)
 
@@ -182,6 +259,34 @@ spo2_dttm_offset, fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
 | 407 | 1.5 | 0 | 1 | 4 | RRT criteria met (pH<=7.2, HCO3<=12) |
 | 408 | NULL | 0 | 0 | NULL | No data |
 
+### Hemo (hosp_id 501-511)
+
+Default lookback: 12hr (`hemo_lookback_hours`)
+
+| hosp_id | platelet_count | platelet_dttm_offset | hemo | notes |
+|---------|---------------|---------------------|------|-------|
+| 501 | 200 | +2hr | 0 | > 150 |
+| 502 | 140 | +2hr | 1 | <= 150 |
+| 503 | 90 | +2hr | 2 | <= 100 |
+| 504 | 70 | +2hr | 3 | <= 80 |
+| 505 | 40 | +2hr | 4 | <= 50 |
+| 506 | NULL | NULL | NULL | No data |
+| 507 | 100 | -2hr | 2 | Pre-window fallback (no in-window) |
+| 508 | 80 | +2hr | 3 | In-window preferred over pre-window |
+| 509 | NULL | NULL | NULL | Pre-window outside 12hr lookback |
+| 510-w1 | 200 | +2hr | 0 | Multi-window: stable |
+| 510-w2 | 60 | +2hr | 3 | Multi-window: deterioration |
+| 511-w1 | 50 | +2hr | 4 | Multi-window: critical |
+| 511-w2 | 160 | +2hr | 0 | Multi-window: recovery |
+| 512 | 90 | +6hr | 2 | Multi-obs: MIN selects worst |
+
+Custom lookback tests (via `case` column in `hemo_expected.csv`):
+
+| case | hosp_id | lookback | platelet_count | hemo | notes |
+|------|---------|----------|---------------|------|-------|
+| short_lookback | 507 | 1hr | NULL | NULL | -2hr pre-window excluded |
+| long_lookback | 509 | 24hr | 60 | 3 | -14hr pre-window included |
+
 ---
 
 ## Future Phases
@@ -194,7 +299,7 @@ spo2_dttm_offset, fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
 
 ### Phase 3: Other Subscores
 
-- Brain, CV, Liver, Kidney
+- CV, Kidney
 
 ### Phase 4: Integration Test
 
