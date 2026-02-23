@@ -27,6 +27,18 @@ def _register_temp_table(name: str):
         _TEMP_TABLE_REGISTRY.append(name)
 
 
+def _drop_temp_table(name: str):
+    """Drop a specific temp table and remove it from the registry."""
+    try:
+        duckdb.execute(f"DROP TABLE IF EXISTS {name}")
+    except Exception:
+        pass
+    try:
+        _TEMP_TABLE_REGISTRY.remove(name)
+    except ValueError:
+        pass
+
+
 def _cleanup_temp_tables():
     """Drop all registered temp tables. Best-effort, ignores errors."""
     while _TEMP_TABLE_REGISTRY:
@@ -35,6 +47,31 @@ def _cleanup_temp_tables():
             duckdb.execute(f"DROP TABLE IF EXISTS {name}")
         except Exception:
             pass
+
+
+def _materialize_subscore(name: str, rel) -> duckdb.DuckDBPyRelation:
+    """Eagerly materialize a subscore result to a DuckDB temp table.
+
+    This forces evaluation of the lazy relation chain, allowing DuckDB to
+    free intermediate buffers. The result is a small temp table (one row per
+    scoring window) that the assembly query can join cheaply.
+
+    Parameters
+    ----------
+    name : str
+        Subscore name (e.g., 'brain', 'cv'). Table will be named _sofa2_{name}.
+    rel : DuckDBPyRelation
+        Lazy relation to materialize.
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Reference to the materialized temp table.
+    """
+    table_name = f"_sofa2_{name}"
+    duckdb.execute(f"CREATE OR REPLACE TEMP TABLE {table_name} AS SELECT * FROM rel")
+    _register_temp_table(table_name)
+    return duckdb.table(table_name)
 
 
 # =============================================================================

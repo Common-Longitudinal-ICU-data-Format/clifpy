@@ -18,7 +18,7 @@ from ._cv import _calculate_cv_subscore
 from ._liver import _calculate_liver_subscore
 from ._kidney import _calculate_kidney_subscore
 from ._hemo import _calculate_hemo_subscore
-from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables
+from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.core')
@@ -207,6 +207,7 @@ def calculate_sofa2(
             brain_score = _calculate_brain_subscore(
                 cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg
             )
+        brain_score = _materialize_subscore("brain", brain_score)
 
     # Respiratory subscore
     with timer.step("resp"):
@@ -220,6 +221,7 @@ def calculate_sofa2(
             resp_score = _calculate_resp_subscore(
                 cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg
             )
+        resp_score = _materialize_subscore("resp", resp_score)
 
     # Cardiovascular subscore
     with timer.step("cv"):
@@ -235,6 +237,10 @@ def calculate_sofa2(
                 cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg,
                 _timer=cv_timer,
             )
+        cv_score = _materialize_subscore("cv", cv_score)
+        # CV intermediates no longer referenced — free DuckDB memory
+        for t in ["pressor_events_raw", "pressor_events", "epi_ne_wide", "epi_ne_duration"]:
+            _drop_temp_table(t)
 
     # Liver subscore
     with timer.step("liver"):
@@ -246,6 +252,7 @@ def calculate_sofa2(
             intermediates['liver_score'] = liver_score
         else:
             liver_score = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
+        liver_score = _materialize_subscore("liver", liver_score)
 
     # Kidney subscore
     with timer.step("kidney"):
@@ -257,6 +264,7 @@ def calculate_sofa2(
             intermediates['kidney_score'] = kidney_score
         else:
             kidney_score = _calculate_kidney_subscore(cohort_rel, labs_rel, crrt_rel, cfg)
+        kidney_score = _materialize_subscore("kidney", kidney_score)
 
     # Hemostasis subscore
     with timer.step("hemo"):
@@ -268,6 +276,7 @@ def calculate_sofa2(
             intermediates['hemo_score'] = hemo_score
         else:
             hemo_score = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg)
+        hemo_score = _materialize_subscore("hemo", hemo_score)
 
     # =========================================================================
     # Combine all subscores
