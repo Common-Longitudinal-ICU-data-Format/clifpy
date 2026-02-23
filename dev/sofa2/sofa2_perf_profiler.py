@@ -298,28 +298,30 @@ def profile_single(
     for i in range(num_iterations):
         clean_duckdb_cache()
         tracemalloc.start()
+        try:
+            start = time.perf_counter()
+            if daily:
+                result, outer_timer, inner_timer, inner_cv_timer = calculate_sofa2_daily(
+                    cohort_df,
+                    clif_config_path=config_path,
+                    perf_profile=True,
+                )
+                subscore_timers.append(inner_timer)
+                cv_timers.append(inner_cv_timer)
+            else:
+                result, subscore_timer, cv_timer = calculate_sofa2(
+                    cohort_df,
+                    clif_config_path=config_path,
+                    perf_profile=True,
+                )
+                subscore_timers.append(subscore_timer)
+                cv_timers.append(cv_timer)
+            elapsed = time.perf_counter() - start
 
-        start = time.perf_counter()
-        if daily:
-            result, outer_timer, inner_timer, inner_cv_timer = calculate_sofa2_daily(
-                cohort_df,
-                clif_config_path=config_path,
-                perf_profile=True,
-            )
-            subscore_timers.append(inner_timer)
-            cv_timers.append(inner_cv_timer)
-        else:
-            result, subscore_timer, cv_timer = calculate_sofa2(
-                cohort_df,
-                clif_config_path=config_path,
-                perf_profile=True,
-            )
-            subscore_timers.append(subscore_timer)
-            cv_timers.append(cv_timer)
-        elapsed = time.perf_counter() - start
-
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            if tracemalloc.is_tracing():
+                tracemalloc.stop()
 
         last_output_rows = len(result)
         times.append(elapsed)
@@ -416,11 +418,19 @@ def run_scaling_test(
         print(f"\n{_box_single(label)}")
 
         start = time.perf_counter()
-        results = profile_single(
-            n, config_path,
-            num_iterations=num_iterations, daily=daily,
-            cohort_csv=cohort_csv,
-        )
+        try:
+            results = profile_single(
+                n, config_path,
+                num_iterations=num_iterations, daily=daily,
+                cohort_csv=cohort_csv,
+            )
+        except Exception as exc:
+            print(f"\n  ERROR at n={n}: {type(exc).__name__}: {exc}")
+            remaining = sample_sizes[i + 1:]
+            if remaining:
+                print(f"  Skipping remaining sizes: {remaining}")
+            break
+
         elapsed = time.perf_counter() - start
         all_results.append(results)
 
@@ -514,68 +524,74 @@ def main():
     tee = TeeOutput(sys.stdout)
     sys.stdout = tee
 
-    # ── Header ────────────────────────────────────────────────────────────
-    site_label = f" ({args.site})" if args.site else ""
-    if args.site_test:
-        print(f"SOFA-2 Site Performance Profile{site_label}")
-    else:
-        print(f"SOFA-2 Performance Profile{site_label}")
-    print(f"Config: {config_path}")
-    if needs_auto_detect:
-        print(f"Detected {max_map.get('generic', '?')} ICU stays ({max_map.get('daily', '?')} unique hospitalizations) in ADT")
-    if args.max:
-        print(f"Max override: {args.max}")
-    for m in modes:
-        print(f"{'  ' if len(modes) > 1 else ''}{m.capitalize()} scaling sizes: {sizes_map[m]}")
-
-    # ── Run each mode ─────────────────────────────────────────────────────
-    step_timeout = 10.0 if args.site_test else 0
-    for m in modes:
-        sizes = sizes_map[m]
-        is_daily = (m == 'daily')
-
-        print(f"\n{_box_double(f'{m.upper()} MODE')}")
-
-        if len(sizes) > 1:
-            results = run_scaling_test(
-                sizes, config_path,
-                num_iterations=args.iters, daily=is_daily,
-                cohort_csv=args.cohort_csv,
-                step_timeout_mins=step_timeout,
-            )
-            _print_scaling_summary(results, title=f"{m.capitalize()} Summary")
-        else:
-            print(f"\n{_box_single(f'n={sizes[0]}')}")
-            results = profile_single(
-                sizes[0], config_path,
-                num_iterations=args.iters, daily=is_daily,
-                cohort_csv=args.cohort_csv,
-            )
-            print_breakdown(results)
-
-            print(f"\n{_box_single('Results')}")
-            print(f"  Cohort size: {results['n']} rows")
-            print(f"  Average time: {_fmt_time(results['avg_time'])}")
-            print(f"  Average memory: {results['avg_memory']:.1f} MB")
-
-    # ── Final summary (site-test) ─────────────────────────────────────────
-    if args.site_test:
-        print(f"\n{_box_double('SITE PROFILING COMPLETE')}")
-        if needs_auto_detect:
-            print(f"Total ICU stays: {max_map.get('generic', '?')} ({max_map.get('daily', '?')} unique hospitalizations)")
-        for m in modes:
-            tested_n = sizes_map[m][-1]
-            print(f"{m.capitalize()} mode: tested up to n={tested_n}")
-
-    # ── Save report ───────────────────────────────────────────────────────
+    # Determine if report should be saved (pre-compute so finally block can use it)
     has_multi_sizes = any(len(sizes_map[m]) > 1 for m in modes)
     should_save = args.site or args.site_test or has_multi_sizes
 
-    sys.stdout = tee.original
-    if should_save:
-        prefix = "sofa2_profiling" if args.site_test else "sofa2_scaling"
-        filepath = save_report(tee.getvalue(), report_dir, prefix=prefix, site_name=args.site)
-        print(f"\nReport saved to: {filepath}")
+    try:
+        # ── Header ────────────────────────────────────────────────────────
+        site_label = f" ({args.site})" if args.site else ""
+        if args.site_test:
+            print(f"SOFA-2 Site Performance Profile{site_label}")
+        else:
+            print(f"SOFA-2 Performance Profile{site_label}")
+        print(f"Config: {config_path}")
+        if needs_auto_detect:
+            print(f"Detected {max_map.get('generic', '?')} ICU stays ({max_map.get('daily', '?')} unique hospitalizations) in ADT")
+        if args.max:
+            print(f"Max override: {args.max}")
+        for m in modes:
+            print(f"{'  ' if len(modes) > 1 else ''}{m.capitalize()} scaling sizes: {sizes_map[m]}")
+
+        # ── Run each mode ─────────────────────────────────────────────────
+        step_timeout = 10.0 if args.site_test else 0
+        for m in modes:
+            sizes = sizes_map[m]
+            is_daily = (m == 'daily')
+
+            print(f"\n{_box_double(f'{m.upper()} MODE')}")
+
+            if len(sizes) > 1:
+                results = run_scaling_test(
+                    sizes, config_path,
+                    num_iterations=args.iters, daily=is_daily,
+                    cohort_csv=args.cohort_csv,
+                    step_timeout_mins=step_timeout,
+                )
+                _print_scaling_summary(results, title=f"{m.capitalize()} Summary")
+            else:
+                print(f"\n{_box_single(f'n={sizes[0]}')}")
+                try:
+                    results = profile_single(
+                        sizes[0], config_path,
+                        num_iterations=args.iters, daily=is_daily,
+                        cohort_csv=args.cohort_csv,
+                    )
+                    print_breakdown(results)
+
+                    print(f"\n{_box_single('Results')}")
+                    print(f"  Cohort size: {results['n']} rows")
+                    print(f"  Average time: {_fmt_time(results['avg_time'])}")
+                    print(f"  Average memory: {results['avg_memory']:.1f} MB")
+                except Exception as exc:
+                    print(f"\n  ERROR: {type(exc).__name__}: {exc}")
+
+        # ── Final summary (site-test) ─────────────────────────────────────
+        if args.site_test:
+            print(f"\n{_box_double('SITE PROFILING COMPLETE')}")
+            if needs_auto_detect:
+                print(f"Total ICU stays: {max_map.get('generic', '?')} ({max_map.get('daily', '?')} unique hospitalizations)")
+            for m in modes:
+                tested_n = sizes_map[m][-1]
+                print(f"{m.capitalize()} mode: tested up to n={tested_n}")
+
+    finally:
+        # ── Always save report (even on crash) ────────────────────────────
+        sys.stdout = tee.original
+        if should_save:
+            prefix = "sofa2_profiling" if args.site_test else "sofa2_scaling"
+            filepath = save_report(tee.getvalue(), report_dir, prefix=prefix, site_name=args.site)
+            print(f"\nReport saved to: {filepath}")
 
 
 if __name__ == "__main__":

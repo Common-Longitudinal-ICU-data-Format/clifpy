@@ -4,13 +4,13 @@ The SOFA-2 profiler tells you **where time is spent** in the `calculate_sofa2()`
 
 ## Site Testing Guide
 
-For sites running performance profiling before rollout, use the one-click `--site-test` mode:
+For sites running performance profiling before rollout, use `--site-test` with `--site`:
 
 ```bash
-python dev/sofa2/sofa2_perf_profiler.py --site-test mimic-iv --config config/config.yaml
+python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --config config/config.yaml
 ```
 
-Replace `mimic-iv` with your site name — it gets embedded in the report filename.
+Replace `ucmc` with your site name — it gets embedded in the report filename.
 
 This automatically:
 
@@ -29,34 +29,44 @@ This automatically:
 To cap the maximum test size (e.g., only test up to 1000 even if you have more):
 
 ```bash
-python dev/sofa2/sofa2_perf_profiler.py --site-test mimic-iv --max 1000
+python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --max 1000
+```
+
+To run only daily mode with all available data (max stress test):
+
+```bash
+python dev/sofa2/sofa2_perf_profiler.py -n max --site ucmc --mode daily --config config/config.yaml
 ```
 
 ## Quick Start
 
 ```bash
-# One-click site profiling (recommended for sites)
-python dev/sofa2/sofa2_perf_profiler.py --site-test mimic-iv
+# One-click site profiling (recommended for sites — runs both modes)
+python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc
 
-# Single run, 100 ICU stays
+# Max stress test — all data, daily mode
+python dev/sofa2/sofa2_perf_profiler.py -n max --mode daily
+
+# Single run, 100 ICU stays, generic mode
 python dev/sofa2/sofa2_perf_profiler.py -n 100
 
 # Custom scaling test with specific sizes
-python dev/sofa2/sofa2_perf_profiler.py -n 100 1000 5000
+python dev/sofa2/sofa2_perf_profiler.py -n 100 1000 5000 --mode daily
 
-# Daily mode
-python dev/sofa2/sofa2_perf_profiler.py -n 100 --daily
+# Both modes, single size
+python dev/sofa2/sofa2_perf_profiler.py -n 500 --mode both
 ```
 
 ## CLI Reference
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-n N [N ...]` | 100 | Cohort size(s). Single value = single run; multiple = scaling test |
-| `--site-test [SITE]` | off | One-click site profiling with optional site name for report |
-| `--max N` | auto-detected | Override max cohort size for `--site-test` |
+| `-n N [N ...]` | 100 | Cohort size(s). Use `max` for auto-detected max from ADT |
+| `--site-test` | off | Power-of-10 scaling with probe. Defaults `--mode` to `both` |
+| `--site NAME` | off | Site name for report filename (e.g., `ucmc`, `mimic`) |
+| `--mode MODE` | `generic` | Scoring mode: `generic`, `daily`, or `both` |
+| `--max N` | auto-detected | Cap auto-detected max cohort size |
 | `--iters N` | 1 | Iterations per cohort size (higher = more stable averages) |
-| `--daily` | off | Use `calculate_sofa2_daily` instead of `calculate_sofa2` |
 | `--config PATH` | `config/config.yaml` | Path to CLIF config |
 | `--cohort-csv PATH` | off | Path to external CSV with `hospitalization_id` column |
 
@@ -216,7 +226,7 @@ TOTAL                               4.1s
 
 ### Daily mode — expansion ratio
 
-When using `--daily`, the profiler shows how many 24-hr windows the input cohort expands into:
+When using `--mode daily`, the profiler shows how many 24-hr windows the input cohort expands into:
 
 ```
   Cohort: 100 rows (ADT LIMIT 100)
@@ -257,13 +267,13 @@ Running multiple iterations averages out noise from system load, DuckDB JIT warm
 
 ## Report Files
 
-The profiler automatically saves console output to a timestamped `.md` file:
+The profiler automatically saves console output to a timestamped `.md` file when there are multiple sizes, `--site-test` is used, or `--site` is provided:
 
 - **`--site-test`**: `output/perf/sofa2_profiling_<site>_YYMMDD_HHMMSS.md`
 
-- **`-n x1 x2 ...` (multi-size)**: `output/perf/sofa2_scaling_YYMMDD_HHMMSS.md`
+- **`--site` or multi-size `-n`**: `output/perf/sofa2_scaling_<site>_YYMMDD_HHMMSS.md`
 
-- **Single runs** (`-n 100`): output goes to stdout only (no file saved)
+- **Single runs without `--site`**: output goes to stdout only (no file saved)
 
 The `output/` directory is gitignored, so reports are local-only. Share the `.md` file with the CLIF team for cross-site comparison.
 
