@@ -14,9 +14,9 @@ Replace `mimic-iv` with your site name — it gets embedded in the report filena
 
 This automatically:
 
-1. Detects the number of ICU hospitalizations in your ADT table
+1. Detects the number of ICU stays and unique hospitalizations in your ADT table
 
-2. Runs **both** generic and daily modes back-to-back
+2. Runs **both** generic and daily modes back-to-back (with separate scaling sizes — generic uses total ICU rows, daily uses distinct hospitalization count)
 
 3. For each mode: probes at n=100, estimates remaining sizes, then scales up at powers of 10 (100, 1000, 10000, ...) up to your full dataset
 
@@ -63,6 +63,12 @@ python dev/sofa2/sofa2_perf_profiler.py -n 100 --daily
 ### Cohort source
 
 By default, cohort is built by querying the ADT table directly with `WHERE location_category = 'icu'` and `LIMIT {n}`. This requires no external CSV.
+
+**Generic vs daily cohort semantics:**
+
+- **Generic mode**: each ADT row is a separate scoring window (capped at 24h). A single `hospitalization_id` can appear multiple times if it has multiple ICU stays. Auto-detected max = total ICU ADT rows.
+
+- **Daily mode**: one row per unique `hospitalization_id` spanning the full ICU stay duration (the daily function expands this internally into 24h chunks). Auto-detected max = distinct ICU `hospitalization_id` count.
 
 To use a specific reproducible set of IDs (e.g., for comparing across branches), pass `--cohort-csv path/to/ids.csv`. The CSV must have a `hospitalization_id` column.
 

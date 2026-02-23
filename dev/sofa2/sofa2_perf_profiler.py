@@ -109,18 +109,25 @@ def load_hospitalization_ids(csv_path: str, n: int = None, random_seed: int = 42
     return hosp_ids
 
 
-def auto_detect_max_icu_stays(config_path: str) -> int:
-    """Query ADT to find total number of distinct ICU hospitalization_ids."""
+def auto_detect_max_icu_stays(config_path: str) -> tuple[int, int]:
+    """Query ADT to find ICU stay counts.
+
+    Returns (total_icu_rows, distinct_hospitalization_ids).
+    Generic mode uses total rows (each ADT row = one scoring window).
+    Daily mode uses distinct IDs (one row per hospitalization).
+    """
     import duckdb
     from clifpy import load_data
 
     adt = load_data('adt', config_path=config_path, return_rel=True)
     result = duckdb.sql("""
         FROM adt
-        SELECT COUNT(DISTINCT hospitalization_id) AS n
+        SELECT
+            COUNT(*) AS total_rows
+            , COUNT(DISTINCT hospitalization_id) AS distinct_ids
         WHERE location_category = 'icu'
     """).fetchone()
-    return result[0]
+    return result[0], result[1]
 
 
 def generate_power_of_10_sizes(max_n: int) -> list[int]:
@@ -165,32 +172,46 @@ def build_cohort_from_adt_limit(
 ) -> pd.DataFrame:
     """Default cohort: query ADT directly with LIMIT (no external CSV needed).
 
-    Mirrors the pattern from sofa2_dev.py — filters to ICU stays and limits to n rows.
+    Generic mode: each ICU ADT row is a separate scoring window, capped at 24h.
+    Daily mode: one row per hospitalization spanning full stay (GROUP BY).
     """
     import duckdb
     from clifpy import load_data
 
     adt = load_data('adt', config_path=config_path, return_rel=True)
-    end_expr = "MAX(out_dttm)" if daily else "MIN(in_dttm) + INTERVAL '24 hours'"
-    return duckdb.sql(f"""
-        FROM adt
-        SELECT
-            hospitalization_id
-            , MIN(in_dttm) AS start_dttm
-            , {end_expr} AS end_dttm
-        WHERE location_category = 'icu'
-        GROUP BY hospitalization_id
-        LIMIT {n}
-    """).df()
+    if daily:
+        return duckdb.sql(f"""
+            FROM adt
+            SELECT
+                hospitalization_id
+                , MIN(in_dttm) AS start_dttm
+                , MAX(out_dttm) AS end_dttm
+            WHERE location_category = 'icu'
+            GROUP BY hospitalization_id
+            LIMIT {n}
+        """).df()
+    else:
+        # Each ICU ADT row = one scoring window; capped at 24h
+        # Non-overlapping guaranteed by ADT's physical location model
+        return duckdb.sql(f"""
+            FROM adt
+            SELECT
+                hospitalization_id
+                , in_dttm AS start_dttm
+                , LEAST(out_dttm, in_dttm + INTERVAL '24 hours') AS end_dttm
+            WHERE location_category = 'icu'
+            LIMIT {n}
+        """).df()
 
 
 def build_cohort_from_adt(
     hospitalization_ids: list[str],
     config_path: str,
 ) -> pd.DataFrame:
-    """Build single-window cohort from ADT data.
+    """Build generic-mode cohort from ADT data for external CSV IDs.
 
-    Creates one 24h window per hospitalization_id (from earliest in_dttm).
+    Each ICU ADT row is a separate scoring window, capped at 24h.
+    hospitalization_id can repeat (multiple ICU stays per hospitalization).
     """
     import duckdb
     from clifpy import load_data
@@ -201,10 +222,10 @@ def build_cohort_from_adt(
         FROM adt
         SELECT
             hospitalization_id
-            , MIN(in_dttm) AS start_dttm
-            , MIN(in_dttm) + INTERVAL '24 hours' AS end_dttm
+            , in_dttm AS start_dttm
+            , LEAST(out_dttm, in_dttm + INTERVAL '24 hours') AS end_dttm
         WHERE hospitalization_id IN ({hosp_ids_str})
-        GROUP BY hospitalization_id
+          AND location_category = 'icu'
     """).df()
     return cohort
 
@@ -255,12 +276,16 @@ def profile_single(
         hosp_ids = load_hospitalization_ids(cohort_csv, n=n)
         if daily:
             cohort_df = build_cohort_for_daily(hosp_ids, config_path)
+            print(f"  Cohort: {len(cohort_df)} unique hospitalizations ({len(hosp_ids)} IDs from external CSV)")
         else:
             cohort_df = build_cohort_from_adt(hosp_ids, config_path)
-        print(f"  Cohort: {len(cohort_df)} rows ({len(hosp_ids)} IDs from external CSV)")
+            print(f"  Cohort: {len(cohort_df)} ICU stays ({len(hosp_ids)} IDs from external CSV)")
     else:
         cohort_df = build_cohort_from_adt_limit(n, config_path, daily=daily)
-        print(f"  Cohort: {len(cohort_df)} rows (ADT LIMIT {n})")
+        if daily:
+            print(f"  Cohort: {len(cohort_df)} unique hospitalizations (ADT LIMIT {n})")
+        else:
+            print(f"  Cohort: {len(cohort_df)} ICU stays (ADT LIMIT {n})")
 
     actual_n = len(cohort_df)
 
@@ -440,20 +465,24 @@ def run_site_test(
 
     Runs both generic and daily modes with auto-detected scaling.
     """
-    # Auto-detect max
-    detected_max = auto_detect_max_icu_stays(config_path)
-    print(f"Detected {detected_max} ICU hospitalizations in ADT")
-    effective_max = max_override if max_override is not None else detected_max
+    # Auto-detect max (generic uses total ICU rows, daily uses distinct IDs)
+    total_icu_rows, distinct_ids = auto_detect_max_icu_stays(config_path)
+    print(f"Detected {total_icu_rows} ICU stays ({distinct_ids} unique hospitalizations) in ADT")
     if max_override is not None:
-        print(f"Using --max override: {effective_max}")
+        print(f"Using --max override: {max_override}")
 
-    sizes = generate_power_of_10_sizes(effective_max)
-    print(f"Scaling sizes: {sizes}")
+    generic_max = max_override if max_override is not None else total_icu_rows
+    daily_max = max_override if max_override is not None else distinct_ids
+
+    generic_sizes = generate_power_of_10_sizes(generic_max)
+    daily_sizes = generate_power_of_10_sizes(daily_max)
+    print(f"Generic scaling sizes: {generic_sizes}")
+    print(f"Daily scaling sizes:   {daily_sizes}")
 
     # --- Generic mode ---
     print(f"\n{_box_double('GENERIC MODE')}")
     generic_results = run_scaling_test(
-        sizes, config_path,
+        generic_sizes, config_path,
         daily=False, cohort_csv=cohort_csv,
         step_timeout_mins=step_timeout_mins,
     )
@@ -462,7 +491,7 @@ def run_site_test(
     # --- Daily mode ---
     print(f"\n{_box_double('DAILY MODE')}")
     daily_results = run_scaling_test(
-        sizes, config_path,
+        daily_sizes, config_path,
         daily=True, cohort_csv=cohort_csv,
         step_timeout_mins=step_timeout_mins,
     )
@@ -472,7 +501,7 @@ def run_site_test(
     generic_max_n = generic_results[-1]['n'] if generic_results else 0
     daily_max_n = daily_results[-1]['n'] if daily_results else 0
     print(f"\n{_box_double('SITE PROFILING COMPLETE')}")
-    print(f"Total ICU hospitalizations: {detected_max}")
+    print(f"Total ICU stays: {total_icu_rows} ({distinct_ids} unique hospitalizations)")
     print(f"Generic mode: tested up to n={generic_max_n}")
     print(f"Daily mode: tested up to n={daily_max_n}")
 
