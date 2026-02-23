@@ -28,6 +28,7 @@ def _calculate_hemo_subscore(
     cfg: SOFA2Config,
     *,
     dev: bool = False,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 hemostasis subscore based on platelet count.
@@ -39,18 +40,20 @@ def _calculate_hemo_subscore(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     labs_rel : DuckDBPyRelation
         Labs table (CLIF labs)
     cfg : SOFA2Config
         Configuration with hemo_lookback_hours
     dev : bool, default False
         If True, return (result, intermediates_dict) for debugging
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, platelet_count, platelet_dttm_offset, hemo]
+        Columns: [id_name, start_dttm, platelet_count, platelet_dttm_offset, hemo]
         Where hemo is the subscore (0-4) or NULL if no platelet data.
         Offset is interval from start_dttm (negative = pre-window, positive = in-window)
     """
@@ -62,19 +65,19 @@ def _calculate_hemo_subscore(
     # Step 1: Get in-window platelet values (MIN = worst) with offset from start_dttm
     # Offset = lab_collect_dttm - start_dttm (positive for in-window)
     logger.info("Collecting worst in-window platelet count for coagulation assessment...")
-    platelet_in_window = duckdb.sql("""
+    platelet_in_window = duckdb.sql(f"""
         FROM labs_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.lab_collect_dttm >= c.start_dttm
             AND t.lab_collect_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , MIN(lab_value_numeric) AS platelet_count
             , ARG_MIN(lab_collect_dttm, lab_value_numeric) - c.start_dttm AS platelet_dttm_offset
         WHERE t.lab_category = 'platelet_count'
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
     # Step 2: Get pre-window platelet value (ASOF JOIN with cutoff in WHERE)
@@ -84,10 +87,10 @@ def _calculate_hemo_subscore(
     platelet_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
-            ON c.hospitalization_id = t.hospitalization_id
+            ON c.{id_name} = t.{id_name}
             AND c.start_dttm > t.lab_collect_dttm
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , t.lab_value_numeric AS platelet_count
             , platelet_dttm_offset: t.lab_collect_dttm - c.start_dttm
@@ -97,28 +100,28 @@ def _calculate_hemo_subscore(
 
     # Step 3: Apply fallback pattern (use pre-window only if no in-window data)
     logger.info("Applying fallback: use pre-window platelet only when in-window missing...")
-    platelet_with_fallback = duckdb.sql("""
+    platelet_with_fallback = duckdb.sql(f"""
         WITH windows_with_data AS (
-            SELECT DISTINCT hospitalization_id, start_dttm
+            SELECT DISTINCT {id_name}, start_dttm
             FROM platelet_in_window
         ),
         pre_window_fallback AS (
             FROM platelet_pre_window p
-            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm_offset
+            ANTI JOIN windows_with_data w USING ({id_name}, start_dttm)
+            SELECT {id_name}, start_dttm, platelet_count, platelet_dttm_offset
         )
-        FROM platelet_in_window SELECT hospitalization_id, start_dttm, platelet_count, platelet_dttm_offset
+        FROM platelet_in_window SELECT {id_name}, start_dttm, platelet_count, platelet_dttm_offset
         UNION ALL
         FROM pre_window_fallback SELECT *
     """)
 
     # Step 4: Calculate subscore
     logger.info("Scoring hemostasis subscore based on platelet thresholds...")
-    hemo_score = duckdb.sql("""
+    hemo_score = duckdb.sql(f"""
         FROM cohort_rel c
-        LEFT JOIN platelet_with_fallback p USING (hospitalization_id, start_dttm)
+        LEFT JOIN platelet_with_fallback p USING ({id_name}, start_dttm)
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , p.platelet_count
             , p.platelet_dttm_offset

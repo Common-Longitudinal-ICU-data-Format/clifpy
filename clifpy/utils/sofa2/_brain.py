@@ -37,6 +37,7 @@ def _calculate_brain_subscore(
     cfg: SOFA2Config,
     *,
     dev: bool = False,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 brain subscore based on GCS and delirium drug administration.
@@ -49,7 +50,7 @@ def _calculate_brain_subscore(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     assessments_rel : DuckDBPyRelation
         Patient assessments table (CLIF patient_assessments)
     cont_meds_rel : DuckDBPyRelation
@@ -60,11 +61,13 @@ def _calculate_brain_subscore(
         Configuration with post_sedation_gcs_invalidate_hours
     dev : bool, default False
         If True, return (result, intermediates_dict) for debugging
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, gcs_min, gcs_type,
+        Columns: [id_name, start_dttm, gcs_min, gcs_type,
                   gcs_min_dttm_offset, has_sedation, sedation_start_dttm_offset,
                   sedation_end_dttm_offset, has_delirium_drug,
                   delirium_drug_dttm_offset, brain]
@@ -80,33 +83,35 @@ def _calculate_brain_subscore(
     # =========================================================================
     logger.info("Detecting sedation episodes within scoring windows...")
     sedation_episodes = _detect_sedation_episodes(
-        cohort_rel, cont_meds_rel, post_sedation_gcs_invalidate_hours=post_sed_hours
+        cohort_rel, cont_meds_rel,
+        post_sedation_gcs_invalidate_hours=post_sed_hours,
+        id_name=id_name,
     )
 
     # Flag windows that have any sedation + episode boundary offsets
-    has_sedation_flag = duckdb.sql("""
+    has_sedation_flag = duckdb.sql(f"""
         FROM sedation_episodes
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , 1 AS has_sedation
             , MIN(sedation_start) - start_dttm AS sedation_start_dttm_offset
             , MAX(sedation_end) - start_dttm AS sedation_end_dttm_offset
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
     # =========================================================================
     # Step 2: Get all GCS measurements within window (both gcs_total and gcs_motor)
     # =========================================================================
     logger.info("Collecting GCS measurements (gcs_total and gcs_motor) within windows...")
-    gcs_in_window = duckdb.sql("""
+    gcs_in_window = duckdb.sql(f"""
         FROM assessments_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.recorded_dttm
             , t.assessment_category
@@ -120,22 +125,22 @@ def _calculate_brain_subscore(
     # =========================================================================
     logger.info("Filtering GCS measurements to exclude those during sedation episodes...")
     # A GCS is invalid if it falls within ANY sedation episode's [sedation_start, sedation_end_extended]
-    gcs_with_validity = duckdb.sql("""
+    gcs_with_validity = duckdb.sql(f"""
         FROM gcs_in_window g
         LEFT JOIN sedation_episodes s ON
-            g.hospitalization_id = s.hospitalization_id
+            g.{id_name} = s.{id_name}
             AND g.start_dttm = s.start_dttm
             AND g.recorded_dttm >= s.sedation_start
             AND g.recorded_dttm <= s.sedation_end_extended
         SELECT
-            g.hospitalization_id
+            g.{id_name}
             , g.start_dttm
             , g.recorded_dttm
             , g.assessment_category
             , g.gcs_value
             , g.dttm_offset
             -- is_valid = 0 if GCS falls within any sedation episode, 1 otherwise
-            , CASE WHEN s.hospitalization_id IS NOT NULL THEN 0 ELSE 1 END AS is_valid
+            , CASE WHEN s.{id_name} IS NOT NULL THEN 0 ELSE 1 END AS is_valid
     """)
 
     # Keep only valid GCS
@@ -150,23 +155,23 @@ def _calculate_brain_subscore(
     # =========================================================================
     logger.info("Aggregating worst valid GCS (prefer gcs_total, fallback to gcs_motor)...")
     # Aggregate MIN for each type separately
-    gcs_agg_by_type = duckdb.sql("""
+    gcs_agg_by_type = duckdb.sql(f"""
         FROM valid_gcs
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , MIN(gcs_value) FILTER (WHERE assessment_category = 'gcs_total') AS gcs_total_min
             , ARG_MIN(dttm_offset, gcs_value) FILTER (WHERE assessment_category = 'gcs_total') AS gcs_total_dttm_offset
             , MIN(gcs_value) FILTER (WHERE assessment_category = 'gcs_motor') AS gcs_motor_min
             , ARG_MIN(dttm_offset, gcs_value) FILTER (WHERE assessment_category = 'gcs_motor') AS gcs_motor_dttm_offset
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
     # Combine: prefer gcs_total, fallback to gcs_motor
-    gcs_combined = duckdb.sql("""
+    gcs_combined = duckdb.sql(f"""
         FROM gcs_agg_by_type
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , gcs_total_min
             , gcs_motor_min
@@ -188,19 +193,21 @@ def _calculate_brain_subscore(
     # Step 5: Flag delirium drug administration (footnote e)
     # =========================================================================
     logger.info("Flagging delirium drug administration for footnote e...")
-    delirium_flag = _flag_delirium_drug(cohort_rel, cont_meds_rel, intm_meds_rel)
+    delirium_flag = _flag_delirium_drug(
+        cohort_rel, cont_meds_rel, intm_meds_rel, id_name=id_name
+    )
 
     # =========================================================================
     # Step 6: Calculate final brain subscore
     # =========================================================================
     logger.info("Calculating final brain subscore with footnotes c, d, e...")
-    brain_score = duckdb.sql("""
+    brain_score = duckdb.sql(f"""
         FROM cohort_rel c
-        LEFT JOIN gcs_combined g USING (hospitalization_id, start_dttm)
-        LEFT JOIN has_sedation_flag s USING (hospitalization_id, start_dttm)
-        LEFT JOIN delirium_flag d USING (hospitalization_id, start_dttm)
+        LEFT JOIN gcs_combined g USING ({id_name}, start_dttm)
+        LEFT JOIN has_sedation_flag s USING ({id_name}, start_dttm)
+        LEFT JOIN delirium_flag d USING ({id_name}, start_dttm)
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , g.gcs_min
             , g.gcs_type

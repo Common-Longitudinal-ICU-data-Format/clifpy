@@ -52,6 +52,7 @@ def _calculate_cv_subscore(
     cfg: SOFA2Config,
     *,
     dev: bool = False,
+    id_name: str = 'hospitalization_id',
     _timer: StepTimer | None = None,
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
@@ -99,15 +100,15 @@ def _calculate_cv_subscore(
     # =========================================================================
     timer.start("cv.map_agg_and_asof")
     logger.info("Aggregating in-window MAP to identify hypotension without pressors...")
-    map_agg = _agg_map(cohort_rel, vitals_rel)
+    map_agg = _agg_map(cohort_rel, vitals_rel, id_name=id_name)
 
     # Get weight measurements for unit conversion (mcg/kg/min dosing)
     # SEMI JOIN filters to cohort patients without duplicating across windows;
     # pre-filter to weight_kg avoids passing all vital categories downstream.
     # No time filter: preserves pre-window weights for ASOF forward-fill.
-    cohort_weights = duckdb.sql("""
+    cohort_weights = duckdb.sql(f"""
         FROM vitals_rel t
-        SEMI JOIN cohort_rel c ON t.hospitalization_id = c.hospitalization_id
+        SEMI JOIN cohort_rel c ON t.{id_name} = c.{id_name}
         SELECT t.*
         WHERE t.vital_category = 'weight_kg' AND t.vital_value IS NOT NULL
     """)
@@ -125,22 +126,22 @@ def _calculate_cv_subscore(
         cohort_meds AS (
             FROM cohort_rel c
             CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+            SELECT c.{id_name}, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
         ASOF LEFT JOIN cont_meds_rel t
-            ON cm.hospitalization_id = t.hospitalization_id
+            ON cm.{id_name} = t.{id_name}
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm  -- include events ONLY BEFORE start_dttm
         SELECT
-            cm.hospitalization_id
+            cm.{id_name}
             , cm.start_dttm
             , t.admin_dttm
             , cm.med_category
             , t.mar_action_category
             , t.med_dose
             , t.med_dose_unit
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND t.mar_action_category != 'stop'
             AND t.med_dose > 0  -- only if actively infusing
     """)
@@ -149,11 +150,11 @@ def _calculate_cv_subscore(
     pressor_in_window = duckdb.sql(f"""
         FROM cont_meds_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.admin_dttm
             , t.med_category
@@ -171,34 +172,34 @@ def _calculate_cv_subscore(
         cohort_meds AS (
             FROM cohort_rel c
             CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+            SELECT c.{id_name}, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
         ASOF LEFT JOIN cont_meds_rel t
-            ON cm.hospitalization_id = t.hospitalization_id
+            ON cm.{id_name} = t.{id_name}
             AND cm.med_category = t.med_category
             AND cm.end_dttm < t.admin_dttm  -- first event AFTER end_dttm
         SELECT
-            cm.hospitalization_id
+            cm.{id_name}
             , cm.start_dttm
             , t.admin_dttm
             , cm.med_category
             , t.mar_action_category
             , t.med_dose
             , t.med_dose_unit
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
     """)
 
     # Combine all pressor events (materialize to break lazy chain)
-    duckdb.execute("""
+    duckdb.execute(f"""
         CREATE OR REPLACE TEMP TABLE pressor_events_raw AS
-        SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
+        SELECT {id_name}, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
         FROM pressor_at_start
         UNION ALL
-        SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
+        SELECT {id_name}, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
         FROM pressor_in_window
         UNION ALL
-        SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
+        SELECT {id_name}, start_dttm, admin_dttm, med_category, med_dose, med_dose_unit, mar_action_category
         FROM pressor_at_end
     """)
     pressor_events_raw = duckdb.table("pressor_events_raw")
@@ -214,10 +215,10 @@ def _calculate_cv_subscore(
     # =========================================================================
     timer.start("cv.dedup_and_unit_conversion")
     logger.info("Deduplicating MAR actions to resolve simultaneous entries...")
-    pressor_events_deduped = duckdb.sql("""
+    pressor_events_deduped = duckdb.sql(f"""
         FROM pressor_events_raw t
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , t.start_dttm
             , t.admin_dttm
             , t.med_category
@@ -225,7 +226,7 @@ def _calculate_cv_subscore(
             , t.med_dose
             , t.med_dose_unit
         QUALIFY ROW_NUMBER() OVER (
-            PARTITION BY t.hospitalization_id, t.start_dttm, t.admin_dttm, t.med_category
+            PARTITION BY t.{id_name}, t.start_dttm, t.admin_dttm, t.med_category
             ORDER BY
                 CASE WHEN t.mar_action_category IS NULL THEN 10
                     WHEN t.mar_action_category IN ('verify', 'not_given') THEN 9
@@ -263,7 +264,7 @@ def _calculate_cv_subscore(
     # =========================================================================
     timer.start("cv.pivot_and_episodes")
     logger.info("Pivoting epi+norepi to wide format for concurrent dosage calculation...")
-    duckdb.execute("""
+    duckdb.execute(f"""
         CREATE OR REPLACE TEMP TABLE epi_ne_wide AS
         FROM pressor_events
         PIVOT (
@@ -272,7 +273,7 @@ def _calculate_cv_subscore(
                 'norepinephrine' AS norepi_raw,
                 'epinephrine' AS epi_raw
             )
-            GROUP BY hospitalization_id, start_dttm, admin_dttm
+            GROUP BY {id_name}, start_dttm, admin_dttm
         )
     """)
     epi_ne_wide = duckdb.table("epi_ne_wide")
@@ -284,15 +285,15 @@ def _calculate_cv_subscore(
 
     logger.info("Forward-filling epi+norepi to get continuous dosage values...")
     # Forward-fill epi+norepi
-    epi_ne_filled = duckdb.sql("""
+    epi_ne_filled = duckdb.sql(f"""
         FROM epi_ne_wide
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , admin_dttm
             , COALESCE(LAST_VALUE(norepi_raw IGNORE NULLS) OVER w, 0) AS norepi
             , COALESCE(LAST_VALUE(epi_raw IGNORE NULLS) OVER w, 0) AS epi
-        WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm
+        WINDOW w AS (PARTITION BY {id_name}, start_dttm ORDER BY admin_dttm
                      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
     """)
 
@@ -308,7 +309,7 @@ def _calculate_cv_subscore(
                 *
                 , LAG(norepi) OVER w AS prev_norepi
                 , LAG(epi) OVER w AS prev_epi
-            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY {id_name}, start_dttm ORDER BY admin_dttm)
         ),
         episode_groups AS (
             FROM with_lag
@@ -316,7 +317,7 @@ def _calculate_cv_subscore(
                 *
                 , SUM(CASE WHEN norepi > 0 AND COALESCE(prev_norepi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS norepi_episode
                 , SUM(CASE WHEN epi > 0 AND COALESCE(prev_epi, 0) = 0 THEN 1 ELSE 0 END) OVER w AS epi_episode
-            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY {id_name}, start_dttm ORDER BY admin_dttm)
         ),
         with_episode_bounds AS (
             FROM episode_groups
@@ -326,14 +327,14 @@ def _calculate_cv_subscore(
                 , LAST_VALUE(admin_dttm) OVER norepi_w AS norepi_episode_end
                 , FIRST_VALUE(admin_dttm) OVER epi_w AS epi_episode_start
                 , LAST_VALUE(admin_dttm) OVER epi_w AS epi_episode_end
-            WINDOW norepi_w AS (PARTITION BY hospitalization_id, start_dttm, norepi_episode
+            WINDOW norepi_w AS (PARTITION BY {id_name}, start_dttm, norepi_episode
                                 ORDER BY admin_dttm ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),
-                   epi_w AS (PARTITION BY hospitalization_id, start_dttm, epi_episode
+                   epi_w AS (PARTITION BY {id_name}, start_dttm, epi_episode
                              ORDER BY admin_dttm ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
         )
         FROM with_episode_bounds
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , admin_dttm
             , norepi
@@ -358,16 +359,16 @@ def _calculate_cv_subscore(
         logger.info("epi_ne_duration materialized")
 
     # Aggregate epi+norepi with offset at max dose
-    epi_ne_agg = duckdb.sql("""
+    epi_ne_agg = duckdb.sql(f"""
         FROM epi_ne_duration
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , MAX(norepi_valid + epi_valid) AS norepi_epi_maxsum
             , ARG_MAX(admin_dttm, norepi_valid + epi_valid) - start_dttm AS norepi_epi_maxsum_dttm_offset
             , MAX(norepi_valid) AS norepi_max
             , MAX(epi_valid) AS epi_max
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
     timer.stop("cv.pivot_and_episodes")
@@ -380,7 +381,7 @@ def _calculate_cv_subscore(
     other_pressor_duration = duckdb.sql(f"""
         WITH filtered AS (
             FROM pressor_events
-            SELECT hospitalization_id, start_dttm, admin_dttm, med_category, med_dose
+            SELECT {id_name}, start_dttm, admin_dttm, med_category, med_dose
             WHERE med_category NOT IN ('norepinephrine', 'epinephrine')
         ),
         with_lag AS (
@@ -388,14 +389,14 @@ def _calculate_cv_subscore(
             SELECT
                 *
                 , LAG(med_dose) OVER w AS prev_dose
-            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm, med_category ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY {id_name}, start_dttm, med_category ORDER BY admin_dttm)
         ),
         episode_groups AS (
             FROM with_lag
             SELECT
                 *
                 , SUM(CASE WHEN med_dose > 0 AND COALESCE(prev_dose, 0) = 0 THEN 1 ELSE 0 END) OVER w AS episode_id
-            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm, med_category ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY {id_name}, start_dttm, med_category ORDER BY admin_dttm)
         ),
         with_episode_bounds AS (
             FROM episode_groups
@@ -403,12 +404,12 @@ def _calculate_cv_subscore(
                 *
                 , FIRST_VALUE(admin_dttm) OVER episode_w AS episode_start
                 , LAST_VALUE(admin_dttm) OVER episode_w AS episode_end
-            WINDOW episode_w AS (PARTITION BY hospitalization_id, start_dttm, med_category, episode_id
+            WINDOW episode_w AS (PARTITION BY {id_name}, start_dttm, med_category, episode_id
                                  ORDER BY admin_dttm ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
         )
         FROM with_episode_bounds
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , admin_dttm
             , med_category
@@ -421,25 +422,25 @@ def _calculate_cv_subscore(
     """)
 
     # Aggregate dopamine + others with offset at max dose
-    other_pressor_agg = duckdb.sql("""
+    other_pressor_agg = duckdb.sql(f"""
         FROM other_pressor_duration
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , MAX(dose_valid) FILTER (WHERE med_category = 'dopamine') AS dopa_max
             , ARG_MAX(admin_dttm, dose_valid) FILTER (WHERE med_category = 'dopamine') - start_dttm AS dopa_max_dttm_offset
             , CASE WHEN MAX(dose_valid) FILTER (WHERE med_category != 'dopamine') > 0
                    THEN 1 ELSE 0 END AS has_other_non_dopa
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
     # Combine pressor aggregations
-    pressor_agg = duckdb.sql("""
+    pressor_agg = duckdb.sql(f"""
         FROM cohort_rel c
-        LEFT JOIN epi_ne_agg ne USING (hospitalization_id, start_dttm)
-        LEFT JOIN other_pressor_agg op USING (hospitalization_id, start_dttm)
+        LEFT JOIN epi_ne_agg ne USING ({id_name}, start_dttm)
+        LEFT JOIN other_pressor_agg op USING ({id_name}, start_dttm)
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , COALESCE(ne.norepi_epi_maxsum, 0) AS norepi_epi_maxsum
             , ne.norepi_epi_maxsum_dttm_offset
@@ -452,19 +453,19 @@ def _calculate_cv_subscore(
     # Step 7b: Mechanical CV support flag (footnote n)
     # =========================================================================
     logger.info("Checking mechanical CV support flag (non-VV ECMO, IABP, LVAD, RVAD)...")
-    mech_cv_flag = _flag_mechanical_cv_support(cohort_rel, ecmo_rel)
+    mech_cv_flag = _flag_mechanical_cv_support(cohort_rel, ecmo_rel, id_name=id_name)
 
     # =========================================================================
     # Step 8: Calculate CV score
     # =========================================================================
     logger.info("Applying CV scoring rules based on norepi+epi dose tiers and pressor combinations...")
-    cv_score = duckdb.sql("""
+    cv_score = duckdb.sql(f"""
         FROM cohort_rel c
-        LEFT JOIN map_agg m USING (hospitalization_id, start_dttm)
-        LEFT JOIN pressor_agg v USING (hospitalization_id, start_dttm)
-        LEFT JOIN mech_cv_flag mcv USING (hospitalization_id, start_dttm)
+        LEFT JOIN map_agg m USING ({id_name}, start_dttm)
+        LEFT JOIN pressor_agg v USING ({id_name}, start_dttm)
+        LEFT JOIN mech_cv_flag mcv USING ({id_name}, start_dttm)
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , m.map_min
             , m.map_min_dttm_offset

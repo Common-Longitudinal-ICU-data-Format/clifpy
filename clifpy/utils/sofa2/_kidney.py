@@ -36,6 +36,7 @@ def _calculate_kidney_subscore(
     cfg: SOFA2Config,
     *,
     dev: bool = False,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 kidney subscore based on creatinine with RRT override.
@@ -47,7 +48,7 @@ def _calculate_kidney_subscore(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     labs_rel : DuckDBPyRelation
         Labs table (CLIF labs)
     crrt_rel : DuckDBPyRelation
@@ -56,11 +57,13 @@ def _calculate_kidney_subscore(
         Configuration with kidney_lookback_hours
     dev : bool, default False
         If True, return (result, intermediates_dict) for debugging
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, creatinine, creatinine_dttm_offset, ..., kidney]
+        Columns: [id_name, start_dttm, creatinine, creatinine_dttm_offset, ..., kidney]
         Where kidney is the subscore (0-4) or NULL if no creatinine data.
         Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window)
     """
@@ -72,7 +75,7 @@ def _calculate_kidney_subscore(
 
     # Step 1: Get RRT flag (in-window only)
     logger.info("Flagging RRT for automatic score 4 override...")
-    rrt_flag = _flag_rrt(cohort_rel, crrt_rel)
+    rrt_flag = _flag_rrt(cohort_rel, crrt_rel, id_name=id_name)
 
     # Step 2: Get in-window lab values for kidney with offsets from start_dttm
     # MAX creatinine/potassium = worst, MIN pH/bicarbonate = worst
@@ -81,11 +84,11 @@ def _calculate_kidney_subscore(
     labs_in_window = duckdb.sql(f"""
         FROM labs_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.lab_collect_dttm >= c.start_dttm
             AND t.lab_collect_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , MAX(lab_value_numeric) FILTER(lab_category = 'creatinine') AS creatinine
             , ARG_MAX(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'creatinine') - c.start_dttm AS creatinine_dttm_offset
@@ -97,7 +100,7 @@ def _calculate_kidney_subscore(
             , MIN(lab_value_numeric) FILTER(lab_category = 'bicarbonate') AS bicarbonate
             , ARG_MIN(lab_collect_dttm, lab_value_numeric) FILTER(lab_category = 'bicarbonate') - c.start_dttm AS bicarbonate_dttm_offset
         WHERE t.lab_category IN {tuple(lab_categories)}
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
     # Step 3: Get pre-window lab values using CROSS JOIN + ASOF JOIN pattern
@@ -112,20 +115,20 @@ def _calculate_kidney_subscore(
         cohort_labs AS (
             FROM cohort_rel c
             CROSS JOIN lab_cats
-            SELECT c.hospitalization_id, c.start_dttm, lab_category
+            SELECT c.{id_name}, c.start_dttm, lab_category
         )
         FROM cohort_labs cl
         ASOF LEFT JOIN labs_rel t
-            ON cl.hospitalization_id = t.hospitalization_id
+            ON cl.{id_name} = t.{id_name}
             AND cl.lab_category = t.lab_category
             AND cl.start_dttm > t.lab_collect_dttm
         SELECT
-            cl.hospitalization_id
+            cl.{id_name}
             , cl.start_dttm
             , cl.lab_category
             , t.lab_value_numeric AS lab_value
             , lab_dttm_offset: t.lab_collect_dttm - cl.start_dttm
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND lab_dttm_offset >= -INTERVAL '{lookback_hours} hours'
     """)
 
@@ -134,10 +137,10 @@ def _calculate_kidney_subscore(
     # in the data. If a category has no rows, the column is missing → Binder Error.
     # Explicit FILTER aggregation always creates all columns (NULL when no data).
     logger.info("Pivoting pre-window labs to enable per-lab fallback pattern...")
-    labs_pre_window = duckdb.sql("""
+    labs_pre_window = duckdb.sql(f"""
         FROM labs_pre_window_long
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , ANY_VALUE(lab_value) FILTER(lab_category = 'creatinine') AS creatinine_val
             , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'creatinine') AS creatinine_dttm_offset
@@ -149,19 +152,19 @@ def _calculate_kidney_subscore(
             , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'ph_venous') AS ph_venous_dttm_offset
             , ANY_VALUE(lab_value) FILTER(lab_category = 'bicarbonate') AS bicarbonate_val
             , ANY_VALUE(lab_dttm_offset) FILTER(lab_category = 'bicarbonate') AS bicarbonate_dttm_offset
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
     # Step 5: Apply fallback pattern for ALL labs (values and offsets)
     # Use pre-window value only if no in-window value exists for that specific lab
     logger.info("Applying fallback: use pre-window only when in-window is missing...")
 
-    labs_with_fallback = duckdb.sql("""
+    labs_with_fallback = duckdb.sql(f"""
         FROM cohort_rel c
-        LEFT JOIN labs_in_window l USING (hospitalization_id, start_dttm)
-        LEFT JOIN labs_pre_window p USING (hospitalization_id, start_dttm)
+        LEFT JOIN labs_in_window l USING ({id_name}, start_dttm)
+        LEFT JOIN labs_pre_window p USING ({id_name}, start_dttm)
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             -- Apply fallback per-lab: use pre-window only if in-window is NULL
             , COALESCE(l.creatinine, p.creatinine_val) AS creatinine
@@ -181,11 +184,11 @@ def _calculate_kidney_subscore(
 
     # Step 6: Calculate subscore with RRT override and RRT criteria fallback
     logger.info("Scoring kidney with RRT override and footnote p criteria fallback...")
-    kidney_score = duckdb.sql("""
+    kidney_score = duckdb.sql(f"""
         FROM labs_with_fallback l
-        LEFT JOIN rrt_flag r USING (hospitalization_id, start_dttm)
+        LEFT JOIN rrt_flag r USING ({id_name}, start_dttm)
         SELECT
-            l.hospitalization_id
+            l.{id_name}
             , l.start_dttm
             , l.creatinine
             , l.creatinine_dttm_offset

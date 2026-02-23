@@ -32,9 +32,12 @@ from clifpy.utils.logging_config import get_logger
 logger = get_logger('utils.sofa2.resp')
 
 
-def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _forward_fill_fio2(
+    resp_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
+) -> DuckDBPyRelation:
     """
-    Forward-fill fio2_set within contiguous device_category episodes per hospitalization.
+    Forward-fill fio2_set within contiguous device_category episodes per identity.
 
     Creates device episodes by detecting changes in device_category (ordered by
     recorded_dttm), then forward-fills fio2_set within each episode. This fills
@@ -50,14 +53,16 @@ def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
     ----------
     resp_rel : DuckDBPyRelation
         Respiratory support data. Must have columns:
-        [hospitalization_id, recorded_dttm, device_category, fio2_set]
+        [id_name, recorded_dttm, device_category, fio2_set]
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
         Same schema as input, with fio2_set forward-filled within device episodes.
     """
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         WITH ordered AS (
             -- Detect device_category changes to create episode boundaries
             -- IS DISTINCT FROM is NULL-safe: consecutive NULLs stay in the same episode
@@ -67,7 +72,7 @@ def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
                 , CASE
                     WHEN device_category IS DISTINCT FROM
                          LAG(device_category) OVER (
-                             PARTITION BY hospitalization_id
+                             PARTITION BY {id_name}
                              ORDER BY recorded_dttm
                          )
                     THEN 1
@@ -79,7 +84,7 @@ def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
             SELECT
                 *
                 , SUM(_device_change) OVER (
-                    PARTITION BY hospitalization_id
+                    PARTITION BY {id_name}
                     ORDER BY recorded_dttm
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                   ) AS _device_episode_id
@@ -92,7 +97,7 @@ def _forward_fill_fio2(resp_rel: DuckDBPyRelation) -> DuckDBPyRelation:
                     COALESCE(
                         fio2_set,
                         LAST_VALUE(fio2_set IGNORE NULLS) OVER (
-                            PARTITION BY hospitalization_id, _device_episode_id
+                            PARTITION BY {id_name}, _device_episode_id
                             ORDER BY recorded_dttm
                             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                         )
@@ -114,6 +119,7 @@ def _calculate_resp_subscore(
     cfg: SOFA2Config,
     *,
     dev: bool = False,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation | tuple[DuckDBPyRelation, dict]:
     """
     Calculate SOFA-2 respiratory subscore based on P/F or S/F ratio.
@@ -128,7 +134,7 @@ def _calculate_resp_subscore(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     resp_rel : DuckDBPyRelation
         Respiratory support table (CLIF respiratory_support)
     labs_rel : DuckDBPyRelation
@@ -141,11 +147,13 @@ def _calculate_resp_subscore(
         Configuration with resp_lookback_hours, pf_sf_tolerance_hours
     dev : bool, default False
         If True, return (result, intermediates_dict) for debugging
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, pf_ratio, sf_ratio, has_advanced_support,
+        Columns: [id_name, start_dttm, pf_ratio, sf_ratio, has_advanced_support,
                   pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
                   fio2_at_worst, fio2_dttm_offset, pf_sf_dttm_offset, has_ecmo, resp]
         pf_ratio and sf_ratio are mutually exclusive (one will be NULL).
@@ -187,7 +195,7 @@ def _calculate_resp_subscore(
     # =========================================================================
     logger.info("Forward-filling FiO2 within device episodes...")
 
-    resp_rel = _forward_fill_fio2(resp_rel)
+    resp_rel = _forward_fill_fio2(resp_rel, id_name=id_name)
     if dev:
         fio2_ffilled = resp_rel
 
@@ -197,14 +205,14 @@ def _calculate_resp_subscore(
     logger.info("Processing FiO2 with room air imputation and pre-window fallback...")
 
     # Get in-window FiO2 measurements
-    fio2_in_window = duckdb.sql("""
+    fio2_in_window = duckdb.sql(f"""
         FROM resp_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.recorded_dttm
             , t.device_category
@@ -216,30 +224,30 @@ def _calculate_resp_subscore(
     fio2_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN resp_rel t
-            ON c.hospitalization_id = t.hospitalization_id
+            ON c.{id_name} = t.{id_name}
             AND c.start_dttm > t.recorded_dttm
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , t.recorded_dttm
             , t.device_category
             , t.fio2_set
             , t.lpm_set
             , c.start_dttm - t.recorded_dttm AS time_gap
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND time_gap <= INTERVAL '{lookback_hours} hours'
     """)
 
     # Apply fallback and FiO2 imputation
-    fio2_imputed = duckdb.sql("""
+    fio2_imputed = duckdb.sql(f"""
         WITH windows_with_data AS (
-            SELECT DISTINCT hospitalization_id, start_dttm
+            SELECT DISTINCT {id_name}, start_dttm
             FROM fio2_in_window
         ),
         pre_window_fallback AS (
             FROM fio2_pre_window p
-            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, recorded_dttm, device_category, fio2_set, lpm_set
+            ANTI JOIN windows_with_data w USING ({id_name}, start_dttm)
+            SELECT {id_name}, start_dttm, recorded_dttm, device_category, fio2_set, lpm_set
         ),
         combined AS (
             FROM fio2_in_window SELECT *
@@ -248,7 +256,7 @@ def _calculate_resp_subscore(
         )
         FROM combined t
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , t.start_dttm
             , t.recorded_dttm
             , t.device_category
@@ -278,14 +286,14 @@ def _calculate_resp_subscore(
     # =========================================================================
     logger.info("Collecting PaO2 measurements for P/F ratio calculation...")
 
-    pao2_in_window = duckdb.sql("""
+    pao2_in_window = duckdb.sql(f"""
         FROM labs_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.lab_collect_dttm >= c.start_dttm
             AND t.lab_collect_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.lab_collect_dttm
             , t.lab_value_numeric AS pao2
@@ -296,29 +304,29 @@ def _calculate_resp_subscore(
     pao2_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN labs_rel t
-            ON c.hospitalization_id = t.hospitalization_id
+            ON c.{id_name} = t.{id_name}
             AND c.start_dttm > t.lab_collect_dttm
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , t.lab_collect_dttm
             , t.lab_value_numeric AS pao2
             , c.start_dttm - t.lab_collect_dttm AS time_gap
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND t.lab_category = 'po2_arterial'
             AND t.lab_value_numeric IS NOT NULL
             AND time_gap <= INTERVAL '{lookback_hours} hours'
     """)
 
-    pao2_measurements = duckdb.sql("""
+    pao2_measurements = duckdb.sql(f"""
         WITH windows_with_data AS (
-            SELECT DISTINCT hospitalization_id, start_dttm
+            SELECT DISTINCT {id_name}, start_dttm
             FROM pao2_in_window
         ),
         pre_window_fallback AS (
             FROM pao2_pre_window p
-            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, lab_collect_dttm, pao2
+            ANTI JOIN windows_with_data w USING ({id_name}, start_dttm)
+            SELECT {id_name}, start_dttm, lab_collect_dttm, pao2
         )
         FROM pao2_in_window SELECT *
         UNION ALL
@@ -330,14 +338,14 @@ def _calculate_resp_subscore(
     # =========================================================================
     logger.info("Collecting SpO2 measurements for S/F ratio fallback...")
 
-    spo2_in_window = duckdb.sql("""
+    spo2_in_window = duckdb.sql(f"""
         FROM vitals_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.recorded_dttm
             , t.vital_value AS spo2
@@ -349,30 +357,30 @@ def _calculate_resp_subscore(
     spo2_pre_window = duckdb.sql(f"""
         FROM cohort_rel c
         ASOF LEFT JOIN vitals_rel t
-            ON c.hospitalization_id = t.hospitalization_id
+            ON c.{id_name} = t.{id_name}
             AND c.start_dttm > t.recorded_dttm
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , t.recorded_dttm
             , t.vital_value AS spo2
             , c.start_dttm - t.recorded_dttm AS time_gap
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND t.vital_category = 'spo2'
             AND t.vital_value IS NOT NULL
             AND t.vital_value < 98  -- Only use SpO2 < 98% per spec
             AND time_gap <= INTERVAL '{lookback_hours} hours'
     """)
 
-    spo2_measurements = duckdb.sql("""
+    spo2_measurements = duckdb.sql(f"""
         WITH windows_with_data AS (
-            SELECT DISTINCT hospitalization_id, start_dttm
+            SELECT DISTINCT {id_name}, start_dttm
             FROM spo2_in_window
         ),
         pre_window_fallback AS (
             FROM spo2_pre_window p
-            ANTI JOIN windows_with_data w USING (hospitalization_id, start_dttm)
-            SELECT hospitalization_id, start_dttm, recorded_dttm, spo2
+            ANTI JOIN windows_with_data w USING ({id_name}, start_dttm)
+            SELECT {id_name}, start_dttm, recorded_dttm, spo2
         )
         FROM spo2_in_window SELECT *
         UNION ALL
@@ -387,11 +395,11 @@ def _calculate_resp_subscore(
     concurrent_pf = duckdb.sql(f"""
         FROM pao2_measurements p
         ASOF JOIN fio2_imputed f
-            ON p.hospitalization_id = f.hospitalization_id
+            ON p.{id_name} = f.{id_name}
             AND p.start_dttm = f.start_dttm  -- same window
             AND f.recorded_dttm <= p.lab_collect_dttm
         SELECT
-            p.hospitalization_id
+            p.{id_name}
             , p.start_dttm
             , p.pao2
             , pao2_dttm_offset: p.lab_collect_dttm - p.start_dttm
@@ -414,11 +422,11 @@ def _calculate_resp_subscore(
     concurrent_sf = duckdb.sql(f"""
         FROM spo2_measurements s
         ASOF JOIN fio2_imputed f
-            ON s.hospitalization_id = f.hospitalization_id
+            ON s.{id_name} = f.{id_name}
             AND s.start_dttm = f.start_dttm  -- same window
             AND f.recorded_dttm <= s.recorded_dttm
         SELECT
-            s.hospitalization_id
+            s.{id_name}
             , s.start_dttm
             , s.spo2
             , spo2_dttm_offset: s.recorded_dttm - s.start_dttm
@@ -438,12 +446,12 @@ def _calculate_resp_subscore(
     # =========================================================================
     logger.info("Selecting worst P/F ratio, falling back to S/F when PaO2 unavailable...")
 
-    resp_agg = duckdb.sql("""
+    resp_agg = duckdb.sql(f"""
         WITH pf_worst AS (
             -- Worst P/F ratio per window
             FROM concurrent_pf
             SELECT
-                hospitalization_id
+                {id_name}
                 , start_dttm
                 , MIN(pf_ratio) AS pf_ratio
                 , ARG_MIN(is_advanced_support, pf_ratio) AS has_advanced_support
@@ -452,15 +460,15 @@ def _calculate_resp_subscore(
                 , ARG_MIN(fio2_imputed, pf_ratio) AS fio2_at_worst
                 , ARG_MIN(pao2_dttm_offset, pf_ratio) AS pao2_dttm_offset
                 , ARG_MIN(fio2_dttm_offset, pf_ratio) AS fio2_dttm_offset
-            GROUP BY hospitalization_id, start_dttm
+            GROUP BY {id_name}, start_dttm
         ),
         sf_worst AS (
             -- Worst S/F ratio per window (only for windows WITHOUT P/F data)
             FROM concurrent_sf
-            ANTI JOIN (SELECT DISTINCT hospitalization_id, start_dttm FROM concurrent_pf) p
-                USING (hospitalization_id, start_dttm)
+            ANTI JOIN (SELECT DISTINCT {id_name}, start_dttm FROM concurrent_pf) p
+                USING ({id_name}, start_dttm)
             SELECT
-                hospitalization_id
+                {id_name}
                 , start_dttm
                 , MIN(sf_ratio) AS sf_ratio
                 , ARG_MIN(is_advanced_support, sf_ratio) AS has_advanced_support
@@ -469,17 +477,17 @@ def _calculate_resp_subscore(
                 , ARG_MIN(fio2_imputed, sf_ratio) AS fio2_at_worst
                 , ARG_MIN(spo2_dttm_offset, sf_ratio) AS spo2_dttm_offset
                 , ARG_MIN(fio2_dttm_offset, sf_ratio) AS fio2_dttm_offset
-            GROUP BY hospitalization_id, start_dttm
+            GROUP BY {id_name}, start_dttm
         )
         -- Combine: P/F takes priority, S/F only for windows without P/F
         FROM pf_worst
-        SELECT hospitalization_id, start_dttm, pf_ratio, NULL::DOUBLE AS sf_ratio,
+        SELECT {id_name}, start_dttm, pf_ratio, NULL::DOUBLE AS sf_ratio,
                has_advanced_support, device_category,
                pao2_at_worst, NULL AS spo2_at_worst, fio2_at_worst,
                pao2_dttm_offset, NULL::INTERVAL AS spo2_dttm_offset, fio2_dttm_offset
         UNION ALL
         FROM sf_worst
-        SELECT hospitalization_id, start_dttm, NULL::DOUBLE AS pf_ratio, sf_ratio,
+        SELECT {id_name}, start_dttm, NULL::DOUBLE AS pf_ratio, sf_ratio,
                has_advanced_support, device_category,
                NULL AS pao2_at_worst, spo2_at_worst, fio2_at_worst,
                NULL::INTERVAL AS pao2_dttm_offset, spo2_dttm_offset, fio2_dttm_offset
@@ -490,20 +498,20 @@ def _calculate_resp_subscore(
     # =========================================================================
     logger.info("Checking ECMO flag for automatic score 4 override...")
 
-    ecmo_flag = duckdb.sql("""
+    ecmo_flag = duckdb.sql(f"""
         FROM ecmo_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , 1 AS has_ecmo
             , MIN(t.recorded_dttm) - c.start_dttm AS ecmo_dttm_offset
         WHERE t.mcs_group = 'ecmo'
             OR t.ecmo_configuration_category IS NOT NULL
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
     # =========================================================================
@@ -511,12 +519,12 @@ def _calculate_resp_subscore(
     # =========================================================================
     logger.info("Applying respiratory scoring based on P/F or S/F thresholds...")
 
-    resp_score = duckdb.sql("""
+    resp_score = duckdb.sql(f"""
         FROM cohort_rel c
-        LEFT JOIN resp_agg r USING (hospitalization_id, start_dttm)
-        LEFT JOIN ecmo_flag e USING (hospitalization_id, start_dttm)
+        LEFT JOIN resp_agg r USING ({id_name}, start_dttm)
+        LEFT JOIN ecmo_flag e USING ({id_name}, start_dttm)
         SELECT
-            c.hospitalization_id
+            c.{id_name}
             , c.start_dttm
             , r.pf_ratio
             , r.sf_ratio
