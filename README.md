@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/">Documentation</a> | 
-  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/getting-started/quickstart/">Quick Start</a> | 
+  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/user-guide/quickstart/">Quick Start</a> | 
   <a href="https://clif-icu.com">CLIF Website</a>
 </p>
 
