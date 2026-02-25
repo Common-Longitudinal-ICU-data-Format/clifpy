@@ -15,6 +15,7 @@ from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
 from .ase import compute_ase
+from .imv_episodes import detect_imv_episodes, calculate_ventilator_free_days
 
 __all__ = [
       # io
@@ -42,6 +43,9 @@ __all__ = [
       '_agg_extremal_values_by_id',
       # ase
       'compute_ase',
+      # imv_episodes
+      'detect_imv_episodes',
+      'calculate_ventilator_free_days',
       # validator (add main functions)
       'validate_dataframe',
       'validate_table',
