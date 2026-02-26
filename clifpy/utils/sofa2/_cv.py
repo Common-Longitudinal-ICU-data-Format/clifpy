@@ -247,7 +247,8 @@ def _calculate_cv_subscore(
         vitals_df=cohort_weights,
         return_rel=True,
         preferred_units=PRESSOR_PREFERRED_UNITS,
-        override=True
+        override=True,
+        id_name=id_name,
     )
     # Materialize after unit conversion to isolate external function
     duckdb.execute("CREATE OR REPLACE TEMP TABLE pressor_events AS SELECT * FROM pressor_events_rel")

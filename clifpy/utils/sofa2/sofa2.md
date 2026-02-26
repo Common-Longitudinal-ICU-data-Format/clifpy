@@ -22,6 +22,32 @@ daily_sofa2_results = calculate_sofa2_daily(
 )
 ```
 
+## Alternative Identity Column (`id_name`)
+
+Both functions accept `id_name` and `id_mapping` for scoring by an alternative grouping (e.g. `encounter_block` from `stitch_encounters()`). CLIF tables only have `hospitalization_id`, so when using an alternative ID, the pipeline remaps all CLIF tables internally via `id_mapping` so that ASOF lookbacks work across hospitalization boundaries.
+
+```python
+from clifpy.utils.stitching_encounters import stitch_encounters
+
+hosp_stitched, adt_stitched, encounter_mapping = stitch_encounters(hospitalization, adt)
+
+# Option A: pass id_mapping directly (recommended — skips SELECT DISTINCT)
+sofa2_results = calculate_sofa2(
+  cohort_df=cohort_df,               # [encounter_block, start_dttm, end_dttm]
+  clif_config_path=CONFIG_PATH,
+  id_name='encounter_block',
+  id_mapping=encounter_mapping,       # [hospitalization_id, encounter_block]
+)
+
+# Option B: omit id_mapping — cohort must have both columns
+sofa2_results = calculate_sofa2(
+  cohort_df=cohort_df,               # [hospitalization_id, encounter_block, start_dttm, end_dttm]
+  clif_config_path=CONFIG_PATH,
+  id_name='encounter_block',
+  # id_mapping extracted internally via SELECT DISTINCT hospitalization_id, encounter_block
+)
+```
+
 ## `SOFA2Config` (dataclass)
 
 ```python
