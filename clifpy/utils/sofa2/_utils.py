@@ -6,6 +6,7 @@ This module contains:
 - Flag queries for RRT, delirium drug detection
 """
 
+import re
 from dataclasses import dataclass
 
 import duckdb
@@ -57,14 +58,143 @@ class SOFA2Config:
 
 
 # =============================================================================
+# ID Column Helpers (for alternative identity columns like encounter_block)
+# =============================================================================
+
+_SAFE_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _validate_id_name(
+    cohort_rel: DuckDBPyRelation,
+    id_name: str,
+    *,
+    id_mapping_provided: bool = False,
+) -> None:
+    """
+    Validate that id_name is safe and present in the cohort.
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort relation to validate against.
+    id_name : str
+        Column name to use as the identity column.
+    id_mapping_provided : bool
+        If True, skip the check that hospitalization_id is in the cohort
+        (the mapping handles the link to CLIF tables separately).
+
+    Raises
+    ------
+    ValueError
+        If id_name is not a safe SQL identifier or is missing from cohort.
+    """
+    if not _SAFE_IDENTIFIER_RE.match(id_name):
+        raise ValueError(
+            f"id_name must be a safe SQL identifier (alphanumeric + underscore), got: {id_name!r}"
+        )
+    cols = set(cohort_rel.columns)
+    if id_name not in cols:
+        raise ValueError(f"id_name {id_name!r} not found in cohort columns: {sorted(cols)}")
+    if id_name != 'hospitalization_id' and not id_mapping_provided and 'hospitalization_id' not in cols:
+        raise ValueError(
+            f"cohort must contain 'hospitalization_id' for CLIF table remapping "
+            f"when id_name={id_name!r} and id_mapping is not provided. "
+            f"Columns: {sorted(cols)}"
+        )
+
+
+def _extract_id_mapping(cohort_rel: DuckDBPyRelation, id_name: str) -> DuckDBPyRelation:
+    """
+    Extract distinct hospitalization_id → id_name mapping from cohort.
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with both hospitalization_id and id_name columns.
+    id_name : str
+        Target identity column name.
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Columns: [hospitalization_id, {id_name}]
+    """
+    return duckdb.sql(f"""
+        FROM cohort_rel
+        SELECT DISTINCT hospitalization_id, {id_name}
+    """)
+
+
+def _remap_clif_rel(
+    clif_rel: DuckDBPyRelation, id_name: str, mapping_rel
+) -> DuckDBPyRelation:
+    """
+    Replace hospitalization_id with id_name column in a CLIF table.
+
+    Uses an INNER JOIN with the mapping — rows whose hospitalization_id
+    is not in the mapping are dropped (they would be dropped by subscore
+    JOINs anyway).
+
+    Parameters
+    ----------
+    clif_rel : DuckDBPyRelation
+        CLIF table with hospitalization_id column.
+    id_name : str
+        Target identity column name.
+    mapping_rel : pd.DataFrame | DuckDBPyRelation
+        Mapping with columns [hospitalization_id, {id_name}].
+        Accepts DataFrame (DuckDB auto-detects cardinality) or relation.
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Same table with hospitalization_id replaced by id_name.
+    """
+    return duckdb.sql(f"""
+        FROM clif_rel t
+        JOIN mapping_rel m ON t.hospitalization_id = m.hospitalization_id
+        SELECT t.* EXCLUDE(hospitalization_id), m.{id_name}
+    """)
+
+
+def _dedup_cohort(cohort_rel: DuckDBPyRelation, id_name: str) -> DuckDBPyRelation:
+    """
+    Deduplicate cohort to unique (id_name, start_dttm, end_dttm).
+
+    After extracting the mapping, drop hospitalization_id and deduplicate
+    so each (id_name, start_dttm, end_dttm) appears once.
+
+    Parameters
+    ----------
+    cohort_rel : DuckDBPyRelation
+        Cohort with id_name, start_dttm, end_dttm columns.
+    id_name : str
+        Identity column name.
+
+    Returns
+    -------
+    DuckDBPyRelation
+        Deduplicated cohort with columns [id_name, start_dttm, end_dttm].
+    """
+    return duckdb.sql(f"""
+        FROM cohort_rel
+        SELECT DISTINCT {id_name}, start_dttm, end_dttm
+    """)
+
+
+# =============================================================================
 # Aggregation Queries (in-window only, no lookback)
 # =============================================================================
 
-def _agg_labs(cohort_rel: DuckDBPyRelation, labs_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _agg_labs(
+    cohort_rel: DuckDBPyRelation,
+    labs_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
+) -> DuckDBPyRelation:
     """
     Aggregate lab values within each scoring window.
 
-    Returns one row per (hospitalization_id, start_dttm) with:
+    Returns one row per (id_name, start_dttm) with:
 
     - platelet_count (MIN - worse when lower)
 
@@ -82,9 +212,11 @@ def _agg_labs(cohort_rel: DuckDBPyRelation, labs_rel: DuckDBPyRelation) -> DuckD
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     labs_rel : DuckDBPyRelation
         Labs table (CLIF labs)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
@@ -92,14 +224,14 @@ def _agg_labs(cohort_rel: DuckDBPyRelation, labs_rel: DuckDBPyRelation) -> DuckD
         Aggregated lab values per window with offset timestamps
     """
     # Offset = lab_collect_dttm - start_dttm (positive for in-window)
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM labs_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.lab_collect_dttm >= c.start_dttm
             AND t.lab_collect_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm  -- window identity
             -- MIN aggregations (worse = lower) with offsets
             , MIN(lab_value_numeric) FILTER(lab_category = 'platelet_count') AS platelet_count
@@ -122,71 +254,83 @@ def _agg_labs(cohort_rel: DuckDBPyRelation, labs_rel: DuckDBPyRelation) -> DuckD
             'platelet_count', 'creatinine', 'bilirubin_total', 'po2_arterial',
             'potassium', 'ph_arterial', 'ph_venous', 'bicarbonate'
         )
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
 
-def _agg_gcs(cohort_rel: DuckDBPyRelation, assessments_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _agg_gcs(
+    cohort_rel: DuckDBPyRelation,
+    assessments_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
+) -> DuckDBPyRelation:
     """
     Aggregate GCS (min) within each scoring window for brain subscore.
 
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     assessments_rel : DuckDBPyRelation
         Patient assessments table (CLIF patient_assessments)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, gcs_min]
+        Columns: [id_name, start_dttm, gcs_min]
     """
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM assessments_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm  -- window identity
             , MIN(numerical_value) AS gcs_min
         WHERE assessment_category = 'gcs_total'
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
 
-def _agg_map(cohort_rel: DuckDBPyRelation, vitals_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _agg_map(
+    cohort_rel: DuckDBPyRelation,
+    vitals_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
+) -> DuckDBPyRelation:
     """
     Aggregate MAP (min) within each scoring window for CV subscore.
 
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     vitals_rel : DuckDBPyRelation
         Vitals table (CLIF vitals)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, map_min, map_min_dttm_offset]
+        Columns: [id_name, start_dttm, map_min, map_min_dttm_offset]
         Offset is interval from start_dttm (always positive for in-window)
     """
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM vitals_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm  -- window identity
             , MIN(vital_value) AS map_min
             , ARG_MIN(t.recorded_dttm, vital_value) - c.start_dttm AS map_min_dttm_offset
         WHERE vital_category = 'map'
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
 
@@ -194,35 +338,41 @@ def _agg_map(cohort_rel: DuckDBPyRelation, vitals_rel: DuckDBPyRelation) -> Duck
 # Flag Queries
 # =============================================================================
 
-def _flag_rrt(cohort_rel: DuckDBPyRelation, crrt_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _flag_rrt(
+    cohort_rel: DuckDBPyRelation,
+    crrt_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
+) -> DuckDBPyRelation:
     """
     Detect RRT administration during each scoring window for kidney subscore.
 
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     crrt_rel : DuckDBPyRelation
         CRRT therapy table (CLIF crrt_therapy)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, has_rrt, rrt_dttm_offset]
+        Columns: [id_name, start_dttm, has_rrt, rrt_dttm_offset]
         Only includes rows where RRT was detected (has_rrt = 1)
     """
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM crrt_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , 1 AS has_rrt
             , MIN(t.recorded_dttm) - c.start_dttm AS rrt_dttm_offset
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
 
@@ -234,6 +384,7 @@ def _flag_delirium_drug(
     cohort_rel: DuckDBPyRelation,
     cont_meds_rel: DuckDBPyRelation,
     intm_meds_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation:
     """
     Detect delirium drug administration during each scoring window.
@@ -250,16 +401,18 @@ def _flag_delirium_drug(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
     intm_meds_rel : DuckDBPyRelation
         Intermittent medication administrations (CLIF medication_admin_intermittent)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, has_delirium_drug, delirium_drug_dttm_offset]
+        Columns: [id_name, start_dttm, has_delirium_drug, delirium_drug_dttm_offset]
         Only includes rows where delirium drug was detected (has_delirium_drug = 1).
         delirium_drug_dttm_offset = interval from start_dttm to earliest admin.
     """
@@ -277,18 +430,18 @@ def _flag_delirium_drug(
         cohort_meds AS (
             FROM cohort_rel c
             CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+            SELECT c.{id_name}, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
         ASOF LEFT JOIN cont_meds_rel t
-            ON cm.hospitalization_id = t.hospitalization_id
+            ON cm.{id_name} = t.{id_name}
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm
         SELECT
-            cm.hospitalization_id
+            cm.{id_name}
             , cm.start_dttm
             , t.admin_dttm
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND t.mar_action_category != 'stop'
             AND t.med_dose > 0
     """)
@@ -297,11 +450,11 @@ def _flag_delirium_drug(
     cont_in_window = duckdb.sql(f"""
         FROM cont_meds_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.admin_dttm
         WHERE t.med_category IN {cont_delirium_tuple}
@@ -313,11 +466,11 @@ def _flag_delirium_drug(
     intm_in_window = duckdb.sql(f"""
         FROM intm_meds_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.admin_dttm
         WHERE t.med_category IN {intm_delirium_tuple}
@@ -325,7 +478,7 @@ def _flag_delirium_drug(
             AND t.mar_action_category != 'not_given'
     """)
 
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM (
             FROM cont_pre_window SELECT *
             UNION ALL
@@ -334,16 +487,18 @@ def _flag_delirium_drug(
             FROM intm_in_window SELECT *
         )
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , 1 AS has_delirium_drug
             , MIN(admin_dttm) - start_dttm AS delirium_drug_dttm_offset
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
 
 def _flag_mechanical_cv_support(
-    cohort_rel: DuckDBPyRelation, ecmo_rel: DuckDBPyRelation
+    cohort_rel: DuckDBPyRelation,
+    ecmo_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation:
     """
     Detect mechanical cardiovascular support during each scoring window.
@@ -361,24 +516,26 @@ def _flag_mechanical_cv_support(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     ecmo_rel : DuckDBPyRelation
         ECMO/MCS table (CLIF ecmo_mcs)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, has_mechanical_cv_support, mechanical_cv_dttm_offset]
+        Columns: [id_name, start_dttm, has_mechanical_cv_support, mechanical_cv_dttm_offset]
         Only includes rows where mechanical CV support was detected (has_mechanical_cv_support = 1)
     """
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM ecmo_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.recorded_dttm >= c.start_dttm
             AND t.recorded_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , 1 AS has_mechanical_cv_support
             , MIN(t.recorded_dttm) - c.start_dttm AS mechanical_cv_dttm_offset
@@ -391,7 +548,7 @@ def _flag_mechanical_cv_support(
             OR t.mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')
             -- RV assist devices (footnote n)
             OR t.mcs_group = 'temporary_rvad'
-        GROUP BY t.hospitalization_id, c.start_dttm
+        GROUP BY t.{id_name}, c.start_dttm
     """)
 
 
@@ -420,6 +577,7 @@ def _find_earliest_sedation(
     cohort_rel: DuckDBPyRelation,
     cont_meds_rel: DuckDBPyRelation,
     intm_meds_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation:
     """
     DEPRECATED: Use _detect_sedation_episodes() instead. Retained for reference only.
@@ -438,16 +596,18 @@ def _find_earliest_sedation(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
     intm_meds_rel : DuckDBPyRelation
         Intermittent medication administrations (CLIF medication_admin_intermittent)
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, earliest_sedation_dttm]
+        Columns: [id_name, start_dttm, earliest_sedation_dttm]
         One row per window that has any sedation. Windows without sedation are absent.
     """
     sedation_drugs_list = SEDATION_DRUGS
@@ -461,19 +621,19 @@ def _find_earliest_sedation(
         cohort_meds AS (
             FROM cohort_rel c
             CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+            SELECT c.{id_name}, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
         ASOF LEFT JOIN cont_meds_rel t
-            ON cm.hospitalization_id = t.hospitalization_id
+            ON cm.{id_name} = t.{id_name}
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm
         SELECT
-            cm.hospitalization_id
+            cm.{id_name}
             , cm.start_dttm
             -- Actual pre-window admin time (negative offset from start_dttm)
             , t.admin_dttm AS sedation_dttm
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
             AND t.mar_action_category != 'stop'
             AND t.med_dose > 0
     """)
@@ -482,11 +642,11 @@ def _find_earliest_sedation(
     cont_in_window = duckdb.sql(f"""
         FROM cont_meds_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.admin_dttm AS sedation_dttm
         WHERE t.med_category IN {sedation_drugs_tuple}
@@ -497,11 +657,11 @@ def _find_earliest_sedation(
     intm_in_window = duckdb.sql(f"""
         FROM intm_meds_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.admin_dttm AS sedation_dttm
         WHERE t.med_category IN {sedation_drugs_tuple}
@@ -510,7 +670,7 @@ def _find_earliest_sedation(
     """)
 
     # UNION ALL → MIN per window
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         FROM (
             FROM cont_pre_window SELECT *
             UNION ALL
@@ -519,10 +679,10 @@ def _find_earliest_sedation(
             FROM intm_in_window SELECT *
         )
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , MIN(sedation_dttm) AS earliest_sedation_dttm
-        GROUP BY hospitalization_id, start_dttm
+        GROUP BY {id_name}, start_dttm
     """)
 
 
@@ -530,6 +690,7 @@ def _detect_sedation_episodes(
     cohort_rel: DuckDBPyRelation,
     cont_meds_rel: DuckDBPyRelation,
     post_sedation_gcs_invalidate_hours: float = 1.0,
+    id_name: str = 'hospitalization_id',
 ) -> DuckDBPyRelation:
     """
     Detect sedation episodes within each scoring window for brain subscore.
@@ -545,17 +706,19 @@ def _detect_sedation_episodes(
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm]
+        Cohort with columns [id_name, start_dttm, end_dttm]
     cont_meds_rel : DuckDBPyRelation
         Continuous medication administrations (CLIF medication_admin_continuous)
     post_sedation_gcs_invalidate_hours : float
         Hours after sedation episode ends where GCS measurements remain invalid.
         Default 1.0.
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
-        Columns: [hospitalization_id, start_dttm, sedation_start, sedation_end_extended]
+        Columns: [id_name, start_dttm, sedation_start, sedation_end_extended]
         One row per sedation episode per window.
         sedation_end_extended = episode_end + post_sedation_gcs_invalidate_hours
     """
@@ -574,32 +737,32 @@ def _detect_sedation_episodes(
         cohort_meds AS (
             FROM cohort_rel c
             CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+            SELECT c.{id_name}, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
         ASOF LEFT JOIN cont_meds_rel t
-            ON cm.hospitalization_id = t.hospitalization_id
+            ON cm.{id_name} = t.{id_name}
             AND cm.med_category = t.med_category
             AND cm.start_dttm > t.admin_dttm
         SELECT
-            cm.hospitalization_id
+            cm.{id_name}
             , cm.start_dttm
             , t.admin_dttm
             , cm.med_category
             , t.med_dose
             , t.mar_action_category
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
     """)
 
     # In-window: standard events during [start_dttm, end_dttm]
     sedation_in_window = duckdb.sql(f"""
         FROM cont_meds_rel t
         JOIN cohort_rel c ON
-            t.hospitalization_id = c.hospitalization_id
+            t.{id_name} = c.{id_name}
             AND t.admin_dttm >= c.start_dttm
             AND t.admin_dttm <= c.end_dttm
         SELECT
-            t.hospitalization_id
+            t.{id_name}
             , c.start_dttm
             , t.admin_dttm
             , t.med_category
@@ -617,21 +780,21 @@ def _detect_sedation_episodes(
         cohort_meds AS (
             FROM cohort_rel c
             CROSS JOIN med_cats m
-            SELECT c.hospitalization_id, c.start_dttm, c.end_dttm, m.med_category
+            SELECT c.{id_name}, c.start_dttm, c.end_dttm, m.med_category
         )
         FROM cohort_meds cm
         ASOF LEFT JOIN cont_meds_rel t
-            ON cm.hospitalization_id = t.hospitalization_id
+            ON cm.{id_name} = t.{id_name}
             AND cm.med_category = t.med_category
             AND cm.end_dttm >= t.admin_dttm
         SELECT
-            cm.hospitalization_id
+            cm.{id_name}
             , cm.start_dttm
             , cm.end_dttm AS admin_dttm  -- synthetic forward-fill at window boundary
             , cm.med_category
             , t.med_dose
             , t.mar_action_category
-        WHERE t.hospitalization_id IS NOT NULL
+        WHERE t.{id_name} IS NOT NULL
     """)
 
     # Combine all temporal slices
@@ -653,7 +816,7 @@ def _detect_sedation_episodes(
             FROM sedation_events
             SELECT *
             QUALIFY ROW_NUMBER() OVER (
-                PARTITION BY hospitalization_id, start_dttm, admin_dttm, med_category
+                PARTITION BY {id_name}, start_dttm, admin_dttm, med_category
                 ORDER BY
                     CASE WHEN mar_action_category IS NULL THEN 10
                         WHEN mar_action_category IN ('verify', 'not_given') THEN 9
@@ -669,18 +832,18 @@ def _detect_sedation_episodes(
             -- A patient is sedated if ANY sedation drug is actively infusing
             FROM deduped
             SELECT
-                hospitalization_id
+                {id_name}
                 , start_dttm
                 , admin_dttm
                 , MAX(CASE WHEN med_dose > 0 AND mar_action_category != 'stop' THEN 1 ELSE 0 END) AS is_sedated
-            GROUP BY hospitalization_id, start_dttm, admin_dttm
+            GROUP BY {id_name}, start_dttm, admin_dttm
         ),
         with_lag AS (
             FROM any_sedation
             SELECT
                 *
                 , LAG(is_sedated) OVER w AS prev_is_sedated
-            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY {id_name}, start_dttm ORDER BY admin_dttm)
         ),
         episode_groups AS (
             -- Detect episode transitions: is_sedated=1 AND prev_is_sedated=0
@@ -688,7 +851,7 @@ def _detect_sedation_episodes(
             SELECT
                 *
                 , SUM(CASE WHEN is_sedated = 1 AND COALESCE(prev_is_sedated, 0) = 0 THEN 1 ELSE 0 END) OVER w AS sedation_episode
-            WINDOW w AS (PARTITION BY hospitalization_id, start_dttm ORDER BY admin_dttm)
+            WINDOW w AS (PARTITION BY {id_name}, start_dttm ORDER BY admin_dttm)
         ),
         with_episode_bounds AS (
             FROM episode_groups
@@ -697,7 +860,7 @@ def _detect_sedation_episodes(
                 , FIRST_VALUE(admin_dttm) OVER episode_w AS episode_start
                 , LAST_VALUE(admin_dttm) OVER episode_w AS episode_end
             WINDOW episode_w AS (
-                PARTITION BY hospitalization_id, start_dttm, sedation_episode
+                PARTITION BY {id_name}, start_dttm, sedation_episode
                 ORDER BY admin_dttm
                 ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
             )
@@ -705,7 +868,7 @@ def _detect_sedation_episodes(
         -- Return distinct episodes with extended end time
         FROM with_episode_bounds
         SELECT DISTINCT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , episode_start AS sedation_start
             , episode_end AS sedation_end
@@ -718,7 +881,10 @@ def _detect_sedation_episodes(
 # Window Expansion
 # =============================================================================
 
-def _expand_to_daily_windows(cohort_rel: DuckDBPyRelation) -> DuckDBPyRelation:
+def _expand_to_daily_windows(
+    cohort_rel: DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
+) -> DuckDBPyRelation:
     """
     Expand arbitrary duration windows into complete 24-hour periods.
 
@@ -728,15 +894,17 @@ def _expand_to_daily_windows(cohort_rel: DuckDBPyRelation) -> DuckDBPyRelation:
     Parameters
     ----------
     cohort_rel : DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm].
+        Cohort with columns [id_name, start_dttm, end_dttm].
         Windows can be any duration >= 24 hours.
+    id_name : str
+        Identity column name. Default 'hospitalization_id'.
 
     Returns
     -------
     DuckDBPyRelation
         Expanded cohort with one row per complete 24-hour period:
 
-        - hospitalization_id
+        - id_name
 
         - start_dttm (start of the 24h period)
 
@@ -752,12 +920,12 @@ def _expand_to_daily_windows(cohort_rel: DuckDBPyRelation) -> DuckDBPyRelation:
 
     - Example: 47 hours → 1 row (nth_day=1); 49 hours → 2 rows (nth_day=1, 2)
     """
-    return duckdb.sql("""
+    return duckdb.sql(f"""
         WITH window_info AS (
             -- Calculate number of complete 24h periods per window
             FROM cohort_rel
             SELECT
-                hospitalization_id
+                {id_name}
                 , start_dttm AS original_start_dttm
                 , end_dttm
                 -- Number of complete 24h periods (floor division)
@@ -768,7 +936,7 @@ def _expand_to_daily_windows(cohort_rel: DuckDBPyRelation) -> DuckDBPyRelation:
             FROM window_info w
             -- UNNEST with generate_series creates rows [0, 1, 2, ..., num_complete_days - 1]
             SELECT
-                w.hospitalization_id
+                w.{id_name}
                 , w.original_start_dttm
                 , UNNEST(generate_series(0, w.num_complete_days - 1)) AS day_offset
             WHERE w.num_complete_days >= 1  -- Filter out windows < 24h
@@ -776,7 +944,7 @@ def _expand_to_daily_windows(cohort_rel: DuckDBPyRelation) -> DuckDBPyRelation:
         -- Calculate start/end for each 24h period
         FROM expanded
         SELECT
-            hospitalization_id
+            {id_name}
             , original_start_dttm + (day_offset * INTERVAL '24 hours') AS start_dttm
             , original_start_dttm + ((day_offset + 1) * INTERVAL '24 hours') AS end_dttm
             , (day_offset + 1)::INTEGER AS nth_day  -- 1-indexed

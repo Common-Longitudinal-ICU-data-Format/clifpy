@@ -11,7 +11,14 @@ import pandas as pd
 import duckdb
 from duckdb import DuckDBPyRelation
 
-from ._utils import SOFA2Config, _expand_to_daily_windows
+from ._utils import (
+    SOFA2Config,
+    _expand_to_daily_windows,
+    _validate_id_name,
+    _extract_id_mapping,
+    _remap_clif_rel,
+    _dedup_cohort,
+)
 from ._brain import _calculate_brain_subscore
 from ._resp import _calculate_resp_subscore
 from ._cv import _calculate_cv_subscore
@@ -116,6 +123,8 @@ def calculate_sofa2(
     *,
     sofa2_config: SOFA2Config | None = None,
     perf_profile: bool = False,
+    id_name: str = 'hospitalization_id',
+    id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
 ) -> pd.DataFrame | DuckDBPyRelation | tuple:
     """
     Calculate SOFA-2 scores for a cohort with time windows.
@@ -123,8 +132,10 @@ def calculate_sofa2(
     Parameters
     ----------
     cohort_df : pd.DataFrame | DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm].
-        One row per scoring window. Note that windows for the same hospitalization_id must be non-overlapping.
+        Cohort with columns [id_name, start_dttm, end_dttm].
+        One row per scoring window. Windows for the same id_name must be non-overlapping.
+        When id_name != 'hospitalization_id' and id_mapping is not provided,
+        cohort must also contain 'hospitalization_id' for CLIF table remapping.
     clif_config_path : str, optional
         Path to CLIF config file for data loading.
     return_rel : bool, default False
@@ -135,12 +146,20 @@ def calculate_sofa2(
     sofa2_config : SOFA2Config, optional
         Configuration object with calculation parameters.
         If None, uses default values.
+    id_name : str, default 'hospitalization_id'
+        Identity column name. Use 'encounter_block' for stitched encounters
+        or any alternative grouping column present in the cohort.
+    id_mapping : pd.DataFrame | DuckDBPyRelation, optional
+        Mapping from hospitalization_id to id_name (e.g. encounter_mapping
+        from stitch_encounters()). Columns: [hospitalization_id, {id_name}].
+        If provided, used directly for CLIF table remapping (skips internal
+        extraction). If omitted, extracted from cohort via SELECT DISTINCT.
 
     Returns
     -------
     pd.DataFrame | DuckDBPyRelation | tuple
         If dev=False: DataFrame or relation with columns:
-            - hospitalization_id, start_dttm, end_dttm (from input)
+            - {id_name}, start_dttm, end_dttm (from input)
             - sofa2_total (sum of subscores, 0-24)
             - sofa2_brain, sofa2_resp, sofa2_cv, sofa2_liver, sofa2_kidney, sofa2_hemo
             - Brain: gcs_min, gcs_type, gcs_min_dttm_offset, has_sedation,
@@ -176,6 +195,17 @@ def calculate_sofa2(
         cohort_rel = cohort_df
 
     # =========================================================================
+    # ID remapping (when id_name != 'hospitalization_id')
+    # =========================================================================
+    if id_name != 'hospitalization_id':
+        _validate_id_name(cohort_rel, id_name, id_mapping_provided=id_mapping is not None)
+        if id_mapping is None:
+            logger.info(f"Extracting hospitalization_id → {id_name} mapping from cohort...")
+            id_mapping = _extract_id_mapping(cohort_rel, id_name)
+        logger.info(f"Deduplicating cohort to ({id_name}, start_dttm, end_dttm)...")
+        cohort_rel = _dedup_cohort(cohort_rel, id_name).df()
+
+    # =========================================================================
     # Load CLIF tables
     # =========================================================================
     with timer.step("load_tables"):
@@ -189,6 +219,18 @@ def calculate_sofa2(
         ecmo_rel = _load_ecmo_optional(clif_config_path)
         intm_meds_rel = _load_intm_meds_optional(clif_config_path)
 
+    # Remap CLIF tables when using alternative ID
+    if id_mapping is not None:
+        logger.info(f"Remapping CLIF tables: hospitalization_id → {id_name}...")
+        labs_rel = _remap_clif_rel(labs_rel, id_name, id_mapping)
+        crrt_rel = _remap_clif_rel(crrt_rel, id_name, id_mapping)
+        assessments_rel = _remap_clif_rel(assessments_rel, id_name, id_mapping)
+        vitals_rel = _remap_clif_rel(vitals_rel, id_name, id_mapping)
+        cont_meds_rel = _remap_clif_rel(cont_meds_rel, id_name, id_mapping)
+        resp_rel = _remap_clif_rel(resp_rel, id_name, id_mapping)
+        ecmo_rel = _remap_clif_rel(ecmo_rel, id_name, id_mapping)
+        intm_meds_rel = _remap_clif_rel(intm_meds_rel, id_name, id_mapping)
+
     # =========================================================================
     # Calculate subscores
     # =========================================================================
@@ -199,13 +241,15 @@ def calculate_sofa2(
     with timer.step("brain"):
         if dev:
             brain_score, brain_intermediates = _calculate_brain_subscore(
-                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg, dev=True
+                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg,
+                dev=True, id_name=id_name,
             )
             intermediates.update({f'brain_{k}': v for k, v in brain_intermediates.items()})
             intermediates['brain_score'] = brain_score
         else:
             brain_score = _calculate_brain_subscore(
-                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg
+                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg,
+                id_name=id_name,
             )
         brain_score = _materialize_subscore("brain", brain_score)
 
@@ -213,13 +257,15 @@ def calculate_sofa2(
     with timer.step("resp"):
         if dev:
             resp_score, resp_intermediates = _calculate_resp_subscore(
-                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg, dev=True
+                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg,
+                dev=True, id_name=id_name,
             )
             intermediates.update({f'resp_{k}': v for k, v in resp_intermediates.items()})
             intermediates['resp_score'] = resp_score
         else:
             resp_score = _calculate_resp_subscore(
-                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg
+                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg,
+                id_name=id_name,
             )
         resp_score = _materialize_subscore("resp", resp_score)
 
@@ -227,15 +273,15 @@ def calculate_sofa2(
     with timer.step("cv"):
         if dev:
             cv_score, cv_intermediates = _calculate_cv_subscore(
-                cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg, dev=True,
-                _timer=cv_timer,
+                cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg,
+                dev=True, id_name=id_name, _timer=cv_timer,
             )
             intermediates.update({f'cv_{k}': v for k, v in cv_intermediates.items()})
             intermediates['cv_score'] = cv_score
         else:
             cv_score = _calculate_cv_subscore(
                 cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg,
-                _timer=cv_timer,
+                id_name=id_name, _timer=cv_timer,
             )
         cv_score = _materialize_subscore("cv", cv_score)
         # CV intermediates no longer referenced — free DuckDB memory
@@ -246,36 +292,42 @@ def calculate_sofa2(
     with timer.step("liver"):
         if dev:
             liver_score, liver_intermediates = _calculate_liver_subscore(
-                cohort_rel, labs_rel, cfg, dev=True
+                cohort_rel, labs_rel, cfg, dev=True, id_name=id_name,
             )
             intermediates.update({f'liver_{k}': v for k, v in liver_intermediates.items()})
             intermediates['liver_score'] = liver_score
         else:
-            liver_score = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
+            liver_score = _calculate_liver_subscore(
+                cohort_rel, labs_rel, cfg, id_name=id_name,
+            )
         liver_score = _materialize_subscore("liver", liver_score)
 
     # Kidney subscore
     with timer.step("kidney"):
         if dev:
             kidney_score, kidney_intermediates = _calculate_kidney_subscore(
-                cohort_rel, labs_rel, crrt_rel, cfg, dev=True
+                cohort_rel, labs_rel, crrt_rel, cfg, dev=True, id_name=id_name,
             )
             intermediates.update({f'kidney_{k}': v for k, v in kidney_intermediates.items()})
             intermediates['kidney_score'] = kidney_score
         else:
-            kidney_score = _calculate_kidney_subscore(cohort_rel, labs_rel, crrt_rel, cfg)
+            kidney_score = _calculate_kidney_subscore(
+                cohort_rel, labs_rel, crrt_rel, cfg, id_name=id_name,
+            )
         kidney_score = _materialize_subscore("kidney", kidney_score)
 
     # Hemostasis subscore
     with timer.step("hemo"):
         if dev:
             hemo_score, hemo_intermediates = _calculate_hemo_subscore(
-                cohort_rel, labs_rel, cfg, dev=True
+                cohort_rel, labs_rel, cfg, dev=True, id_name=id_name,
             )
             intermediates.update({f'hemo_{k}': v for k, v in hemo_intermediates.items()})
             intermediates['hemo_score'] = hemo_score
         else:
-            hemo_score = _calculate_hemo_subscore(cohort_rel, labs_rel, cfg)
+            hemo_score = _calculate_hemo_subscore(
+                cohort_rel, labs_rel, cfg, id_name=id_name,
+            )
         hemo_score = _materialize_subscore("hemo", hemo_score)
 
     # =========================================================================
@@ -283,16 +335,16 @@ def calculate_sofa2(
     # =========================================================================
     with timer.step("assembly"):
         logger.info("Combining subscores into final SOFA-2 total (0-24 scale)...")
-        sofa_scores = duckdb.sql("""
+        sofa_scores = duckdb.sql(f"""
             FROM cohort_rel c
-            LEFT JOIN hemo_score h USING (hospitalization_id, start_dttm)
-            LEFT JOIN liver_score li USING (hospitalization_id, start_dttm)
-            LEFT JOIN kidney_score k USING (hospitalization_id, start_dttm)
-            LEFT JOIN brain_score b USING (hospitalization_id, start_dttm)
-            LEFT JOIN cv_score cv USING (hospitalization_id, start_dttm)
-            LEFT JOIN resp_score resp USING (hospitalization_id, start_dttm)
+            LEFT JOIN hemo_score h USING ({id_name}, start_dttm)
+            LEFT JOIN liver_score li USING ({id_name}, start_dttm)
+            LEFT JOIN kidney_score k USING ({id_name}, start_dttm)
+            LEFT JOIN brain_score b USING ({id_name}, start_dttm)
+            LEFT JOIN cv_score cv USING ({id_name}, start_dttm)
+            LEFT JOIN resp_score resp USING ({id_name}, start_dttm)
             SELECT
-                c.hospitalization_id
+                c.{id_name}
                 , c.start_dttm
                 , c.end_dttm
                 -- SOFA-2 total and subscores
@@ -391,6 +443,8 @@ def calculate_sofa2_daily(
     *,
     sofa2_config: SOFA2Config | None = None,
     perf_profile: bool = False,
+    id_name: str = 'hospitalization_id',
+    id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
 ) -> pd.DataFrame | DuckDBPyRelation:
     """
     Calculate daily SOFA-2 scores with carry-forward for missing data.
@@ -408,21 +462,28 @@ def calculate_sofa2_daily(
     Parameters
     ----------
     cohort_df : pd.DataFrame | DuckDBPyRelation
-        Cohort with columns [hospitalization_id, start_dttm, end_dttm].
+        Cohort with columns [id_name, start_dttm, end_dttm].
         Windows can be any duration >= 24 hours; will be broken into
         complete 24-hour chunks (partial days dropped).
-    config_path : str, optional
+        When id_name != 'hospitalization_id' and id_mapping is not provided,
+        cohort must also contain 'hospitalization_id' for CLIF table remapping.
+    clif_config_path : str, optional
         Path to CLIF config file for data loading.
     return_rel : bool, default False
         If True, return DuckDB relation for lazy evaluation.
     sofa2_config : SOFA2Config, optional
         Configuration object with calculation parameters.
+    id_name : str, default 'hospitalization_id'
+        Identity column name. Use 'encounter_block' for stitched encounters
+        or any alternative grouping column present in the cohort.
+    id_mapping : pd.DataFrame | DuckDBPyRelation, optional
+        Mapping from hospitalization_id to id_name. See calculate_sofa2().
 
     Returns
     -------
     pd.DataFrame | DuckDBPyRelation
         Same columns as calculate_sofa2 output, plus nth_day.
-        Column order: hospitalization_id, start_dttm, end_dttm, nth_day,
+        Column order: {id_name}, start_dttm, end_dttm, nth_day,
         sofa2_total, sofa2_brain, sofa2_resp, sofa2_cv, sofa2_liver,
         sofa2_kidney, sofa2_hemo, then all scoring variables.
         Subscores are carried forward; scoring variables are raw per-window.
@@ -444,13 +505,22 @@ def calculate_sofa2_daily(
     else:
         cohort_rel = cohort_df
 
+    # Extract ID mapping before expansion (when using alternative ID)
+    if id_name != 'hospitalization_id':
+        _validate_id_name(cohort_rel, id_name, id_mapping_provided=id_mapping is not None)
+        if id_mapping is None:
+            logger.info(f"Extracting hospitalization_id → {id_name} mapping from cohort...")
+            id_mapping = _extract_id_mapping(cohort_rel, id_name)
+        logger.info(f"Deduplicating cohort to ({id_name}, start_dttm, end_dttm)...")
+        cohort_rel = _dedup_cohort(cohort_rel, id_name).df()
+
     # Step 1: Expand arbitrary windows to complete 24h periods
     with timer.step("expand_windows"):
         logger.info("Expanding windows to 24h periods...")
         # Materialize expansion to DataFrame so calculate_sofa2() gets
         # concrete cardinality — prevents DuckDB optimizer from choking on
         # deeply nested lazy subqueries (observed 5x slowdown without this).
-        expanded_cohort = _expand_to_daily_windows(cohort_rel).df()
+        expanded_cohort = _expand_to_daily_windows(cohort_rel, id_name=id_name).df()
         logger.info(f"Expanded cohort: {len(expanded_cohort)} rows (from input cohort)")
 
     # Step 2: Calculate raw scores for each 24h window
@@ -463,6 +533,8 @@ def calculate_sofa2_daily(
                 dev=False,
                 sofa2_config=sofa2_config,
                 perf_profile=True,
+                id_name=id_name,
+                id_mapping=id_mapping,
             )
             raw_scores = raw_result
         else:
@@ -472,16 +544,18 @@ def calculate_sofa2_daily(
                 return_rel=False,
                 dev=False,
                 sofa2_config=sofa2_config,
+                id_name=id_name,
+                id_mapping=id_mapping,
             )
     logger.info(f"Raw scores: {len(raw_scores)} rows")
 
     # Step 3: Join back to get nth_day and apply carry-forward logic
     logger.info("Applying carry-forward logic...")
-    filled_scores = duckdb.sql("""
+    filled_scores = duckdb.sql(f"""
         WITH with_nth_day AS (
             -- Join raw scores with expanded cohort to get nth_day
             FROM raw_scores r
-            LEFT JOIN expanded_cohort e USING (hospitalization_id, start_dttm)
+            LEFT JOIN expanded_cohort e USING ({id_name}, start_dttm)
             SELECT
                 r.*
                 , e.nth_day
@@ -510,7 +584,7 @@ def calculate_sofa2_daily(
                        ELSE COALESCE(sofa2_hemo, LAST_VALUE(sofa2_hemo IGNORE NULLS) OVER w)
                   END AS sofa2_hemo_filled
             WINDOW w AS (
-                PARTITION BY hospitalization_id
+                PARTITION BY {id_name}
                 ORDER BY start_dttm
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             )
@@ -518,7 +592,7 @@ def calculate_sofa2_daily(
         -- Fill day 1 NULLs with 0, recalculate total from carried-forward subscores
         FROM with_carryforward
         SELECT
-            hospitalization_id
+            {id_name}
             , start_dttm
             , end_dttm
             , nth_day
