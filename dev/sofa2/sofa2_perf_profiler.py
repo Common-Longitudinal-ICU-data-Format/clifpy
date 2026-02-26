@@ -9,6 +9,8 @@ Usage:
     python sofa2_perf_profiler.py -n 100 1000 5000 --mode daily    # Custom scaling, daily
     python sofa2_perf_profiler.py --site-test --site ucmc          # Full site profiling (both modes)
     python sofa2_perf_profiler.py -n max --site ucmc --mode daily  # Max stress test, daily
+    python sofa2_perf_profiler.py -n 100 --stitch                  # Stitched encounters (default 6h)
+    python sofa2_perf_profiler.py -n 100 --stitch 12               # Stitched with 12h window
 
 Requires CLIF config at config/config.yaml (or pass --config).
 """
@@ -255,6 +257,65 @@ def build_cohort_for_daily(
     return cohort
 
 
+def build_cohort_stitched(
+    n: int,
+    config_path: str,
+    time_interval: int = 6,
+    daily: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build cohort using encounter_block from stitch_encounters().
+
+    Loads hospitalization and ADT tables, runs encounter stitching, and builds
+    a SOFA-2 cohort keyed by encounter_block with LIMIT n.
+
+    Returns (cohort_df, encounter_mapping).
+    """
+    import duckdb
+    from clifpy import load_data
+    from clifpy.utils.stitching_encounters import stitch_encounters
+
+    hospitalization = load_data('hospitalization', config_path=config_path)
+    adt_data = load_data('adt', config_path=config_path)
+    hosp_stitched, adt_stitched, encounter_mapping = stitch_encounters(
+        hospitalization, adt_data, time_interval=time_interval,
+    )
+
+    # Log stitching impact stats
+    total_hosp = len(encounter_mapping)
+    total_encounters = encounter_mapping['encounter_block'].nunique()
+    stitched_groups = encounter_mapping.groupby('encounter_block').size()
+    multi_hosp = (stitched_groups > 1).sum()
+    hosp_in_multi = stitched_groups[stitched_groups > 1].sum()
+    print(f"  Stitching stats (time_interval={time_interval}h):")
+    print(f"    {total_hosp} hospitalizations -> {total_encounters} encounter_blocks")
+    print(f"    {multi_hosp} blocks have >1 hospitalization ({hosp_in_multi} hosp_ids remapped)")
+
+    if daily:
+        cohort = duckdb.sql(f"""
+            FROM adt_stitched
+            SELECT
+                encounter_block
+                , MIN(in_dttm) AS start_dttm
+                , MAX(out_dttm) AS end_dttm
+            WHERE location_category = 'icu'
+            GROUP BY encounter_block
+            LIMIT {n}
+        """).df()
+    else:
+        # Each ICU ADT row = one scoring window; capped at 24h
+        cohort = duckdb.sql(f"""
+            FROM adt_stitched
+            SELECT
+                encounter_block
+                , in_dttm AS start_dttm
+                , LEAST(out_dttm, in_dttm + INTERVAL '24 hours') AS end_dttm
+            WHERE location_category = 'icu'
+            LIMIT {n}
+        """).df()
+
+    return cohort, encounter_mapping
+
+
 # ---------------------------------------------------------------------------
 # Profiling
 # ---------------------------------------------------------------------------
@@ -265,6 +326,7 @@ def profile_single(
     num_iterations: int = 1,
     daily: bool = False,
     cohort_csv: str | None = None,
+    stitch_interval: int | None = None,
 ) -> dict:
     """Run SOFA-2 profiler for a single cohort size.
 
@@ -272,7 +334,17 @@ def profile_single(
     """
     from clifpy.utils.sofa2 import calculate_sofa2, calculate_sofa2_daily
 
-    if cohort_csv is not None:
+    # Build cohort (stitched, external CSV, or default ADT-limit)
+    encounter_mapping = None
+    if stitch_interval is not None:
+        cohort_df, encounter_mapping = build_cohort_stitched(
+            n, config_path, time_interval=stitch_interval, daily=daily,
+        )
+        if daily:
+            print(f"  Cohort: {len(cohort_df)} encounter_blocks (ADT LIMIT {n})")
+        else:
+            print(f"  Cohort: {len(cohort_df)} ICU stays as encounter_blocks (ADT LIMIT {n})")
+    elif cohort_csv is not None:
         hosp_ids = load_hospitalization_ids(cohort_csv, n=n)
         if daily:
             cohort_df = build_cohort_for_daily(hosp_ids, config_path)
@@ -289,6 +361,12 @@ def profile_single(
 
     actual_n = len(cohort_df)
 
+    # Build SOFA-2 kwargs (add id_name/id_mapping when stitching)
+    sofa_kwargs = {'clif_config_path': config_path, 'perf_profile': True}
+    if stitch_interval is not None:
+        sofa_kwargs['id_name'] = 'encounter_block'
+        sofa_kwargs['id_mapping'] = encounter_mapping
+
     times = []
     memory_peaks = []
     subscore_timers = []
@@ -302,17 +380,13 @@ def profile_single(
             start = time.perf_counter()
             if daily:
                 result, outer_timer, inner_timer, inner_cv_timer = calculate_sofa2_daily(
-                    cohort_df,
-                    clif_config_path=config_path,
-                    perf_profile=True,
+                    cohort_df, **sofa_kwargs,
                 )
                 subscore_timers.append(inner_timer)
                 cv_timers.append(inner_cv_timer)
             else:
                 result, subscore_timer, cv_timer = calculate_sofa2(
-                    cohort_df,
-                    clif_config_path=config_path,
-                    perf_profile=True,
+                    cohort_df, **sofa_kwargs,
                 )
                 subscore_timers.append(subscore_timer)
                 cv_timers.append(cv_timer)
@@ -404,6 +478,7 @@ def run_scaling_test(
     daily: bool = False,
     cohort_csv: str | None = None,
     step_timeout_mins: float = 0,
+    stitch_interval: int | None = None,
 ) -> list[dict]:
     """Run progressive scaling test.
 
@@ -423,6 +498,7 @@ def run_scaling_test(
                 n, config_path,
                 num_iterations=num_iterations, daily=daily,
                 cohort_csv=cohort_csv,
+                stitch_interval=stitch_interval,
             )
         except Exception as exc:
             print(f"\n  ERROR at n={n}: {type(exc).__name__}: {exc}")
@@ -487,6 +563,10 @@ def main():
     parser.add_argument('--iters', type=int, default=1, help='Iterations per cohort size (default: 1)')
     parser.add_argument('--config', type=str, default=None, help='Path to CLIF config.yaml')
     parser.add_argument('--cohort-csv', type=str, default=None, help='Path to external CSV with hospitalization_ids')
+    parser.add_argument(
+        '--stitch', nargs='?', type=int, const=6, default=None, metavar='HOURS',
+        help='Use encounter_block via stitch_encounters(time_interval=HOURS). Default: 6 hours',
+    )
     args = parser.parse_args()
 
     config_path = args.config or str(PROJECT_ROOT / "config" / "config.yaml")
@@ -538,6 +618,8 @@ def main():
         print(f"Config: {config_path}")
         if needs_auto_detect:
             print(f"Detected {max_map.get('generic', '?')} ICU stays ({max_map.get('daily', '?')} unique hospitalizations) in ADT")
+        if args.stitch is not None:
+            print(f"Identity: encounter_block (stitch_encounters, time_interval={args.stitch}h)")
         if args.max:
             print(f"Max override: {args.max}")
         for m in modes:
@@ -557,6 +639,7 @@ def main():
                     num_iterations=args.iters, daily=is_daily,
                     cohort_csv=args.cohort_csv,
                     step_timeout_mins=step_timeout,
+                    stitch_interval=args.stitch,
                 )
                 _print_scaling_summary(results, title=f"{m.capitalize()} Summary")
             else:
@@ -566,6 +649,7 @@ def main():
                         sizes[0], config_path,
                         num_iterations=args.iters, daily=is_daily,
                         cohort_csv=args.cohort_csv,
+                        stitch_interval=args.stitch,
                     )
                     print_breakdown(results)
 
