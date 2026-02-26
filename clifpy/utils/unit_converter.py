@@ -664,13 +664,14 @@ def _create_unit_conversion_counts_table(
 
 def find_most_recent_weight(
     med_df: pd.DataFrame | duckdb.DuckDBPyRelation,
-    vitals_df: pd.DataFrame | duckdb.DuckDBPyRelation
+    vitals_df: pd.DataFrame | duckdb.DuckDBPyRelation,
+    id_name: str = 'hospitalization_id',
     ) -> duckdb.DuckDBPyRelation:
     """Find the most recent weight for each medication administration."""
     logger.info("Finding most recent weights...")
-    q = """
+    q = f"""
     with weights as (
-        SELECT hospitalization_id, recorded_dttm, vital_value
+        SELECT {id_name}, recorded_dttm, vital_value
         FROM vitals_df
         WHERE vital_category = 'weight_kg' AND vital_value IS NOT NULL
     )
@@ -679,9 +680,9 @@ def find_most_recent_weight(
         , v.recorded_dttm as _weight_recorded_dttm
     FROM med_df m
     ASOF LEFT JOIN weights v
-        ON m.hospitalization_id = v.hospitalization_id
+        ON m.{id_name} = v.{id_name}
         AND v.recorded_dttm <= m.admin_dttm
-    ORDER BY m.hospitalization_id, m.admin_dttm, m.med_category
+    ORDER BY m.{id_name}, m.admin_dttm, m.med_category
     """
     result = duckdb.sql(q)
     logger.info("Weight lookup complete")
@@ -690,7 +691,8 @@ def find_most_recent_weight(
 def standardize_dose_to_base_units(
     med_df: pd.DataFrame,
     vitals_df: pd.DataFrame = None,
-    show_intermediate: bool = False
+    show_intermediate: bool = False,
+    id_name: str = 'hospitalization_id',
 ) -> Tuple[duckdb.DuckDBPyRelation, duckdb.DuckDBPyRelation]:
     """Standardize medication dose units to a base set of standard units.
 
@@ -781,7 +783,7 @@ def standardize_dose_to_base_units(
 
     if 'weight_kg' not in med_df.columns:
         logger.debug("Pulling weight from vitals table (no weight_kg column in med_df)")
-        med_df = find_most_recent_weight(med_df, vitals_df)#.to_df()
+        med_df = find_most_recent_weight(med_df, vitals_df, id_name=id_name)#.to_df()
 
     # check if the required columns are present
     required_columns = {'med_dose_unit', 'med_dose', 'weight_kg'}
@@ -1047,7 +1049,8 @@ def convert_dose_units_by_med_category(
     preferred_units: dict = ...,
     show_intermediate: bool = ...,
     override: bool = ...,
-    return_rel: Literal[False] = ...
+    return_rel: Literal[False] = ...,
+    id_name: str = ...,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]: ...
 
 @overload
@@ -1057,7 +1060,8 @@ def convert_dose_units_by_med_category(
     preferred_units: dict = ...,
     show_intermediate: bool = ...,
     override: bool = ...,
-    return_rel: Literal[True] = ...
+    return_rel: Literal[True] = ...,
+    id_name: str = ...,
 ) -> Tuple[DuckDBPyRelation, DuckDBPyRelation]: ...
 
 def convert_dose_units_by_med_category(
@@ -1066,7 +1070,8 @@ def convert_dose_units_by_med_category(
     preferred_units: dict = None,
     show_intermediate: bool = False,
     override: bool = False,
-    return_rel: bool = False
+    return_rel: bool = False,
+    id_name: str = 'hospitalization_id',
 ) -> Union[Tuple[pd.DataFrame, pd.DataFrame], Tuple[DuckDBPyRelation, DuckDBPyRelation]]:
     """Convert medication dose units to user-defined preferred units for each med_category.
 
@@ -1186,7 +1191,7 @@ def convert_dose_units_by_med_category(
             raise ValueError(error_msg)
 
     try:
-        med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df, show_intermediate=show_intermediate)
+        med_df_base, _ = standardize_dose_to_base_units(med_df, vitals_df, show_intermediate=show_intermediate, id_name=id_name)
     except ValueError as e:
         raise ValueError(f"Error standardizing dose units to base units: {e}")
 
