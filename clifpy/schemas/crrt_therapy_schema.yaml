@@ -40,6 +40,7 @@ columns:
 - name: blood_flow_rate
   data_type: FLOAT
   required: true
+  allow_missing: true
   is_category_column: false
   is_group_column: false
 - name: pre_filter_replacement_fluid_rate
@@ -60,6 +61,7 @@ columns:
 - name: ultrafiltration_out
   data_type: FLOAT
   required: true
+  allow_missing: true
   is_category_column: false
   is_group_column: false
 

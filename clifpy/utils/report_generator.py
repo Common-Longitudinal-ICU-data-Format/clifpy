@@ -28,8 +28,10 @@ class YearlySparkBar(Flowable):
         self.width = width
         self.height = height
 
+    _LABEL_HEIGHT = 8  # space reserved for year tick labels
+
     def wrap(self, availWidth, availHeight):
-        return self.width, self.height
+        return self.width, self.height + self._LABEL_HEIGHT
 
     def draw(self):
         if not self.yearly_counts:
@@ -43,6 +45,7 @@ class YearlySparkBar(Flowable):
         bar_w = max(1, (self.width - gap * (n - 1)) / n)
         present_color = colors.HexColor('#4A90D9')
         absent_color = colors.HexColor('#E74C3C')
+        label_offset = self._LABEL_HEIGHT  # bars drawn above label area
         for i, year in enumerate(years):
             count = self.yearly_counts[year]
             x = i * (bar_w + gap)
@@ -52,7 +55,15 @@ class YearlySparkBar(Flowable):
             else:
                 bar_h = self.height  # full height red bar for absent
                 self.canv.setFillColor(absent_color)
-            self.canv.rect(x, 0, bar_w, bar_h, stroke=0, fill=1)
+            self.canv.rect(x, label_offset, bar_w, bar_h, stroke=0, fill=1)
+        # Draw year tick labels for first and last bars
+        self.canv.setFillColor(colors.HexColor('#666666'))
+        self.canv.setFont('Helvetica', 5.5)
+        first_x = 0
+        self.canv.drawString(first_x, 0, str(years[0]))
+        if n > 1:
+            last_x = (n - 1) * (bar_w + gap)
+            self.canv.drawString(last_x, 0, str(years[-1]))
 
 DQA_CATEGORIES = ('conformance', 'completeness', 'plausibility')
 
@@ -114,6 +125,51 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
             category_scores[category] = (cat_passed, len(cat_issues))
 
     return category_scores, all_issues
+
+
+def compute_table_stats(df, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Compute per-column descriptive stats for schema-defined columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame or None
+        The table's DataFrame.
+    schema : dict or None
+        The table schema with a ``columns`` list.
+
+    Returns
+    -------
+    list[dict]
+        One dict per column with keys: column, dtype, null_count,
+        null_pct, unique.  Empty list when inputs are missing/empty.
+    """
+    if df is None or schema is None:
+        return []
+    try:
+        n_rows = len(df)
+    except Exception:
+        return []
+    if n_rows == 0:
+        return []
+
+    schema_cols = [c['name'] for c in schema.get('columns', [])]
+    stats: List[Dict[str, Any]] = []
+    for col_def in schema.get('columns', []):
+        col_name = col_def['name']
+        if col_name not in df.columns:
+            continue
+        series = df[col_name]
+        null_count = int(series.isna().sum())
+        null_pct = round(null_count / n_rows * 100, 1) if n_rows else 0.0
+        unique = int(series.nunique(dropna=True))
+        stats.append({
+            'column': col_name,
+            'dtype': col_def.get('data_type', str(series.dtype)),
+            'null_count': null_count,
+            'null_pct': null_pct,
+            'unique': unique,
+        })
+    return stats
 
 
 def generate_validation_pdf(validation_data: Dict[str, Any],
@@ -248,6 +304,57 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
     story.append(summary_tbl)
     story.append(Spacer(1, 0.3 * inch))
 
+    # --- Data Profile Table ---
+    table_stats = validation_data.get('table_stats', [])
+    if table_stats:
+        story.append(Paragraph("Data Profile", heading_style))
+        total_rows = validation_data.get('total_rows', 0)
+        profile_subtitle = ParagraphStyle(
+            'ProfileSubtitle', parent=styles['Normal'],
+            fontSize=9, textColor=text_medium, fontName='Helvetica',
+        )
+        story.append(Paragraph(f"Total Rows: {total_rows:,}", profile_subtitle))
+        story.append(Spacer(1, 0.1 * inch))
+
+        profile_header = ['Column', 'Dtype', 'Null', 'Null%', 'Unique']
+        profile_rows = [profile_header]
+        for s in table_stats:
+            profile_rows.append([
+                s['column'], s['dtype'],
+                f"{s['null_count']:,}",
+                f"{s['null_pct']:.1f}%", f"{s['unique']:,}",
+            ])
+
+        profile_col_widths = [2.0 * inch, 1.2 * inch,
+                              0.8 * inch, 0.8 * inch, 0.8 * inch]
+        profile_tbl = Table(profile_rows, colWidths=profile_col_widths)
+
+        profile_style = [
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+            ('TEXTCOLOR', (0, 0), (-1, -1), text_dark),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DADADA')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            # Right-align numeric columns (Non-Null, Null, Null%, Unique)
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ]
+        # Color-code Null% cells
+        amber_bg = colors.HexColor('#FFF3E0')
+        red_light_bg = colors.HexColor('#FFEAEA')
+        for row_idx, s in enumerate(table_stats, 1):
+            if s['null_pct'] > 50:
+                profile_style.append(('BACKGROUND', (3, row_idx), (3, row_idx), red_light_bg))
+            elif s['null_pct'] > 10:
+                profile_style.append(('BACKGROUND', (3, row_idx), (3, row_idx), amber_bg))
+
+        profile_tbl.setStyle(TableStyle(profile_style))
+        story.append(profile_tbl)
+        story.append(Spacer(1, 0.3 * inch))
+
     # --- Per-category issue details as structured tables ---
     if all_issues:
         story.append(PageBreak())
@@ -324,6 +431,27 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
 
             detail_tbl.setStyle(TableStyle(detail_style))
             story.append(detail_tbl)
+
+            # Add note about monthly trend CSVs for temporal consistency checks
+            temporal_cols = sorted({
+                i['column_field'] for i in cat_issues
+                if i.get('check_type') == 'category_temporal_consistency'
+                and i.get('column_field')
+            })
+            if temporal_cols:
+                file_list = ", ".join(
+                    f"{table_name}_{col}_monthly.csv" for col in temporal_cols
+                )
+                note_text = (
+                    f"<i>P.6 Category temporal consistency — monthly breakdown available at: "
+                    f"clifpy/monthly_trends/ ({file_list})</i>"
+                )
+                note_style = ParagraphStyle(
+                    'NoteStyle', parent=styles['Normal'],
+                    fontSize=7, textColor=colors.HexColor('#555555'),
+                )
+                story.append(Paragraph(note_text, note_style))
+
             story.append(Spacer(1, 0.2 * inch))
     else:
         story.append(Paragraph("No validation issues found!", styles['Normal']))
@@ -373,6 +501,36 @@ def generate_text_report(validation_data: Dict[str, Any],
         lines.append(f"  {category.title():20s}  {passed:>6d}  {total:>5d}  {cat_errors:>6d}  {cat_warnings:>8d}")
     lines.append(f"  {'Overall':20s}  {total_passed:>6d}  {total_checks:>5d}  {error_count:>6d}  {warning_count:>8d}")
     lines.append("")
+
+    # Data Profile
+    table_stats = validation_data.get('table_stats', [])
+    if table_stats:
+        lines.append("-" * 120)
+        lines.append("DATA PROFILE")
+        lines.append("-" * 120)
+        total_rows = validation_data.get('total_rows', 0)
+        lines.append(f"  Total Rows: {total_rows:,}")
+        lines.append("")
+        w_col, w_dtype, w_null, w_pct, w_uniq = 25, 12, 8, 8, 10
+        hdr = (f"  {'Column':<{w_col}}"
+               f"{'Dtype':<{w_dtype}}"
+               f"{'Null':>{w_null}}"
+               f"{'Null%':>{w_pct}}"
+               f"{'Unique':>{w_uniq}}")
+        lines.append(hdr)
+        lines.append("  " + "-" * (w_col + w_dtype + w_null + w_pct + w_uniq))
+        for s in table_stats:
+            col_name = s['column']
+            if len(col_name) > w_col - 2:
+                col_name = col_name[:w_col - 4] + '..'
+            lines.append(
+                f"  {col_name:<{w_col}}"
+                f"{s['dtype']:<{w_dtype}}"
+                f"{s['null_count']:>{w_null},}"
+                f"{s['null_pct']:>{w_pct}.1f}%"
+                f"{s['unique']:>{w_uniq},}"
+            )
+        lines.append("")
 
     # Issue details as tabular text
     if all_issues:

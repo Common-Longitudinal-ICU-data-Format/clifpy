@@ -513,6 +513,11 @@ def check_column_dtypes_polars(
                 if expected_type in ('VARCHAR',) and ('Utf8' in dtype_str or 'String' in dtype_str):
                     continue
 
+                # Skip all-null columns — type inference is unreliable with no data
+                null_check = lf.select(pl.col(col_name).is_null().all()).collect()
+                if null_check.item():
+                    continue
+
                 castable = _check_castable_polars(lf, col_name, expected_type)
 
                 if castable:
@@ -876,7 +881,11 @@ def check_lab_reference_units_polars(
                 ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
                 expected_lower = [str(u).lower().strip() for u in expected_units]
 
-                if ref_unit_lower not in expected_lower and ref_unit not in expected_units:
+                # Accept null/empty for "(no units)" categories
+                no_units = '(no units)' in expected_lower
+                if no_units and not ref_unit_lower:
+                    valid_count += count
+                elif ref_unit_lower not in expected_lower and ref_unit not in expected_units:
                     invalid_units.append({
                         "lab_category": lab_cat,
                         "reference_unit": ref_unit,
@@ -950,7 +959,11 @@ def check_lab_reference_units_duckdb(
                 ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
                 expected_lower = [str(u).lower().strip() for u in expected_units]
 
-                if ref_unit_lower not in expected_lower and ref_unit not in expected_units:
+                # Accept null/empty for "(no units)" categories
+                no_units = '(no units)' in expected_lower
+                if no_units and not ref_unit_lower:
+                    valid_count += count
+                elif ref_unit_lower not in expected_lower and ref_unit not in expected_units:
                     invalid_units.append({
                         "lab_category": lab_cat,
                         "reference_unit": ref_unit,
@@ -1037,14 +1050,14 @@ def check_categorical_values_polars(
                 .collect(streaming=True)
             )
 
-            permissible_lower = {str(v).lower() for v in permissible}
+            permissible_lower = {str(v).lower().strip() for v in permissible}
 
             invalid_for_col = []
             for row in unique_vals.iter_rows(named=True):
                 val = row[col_name]
                 count = row['count']
 
-                val_str = str(val).lower() if val is not None else ''
+                val_str = str(val).lower().strip() if val is not None else ''
                 if val_str not in permissible_lower and val not in permissible:
                     invalid_for_col.append({
                         "value": val,
@@ -1116,14 +1129,14 @@ def check_categorical_values_duckdb(
                 GROUP BY "{col_name}"
             """).fetchdf()
 
-            permissible_lower = {str(v).lower() for v in permissible}
+            permissible_lower = {str(v).lower().strip() for v in permissible}
 
             invalid_for_col = []
             for _, row in unique_vals.iterrows():
                 val = row[col_name]
                 count = row['count']
 
-                val_str = str(val).lower() if val is not None else ''
+                val_str = str(val).lower().strip() if val is not None else ''
                 if val_str not in permissible_lower and val not in permissible:
                     invalid_for_col.append({
                         "value": val,
@@ -1413,6 +1426,13 @@ def check_missingness_polars(
         conditional_cols = {col for cond in conditions for col in cond.get('then_required', [])}
         required_in_df = [c for c in required_in_df if c not in conditional_cols]
 
+        # Skip columns marked nullable in schema (e.g. death_dttm)
+        nullable_cols = {col['name'] for col in schema.get('columns', []) if col.get('nullable')}
+        required_in_df = [c for c in required_in_df if c not in nullable_cols]
+
+        # Columns with allow_missing: severity capped at warning (never error)
+        allow_missing_cols = {col['name'] for col in schema.get('columns', []) if col.get('allow_missing')}
+
         total_rows = lf.select(pl.len()).collect()[0, 0]
 
         if total_rows == 0:
@@ -1440,7 +1460,15 @@ def check_missingness_polars(
                 "percent_missing": round(pct_missing, 2)
             })
 
-            if pct_missing >= error_threshold:
+            # For allow_missing columns, cap severity at warning
+            if col in allow_missing_cols:
+                if pct_missing >= warning_threshold:
+                    high_missingness.append({
+                        "column": col,
+                        "percent_missing": round(pct_missing, 2),
+                        "severity": "warning"
+                    })
+            elif pct_missing >= error_threshold:
                 high_missingness.append({
                     "column": col,
                     "percent_missing": round(pct_missing, 2),
@@ -1516,6 +1544,13 @@ def check_missingness_duckdb(
         conditional_cols = {col for cond in conditions for col in cond.get('then_required', [])}
         required_in_df = [c for c in required_in_df if c not in conditional_cols]
 
+        # Skip columns marked nullable in schema (e.g. death_dttm)
+        nullable_cols = {col['name'] for col in schema.get('columns', []) if col.get('nullable')}
+        required_in_df = [c for c in required_in_df if c not in nullable_cols]
+
+        # Columns with allow_missing: severity capped at warning (never error)
+        allow_missing_cols = {col['name'] for col in schema.get('columns', []) if col.get('allow_missing')}
+
         total_rows = con.execute("SELECT COUNT(*) FROM df").fetchone()[0]
 
         if total_rows == 0:
@@ -1545,7 +1580,15 @@ def check_missingness_duckdb(
                 "percent_missing": round(pct_missing, 2)
             })
 
-            if pct_missing >= error_threshold:
+            # For allow_missing columns, cap severity at warning
+            if col in allow_missing_cols:
+                if pct_missing >= warning_threshold:
+                    high_missingness.append({
+                        "column": col,
+                        "percent_missing": round(pct_missing, 2),
+                        "severity": "warning"
+                    })
+            elif pct_missing >= error_threshold:
                 high_missingness.append({
                     "column": col,
                     "percent_missing": round(pct_missing, 2),
@@ -1692,7 +1735,11 @@ def check_conditional_requirements_polars(
             if not isinstance(when_values, list):
                 when_values = [when_values]
 
-            filtered = lf.filter(pl.col(when_col).is_in(when_values))
+            filtered = lf.filter(
+                pl.col(when_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
+                    [str(v).lower().strip() for v in when_values]
+                )
+            )
 
             # Optional compound condition: and_column / and_value
             and_col = cond.get('and_column')
@@ -1702,7 +1749,11 @@ def check_conditional_requirements_polars(
                     continue
                 if not isinstance(and_values, list):
                     and_values = [and_values]
-                filtered = filtered.filter(pl.col(and_col).is_in(and_values))
+                filtered = filtered.filter(
+                    pl.col(and_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
+                        [str(v).lower().strip() for v in and_values]
+                    )
+                )
 
             condition_label = f"{when_col} IN {when_values}"
             if and_col and and_values is not None:
@@ -1790,8 +1841,8 @@ def check_conditional_requirements_duckdb(
                     continue
                 if not isinstance(and_values, list):
                     and_values = [and_values]
-                and_values_str = ', '.join([f"'{v.lower()}'" for v in and_values])
-                and_clause = f' AND LOWER("{and_col}") IN ({and_values_str})'
+                and_values_str = ', '.join([f"'{v.lower().strip()}'" for v in and_values])
+                and_clause = f' AND TRIM(LOWER("{and_col}")) IN ({and_values_str})'
 
             condition_label = f"{when_col} IN {when_values}"
             if and_col and and_values is not None:
@@ -1801,13 +1852,13 @@ def check_conditional_requirements_duckdb(
                 if req_col not in df.columns:
                     continue
 
-                values_str = ', '.join([f"'{v.lower()}'" for v in when_values])
+                values_str = ', '.join([f"'{v.lower().strip()}'" for v in when_values])
                 stats = con.execute(f"""
                     SELECT
                         COUNT(*) as total,
                         COUNT(*) - COUNT("{req_col}") as null_count
                     FROM df
-                    WHERE LOWER("{when_col}") IN ({values_str}){and_clause}
+                    WHERE TRIM(LOWER("{when_col}")) IN ({values_str}){and_clause}
                 """).fetchone()
 
                 total, null_count = stats
@@ -1895,11 +1946,11 @@ def check_mcide_value_coverage_polars(
                 .to_list()
             )
 
-            unique_vals_lower = {str(v).lower() for v in unique_vals if v is not None}
+            unique_vals_lower = {str(v).lower().strip() for v in unique_vals if v is not None}
 
             missing_vals = [
                 v for v in permissible
-                if str(v).lower() not in unique_vals_lower
+                if str(v).lower().strip() not in unique_vals_lower
             ]
 
             coverage_pct = ((len(permissible) - len(missing_vals)) / len(permissible)) * 100
@@ -1963,11 +2014,11 @@ def check_mcide_value_coverage_duckdb(
                 SELECT DISTINCT "{col_name}" FROM df WHERE "{col_name}" IS NOT NULL
             """).fetchdf()[col_name].tolist()
 
-            unique_vals_lower = {str(v).lower() for v in unique_vals if v is not None}
+            unique_vals_lower = {str(v).lower().strip() for v in unique_vals if v is not None}
 
             missing_vals = [
                 v for v in permissible
-                if str(v).lower() not in unique_vals_lower
+                if str(v).lower().strip() not in unique_vals_lower
             ]
 
             coverage_pct = ((len(permissible) - len(missing_vals)) / len(permissible)) * 100
@@ -2311,6 +2362,50 @@ _CATEGORY_COLUMN_MAP = {
     'ecmo_mcs': {'sweep': 'device_category', 'flow': 'device_category', 'fdO2': 'device_category'},
 }
 
+# Reverse map: (table_name, category_col) → numeric_col (or None to skip avg)
+_CATEGORY_TO_NUMERIC_MAP = {}
+for _tbl, _col_map in _CATEGORY_COLUMN_MAP.items():
+    for _num_col, _cat_col_info in _col_map.items():
+        if isinstance(_cat_col_info, tuple):
+            # Tuple: (category_col, unit_col) — averaging is safe when grouped by unit
+            _CATEGORY_TO_NUMERIC_MAP[(_tbl, _cat_col_info[0])] = _num_col
+        else:
+            _key = (_tbl, _cat_col_info)
+            # Multiple numeric cols → same category (e.g. ecmo_mcs): skip avg
+            if _key in _CATEGORY_TO_NUMERIC_MAP:
+                _CATEGORY_TO_NUMERIC_MAP[_key] = None
+            else:
+                _CATEGORY_TO_NUMERIC_MAP[_key] = _num_col
+
+# Maps (table_name, category_col) → unit column name present in the data.
+# Tables listed here will GROUP BY this column during monthly aggregation.
+_CATEGORY_UNIT_COL_MAP = {
+    ('labs', 'lab_category'): 'reference_unit',
+    ('medication_admin_continuous', 'med_category'): 'med_dose_unit',
+    ('medication_admin_intermittent', 'med_category'): 'med_dose_unit',
+}
+
+
+def _get_schema_units(schema: Dict[str, Any], cat_col: str) -> Optional[Dict[str, str]]:
+    """Extract a {category_value: unit} map from schema *_units keys.
+
+    Works for schemas like vitals (vital_units: {temp_c: Celsius, ...}).
+    For list values (e.g. labs lab_reference_units), takes the first element.
+    Returns None if no matching _units key is found.
+    """
+    for key, mapping in schema.items():
+        if key.endswith('_units') and isinstance(mapping, dict):
+            result: Dict[str, str] = {}
+            for cat_val, unit in mapping.items():
+                if isinstance(unit, list):
+                    result[cat_val] = str(unit[0]) if unit else ''
+                else:
+                    result[cat_val] = str(unit)
+            if result:
+                return result
+    return None
+
+
 # Datetime columns per table for cross-table temporal checks
 _CROSS_TABLE_TIME_COLUMNS = {
     'adt': ['in_dttm', 'out_dttm'],
@@ -2601,8 +2696,8 @@ def check_numeric_range_plausibility_polars(
                                 continue
                             rmin, rmax = ranges['min'], ranges['max']
                             filtered = lf.filter(
-                                (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase() == str(cat_val).lower()) &
-                                (pl.col(unit_col).cast(pl.Utf8).str.to_lowercase() == str(unit_val).lower()) &
+                                (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars() == str(cat_val).lower().strip()) &
+                                (pl.col(unit_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars() == str(unit_val).lower().strip()) &
                                 pl.col(col_name).is_not_null()
                             )
                             stats = filtered.select([
@@ -2634,7 +2729,7 @@ def check_numeric_range_plausibility_polars(
                             continue
                         rmin, rmax = ranges['min'], ranges['max']
                         filtered = lf.filter(
-                            (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase() == str(cat_val).lower()) &
+                            (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars() == str(cat_val).lower().strip()) &
                             pl.col(col_name).is_not_null()
                         )
                         stats = filtered.select([
@@ -2755,8 +2850,8 @@ def check_numeric_range_plausibility_duckdb(
                                 SELECT COUNT(*) as total,
                                        COALESCE(SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END), 0) as oor
                                 FROM df
-                                WHERE LOWER(CAST("{cat_col}" AS VARCHAR)) = '{str(cat_val).lower()}'
-                                  AND LOWER(CAST("{unit_col}" AS VARCHAR)) = '{str(unit_val).lower()}'
+                                WHERE TRIM(LOWER(CAST("{cat_col}" AS VARCHAR))) = '{str(cat_val).lower().strip()}'
+                                  AND TRIM(LOWER(CAST("{unit_col}" AS VARCHAR))) = '{str(unit_val).lower().strip()}'
                                   AND "{col_name}" IS NOT NULL
                             """).fetchone()
                             total_count += stats[0]
@@ -2773,7 +2868,7 @@ def check_numeric_range_plausibility_duckdb(
                             SELECT COUNT(*) as total,
                                    COALESCE(SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END), 0) as oor
                             FROM df
-                            WHERE LOWER(CAST("{cat_col}" AS VARCHAR)) = '{str(cat_val).lower()}'
+                            WHERE TRIM(LOWER(CAST("{cat_col}" AS VARCHAR))) = '{str(cat_val).lower().strip()}'
                               AND "{col_name}" IS NOT NULL
                         """).fetchone()
                         total_count += stats[0]
@@ -2867,8 +2962,8 @@ def check_field_plausibility_polars(
 
             # Filter rows where when_col is NOT in the specified values
             filtered = lf.filter(
-                ~pl.col(when_col).cast(pl.Utf8).str.to_lowercase().is_in(
-                    [str(v).lower() for v in when_not_values]
+                ~pl.col(when_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
+                    [str(v).lower().strip() for v in when_not_values]
                 )
             )
 
@@ -2950,7 +3045,7 @@ def check_field_plausibility_duckdb(
             if not isinstance(when_not_values, list):
                 when_not_values = [when_not_values]
 
-            values_str = ', '.join([f"'{str(v).lower()}'" for v in when_not_values])
+            values_str = ', '.join([f"'{str(v).lower().strip()}'" for v in when_not_values])
 
             for check_col in then_null_cols:
                 if check_col not in df.columns:
@@ -2961,7 +3056,7 @@ def check_field_plausibility_duckdb(
                         COUNT(*) as total,
                         SUM(CASE WHEN "{check_col}" IS NOT NULL THEN 1 ELSE 0 END) as non_null
                     FROM df
-                    WHERE LOWER(CAST("{when_col}" AS VARCHAR)) NOT IN ({values_str})
+                    WHERE TRIM(LOWER(CAST("{when_col}" AS VARCHAR))) NOT IN ({values_str})
                 """).fetchone()
 
                 total, non_null = stats
@@ -3612,6 +3707,7 @@ def check_category_temporal_consistency_polars(
 
         yearly_distributions = {}
         missing_in_years = {}
+        monthly_trends = {}
 
         for cat_col in cat_cols_present:
             # Get yearly distribution
@@ -3661,21 +3757,52 @@ def check_category_temporal_consistency_polars(
                 if absent:
                     missing_in_years[cat_col] = absent
 
+            # Monthly trends for CSV export
+            num_col = _CATEGORY_TO_NUMERIC_MAP.get((table_name, cat_col))
+            unit_col = _CATEGORY_UNIT_COL_MAP.get((table_name, cat_col))
+            avg_expr = ([pl.col(num_col).mean().alias('avg')]
+                        if num_col and num_col in col_names else [])
+
+            group_cols = ['month_year', cat_col]
+            if unit_col and unit_col in col_names:
+                group_cols.append(unit_col)
+
+            monthly = (
+                lf.filter(pl.col(time_column).is_not_null() & pl.col(cat_col).is_not_null())
+                .with_columns(pl.col(time_column).dt.strftime('%Y-%m').alias('month_year'))
+                .group_by(group_cols)
+                .agg([pl.len().alias('n')] + avg_expr)
+                .sort(group_cols)
+                .collect(streaming=True)
+            )
+
+            # For tables with schema-based units (no unit col in data), add unit column
+            if num_col and num_col in col_names and not (unit_col and unit_col in col_names):
+                schema_unit_map = _get_schema_units(schema, cat_col)
+                if schema_unit_map:
+                    monthly = monthly.with_columns(
+                        pl.col(cat_col).replace_strict(
+                            schema_unit_map, default=None
+                        ).alias('unit')
+                    )
+
+            monthly_trends[cat_col] = monthly.to_dicts()
+
         result.metrics["category_columns_checked"] = len(cat_cols_present)
         result.metrics["yearly_distributions"] = yearly_distributions
         result.metrics["missing_in_years"] = missing_in_years
-
-        # Use hospitalization years as denominator when available
-        ref_year_count = len(hosp_years) if hosp_years else None
+        result.metrics["monthly_trends"] = monthly_trends
 
         for cat_col, absent in missing_in_years.items():
             col_dist = yearly_distributions.get(cat_col, {})
             all_col_years = sorted(col_dist.keys())
-            total_years = ref_year_count if ref_year_count else len(all_col_years)
+            total_years = len(all_col_years)
             for val, years in absent.items():
                 yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
-                result.add_warning(
-                    f"Category '{cat_col}' value '{val}' absent in {len(years)}/{total_years} years",
+                year_range = f"{all_col_years[0]}-{all_col_years[-1]}" if all_col_years else ""
+                emit = result.add_info if cat_col == "organism_category" else result.add_warning
+                emit(
+                    f"{cat_col}: {val} absent in {len(years)}/{total_years} years ({year_range})",
                     {
                         "column": cat_col,
                         "value": val,
@@ -3690,34 +3817,21 @@ def check_category_temporal_consistency_polars(
                 dist = yearly_distributions.get(cat_col, {})
                 n_years = len(dist)
                 all_vals = {v for yr in dist.values() for v in yr}
-                if n_years >= 2 and hosp_years:
+                if n_years >= 2:
                     # Per-value info with yearly_counts for sparkline rendering
                     sorted_years = sorted(dist.keys())
                     year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
-                    ref_years_sorted = sorted(hosp_years)
                     for val in sorted(all_vals, key=str):
                         yearly_counts = {y: dist.get(y, {}).get(val, 0)
-                                         for y in ref_years_sorted}
+                                         for y in sorted_years}
                         n_present = sum(1 for c in yearly_counts.values() if c > 0)
                         msg = (f"{cat_col}: {val} present in "
-                               f"{n_present}/{ref_year_count} years ({year_range})")
+                               f"{n_present}/{n_years} years ({year_range})")
                         result.add_info(msg, {
                             "column": cat_col,
                             "value": str(val),
                             "yearly_counts": yearly_counts,
                         })
-                elif n_years >= 2:
-                    n_values = len(all_vals)
-                    sorted_vals = sorted(str(v) for v in all_vals)
-                    if len(sorted_vals) > 5:
-                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
-                    else:
-                        vals_str = ', '.join(sorted_vals)
-                    sorted_years = sorted(dist.keys())
-                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
-                    msg = (f"{cat_col}: {vals_str} present across "
-                           f"all {n_years} years ({year_range})")
-                    result.add_info(msg, {"column": cat_col})
                 elif n_years == 1:
                     year = next(iter(dist))
                     n_values = len(all_vals)
@@ -3779,6 +3893,7 @@ def check_category_temporal_consistency_duckdb(
 
         yearly_distributions = {}
         missing_in_years = {}
+        monthly_trends = {}
 
         for cat_col in cat_cols_present:
             if id_col:
@@ -3821,21 +3936,53 @@ def check_category_temporal_consistency_duckdb(
                 if absent:
                     missing_in_years[cat_col] = absent
 
+            # Monthly trends for CSV export
+            num_col = _CATEGORY_TO_NUMERIC_MAP.get((table_name, cat_col))
+            unit_col = _CATEGORY_UNIT_COL_MAP.get((table_name, cat_col))
+            avg_select = f', AVG("{num_col}") as avg' if num_col and num_col in actual_cols else ''
+
+            unit_select = ''
+            unit_group = ''
+            unit_order = ''
+            if unit_col and unit_col in actual_cols:
+                unit_select = f', "{unit_col}"'
+                unit_group = f', "{unit_col}"'
+                unit_order = f', "{unit_col}"'
+
+            monthly_rows = con.execute(f"""
+                SELECT STRFTIME(CAST("{time_column}" AS TIMESTAMP), '%Y-%m') as month_year,
+                       "{cat_col}"{unit_select},
+                       COUNT(*) as n
+                       {avg_select}
+                FROM df
+                WHERE "{time_column}" IS NOT NULL AND "{cat_col}" IS NOT NULL
+                GROUP BY month_year, "{cat_col}"{unit_group}
+                ORDER BY month_year, "{cat_col}"{unit_order}
+            """).fetchdf()
+
+            # For tables with schema-based units (no unit col in data), add unit column
+            if num_col and num_col in actual_cols and not (unit_col and unit_col in actual_cols):
+                schema_unit_map = _get_schema_units(schema, cat_col)
+                if schema_unit_map:
+                    monthly_rows['unit'] = monthly_rows[cat_col].map(schema_unit_map)
+
+            monthly_trends[cat_col] = monthly_rows.to_dict(orient='records')
+
         result.metrics["category_columns_checked"] = len(cat_cols_present)
         result.metrics["yearly_distributions"] = yearly_distributions
         result.metrics["missing_in_years"] = missing_in_years
-
-        # Use hospitalization years as denominator when available
-        ref_year_count = len(hosp_years) if hosp_years else None
+        result.metrics["monthly_trends"] = monthly_trends
 
         for cat_col, absent in missing_in_years.items():
             col_dist = yearly_distributions.get(cat_col, {})
             all_col_years = sorted(col_dist.keys())
-            total_years = ref_year_count if ref_year_count else len(all_col_years)
+            total_years = len(all_col_years)
             for val, years in absent.items():
                 yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
-                result.add_warning(
-                    f"Category '{cat_col}' value '{val}' absent in {len(years)}/{total_years} years",
+                year_range = f"{all_col_years[0]}-{all_col_years[-1]}" if all_col_years else ""
+                emit = result.add_info if cat_col == "organism_category" else result.add_warning
+                emit(
+                    f"{cat_col}: {val} absent in {len(years)}/{total_years} years ({year_range})",
                     {
                         "column": cat_col,
                         "value": val,
@@ -3850,34 +3997,21 @@ def check_category_temporal_consistency_duckdb(
                 dist = yearly_distributions.get(cat_col, {})
                 n_years = len(dist)
                 all_vals = {v for yr in dist.values() for v in yr}
-                if n_years >= 2 and hosp_years:
+                if n_years >= 2:
                     # Per-value info with yearly_counts for sparkline rendering
                     sorted_years = sorted(dist.keys())
                     year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
-                    ref_years_sorted = sorted(hosp_years)
                     for val in sorted(all_vals, key=str):
                         yearly_counts = {y: dist.get(y, {}).get(val, 0)
-                                         for y in ref_years_sorted}
+                                         for y in sorted_years}
                         n_present = sum(1 for c in yearly_counts.values() if c > 0)
                         msg = (f"{cat_col}: {val} present in "
-                               f"{n_present}/{ref_year_count} years ({year_range})")
+                               f"{n_present}/{n_years} years ({year_range})")
                         result.add_info(msg, {
                             "column": cat_col,
                             "value": str(val),
                             "yearly_counts": yearly_counts,
                         })
-                elif n_years >= 2:
-                    n_values = len(all_vals)
-                    sorted_vals = sorted(str(v) for v in all_vals)
-                    if len(sorted_vals) > 5:
-                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
-                    else:
-                        vals_str = ', '.join(sorted_vals)
-                    sorted_years = sorted(dist.keys())
-                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
-                    msg = (f"{cat_col}: {vals_str} present across "
-                           f"all {n_years} years ({year_range})")
-                    result.add_info(msg, {"column": cat_col})
                 elif n_years == 1:
                     year = next(iter(dist))
                     n_values = len(all_vals)

@@ -24,6 +24,7 @@ columns:
   - name: device_category
     data_type: VARCHAR
     required: true
+    allow_missing: true
     is_category_column: true
     is_group_column: false
     permissible_values:

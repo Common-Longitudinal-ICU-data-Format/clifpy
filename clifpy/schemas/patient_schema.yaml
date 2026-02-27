@@ -16,6 +16,7 @@ columns:
   - name: death_dttm
     data_type: DATETIME
     required: true
+    nullable: true
     is_category_column: false
     is_group_column: false
   - name: race_name
