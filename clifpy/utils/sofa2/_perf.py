@@ -4,6 +4,7 @@ Provides:
 - StepTimer: Collects per-step wall-clock timing via context manager
 - NoOpTimer: Zero-cost drop-in replacement when profiling is off
 - _register_temp_table / _cleanup_temp_tables: Temp table lifecycle management
+- _with_memory_limit: Context manager for DuckDB memory_limit with save/restore
 """
 from __future__ import annotations
 
@@ -72,6 +73,36 @@ def _materialize_subscore(name: str, rel) -> duckdb.DuckDBPyRelation:
     duckdb.execute(f"CREATE OR REPLACE TEMP TABLE {table_name} AS SELECT * FROM rel")
     _register_temp_table(table_name)
     return duckdb.table(table_name)
+
+
+# =============================================================================
+# DuckDB Memory Limit
+# =============================================================================
+
+
+@contextmanager
+def _with_memory_limit(memory_limit: str | None):
+    """Set DuckDB memory_limit for the context duration, then restore.
+
+    Uses SET/RESET on the global DuckDB connection. When memory_limit is set,
+    DuckDB will spill to disk (via its temp_directory) instead of exceeding
+    the limit — this is the primary mechanism for preventing OOM.
+
+    Parameters
+    ----------
+    memory_limit : str or None
+        DuckDB memory limit string (e.g., '8GB', '16GB').
+        If None, this is a no-op.
+    """
+    if memory_limit is None:
+        yield
+        return
+    old = duckdb.sql("SELECT current_setting('memory_limit')").fetchone()[0]
+    duckdb.execute(f"SET memory_limit = '{memory_limit}'")
+    try:
+        yield
+    finally:
+        duckdb.execute(f"SET memory_limit = '{old}'")
 
 
 # =============================================================================

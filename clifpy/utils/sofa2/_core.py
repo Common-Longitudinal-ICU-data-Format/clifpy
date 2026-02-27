@@ -25,7 +25,7 @@ from ._cv import _calculate_cv_subscore
 from ._liver import _calculate_liver_subscore
 from ._kidney import _calculate_kidney_subscore
 from ._hemo import _calculate_hemo_subscore
-from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table
+from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table, _with_memory_limit
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.core')
@@ -125,6 +125,7 @@ def calculate_sofa2(
     perf_profile: bool = False,
     id_name: str = 'hospitalization_id',
     id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
+    memory_limit: str | None = None,
 ) -> pd.DataFrame | DuckDBPyRelation | tuple:
     """
     Calculate SOFA-2 scores for a cohort with time windows.
@@ -154,6 +155,10 @@ def calculate_sofa2(
         from stitch_encounters()). Columns: [hospitalization_id, {id_name}].
         If provided, used directly for CLIF table remapping (skips internal
         extraction). If omitted, extracted from cohort via SELECT DISTINCT.
+    memory_limit : str, optional
+        DuckDB memory limit (e.g., '8GB', '16GB'). When set, DuckDB will
+        spill to disk instead of exceeding this limit. Default: None (use
+        DuckDB's default, typically 80% of system RAM).
 
     Returns
     -------
@@ -179,6 +184,19 @@ def calculate_sofa2(
             - Hemo: platelet_count, platelet_dttm_offset
         If dev=True: (results, intermediates_dict)
     """
+    with _with_memory_limit(memory_limit):
+        return _calculate_sofa2_impl(
+            cohort_df, clif_config_path, return_rel, dev,
+            sofa2_config=sofa2_config, perf_profile=perf_profile,
+            id_name=id_name, id_mapping=id_mapping,
+        )
+
+
+def _calculate_sofa2_impl(
+    cohort_df, clif_config_path, return_rel, dev,
+    *, sofa2_config, perf_profile, id_name, id_mapping,
+):
+    """Inner implementation of calculate_sofa2 (separated for memory_limit wrapping)."""
     from clifpy import load_data
 
     cfg = sofa2_config or SOFA2Config()
@@ -445,6 +463,7 @@ def calculate_sofa2_daily(
     perf_profile: bool = False,
     id_name: str = 'hospitalization_id',
     id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
+    memory_limit: str | None = None,
 ) -> pd.DataFrame | DuckDBPyRelation:
     """
     Calculate daily SOFA-2 scores with carry-forward for missing data.
@@ -478,6 +497,10 @@ def calculate_sofa2_daily(
         or any alternative grouping column present in the cohort.
     id_mapping : pd.DataFrame | DuckDBPyRelation, optional
         Mapping from hospitalization_id to id_name. See calculate_sofa2().
+    memory_limit : str, optional
+        DuckDB memory limit (e.g., '8GB', '16GB'). When set, DuckDB will
+        spill to disk instead of exceeding this limit. Default: None (use
+        DuckDB's default, typically 80% of system RAM).
 
     Returns
     -------
@@ -496,6 +519,19 @@ def calculate_sofa2_daily(
 
     - Example: 47h window → 1 row (nth_day=1); 49h window → 2 rows (nth_day=1, 2)
     """
+    with _with_memory_limit(memory_limit):
+        return _calculate_sofa2_daily_impl(
+            cohort_df, clif_config_path, return_rel,
+            sofa2_config=sofa2_config, perf_profile=perf_profile,
+            id_name=id_name, id_mapping=id_mapping,
+        )
+
+
+def _calculate_sofa2_daily_impl(
+    cohort_df, clif_config_path, return_rel,
+    *, sofa2_config, perf_profile, id_name, id_mapping,
+):
+    """Inner implementation of calculate_sofa2_daily (separated for memory_limit wrapping)."""
     logger.info("Starting daily SOFA-2 calculation...")
     timer = StepTimer() if perf_profile else NoOpTimer()
 
