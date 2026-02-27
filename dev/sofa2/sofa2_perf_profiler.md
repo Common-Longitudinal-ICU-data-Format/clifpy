@@ -7,7 +7,8 @@ The SOFA-2 profiler tells you **where time is spent** in the `calculate_sofa2()`
 For sites running performance profiling before rollout, use `--site-test` with `--site`:
 
 ```bash
-python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --config config/config.yaml
+uv sync
+uv run python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --config path/to/config/file
 ```
 
 Replace `ucmc` with your site name — it gets embedded in the report filename.
@@ -29,7 +30,7 @@ This automatically:
 To cap the maximum test size (e.g., only test up to 1000 even if you have more):
 
 ```bash
-python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --max 1000
+uv run python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --max 1000
 ```
 
 To run only daily mode with all available data (max stress test):
@@ -55,6 +56,27 @@ python dev/sofa2/sofa2_perf_profiler.py -n 100 1000 5000 --mode daily
 
 # Both modes, single size
 python dev/sofa2/sofa2_perf_profiler.py -n 500 --mode both
+
+# Stitched encounters — score by encounter_block (default 6h window)
+python dev/sofa2/sofa2_perf_profiler.py -n 100 --stitch
+
+# Stitched with custom 12h window
+python dev/sofa2/sofa2_perf_profiler.py -n 100 --stitch 12
+
+# Full site test with stitching
+python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --stitch
+
+# With memray memory profiling (captures DuckDB C++ allocations)
+python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-profile
+
+# Site test with memray
+python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --mem-profile
+
+# With DuckDB memory limit (spill-to-disk when exceeded)
+python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB
+
+# Combine memory limit with memray to see allocation patterns under constraint
+python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB --mem-profile
 ```
 
 ## CLI Reference
@@ -69,6 +91,9 @@ python dev/sofa2/sofa2_perf_profiler.py -n 500 --mode both
 | `--iters N` | 1 | Iterations per cohort size (higher = more stable averages) |
 | `--config PATH` | `config/config.yaml` | Path to CLIF config |
 | `--cohort-csv PATH` | off | Path to external CSV with `hospitalization_id` column |
+| `--stitch [HOURS]` | off | Score by `encounter_block` via `stitch_encounters(time_interval=HOURS)`. Default: 6h |
+| `--mem-profile [MODE]` | off | Enable memory profiling (dev only). Default: `memray`. Captures native C/C++ allocations |
+| `--mem-limit SIZE` | None (DuckDB default) | DuckDB memory limit (e.g., `4GB`, `8GB`). Forces spill-to-disk when exceeded |
 
 ### Cohort source
 
@@ -81,6 +106,28 @@ By default, cohort is built by querying the ADT table directly with `WHERE locat
 - **Daily mode**: one row per unique `hospitalization_id` spanning the full ICU stay duration (the daily function expands this internally into 24h chunks). Auto-detected max = distinct ICU `hospitalization_id` count.
 
 To use a specific reproducible set of IDs (e.g., for comparing across branches), pass `--cohort-csv path/to/ids.csv`. The CSV must have a `hospitalization_id` column.
+
+### Stitched encounter profiling
+
+When `--stitch` is passed, the profiler scores by `encounter_block` instead of `hospitalization_id`. This exercises the SOFA-2 `id_name`/`id_mapping` remapping path at scale.
+
+What happens:
+
+1. Loads `hospitalization` and `adt` tables, runs `stitch_encounters(time_interval=HOURS)` to group nearby hospitalizations into encounter blocks
+
+2. Builds cohort keyed by `encounter_block` (instead of `hospitalization_id`)
+
+3. Passes `id_name='encounter_block'` and `id_mapping=encounter_mapping` to `calculate_sofa2` / `calculate_sofa2_daily`, which remaps all 8 CLIF tables internally
+
+Before scoring, the profiler prints stitching impact stats:
+
+```
+Stitching stats (time_interval=6h):
+  1000 hospitalizations -> 850 encounter_blocks
+  100 blocks have >1 hospitalization (250 hosp_ids remapped)
+```
+
+Use `--stitch` (default 6h) or `--stitch 12` for a custom window. Combinable with all other flags (`--mode`, `--site-test`, `-n`, etc.).
 
 ## Programmatic Usage
 
@@ -120,6 +167,19 @@ result, outer_timer, inner_timer, inner_cv_timer = calculate_sofa2_daily(
 # inner_cv_timer — CV internal steps (last window)
 ```
 
+### With memory limit
+
+```python
+from clifpy.utils.sofa2 import calculate_sofa2
+
+# Cap DuckDB memory to prevent OOM — spills to disk when exceeded
+result = calculate_sofa2(
+    cohort_df,
+    clif_config_path="config/config.yaml",
+    memory_limit='8GB',
+)
+```
+
 ### StepTimer API
 
 ```python
@@ -140,6 +200,30 @@ timer.stop("another_step")
 timer.results     # list of {'step': str, 'elapsed_s': float}
 timer.total       # sum of all elapsed times
 timer.report()    # formatted table string
+```
+
+## DuckDB Memory Limit
+
+The `memory_limit` parameter on `calculate_sofa2()` and `calculate_sofa2_daily()` tells DuckDB to **spill to disk** instead of exceeding the limit. This is the primary mechanism for preventing OOM on large cohorts.
+
+**When to use it:** large cohorts (1K+ ICU stays) on machines where the dataset approaches available RAM. Without a limit, DuckDB defaults to ~80% of system RAM.
+
+**How it works:** DuckDB's buffer manager respects the limit for joins, sorts, grouping, and windowing operators. When memory pressure exceeds the limit, intermediate results are written to a temp directory on disk and read back as needed.
+
+**Example:** on a 16GB machine, `memory_limit='8GB'` reserves 8GB for DuckDB's buffer manager, leaving the rest for the OS, Python, and other processes.
+
+**Complementary with eager materialization:** the SOFA-2 pipeline already materializes each subscore to a temp table (reducing peak concurrent memory). The memory limit adds an absolute ceiling on top of that — if any single subscore's intermediate computation exceeds the limit, DuckDB spills to disk instead of crashing.
+
+**Performance impact:** spilling to disk is slower than in-memory processing. The overhead depends on the ratio of data size to memory limit — tighter limits cause more spilling. For most cohorts, `8GB` or `4GB` has minimal impact; very tight limits (e.g., `1GB`) can cause significant slowdown.
+
+Use the profiler's `--mem-limit` flag to benchmark the impact:
+
+```bash
+# Baseline (no limit)
+python dev/sofa2/sofa2_perf_profiler.py -n 1000
+
+# With 4GB limit
+python dev/sofa2/sofa2_perf_profiler.py -n 1000 --mem-limit 4GB
 ```
 
 ## How It Works
@@ -230,7 +314,7 @@ When using `--mode daily`, the profiler shows how many 24-hr windows the input c
 
 ```
   Cohort: 100 rows (ADT LIMIT 100)
-    Iteration 1: 11.2s, 98.7 MB, 347 output rows
+    Iteration 1: 11.2s, 347 output rows
     -> Expanded to 347 24-hr windows (3.5x expansion from 100 input rows)
 ```
 
@@ -239,10 +323,10 @@ This is useful because a 100-row daily cohort with average 3.5-day stays produce
 In daily mode, the scaling summary table automatically includes an **Expanded N** column showing the actual number of 24-hr windows scored:
 
 ```
-  N          Expanded N    Avg Time        Memory (MB)
-  -----------------------------------------------------
-  100        347           11.2s           98.7
-  1000       3412          10m38s          456.2
+  N          Expanded N    Avg Time
+  --------------------------------------
+  100        347           11.2s
+  1000       3412          10m38s
 ```
 
 ### Scaling analysis
@@ -278,3 +362,59 @@ The profiler automatically saves console output to a timestamped `.md` file when
 The `output/` directory is gitignored, so reports are local-only. Share the `.md` file with the CLIF team for cross-site comparison.
 
 Pipeline logs (from `clifpy.utils.logging_config`) are saved separately to `output/logs/clifpy_all.log` and `output/logs/clifpy_errors.log`.
+
+## Memory Profiling with Memray
+
+The `--mem-profile` flag enables native memory profiling using [memray](https://github.com/bloomberg/memray). Unlike Python-only profilers (e.g., `tracemalloc`), memray hooks into `malloc`/`free` at the C level and captures DuckDB's internal C++ allocations — which is where OOM actually occurs.
+
+### Usage
+
+```bash
+# Profile a single run
+python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-profile
+
+# Profile a scaling test
+python dev/sofa2/sofa2_perf_profiler.py -n 100 1000 --mem-profile
+
+# Combine with any other flags
+python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --mem-profile
+```
+
+### Output
+
+Memray captures are saved to `output/perf/mem/`:
+
+```
+output/perf/mem/
+├── sofa2_mem_generic_n100.bin    # raw capture (binary)
+├── sofa2_mem_generic_n100.html   # auto-generated flamegraph
+├── sofa2_mem_daily_n100.bin
+└── sofa2_mem_daily_n100.html
+```
+
+Open the `.html` flamegraph in a browser to see which functions allocated the most memory. The flamegraph shows nested call stacks sized by allocation — look for wide bars to find memory hotspots.
+
+### Post-processing
+
+The `.bin` files can be analyzed with other memray reporters:
+
+```bash
+# Terminal summary of top allocators
+memray summary output/perf/mem/sofa2_mem_generic_n100.bin
+
+# Detailed stats
+memray stats output/perf/mem/sofa2_mem_generic_n100.bin
+
+# Tree view
+memray tree output/perf/mem/sofa2_mem_generic_n100.bin
+```
+
+### Requirements
+
+Memray is a dev-only dependency (`dependency-groups.dev` in `pyproject.toml`). If not installed, the profiler prints a warning and skips memory capture — timing profiling runs normally.
+
+### What memray captures vs. what it misses
+
+- **Captures**: All `malloc`/`free` calls in the process — DuckDB hash tables, sort buffers, window accumulators, temp table storage, Python heap allocations
+
+- **Does NOT capture**: GPU memory, memory-mapped files (mmap), or DuckDB's internal buffer pool recycling (freed buffers that DuckDB keeps for reuse)

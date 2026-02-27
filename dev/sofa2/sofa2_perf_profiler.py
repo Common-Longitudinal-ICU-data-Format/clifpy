@@ -11,13 +11,16 @@ Usage:
     python sofa2_perf_profiler.py -n max --site ucmc --mode daily  # Max stress test, daily
     python sofa2_perf_profiler.py -n 100 --stitch                  # Stitched encounters (default 6h)
     python sofa2_perf_profiler.py -n 100 --stitch 12               # Stitched with 12h window
+    python sofa2_perf_profiler.py -n 100 --mem-profile             # With memray memory profiling
+    python sofa2_perf_profiler.py --site-test --site ucmc --mem-profile  # Site test + memray
+    python sofa2_perf_profiler.py -n 100 --mem-limit 4GB           # With DuckDB memory limit
 
 Requires CLIF config at config/config.yaml (or pass --config).
 """
 import io
 import sys
 import time
-import tracemalloc
+import subprocess
 import shutil
 import tempfile
 import random
@@ -327,10 +330,14 @@ def profile_single(
     daily: bool = False,
     cohort_csv: str | None = None,
     stitch_interval: int | None = None,
+    mem_profile_dir: Path | None = None,
+    memory_limit: str | None = None,
 ) -> dict:
     """Run SOFA-2 profiler for a single cohort size.
 
-    Returns dict with timing, memory, and per-subscore breakdown.
+    Returns dict with timing and per-subscore breakdown.
+    When mem_profile_dir is set, wraps scoring in memray.Tracker for
+    native memory capture (DuckDB C++ allocations included).
     """
     from clifpy.utils.sofa2 import calculate_sofa2, calculate_sofa2_daily
 
@@ -363,20 +370,37 @@ def profile_single(
 
     # Build SOFA-2 kwargs (add id_name/id_mapping when stitching)
     sofa_kwargs = {'clif_config_path': config_path, 'perf_profile': True}
+    if memory_limit:
+        sofa_kwargs['memory_limit'] = memory_limit
     if stitch_interval is not None:
         sofa_kwargs['id_name'] = 'encounter_block'
         sofa_kwargs['id_mapping'] = encounter_mapping
 
     times = []
-    memory_peaks = []
     subscore_timers = []
     cv_timers = []
     last_output_rows = 0
 
-    for i in range(num_iterations):
-        clean_duckdb_cache()
-        tracemalloc.start()
+    # Set up memray capture if requested
+    capture_file = None
+    tracker = None
+    if mem_profile_dir:
         try:
+            import memray
+            mem_profile_dir.mkdir(parents=True, exist_ok=True)
+            mode_tag = "daily" if daily else "generic"
+            capture_file = mem_profile_dir / f"sofa2_mem_{mode_tag}_n{n}.bin"
+            tracker = memray.Tracker(str(capture_file), native_traces=True)
+            tracker.__enter__()
+            print(f"  Memray: capturing native allocations to {capture_file.name}")
+        except ImportError:
+            print("  WARNING: memray not installed. Skipping memory profiling.")
+            print("  Install with: uv sync --group dev")
+            tracker = None
+
+    try:
+        for i in range(num_iterations):
+            clean_duckdb_cache()
             start = time.perf_counter()
             if daily:
                 result, outer_timer, inner_timer, inner_cv_timer = calculate_sofa2_daily(
@@ -392,29 +416,37 @@ def profile_single(
                 cv_timers.append(cv_timer)
             elapsed = time.perf_counter() - start
 
-            _, peak = tracemalloc.get_traced_memory()
-        finally:
-            if tracemalloc.is_tracing():
-                tracemalloc.stop()
+            last_output_rows = len(result)
+            times.append(elapsed)
+            print(f"    Iteration {i+1}: {_fmt_time(elapsed)}, {last_output_rows} output rows")
+            if daily:
+                print(f"    -> Expanded to {last_output_rows} 24-hr windows ({last_output_rows/actual_n:.1f}x expansion from {actual_n} input rows)")
+    finally:
+        if tracker is not None:
+            tracker.__exit__(None, None, None)
 
-        last_output_rows = len(result)
-        times.append(elapsed)
-        memory_peaks.append(peak / 1024 / 1024)
-        print(f"    Iteration {i+1}: {_fmt_time(elapsed)}, {peak/1024/1024:.1f} MB, {last_output_rows} output rows")
-        if daily:
-            print(f"    -> Expanded to {last_output_rows} 24-hr windows ({last_output_rows/actual_n:.1f}x expansion from {actual_n} input rows)")
+    # Auto-generate flamegraph from memray capture
+    if capture_file is not None and capture_file.exists():
+        flamegraph_file = capture_file.with_suffix('.html')
+        gen_result = subprocess.run(
+            [sys.executable, "-m", "memray", "flamegraph", str(capture_file), "-o", str(flamegraph_file), "--force"],
+            capture_output=True, text=True,
+        )
+        if gen_result.returncode == 0:
+            print(f"  Memray: flamegraph -> {flamegraph_file.name}")
+        else:
+            print(f"  Memray: flamegraph generation failed: {gen_result.stderr.strip()}")
 
     return {
         'n': actual_n,
         'avg_time': sum(times) / len(times),
         'min_time': min(times),
         'max_time': max(times),
-        'avg_memory': sum(memory_peaks) / len(memory_peaks),
         'output_rows': last_output_rows,
         'all_times': times,
-        'all_memories': memory_peaks,
         'subscore_timers': subscore_timers,
         'cv_timers': cv_timers,
+        'mem_capture': capture_file,
     }
 
 
@@ -443,16 +475,16 @@ def _print_scaling_summary(
     has_expansion = any(r.get('output_rows', r['n']) != r['n'] for r in all_results)
 
     if has_expansion:
-        print(f"  {'N':<10} {'Expanded N':<13} {'Avg Time':<15} {'Memory (MB)':<15}")
-        print(f"  {'-' * 53}")
+        print(f"  {'N':<10} {'Expanded N':<13} {'Avg Time':<15}")
+        print(f"  {'-' * 38}")
         for r in all_results:
             expanded = r.get('output_rows', r['n'])
-            print(f"  {r['n']:<10} {expanded:<13} {_fmt_time(r['avg_time']):<15} {r['avg_memory']:<15.1f}")
+            print(f"  {r['n']:<10} {expanded:<13} {_fmt_time(r['avg_time']):<15}")
     else:
-        print(f"  {'N':<10} {'Avg Time':<15} {'Memory (MB)':<15}")
-        print(f"  {'-' * 40}")
+        print(f"  {'N':<10} {'Avg Time':<15}")
+        print(f"  {'-' * 25}")
         for r in all_results:
-            print(f"  {r['n']:<10} {_fmt_time(r['avg_time']):<15} {r['avg_memory']:<15.1f}")
+            print(f"  {r['n']:<10} {_fmt_time(r['avg_time']):<15}")
 
     if len(all_results) >= 2:
         first, last = all_results[0], all_results[-1]
@@ -479,6 +511,8 @@ def run_scaling_test(
     cohort_csv: str | None = None,
     step_timeout_mins: float = 0,
     stitch_interval: int | None = None,
+    mem_profile_dir: Path | None = None,
+    memory_limit: str | None = None,
 ) -> list[dict]:
     """Run progressive scaling test.
 
@@ -499,6 +533,8 @@ def run_scaling_test(
                 num_iterations=num_iterations, daily=daily,
                 cohort_csv=cohort_csv,
                 stitch_interval=stitch_interval,
+                mem_profile_dir=mem_profile_dir,
+                memory_limit=memory_limit,
             )
         except Exception as exc:
             print(f"\n  ERROR at n={n}: {type(exc).__name__}: {exc}")
@@ -567,10 +603,21 @@ def main():
         '--stitch', nargs='?', type=int, const=6, default=None, metavar='HOURS',
         help='Use encounter_block via stitch_encounters(time_interval=HOURS). Default: 6 hours',
     )
+    parser.add_argument(
+        '--mem-profile', nargs='?', const='memray', default=None,
+        choices=['memray'],
+        metavar='MODE',
+        help='Enable memory profiling (dev only). Default: memray. Captures native C/C++ allocations.',
+    )
+    parser.add_argument(
+        '--mem-limit', type=str, default=None, metavar='SIZE',
+        help="DuckDB memory limit (e.g., '4GB', '8GB'). Forces spill-to-disk when exceeded.",
+    )
     args = parser.parse_args()
 
     config_path = args.config or str(PROJECT_ROOT / "config" / "config.yaml")
     report_dir = PROJECT_ROOT / "output" / "perf"
+    mem_profile_dir = report_dir / "mem" if args.mem_profile else None
 
     # ── Resolve mode ──────────────────────────────────────────────────────
     mode = args.mode or ('both' if args.site_test else 'generic')
@@ -620,6 +667,10 @@ def main():
             print(f"Detected {max_map.get('generic', '?')} ICU stays ({max_map.get('daily', '?')} unique hospitalizations) in ADT")
         if args.stitch is not None:
             print(f"Identity: encounter_block (stitch_encounters, time_interval={args.stitch}h)")
+        if args.mem_limit:
+            print(f"Memory limit: {args.mem_limit}")
+        if args.mem_profile:
+            print(f"Memory profiling: {args.mem_profile} (native C/C++ allocations)")
         if args.max:
             print(f"Max override: {args.max}")
         for m in modes:
@@ -640,6 +691,8 @@ def main():
                     cohort_csv=args.cohort_csv,
                     step_timeout_mins=step_timeout,
                     stitch_interval=args.stitch,
+                    mem_profile_dir=mem_profile_dir,
+                    memory_limit=args.mem_limit,
                 )
                 _print_scaling_summary(results, title=f"{m.capitalize()} Summary")
             else:
@@ -650,13 +703,14 @@ def main():
                         num_iterations=args.iters, daily=is_daily,
                         cohort_csv=args.cohort_csv,
                         stitch_interval=args.stitch,
+                        mem_profile_dir=mem_profile_dir,
+                        memory_limit=args.mem_limit,
                     )
                     print_breakdown(results)
 
                     print(f"\n{_box_single('Results')}")
                     print(f"  Cohort size: {results['n']} rows")
                     print(f"  Average time: {_fmt_time(results['avg_time'])}")
-                    print(f"  Average memory: {results['avg_memory']:.1f} MB")
                 except Exception as exc:
                     print(f"\n  ERROR: {type(exc).__name__}: {exc}")
 
