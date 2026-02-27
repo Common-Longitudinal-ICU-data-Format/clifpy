@@ -14,6 +14,8 @@ Usage:
     python sofa2_perf_profiler.py -n 100 --mem-profile             # With memray memory profiling
     python sofa2_perf_profiler.py --site-test --site ucmc --mem-profile  # Site test + memray
     python sofa2_perf_profiler.py -n 100 --mem-limit 4GB           # With DuckDB memory limit
+    python sofa2_perf_profiler.py -n 100 --batch-size 50            # With cohort batching
+    python sofa2_perf_profiler.py -n 100 --mem-limit 8GB --temp-dir /tmp/sofa2 --max-temp-size 10GB
 
 Requires CLIF config at config/config.yaml (or pass --config).
 """
@@ -331,7 +333,7 @@ def profile_single(
     cohort_csv: str | None = None,
     stitch_interval: int | None = None,
     mem_profile_dir: Path | None = None,
-    memory_limit: str | None = None,
+    duckdb_config=None,
 ) -> dict:
     """Run SOFA-2 profiler for a single cohort size.
 
@@ -370,8 +372,8 @@ def profile_single(
 
     # Build SOFA-2 kwargs (add id_name/id_mapping when stitching)
     sofa_kwargs = {'clif_config_path': config_path, 'perf_profile': True}
-    if memory_limit:
-        sofa_kwargs['memory_limit'] = memory_limit
+    if duckdb_config is not None:
+        sofa_kwargs['duckdb_config'] = duckdb_config
     if stitch_interval is not None:
         sofa_kwargs['id_name'] = 'encounter_block'
         sofa_kwargs['id_mapping'] = encounter_mapping
@@ -512,7 +514,7 @@ def run_scaling_test(
     step_timeout_mins: float = 0,
     stitch_interval: int | None = None,
     mem_profile_dir: Path | None = None,
-    memory_limit: str | None = None,
+    duckdb_config=None,
 ) -> list[dict]:
     """Run progressive scaling test.
 
@@ -534,7 +536,7 @@ def run_scaling_test(
                 cohort_csv=cohort_csv,
                 stitch_interval=stitch_interval,
                 mem_profile_dir=mem_profile_dir,
-                memory_limit=memory_limit,
+                duckdb_config=duckdb_config,
             )
         except Exception as exc:
             print(f"\n  ERROR at n={n}: {type(exc).__name__}: {exc}")
@@ -613,11 +615,34 @@ def main():
         '--mem-limit', type=str, default=None, metavar='SIZE',
         help="DuckDB memory limit (e.g., '4GB', '8GB'). Forces spill-to-disk when exceeded.",
     )
+    parser.add_argument(
+        '--temp-dir', type=str, default=None, metavar='PATH',
+        help="Directory for DuckDB spill files (default: .tmp in CWD).",
+    )
+    parser.add_argument(
+        '--max-temp-size', type=str, default=None, metavar='SIZE',
+        help="Max disk for spill files (e.g., '10GB'). Prevents filling disk.",
+    )
+    parser.add_argument(
+        '--batch-size', type=int, default=None, metavar='N',
+        help="Process cohort in batches of N rows. Reduces peak memory.",
+    )
     args = parser.parse_args()
+
+    from clifpy.utils._duckdb_config import DuckDBResourceConfig
 
     config_path = args.config or str(PROJECT_ROOT / "config" / "config.yaml")
     report_dir = PROJECT_ROOT / "output" / "perf"
     mem_profile_dir = report_dir / "mem" if args.mem_profile else None
+
+    # Build DuckDB resource config from CLI flags
+    has_duckdb_flags = any([args.mem_limit, args.temp_dir, args.max_temp_size, args.batch_size])
+    duckdb_cfg = DuckDBResourceConfig(
+        memory_limit=args.mem_limit,
+        temp_directory=args.temp_dir,
+        max_temp_directory_size=args.max_temp_size,
+        batch_size=args.batch_size,
+    ) if has_duckdb_flags else None
 
     # ── Resolve mode ──────────────────────────────────────────────────────
     mode = args.mode or ('both' if args.site_test else 'generic')
@@ -669,6 +694,12 @@ def main():
             print(f"Identity: encounter_block (stitch_encounters, time_interval={args.stitch}h)")
         if args.mem_limit:
             print(f"Memory limit: {args.mem_limit}")
+        if args.temp_dir:
+            print(f"Temp directory: {args.temp_dir}")
+        if args.max_temp_size:
+            print(f"Max temp size: {args.max_temp_size}")
+        if args.batch_size:
+            print(f"Batch size: {args.batch_size}")
         if args.mem_profile:
             print(f"Memory profiling: {args.mem_profile} (native C/C++ allocations)")
         if args.max:
@@ -692,7 +723,7 @@ def main():
                     step_timeout_mins=step_timeout,
                     stitch_interval=args.stitch,
                     mem_profile_dir=mem_profile_dir,
-                    memory_limit=args.mem_limit,
+                    duckdb_config=duckdb_cfg,
                 )
                 _print_scaling_summary(results, title=f"{m.capitalize()} Summary")
             else:
@@ -704,7 +735,7 @@ def main():
                         cohort_csv=args.cohort_csv,
                         stitch_interval=args.stitch,
                         mem_profile_dir=mem_profile_dir,
-                        memory_limit=args.mem_limit,
+                        duckdb_config=duckdb_cfg,
                     )
                     print_breakdown(results)
 

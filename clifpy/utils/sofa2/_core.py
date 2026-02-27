@@ -25,7 +25,8 @@ from ._cv import _calculate_cv_subscore
 from ._liver import _calculate_liver_subscore
 from ._kidney import _calculate_kidney_subscore
 from ._hemo import _calculate_hemo_subscore
-from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table, _with_memory_limit
+from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table, _with_duckdb_config
+from clifpy.utils._duckdb_config import DuckDBResourceConfig
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.core')
@@ -126,6 +127,7 @@ def calculate_sofa2(
     id_name: str = 'hospitalization_id',
     id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
     memory_limit: str | None = None,
+    duckdb_config: DuckDBResourceConfig | None = None,
 ) -> pd.DataFrame | DuckDBPyRelation | tuple:
     """
     Calculate SOFA-2 scores for a cohort with time windows.
@@ -156,9 +158,12 @@ def calculate_sofa2(
         If provided, used directly for CLIF table remapping (skips internal
         extraction). If omitted, extracted from cohort via SELECT DISTINCT.
     memory_limit : str, optional
+        **Deprecated** — use ``duckdb_config`` instead.
         DuckDB memory limit (e.g., '8GB', '16GB'). When set, DuckDB will
-        spill to disk instead of exceeding this limit. Default: None (use
-        DuckDB's default, typically 80% of system RAM).
+        spill to disk instead of exceeding this limit.
+    duckdb_config : DuckDBResourceConfig, optional
+        DuckDB resource limits (memory, disk, batching). When provided,
+        supersedes ``memory_limit``. Default: None (DuckDB system defaults).
 
     Returns
     -------
@@ -184,7 +189,24 @@ def calculate_sofa2(
             - Hemo: platelet_count, platelet_dttm_offset
         If dev=True: (results, intermediates_dict)
     """
-    with _with_memory_limit(memory_limit):
+    # Backward compat: wrap legacy memory_limit into DuckDBResourceConfig
+    if memory_limit is not None and duckdb_config is None:
+        duckdb_config = DuckDBResourceConfig(memory_limit=memory_limit)
+    cfg = duckdb_config or DuckDBResourceConfig()
+
+    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size):
+        # Batching: split large cohorts into chunks to reduce peak memory
+        if (
+            cfg.batch_size
+            and isinstance(cohort_df, pd.DataFrame)
+            and len(cohort_df) > cfg.batch_size
+        ):
+            return _calculate_sofa2_batched(
+                cohort_df, clif_config_path, return_rel, dev,
+                sofa2_config=sofa2_config, perf_profile=perf_profile,
+                id_name=id_name, id_mapping=id_mapping,
+                batch_size=cfg.batch_size,
+            )
         return _calculate_sofa2_impl(
             cohort_df, clif_config_path, return_rel, dev,
             sofa2_config=sofa2_config, perf_profile=perf_profile,
@@ -192,11 +214,45 @@ def calculate_sofa2(
         )
 
 
+def _calculate_sofa2_batched(
+    cohort_df, clif_config_path, return_rel, dev,
+    *, sofa2_config, perf_profile, id_name, id_mapping, batch_size,
+):
+    """Split cohort into batches, run _calculate_sofa2_impl per batch, concat."""
+    chunks = [cohort_df[i:i + batch_size] for i in range(0, len(cohort_df), batch_size)]
+    logger.info(f"Batching: {len(cohort_df)} rows → {len(chunks)} batches of ≤{batch_size}")
+
+    all_results = []
+    last_timer = None
+    last_cv_timer = None
+
+    for i, chunk in enumerate(chunks):
+        logger.info(f"Batch {i + 1}/{len(chunks)}: {len(chunk)} rows")
+        out = _calculate_sofa2_impl(
+            chunk, clif_config_path, return_rel=False, dev=False,
+            sofa2_config=sofa2_config, perf_profile=perf_profile,
+            id_name=id_name, id_mapping=id_mapping,
+        )
+        if perf_profile:
+            result, last_timer, last_cv_timer = out
+        else:
+            result = out
+        all_results.append(result)
+
+    combined = pd.concat(all_results, ignore_index=True)
+
+    if return_rel:
+        combined = duckdb.sql("SELECT * FROM combined")
+    if perf_profile:
+        return combined, last_timer, last_cv_timer
+    return combined
+
+
 def _calculate_sofa2_impl(
     cohort_df, clif_config_path, return_rel, dev,
     *, sofa2_config, perf_profile, id_name, id_mapping,
 ):
-    """Inner implementation of calculate_sofa2 (separated for memory_limit wrapping)."""
+    """Inner implementation of calculate_sofa2 (separated for resource config wrapping)."""
     from clifpy import load_data
 
     cfg = sofa2_config or SOFA2Config()
@@ -464,6 +520,7 @@ def calculate_sofa2_daily(
     id_name: str = 'hospitalization_id',
     id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
     memory_limit: str | None = None,
+    duckdb_config: DuckDBResourceConfig | None = None,
 ) -> pd.DataFrame | DuckDBPyRelation:
     """
     Calculate daily SOFA-2 scores with carry-forward for missing data.
@@ -498,9 +555,12 @@ def calculate_sofa2_daily(
     id_mapping : pd.DataFrame | DuckDBPyRelation, optional
         Mapping from hospitalization_id to id_name. See calculate_sofa2().
     memory_limit : str, optional
+        **Deprecated** — use ``duckdb_config`` instead.
         DuckDB memory limit (e.g., '8GB', '16GB'). When set, DuckDB will
-        spill to disk instead of exceeding this limit. Default: None (use
-        DuckDB's default, typically 80% of system RAM).
+        spill to disk instead of exceeding this limit.
+    duckdb_config : DuckDBResourceConfig, optional
+        DuckDB resource limits (memory, disk, batching). When provided,
+        supersedes ``memory_limit``. Default: None (DuckDB system defaults).
 
     Returns
     -------
@@ -519,7 +579,12 @@ def calculate_sofa2_daily(
 
     - Example: 47h window → 1 row (nth_day=1); 49h window → 2 rows (nth_day=1, 2)
     """
-    with _with_memory_limit(memory_limit):
+    # Backward compat: wrap legacy memory_limit into DuckDBResourceConfig
+    if memory_limit is not None and duckdb_config is None:
+        duckdb_config = DuckDBResourceConfig(memory_limit=memory_limit)
+    cfg = duckdb_config or DuckDBResourceConfig()
+
+    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size):
         return _calculate_sofa2_daily_impl(
             cohort_df, clif_config_path, return_rel,
             sofa2_config=sofa2_config, perf_profile=perf_profile,
@@ -531,7 +596,7 @@ def _calculate_sofa2_daily_impl(
     cohort_df, clif_config_path, return_rel,
     *, sofa2_config, perf_profile, id_name, id_mapping,
 ):
-    """Inner implementation of calculate_sofa2_daily (separated for memory_limit wrapping)."""
+    """Inner implementation of calculate_sofa2_daily (separated for resource config wrapping)."""
     logger.info("Starting daily SOFA-2 calculation...")
     timer = StepTimer() if perf_profile else NoOpTimer()
 

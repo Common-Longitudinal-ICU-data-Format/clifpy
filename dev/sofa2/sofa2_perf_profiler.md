@@ -77,6 +77,12 @@ python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB
 
 # Combine memory limit with memray to see allocation patterns under constraint
 python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB --mem-profile
+
+# With cohort batching (reduces peak memory by processing in chunks)
+python dev/sofa2/sofa2_perf_profiler.py -n 1000 --batch-size 200
+
+# Full DuckDB resource config (memory cap + disk guard + spill directory)
+python dev/sofa2/sofa2_perf_profiler.py -n 1000 --mem-limit 8GB --temp-dir /tmp/sofa2 --max-temp-size 10GB
 ```
 
 ## CLI Reference
@@ -94,6 +100,9 @@ python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB --mem-profile
 | `--stitch [HOURS]` | off | Score by `encounter_block` via `stitch_encounters(time_interval=HOURS)`. Default: 6h |
 | `--mem-profile [MODE]` | off | Enable memory profiling (dev only). Default: `memray`. Captures native C/C++ allocations |
 | `--mem-limit SIZE` | None (DuckDB default) | DuckDB memory limit (e.g., `4GB`, `8GB`). Forces spill-to-disk when exceeded |
+| `--temp-dir PATH` | `.tmp` in CWD | Directory for DuckDB spill files |
+| `--max-temp-size SIZE` | unlimited | Max disk for spill files (e.g., `10GB`). Prevents filling disk |
+| `--batch-size N` | None (all at once) | Process cohort in batches of N rows. Reduces peak memory |
 
 ### Cohort source
 
@@ -167,12 +176,34 @@ result, outer_timer, inner_timer, inner_cv_timer = calculate_sofa2_daily(
 # inner_cv_timer — CV internal steps (last window)
 ```
 
-### With memory limit
+### With DuckDB resource config
 
 ```python
 from clifpy.utils.sofa2 import calculate_sofa2
+from clifpy.utils._duckdb_config import DuckDBResourceConfig
 
-# Cap DuckDB memory to prevent OOM — spills to disk when exceeded
+# Full resource config: memory cap + disk guard + batching
+result = calculate_sofa2(
+    cohort_df,
+    clif_config_path="config/config.yaml",
+    duckdb_config=DuckDBResourceConfig(
+        memory_limit='8GB',
+        temp_directory='/tmp/duckdb_sofa2',
+        max_temp_directory_size='10GB',
+        batch_size=500,
+    ),
+)
+
+# Auto-detect conservative limits from system resources
+config = DuckDBResourceConfig.from_system()
+print(config.summary())
+result = calculate_sofa2(
+    cohort_df,
+    clif_config_path="config/config.yaml",
+    duckdb_config=config,
+)
+
+# Legacy: memory_limit param still works (deprecated)
 result = calculate_sofa2(
     cohort_df,
     clif_config_path="config/config.yaml",
@@ -202,21 +233,57 @@ timer.total       # sum of all elapsed times
 timer.report()    # formatted table string
 ```
 
-## DuckDB Memory Limit
+## DuckDB Resource Limits
 
-The `memory_limit` parameter on `calculate_sofa2()` and `calculate_sofa2_daily()` tells DuckDB to **spill to disk** instead of exceeding the limit. This is the primary mechanism for preventing OOM on large cohorts.
+The `duckdb_config` parameter on `calculate_sofa2()` and `calculate_sofa2_daily()` accepts a `DuckDBResourceConfig` object that bundles memory, disk, and batching settings. This is the primary mechanism for preventing OOM on large cohorts.
 
-**When to use it:** large cohorts (1K+ ICU stays) on machines where the dataset approaches available RAM. Without a limit, DuckDB defaults to ~80% of system RAM.
+### Three-layer resource model
 
-**How it works:** DuckDB's buffer manager respects the limit for joins, sorts, grouping, and windowing operators. When memory pressure exceeds the limit, intermediate results are written to a temp directory on disk and read back as needed.
+| Setting | Controls | Default |
+|---|---|---|
+| `memory_limit` | RAM for buffer manager | ~80% of system RAM |
+| `max_temp_directory_size` | Disk for spill files | unlimited |
+| `temp_directory` | Where spill files go | `.tmp` in CWD |
+| `batch_size` | Rows per scoring batch | None (all at once) |
 
-**Example:** on a 16GB machine, `memory_limit='8GB'` reserves 8GB for DuckDB's buffer manager, leaving the rest for the OS, Python, and other processes.
+**Layer 1 — `memory_limit`:** DuckDB's buffer manager respects this limit for joins, sorts, grouping, and windowing. When memory pressure exceeds the limit, intermediate results spill to disk.
 
-**Complementary with eager materialization:** the SOFA-2 pipeline already materializes each subscore to a temp table (reducing peak concurrent memory). The memory limit adds an absolute ceiling on top of that — if any single subscore's intermediate computation exceeds the limit, DuckDB spills to disk instead of crashing.
+**Layer 2 — `max_temp_directory_size`:** Caps the disk space DuckDB can use for spill files. When exceeded, DuckDB raises a clean error instead of filling the disk.
 
-**Performance impact:** spilling to disk is slower than in-memory processing. The overhead depends on the ratio of data size to memory limit — tighter limits cause more spilling. For most cohorts, `8GB` or `4GB` has minimal impact; very tight limits (e.g., `1GB`) can cause significant slowdown.
+**Layer 3 — `batch_size`:** Splits the cohort into chunks and processes each independently. Each hospitalization's SOFA-2 score is fully independent, so batching is trivially parallelizable. Trade-off: CLIF tables reload per batch (I/O cost) but peak memory drops proportionally.
 
-Use the profiler's `--mem-limit` flag to benchmark the impact:
+**Complementary with eager materialization:** the SOFA-2 pipeline already materializes each subscore to a temp table (reducing peak concurrent memory). Resource limits add absolute ceilings on top of that.
+
+### When to use it
+
+- Large cohorts (1K+ ICU stays) on machines where the dataset approaches available RAM
+
+- Shared servers where you need to limit resource consumption
+
+- Environments with limited disk space (set `max_temp_directory_size` to prevent filling disk)
+
+### Auto-detection
+
+For users who want guardrails without manually checking system specs:
+
+```python
+from clifpy.utils._duckdb_config import DuckDBResourceConfig
+
+config = DuckDBResourceConfig.from_system()
+print(config.summary())
+# memory_limit:             12GB
+# temp_directory:            system default (.tmp in CWD)
+# max_temp_directory_size:   50GB
+# batch_size:               disabled (all at once)
+```
+
+When all fields are `None` (the default), DuckDB uses system defaults — zero-config users experience zero change.
+
+### Performance impact
+
+Spilling to disk is slower than in-memory processing. The overhead depends on the ratio of data size to memory limit — tighter limits cause more spilling. For most cohorts, `8GB` or `4GB` has minimal impact; very tight limits (e.g., `1GB`) can cause significant slowdown.
+
+Use the profiler to benchmark the impact:
 
 ```bash
 # Baseline (no limit)
@@ -224,6 +291,12 @@ python dev/sofa2/sofa2_perf_profiler.py -n 1000
 
 # With 4GB limit
 python dev/sofa2/sofa2_perf_profiler.py -n 1000 --mem-limit 4GB
+
+# With batching
+python dev/sofa2/sofa2_perf_profiler.py -n 1000 --batch-size 200
+
+# Full config
+python dev/sofa2/sofa2_perf_profiler.py -n 1000 --mem-limit 8GB --temp-dir /tmp/sofa2 --max-temp-size 10GB
 ```
 
 ## How It Works

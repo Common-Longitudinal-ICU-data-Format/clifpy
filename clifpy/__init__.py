@@ -33,6 +33,10 @@ from .utils.config import load_config
 from .utils.io import load_data
 from .utils.logging_config import setup_logging, get_logger
 
+# SOFA-2 scoring
+from .utils.sofa2 import calculate_sofa2, calculate_sofa2_daily, SOFA2Config
+from .utils._duckdb_config import DuckDBResourceConfig
+
 # Version info
 try:
     from importlib.metadata import version
@@ -77,4 +81,10 @@ __all__ = [
     "load_data",
     "setup_logging",
     "get_logger",
+    # SOFA-2 scoring
+    "calculate_sofa2",
+    "calculate_sofa2_daily",
+    "SOFA2Config",
+    # DuckDB resource config
+    "DuckDBResourceConfig",
 ]

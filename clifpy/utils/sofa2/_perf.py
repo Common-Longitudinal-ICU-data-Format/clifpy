@@ -4,7 +4,7 @@ Provides:
 - StepTimer: Collects per-step wall-clock timing via context manager
 - NoOpTimer: Zero-cost drop-in replacement when profiling is off
 - _register_temp_table / _cleanup_temp_tables: Temp table lifecycle management
-- _with_memory_limit: Context manager for DuckDB memory_limit with save/restore
+- _with_duckdb_config: Context manager for DuckDB resource limits with save/restore
 """
 from __future__ import annotations
 
@@ -76,33 +76,56 @@ def _materialize_subscore(name: str, rel) -> duckdb.DuckDBPyRelation:
 
 
 # =============================================================================
-# DuckDB Memory Limit
+# DuckDB Resource Limits
 # =============================================================================
 
 
 @contextmanager
-def _with_memory_limit(memory_limit: str | None):
-    """Set DuckDB memory_limit for the context duration, then restore.
+def _with_duckdb_config(
+    memory_limit: str | None = None,
+    temp_directory: str | None = None,
+    max_temp_directory_size: str | None = None,
+):
+    """Set DuckDB resource limits for the context duration, then restore.
 
-    Uses SET/RESET on the global DuckDB connection. When memory_limit is set,
-    DuckDB will spill to disk (via its temp_directory) instead of exceeding
-    the limit — this is the primary mechanism for preventing OOM.
+    Uses SET/RESET on the global DuckDB connection. Handles three layers:
+    - memory_limit: RAM cap for buffer manager (spills to disk when exceeded)
+    - temp_directory: where spill files go
+    - max_temp_directory_size: disk cap for spill files (clean error if exceeded)
+
+    Only settings with non-None values are applied. When all are None,
+    this is a no-op.
 
     Parameters
     ----------
-    memory_limit : str or None
-        DuckDB memory limit string (e.g., '8GB', '16GB').
-        If None, this is a no-op.
+    memory_limit : str, optional
+        DuckDB memory limit (e.g., '8GB', '16GB').
+    temp_directory : str, optional
+        Directory for DuckDB spill files.
+    max_temp_directory_size : str, optional
+        Max disk for spill files (e.g., '10GB').
     """
-    if memory_limit is None:
+    settings = {}
+    if memory_limit is not None:
+        settings['memory_limit'] = memory_limit
+    if temp_directory is not None:
+        settings['temp_directory'] = temp_directory
+    if max_temp_directory_size is not None:
+        settings['max_temp_directory_size'] = max_temp_directory_size
+
+    if not settings:
         yield
         return
-    old = duckdb.sql("SELECT current_setting('memory_limit')").fetchone()[0]
-    duckdb.execute(f"SET memory_limit = '{memory_limit}'")
+
+    saved = {}
+    for key, val in settings.items():
+        saved[key] = duckdb.sql(f"SELECT current_setting('{key}')").fetchone()[0]
+        duckdb.execute(f"SET {key} = '{val}'")
     try:
         yield
     finally:
-        duckdb.execute(f"SET memory_limit = '{old}'")
+        for key, old_val in saved.items():
+            duckdb.execute(f"SET {key} = '{old_val}'")
 
 
 # =============================================================================
