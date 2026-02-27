@@ -20,8 +20,10 @@ Usage:
 Requires CLIF config at config/config.yaml (or pass --config).
 """
 import io
+import logging
 import sys
 import time
+import traceback
 import subprocess
 import shutil
 import tempfile
@@ -33,6 +35,9 @@ from pathlib import Path
 import pandas as pd
 
 from clifpy.utils.sofa2._perf import _fmt_time
+from clifpy.utils.logging_config import get_logger
+
+profiler_logger = get_logger('profiler')
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -67,11 +72,12 @@ def _box_single(text: str) -> str:
 
 
 class TeeOutput:
-    """Captures print() output to both stdout and a string buffer."""
+    """Captures print() and logger output to both stdout and a string buffer."""
 
     def __init__(self, original_stdout):
         self.original = original_stdout
         self.buffer = io.StringIO()
+        self.encoding = getattr(original_stdout, 'encoding', 'utf-8')
 
     def write(self, text):
         self.original.write(text)
@@ -166,6 +172,57 @@ def save_report(
     filepath = report_dir / f"{prefix}{name_part}_{timestamp}.md"
     filepath.write_text(content)
     return filepath
+
+
+# ---------------------------------------------------------------------------
+# System info and error guidance
+# ---------------------------------------------------------------------------
+
+def _log_system_info(duckdb_config=None):
+    """Log system resource summary for diagnostic context."""
+    import psutil
+    import platform
+    from clifpy.utils._duckdb_config import DuckDBResourceConfig
+
+    mem = psutil.virtual_memory()
+    disk = shutil.disk_usage('/')
+
+    profiler_logger.info(f"OS: {platform.system()} {platform.release()} ({platform.machine()})")
+    profiler_logger.info(f"Python: {platform.python_version()}")
+    profiler_logger.info(f"CPU: {psutil.cpu_count(logical=False)} physical / {psutil.cpu_count(logical=True)} logical cores")
+    profiler_logger.info(f"RAM: {mem.total / (1024**3):.1f} GB total, {mem.available / (1024**3):.1f} GB available ({100 - mem.percent:.0f}% free)")
+    profiler_logger.info(f"Disk free (/): {disk.free / (1024**3):.1f} GB")
+
+    auto_cfg = DuckDBResourceConfig.from_system()
+    if duckdb_config is not None:
+        profiler_logger.info(f"Effective DuckDB config (user-specified):")
+        for line in duckdb_config.summary().splitlines():
+            profiler_logger.info(f"  {line}")
+        profiler_logger.info(f"Auto-detected reference: {auto_cfg.memory_limit} memory, {auto_cfg.max_temp_directory_size} max temp disk")
+    else:
+        profiler_logger.info(f"DuckDB config: system defaults (no limits specified)")
+        profiler_logger.info(f"Auto-detected recommendation: {auto_cfg.memory_limit} memory, {auto_cfg.max_temp_directory_size} max temp disk")
+
+
+def _log_oom_guidance(exc: Exception):
+    """Log actionable OOM recovery suggestions if the exception is memory-related."""
+    import duckdb as _duckdb
+    is_oom = isinstance(exc, _duckdb.OutOfMemoryException) or 'Out of Memory' in str(exc)
+    if not is_oom:
+        return
+
+    profiler_logger.warning("=" * 50)
+    profiler_logger.warning("OUT OF MEMORY — Suggested actions:")
+    profiler_logger.warning("=" * 50)
+    profiler_logger.warning("1. Use --mem-limit to cap DuckDB RAM (e.g., --mem-limit 4GB)")
+    profiler_logger.warning("   This forces spill-to-disk instead of crashing.")
+    profiler_logger.warning("2. Use --batch-size to process in smaller chunks (e.g., --batch-size 200)")
+    profiler_logger.warning("   Each batch independently scores a subset of the cohort.")
+    profiler_logger.warning("3. Use auto-detected limits:")
+    profiler_logger.warning("   from clifpy.utils._duckdb_config import DuckDBResourceConfig")
+    profiler_logger.warning("   config = DuckDBResourceConfig.from_system()")
+    profiler_logger.warning("4. Reduce cohort size (-n) or add --max to cap scaling tests.")
+    profiler_logger.warning("=" * 50)
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +596,9 @@ def run_scaling_test(
                 duckdb_config=duckdb_config,
             )
         except Exception as exc:
-            print(f"\n  ERROR at n={n}: {type(exc).__name__}: {exc}")
+            profiler_logger.error(f"n={n}: {type(exc).__name__}: {exc}")
+            profiler_logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            _log_oom_guidance(exc)
             remaining = sample_sizes[i + 1:]
             if remaining:
                 print(f"  Skipping remaining sizes: {remaining}")
@@ -579,7 +638,7 @@ def _parse_cohort_size(value: str) -> int | str:
 
 def main():
     from clifpy.utils.logging_config import setup_logging
-    setup_logging()
+    setup_logging()  # Sets up file + console handlers before TeeOutput redirect
 
     parser = argparse.ArgumentParser(
         description="SOFA-2 Performance Profiler",
@@ -609,7 +668,7 @@ def main():
         '--mem-profile', nargs='?', const='memray', default=None,
         choices=['memray'],
         metavar='MODE',
-        help='Enable memory profiling (dev only). Default: memray. Captures native C/C++ allocations.',
+        help='Enable memory profiling (dev only, not needed for site testing). Default: memray.',
     )
     parser.add_argument(
         '--mem-limit', type=str, default=None, metavar='SIZE',
@@ -676,9 +735,14 @@ def main():
     tee = TeeOutput(sys.stdout)
     sys.stdout = tee
 
-    # Determine if report should be saved (pre-compute so finally block can use it)
+    # Redirect logging console handler to flow through tee so logger output
+    # is captured in the report alongside print() output
+    clifpy_logger = logging.getLogger('clifpy')
+    for handler in clifpy_logger.handlers:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            handler.stream = tee
+
     has_multi_sizes = any(len(sizes_map[m]) > 1 for m in modes)
-    should_save = args.site or args.site_test or has_multi_sizes
 
     try:
         # ── Header ────────────────────────────────────────────────────────
@@ -706,6 +770,10 @@ def main():
             print(f"Max override: {args.max}")
         for m in modes:
             print(f"{'  ' if len(modes) > 1 else ''}{m.capitalize()} scaling sizes: {sizes_map[m]}")
+
+        # ── System info ──────────────────────────────────────────────────
+        print(f"\n{_box_single('System Info')}")
+        _log_system_info(duckdb_config=duckdb_cfg)
 
         # ── Run each mode ─────────────────────────────────────────────────
         step_timeout = 10.0 if args.site_test else 0
@@ -743,7 +811,9 @@ def main():
                     print(f"  Cohort size: {results['n']} rows")
                     print(f"  Average time: {_fmt_time(results['avg_time'])}")
                 except Exception as exc:
-                    print(f"\n  ERROR: {type(exc).__name__}: {exc}")
+                    profiler_logger.error(f"{type(exc).__name__}: {exc}")
+                    profiler_logger.error(f"Full traceback:\n{traceback.format_exc()}")
+                    _log_oom_guidance(exc)
 
         # ── Final summary (site-test) ─────────────────────────────────────
         if args.site_test:
@@ -755,12 +825,20 @@ def main():
                 print(f"{m.capitalize()} mode: tested up to n={tested_n}")
 
     finally:
-        # ── Always save report (even on crash) ────────────────────────────
+        # ── Restore stdout and logging handler, then save report ──────────
         sys.stdout = tee.original
-        if should_save:
-            prefix = "sofa2_profiling" if args.site_test else "sofa2_scaling"
-            filepath = save_report(tee.getvalue(), report_dir, prefix=prefix, site_name=args.site)
-            print(f"\nReport saved to: {filepath}")
+        for handler in clifpy_logger.handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                handler.stream = tee.original
+
+        if args.site_test:
+            prefix = "sofa2_profiling"
+        elif has_multi_sizes:
+            prefix = "sofa2_scaling"
+        else:
+            prefix = "sofa2_run"
+        filepath = save_report(tee.getvalue(), report_dir, prefix=prefix, site_name=args.site)
+        print(f"\nReport saved to: {filepath}")
 
 
 if __name__ == "__main__":

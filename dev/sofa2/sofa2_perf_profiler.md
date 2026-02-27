@@ -66,17 +66,8 @@ python dev/sofa2/sofa2_perf_profiler.py -n 100 --stitch 12
 # Full site test with stitching
 python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --stitch
 
-# With memray memory profiling (captures DuckDB C++ allocations)
-python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-profile
-
-# Site test with memray
-python dev/sofa2/sofa2_perf_profiler.py --site-test --site ucmc --mem-profile
-
 # With DuckDB memory limit (spill-to-disk when exceeded)
 python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB
-
-# Combine memory limit with memray to see allocation patterns under constraint
-python dev/sofa2/sofa2_perf_profiler.py -n 100 --mem-limit 4GB --mem-profile
 
 # With cohort batching (reduces peak memory by processing in chunks)
 python dev/sofa2/sofa2_perf_profiler.py -n 1000 --batch-size 200
@@ -98,7 +89,7 @@ python dev/sofa2/sofa2_perf_profiler.py -n 1000 --mem-limit 8GB --temp-dir /tmp/
 | `--config PATH` | `config/config.yaml` | Path to CLIF config |
 | `--cohort-csv PATH` | off | Path to external CSV with `hospitalization_id` column |
 | `--stitch [HOURS]` | off | Score by `encounter_block` via `stitch_encounters(time_interval=HOURS)`. Default: 6h |
-| `--mem-profile [MODE]` | off | Enable memory profiling (dev only). Default: `memray`. Captures native C/C++ allocations |
+| `--mem-profile [MODE]` | off | Enable memory profiling (dev only, not needed for site testing). Default: `memray` |
 | `--mem-limit SIZE` | None (DuckDB default) | DuckDB memory limit (e.g., `4GB`, `8GB`). Forces spill-to-disk when exceeded |
 | `--temp-dir PATH` | `.tmp` in CWD | Directory for DuckDB spill files |
 | `--max-temp-size SIZE` | unlimited | Max disk for spill files (e.g., `10GB`). Prevents filling disk |
@@ -424,19 +415,21 @@ Running multiple iterations averages out noise from system load, DuckDB JIT warm
 
 ## Report Files
 
-The profiler automatically saves console output to a timestamped `.md` file when there are multiple sizes, `--site-test` is used, or `--site` is provided:
+The profiler always saves a report to a timestamped `.md` file in `output/perf/`. This is the **single artifact** to share with the CLIF team — it contains system info, timing, pipeline logging, tracebacks, and OOM guidance all in one place.
 
 - **`--site-test`**: `output/perf/sofa2_profiling_<site>_YYMMDD_HHMMSS.md`
 
-- **`--site` or multi-size `-n`**: `output/perf/sofa2_scaling_<site>_YYMMDD_HHMMSS.md`
+- **Multi-size scaling**: `output/perf/sofa2_scaling_<site>_YYMMDD_HHMMSS.md`
 
-- **Single runs without `--site`**: output goes to stdout only (no file saved)
+- **Single run**: `output/perf/sofa2_run_<site>_YYMMDD_HHMMSS.md`
 
-The `output/` directory is gitignored, so reports are local-only. Share the `.md` file with the CLIF team for cross-site comparison.
+The `output/` directory is gitignored, so reports are local-only.
 
-Pipeline logs (from `clifpy.utils.logging_config`) are saved separately to `output/logs/clifpy_all.log` and `output/logs/clifpy_errors.log`.
+Pipeline logs are also saved to `output/logs/clifpy_all.log` and `output/logs/clifpy_errors.log` as a backup.
 
-## Memory Profiling with Memray
+## Advanced: Memory Profiling with Memray (Dev Only)
+
+> **Note**: This section is for clifpy developers investigating memory hotspots. Sites do not need memray for standard profiling — the timing profiler and DuckDB resource config (`--mem-limit`, `--batch-size`) are sufficient for most use cases.
 
 The `--mem-profile` flag enables native memory profiling using [memray](https://github.com/bloomberg/memray). Unlike Python-only profilers (e.g., `tracemalloc`), memray hooks into `malloc`/`free` at the C level and captures DuckDB's internal C++ allocations — which is where OOM actually occurs.
 
