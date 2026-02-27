@@ -119,16 +119,19 @@ columns:
   - name: numerical_value
     data_type: DOUBLE
     required: true
+    allow_missing: true
     is_category_column: false
     is_group_column: false
   - name: categorical_value
     data_type: VARCHAR
     required: true
+    allow_missing: true
     is_category_column: false
     is_group_column: false
   - name: text_value
     data_type: VARCHAR
     required: true
+    allow_missing: true
     is_category_column: false
     is_group_column: false
 

@@ -121,7 +121,7 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
     for category in DQA_CATEGORIES:
         cat_issues = [i for i in all_issues if i['category'] == category]
         if cat_issues:
-            cat_passed = sum(1 for i in cat_issues if i['severity'] == 'info')
+            cat_passed = sum(1 for i in cat_issues if i['severity'] in ('info', 'warning'))
             category_scores[category] = (cat_passed, len(cat_issues))
 
     return category_scores, all_issues
@@ -261,7 +261,7 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
 
     # --- DQA Summary Table ---
     story.append(Paragraph("DQA Summary", heading_style))
-    summary_header = ['Category', 'Passed', 'Total', 'Errors', 'Warnings']
+    summary_header = ['Category', 'Non-Error', 'Total', 'Errors', 'Warnings']
     summary_rows = [summary_header]
     for category in DQA_CATEGORIES:
         if category not in category_scores:
