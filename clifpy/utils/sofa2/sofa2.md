@@ -189,7 +189,7 @@ END AS fio2_imputed
 | 1 | Creatinine ≤2.0 mg/dL (≤170 μmol/L) or urine output <0.5 mL/kg/h for 6–12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
 | 2 | Creatinine ≤3.50 mg/dL (≤300 μmol/L) or urine output <0.5 mL/kg/h for ≥12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
 | 3 | Creatinine >3.50 mg/dL (>300 μmol/L)  OR urine output <0.3 mL/kg/h for ≥24 h OR anuria (0 mL) for ≥12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
-| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | TODO: carry forward score 4 of CRRT for 3 days |
+| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | TODO: carry forward score 4 that results from CRRT for 3 days |
 
 | footnote | status |
 |----------|----------|
@@ -231,17 +231,17 @@ RRT criteria in footnote p:
 
 ## Cohort Definition
 
-- **Multi-window support**: One row per `(hospitalization_id, start_dttm, end_dttm)`
+- **Multi-window support**: One row per `({id_name}, start_dttm, end_dttm)` where `id_name` defaults to `hospitalization_id` (or `encounter_block` when using stitched encounters)
 
 - Allows multiple scoring windows per hospitalization (e.g., rolling 24h periods)
 
-- **Non-overlapping windows assumption**: Windows for the same `hospitalization_id` cannot overlap
+- **Non-overlapping windows assumption**: Windows for the same `{id_name}` cannot overlap
 
 - This enables INNER JOIN without data explosion (each measurement belongs to at most one window)
 
 ## Window Identity
 
-- `(hospitalization_id, start_dttm)` uniquely identifies each scoring window
+- `({id_name}, start_dttm)` uniquely identifies each scoring window (defaults to `hospitalization_id`)
 
 - Carried through all intermediate tables via GROUP BY and SELECT
 
@@ -342,6 +342,8 @@ Some CLIF tables may not be available at all sites. The pipeline handles these g
 2. **Missing columns**: column validation after load → empty sentinel + warning
 
 ## SQL Patterns
+
+> All SQL below shows `hospitalization_id` for readability; in practice, the code uses `{id_name}` via f-strings, which resolves to `encounter_block` (or any alternative) when configured.
 
 | Pattern | Purpose | Example |
 |---------|---------|---------|
