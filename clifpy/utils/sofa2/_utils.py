@@ -39,6 +39,8 @@ class SOFA2Config:
         Hours after sedation ends where GCS measurements remain invalid (footnote c). Default 1.0.
     include_timestamps : bool
         If True, include ARGMAX/ARGMIN timestamps for determining measurements. Default False.
+    rrt_carryforward_days : int
+        Days to carry forward kidney score 4 after CRRT (includes the CRRT day). Default 3.
     """
 
     # Pre-window lookback (hours) - per subscore type
@@ -55,6 +57,9 @@ class SOFA2Config:
 
     # Brain subscore (footnote c)
     post_sedation_gcs_invalidate_hours: float = 12.0
+
+    # Kidney subscore (daily carry-forward)
+    rrt_carryforward_days: int = 3
 
 
 # =============================================================================

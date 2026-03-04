@@ -597,6 +597,9 @@ def _calculate_sofa2_daily_impl(
     *, sofa2_config, perf_profile, id_name, id_mapping,
 ):
     """Inner implementation of calculate_sofa2_daily (separated for resource config wrapping)."""
+    cfg = sofa2_config or SOFA2Config()
+    rrt_carryforward_days = cfg.rrt_carryforward_days
+
     logger.info("Starting daily SOFA-2 calculation...")
     timer = StepTimer() if perf_profile else NoOpTimer()
 
@@ -660,6 +663,12 @@ def _calculate_sofa2_daily_impl(
             SELECT
                 r.*
                 , e.nth_day
+                -- Most recent day with actual RRT (for 3-day carry-forward)
+                , MAX(CASE WHEN has_rrt = 1 THEN e.nth_day END) OVER (
+                    PARTITION BY r.{id_name}
+                    ORDER BY r.start_dttm
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) AS last_rrt_day
         ),
         with_carryforward AS (
             FROM with_nth_day
@@ -678,8 +687,13 @@ def _calculate_sofa2_daily_impl(
                 , CASE WHEN nth_day = 1 THEN sofa2_liver
                        ELSE COALESCE(sofa2_liver, LAST_VALUE(sofa2_liver IGNORE NULLS) OVER w)
                   END AS sofa2_liver_filled
-                , CASE WHEN nth_day = 1 THEN sofa2_kidney
-                       ELSE COALESCE(sofa2_kidney, LAST_VALUE(sofa2_kidney IGNORE NULLS) OVER w)
+                -- RRT 3-day carry-forward: override to 4 within window, then standard fill
+                , CASE
+                    WHEN last_rrt_day IS NOT NULL
+                         AND nth_day - last_rrt_day < {rrt_carryforward_days}
+                    THEN 4
+                    WHEN nth_day = 1 THEN sofa2_kidney
+                    ELSE COALESCE(sofa2_kidney, LAST_VALUE(sofa2_kidney IGNORE NULLS) OVER w)
                   END AS sofa2_kidney_filled
                 , CASE WHEN nth_day = 1 THEN sofa2_hemo
                        ELSE COALESCE(sofa2_hemo, LAST_VALUE(sofa2_hemo IGNORE NULLS) OVER w)
