@@ -407,7 +407,7 @@ def convert_datetime_columns_to_site_tz(
                 null_after = df[col].isna().sum()
                 converted_cols.append(col)
                 if null_before != null_after:
-                    logger.warning(f"{col}: Null count changed during conversion ({null_before} → {null_after})")
+                    logger.warning(f"{col}: Null count changed during conversion ({null_before} -> {null_after})")
                 logger.debug(f"{col}: Converted from {current_tz} to {site_tz}")
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.tz_localize(site_tz, ambiguous=True, nonexistent='shift_forward')

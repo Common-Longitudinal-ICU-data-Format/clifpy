@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
@@ -74,7 +75,7 @@ class DuckDBResourceConfig:
         limit_gb = int(available_gb * memory_fraction)
 
         # Detect disk space for temp directory
-        disk = shutil.disk_usage('/')
+        disk = shutil.disk_usage(Path.home())
         disk_free_gb = int(disk.free / (1024**3) * 0.5)  # use 50% of free disk
 
         return cls(

@@ -11,6 +11,7 @@ for better readability.
 """
 
 import logging
+import platform
 import sys
 import os
 from pathlib import Path
@@ -18,13 +19,23 @@ from typing import Optional
 
 
 # Emoji mapping for different log levels
-EMOJI_MAP = {
-    'DEBUG': '🐛',
-    'INFO': '📢',
-    'WARNING': '⚠️',
-    'ERROR': '❌',
-    'CRITICAL': '🆘'
-}
+# ASCII-safe fallback for Windows console (cp1252 can't encode emoji)
+if platform.system() == 'Windows':
+    EMOJI_MAP = {
+        'DEBUG': '[D]',
+        'INFO': '[I]',
+        'WARNING': '[!]',
+        'ERROR': '[X]',
+        'CRITICAL': '[!!]',
+    }
+else:
+    EMOJI_MAP = {
+        'DEBUG': '🐛',
+        'INFO': '📢',
+        'WARNING': '⚠️',
+        'ERROR': '❌',
+        'CRITICAL': '🆘',
+    }
 
 
 class EmojiFormatter(logging.Formatter):

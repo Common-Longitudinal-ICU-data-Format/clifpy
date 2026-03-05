@@ -292,7 +292,7 @@ def create_wide_dataset(
             # Drop the time window columns
             adt_df = adt_df.drop(columns=['start_time', 'end_time'])
 
-            logger.info(f"  ADT time filtering: {pre_filter_count} → {len(adt_df)} records")
+            logger.info(f"  ADT time filtering: {pre_filter_count} -> {len(adt_df)} records")
         
         # Remove duplicate columns and _name columns
         adt_cols = [col for col in adt_df.columns if not col.endswith('_name') and col != 'patient_id']
@@ -592,9 +592,9 @@ def _process_hourly_single_batch(
                         on=[id_name, 'window_number'],
                         how='left'
                     )
-                    logger.info(f"  ✓ {agg_type} complete ({agg_result.shape[1] - 2} columns)")
+                    logger.info(f"  [ok] {agg_type} complete ({agg_result.shape[1] - 2} columns)")
                 except Exception as e:
-                    logger.error(f"  ✗ {agg_type} failed: {str(e)}")
+                    logger.error(f"  [fail] {agg_type} failed: {str(e)}")
 
         # Merge all results
         logger.debug("Merging aggregation results")
@@ -1103,7 +1103,7 @@ def _process_hospitalizations(
             # Drop the time window columns
             table_df = table_df.drop(columns=['start_time', 'end_time'])
 
-            logger.info(f"           - {table_name}: {pre_filter_count} → {len(table_df)} records after filtering")
+            logger.info(f"           - {table_name}: {pre_filter_count} -> {len(table_df)} records after filtering")
 
         # Register raw table as a proper table, not a view
         raw_table_name = f"{table_name}_raw"
@@ -1405,7 +1405,7 @@ def _create_wide_dataset(
         # Drop the time window columns
         result_df = result_df.drop(columns=['start_time', 'end_time'])
 
-        logger.info(f"  Final time filtering: {pre_filter_count} → {len(result_df)} records")
+        logger.info(f"  Final time filtering: {pre_filter_count} -> {len(result_df)} records")
     
     # Remove duplicate columns
     result_df = result_df.loc[:, ~result_df.columns.duplicated()]
