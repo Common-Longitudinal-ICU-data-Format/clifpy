@@ -8,6 +8,7 @@ This module contains the main public functions:
 from __future__ import annotations
 
 import pandas as pd
+import polars as pl
 import duckdb
 from duckdb import DuckDBPyRelation
 
@@ -263,7 +264,7 @@ def _calculate_sofa2_impl(
     logger.info(f"Config: {cfg}")
 
     # Convert cohort to relation if needed
-    if isinstance(cohort_df, pd.DataFrame):
+    if isinstance(cohort_df, (pd.DataFrame, pl.DataFrame)):
         cohort_rel = duckdb.sql("SELECT * FROM cohort_df")
     else:
         cohort_rel = cohort_df
