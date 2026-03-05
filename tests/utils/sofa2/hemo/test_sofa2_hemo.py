@@ -28,7 +28,7 @@ SORT_COLS = ['hospitalization_id', 'start_dttm']
 
 LOOKBACK_CONFIGS = {
     'short_lookback': SOFA2Config(hemo_lookback_hours=1.0),
-    'long_lookback': SOFA2Config(hemo_lookback_hours=24.0),
+    'long_lookback': SOFA2Config(hemo_lookback_hours=36.0),
 }
 
 
@@ -99,8 +99,8 @@ def test_hemo_row_count(result_df, expected_df):
 def test_hemo_scores(result_df, expected_df):
     """Verify hemo scores match expected (all cases from CSV)."""
     pd.testing.assert_series_equal(
-        result_df['hemo'].astype('Int64'),
-        expected_df['hemo'].astype('Int64'),
+        result_df['sofa2_hemo'].astype('Int64'),
+        expected_df['sofa2_hemo'].astype('Int64'),
         check_names=False,
     )
 
@@ -160,8 +160,8 @@ def test_hemo_custom_lookback(cohort_rel, labs_rel, case):
         f"case={case}: expected {len(expected)} rows, got {len(result_df)}"
     )
     pd.testing.assert_series_equal(
-        result_df['hemo'].astype('Int64'),
-        expected['hemo'].astype('Int64'),
+        result_df['sofa2_hemo'].astype('Int64'),
+        expected['sofa2_hemo'].astype('Int64'),
         check_names=False,
     )
     pd.testing.assert_series_equal(
