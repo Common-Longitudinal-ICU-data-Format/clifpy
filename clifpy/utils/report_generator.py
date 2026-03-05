@@ -1,5 +1,6 @@
 """PDF and text report generator for DQA validation results."""
 
+import hashlib
 import os
 from html import escape
 from typing import Dict, Any, Optional, List
@@ -66,6 +67,17 @@ class YearlySparkBar(Flowable):
             self.canv.drawString(last_x, 0, str(years[-1]))
 
 DQA_CATEGORIES = ('conformance', 'completeness', 'plausibility')
+
+
+def _make_error_id(issue: Dict[str, Any]) -> str:
+    """Create a unique identifier for a DQA issue, matching feedback.create_error_id."""
+    msg = issue.get('message', '')
+    desc_hash = hashlib.md5(msg.encode()).hexdigest()[:8]
+    category = issue.get('category', '')
+    check_type = issue.get('check_type', 'unknown')
+    prefix = f"{category}_{check_type}" if category else check_type
+    prefix = prefix.replace(' ', '_').lower()
+    return f"{prefix}_{desc_hash}"
 
 
 def collect_dqa_issues(validation_data: Dict[str, Any]):
@@ -174,7 +186,8 @@ def compute_table_stats(df, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def generate_validation_pdf(validation_data: Dict[str, Any],
                             table_name: str, output_path: str,
-                            site_name: Optional[str] = None) -> str:
+                            site_name: Optional[str] = None,
+                            feedback: Optional[Dict[str, Any]] = None) -> str:
     """
     Generate a PDF report from DQA validation results.
 
@@ -189,6 +202,8 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
         Path where PDF should be saved.
     site_name : str, optional
         Name of the site/hospital.
+    feedback : dict, optional
+        User feedback with 'user_decisions' keyed by error_id.
 
     Returns
     -------
@@ -196,10 +211,31 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
         Path to generated PDF file.
     """
     category_scores, all_issues = collect_dqa_issues(validation_data)
+
+    # Build feedback lookup: error_id -> decision dict
+    feedback_lookup: Dict[str, Dict[str, Any]] = {}
+    if feedback and feedback.get('user_decisions'):
+        feedback_lookup = feedback['user_decisions']
+
+    # Build set of rejected error IDs so we can adjust summary counts
+    rejected_ids: set = {
+        eid for eid, d in feedback_lookup.items()
+        if d.get('decision') == 'rejected'
+    }
+
     total_passed = sum(p for p, _ in category_scores.values())
     total_checks = sum(t for _, t in category_scores.values())
     error_count = sum(1 for i in all_issues if i['severity'] == 'error')
     warning_count = sum(1 for i in all_issues if i['severity'] == 'warning')
+
+    # Adjust counts: rejected errors no longer count as errors
+    if rejected_ids:
+        rejected_error_count = sum(
+            1 for i in all_issues
+            if i['severity'] == 'error' and _make_error_id(i) in rejected_ids
+        )
+        error_count -= rejected_error_count
+        total_passed += rejected_error_count
 
     # --- Build PDF ---
     doc = SimpleDocTemplate(output_path, pagesize=letter)
@@ -259,6 +295,41 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
     story.append(Paragraph(f"{table_name.title()} Table", heading_style))
     story.append(Spacer(1, 0.2 * inch))
 
+    # --- Feedback banner (only when feedback with decisions exists) ---
+    has_feedback = bool(feedback_lookup)
+    if has_feedback:
+        n_accepted = sum(1 for d in feedback_lookup.values() if d.get('decision') == 'accepted')
+        n_rejected = sum(1 for d in feedback_lookup.values() if d.get('decision') == 'rejected')
+        if n_accepted > 0 or n_rejected > 0:
+            from datetime import datetime as _dt
+            _raw_ts = feedback.get('timestamp', '')
+            try:
+                fb_ts = _dt.fromisoformat(_raw_ts).strftime('%Y-%m-%d %H:%M')
+            except (ValueError, TypeError):
+                fb_ts = _raw_ts
+            banner_style = ParagraphStyle(
+                'FeedbackBanner', parent=styles['Normal'],
+                fontSize=8, textColor=colors.HexColor('#1F4E79'),
+                fontName='Helvetica',
+            )
+            banner_text = (
+                f"<i>This report was updated based on feedback provided on {fb_ts}. "
+                f"Accepted: {n_accepted} | Rejected: {n_rejected}</i>"
+            )
+            banner_tbl = Table(
+                [[Paragraph(banner_text, banner_style)]],
+                colWidths=[7.5 * inch],
+            )
+            banner_tbl.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#E8F0FE')),
+                ('TOPPADDING', (0, 0), (0, 0), 6),
+                ('BOTTOMPADDING', (0, 0), (0, 0), 6),
+                ('LEFTPADDING', (0, 0), (0, 0), 10),
+                ('RIGHTPADDING', (0, 0), (0, 0), 10),
+            ]))
+            story.append(banner_tbl)
+            story.append(Spacer(1, 0.15 * inch))
+
     # --- DQA Summary Table ---
     story.append(Paragraph("DQA Summary", heading_style))
     summary_header = ['Category', 'Non-Error', 'Total', 'Errors', 'Warnings']
@@ -270,6 +341,14 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
         cat_issues = [i for i in all_issues if i['category'] == category]
         cat_errors = sum(1 for i in cat_issues if i['severity'] == 'error')
         cat_warnings = sum(1 for i in cat_issues if i['severity'] == 'warning')
+        # Adjust for rejected errors in this category
+        if rejected_ids:
+            cat_rejected = sum(
+                1 for i in cat_issues
+                if i['severity'] == 'error' and _make_error_id(i) in rejected_ids
+            )
+            cat_errors -= cat_rejected
+            passed += cat_rejected
         summary_rows.append([category.title(), str(passed), str(total),
                              str(cat_errors), str(cat_warnings)])
     summary_rows.append(['Overall', str(total_passed), str(total_checks),
@@ -356,13 +435,20 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
         story.append(Spacer(1, 0.3 * inch))
 
     # --- Per-category issue details as structured tables ---
+    rejected_bg = colors.HexColor('#E0E0E0')
+    rejected_text = colors.HexColor('#999999')
+
     if all_issues:
         story.append(PageBreak())
         story.append(Paragraph(f"Issue Details ({len(all_issues)})", heading_style))
 
-        # Column widths: metric(1.0") rule(0.5") rule_desc(1.7") column_field(1.1") severity(0.5") finding(2.7")
-        detail_col_widths = [1.0 * inch, 0.5 * inch, 1.7 * inch,
-                             1.1 * inch, 0.5 * inch, 2.7 * inch]
+        # Column widths — add status column only when feedback exists
+        if has_feedback:
+            detail_col_widths = [1.0 * inch, 0.5 * inch, 1.7 * inch,
+                                 1.1 * inch, 0.5 * inch, 2.2 * inch, 0.5 * inch]
+        else:
+            detail_col_widths = [1.0 * inch, 0.5 * inch, 1.7 * inch,
+                                 1.1 * inch, 0.5 * inch, 2.7 * inch]
 
         for category in DQA_CATEGORIES:
             cat_issues = [i for i in all_issues if i['category'] == category]
@@ -380,18 +466,21 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                 Paragraph('<b>severity</b>', cell_bold_style),
                 Paragraph('<b>finding</b>', cell_bold_style),
             ]
+            if has_feedback:
+                header_row.append(Paragraph('<b>status</b>', cell_bold_style))
             table_data = [header_row]
 
             for issue in cat_issues:
                 severity_upper = issue['severity'].upper()
                 finding_text = truncate_comment(issue.get('finding', issue['message']))
                 # Build finding cell: text + optional sparkline for temporal checks
+                spark_width = 2.0 * inch if has_feedback else 2.5 * inch
                 yearly_counts = issue.get('details', {}).get('yearly_counts')
                 if yearly_counts:
                     finding_cell = [
                         Paragraph(escape(finding_text), cell_style),
                         Spacer(1, 2),
-                        YearlySparkBar(yearly_counts, width=2.5 * inch, height=16),
+                        YearlySparkBar(yearly_counts, width=spark_width, height=16),
                     ]
                 else:
                     finding_cell = Paragraph(escape(finding_text), cell_style)
@@ -403,6 +492,11 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                     Paragraph(escape(severity_upper), cell_style),
                     finding_cell,
                 ]
+                if has_feedback:
+                    error_id = _make_error_id(issue)
+                    decision_info = feedback_lookup.get(error_id, {})
+                    status_text = decision_info.get('decision', '').upper()
+                    row.append(Paragraph(escape(status_text), cell_style))
                 table_data.append(row)
 
             detail_tbl = Table(table_data, colWidths=detail_col_widths,
@@ -422,9 +516,14 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]
 
-            # Color-code rows by severity
+            # Color-code rows by severity, override with grey for rejected
             for row_idx, issue in enumerate(cat_issues, 1):
-                if issue['severity'] == 'error':
+                error_id = _make_error_id(issue)
+                decision = feedback_lookup.get(error_id, {}).get('decision', '')
+                if decision == 'rejected':
+                    detail_style.append(('BACKGROUND', (0, row_idx), (-1, row_idx), rejected_bg))
+                    detail_style.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), rejected_text))
+                elif issue['severity'] == 'error':
                     detail_style.append(('BACKGROUND', (0, row_idx), (-1, row_idx), fail_bg))
                 elif issue['severity'] == 'warning':
                     detail_style.append(('BACKGROUND', (0, row_idx), (-1, row_idx), warn_bg))
