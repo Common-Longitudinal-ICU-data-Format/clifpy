@@ -26,7 +26,7 @@ from ._cv import _calculate_cv_subscore
 from ._liver import _calculate_liver_subscore
 from ._kidney import _calculate_kidney_subscore
 from ._hemo import _calculate_hemo_subscore
-from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table, _with_duckdb_config
+from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table, _register_temp_table, _with_duckdb_config
 from clifpy.utils._duckdb_config import DuckDBResourceConfig
 from clifpy.utils.logging_config import get_logger
 
@@ -263,9 +263,13 @@ def _calculate_sofa2_impl(
     logger.info("Starting SOFA-2 calculation...")
     logger.info(f"Config: {cfg}")
 
-    # Convert cohort to relation if needed
+    # Materialize cohort into DuckDB temp table for optimal join planning.
+    # A lazy duckdb.sql() wrapper is insufficient for Polars — DuckDB's Polars
+    # scan path lacks statistics, causing nested-loop joins on temporal windows.
     if isinstance(cohort_df, (pd.DataFrame, pl.DataFrame)):
-        cohort_rel = duckdb.sql("SELECT * FROM cohort_df")
+        duckdb.execute("CREATE OR REPLACE TEMP TABLE _sofa2_cohort AS SELECT * FROM cohort_df")
+        _register_temp_table("_sofa2_cohort")
+        cohort_rel = duckdb.table("_sofa2_cohort")
     else:
         cohort_rel = cohort_df
 
