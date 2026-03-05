@@ -216,7 +216,7 @@ RRT criteria in footnote p:
 
 | additional specs | status |
 |----------|----------| 
-| if no platelet_count is found within the target window, values from before the `start_dttm` of the target window are used, up to `hemo_lookback_hours` (default = 12 hr) | DONE |
+| if no platelet_count is found within the target window, values from before the `start_dttm` of the target window are used, up to `hemo_lookback_hours` (default = 24 hr) | DONE |
 
 ##  Other footnotes
 | footnote | status |
@@ -322,7 +322,7 @@ All medication patterns use ASOF JOINs to capture the continuous state of drug i
 | Resp | 4h | FiO2, PaO2, SpO2 | Labs/vitals fallback |
 | Liver | 24h | Bilirubin | Labs/vitals fallback |
 | Kidney | 12h | Creatinine, potassium, pH, bicarbonate | Labs/vitals fallback |
-| Hemo | 12h | Platelets | Labs/vitals fallback |
+| Hemo | 24h | Platelets | Labs/vitals fallback |
 | Brain | GCS in-window only; sedation cont pre+in only; delirium cont pre+in, intm in | GCS, sedation drugs, delirium drugs | Mixed |
 | CV | Vasopressors pre+in+post; mechanical CV support in-window only | Vasopressors, ECMO/MCS | Exact duration + in-window flag |
 

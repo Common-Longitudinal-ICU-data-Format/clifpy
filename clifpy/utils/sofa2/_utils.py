@@ -30,7 +30,7 @@ class SOFA2Config:
     kidney_lookback_hours : float
         Pre-window lookback for creatinine. Default 12.0.
     hemo_lookback_hours : float
-        Pre-window lookback for platelets. Default 12.0.
+        Pre-window lookback for platelets. Default 24.0.
     pressor_min_duration_minutes : int
         Minimum vasopressor infusion duration to count (footnote j). Default 60.
     pf_sf_tolerance_hours : float
@@ -47,7 +47,7 @@ class SOFA2Config:
     resp_lookback_hours: float = 6.0
     liver_lookback_hours: float = 24.0
     kidney_lookback_hours: float = 12.0
-    hemo_lookback_hours: float = 12.0
+    hemo_lookback_hours: float = 24.0
 
     # CV subscore
     pressor_min_duration_minutes: int = 60
