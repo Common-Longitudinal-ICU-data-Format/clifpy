@@ -285,16 +285,29 @@ def _calculate_sofa2_impl(
         cohort_rel = _dedup_cohort(cohort_rel, id_name).df()
 
     # =========================================================================
-    # Load CLIF tables
+    # Load CLIF tables (with category predicate pushdown into parquet scan)
     # =========================================================================
     with timer.step("load_tables"):
         logger.info("Loading CLIF tables (vitals, labs, meds, respiratory_support, crrt_therapy)...")
-        labs_rel = load_data('labs', config_path=clif_config_path, return_rel=True)
-        crrt_rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True)
-        assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True)
-        vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True)
-        cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True)
-        resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True)
+        labs_rel = load_data('labs', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'lab_category', 'lab_collect_dttm', 'lab_value_numeric'],
+            filters={'lab_category': [
+                'platelet_count', 'bilirubin_total', 'creatinine',
+                'potassium', 'ph_arterial', 'ph_venous',
+                'bicarbonate', 'po2_arterial',
+            ]})
+        crrt_rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm'])
+        assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'assessment_category', 'recorded_dttm', 'numerical_value'],
+            filters={'assessment_category': ['gcs_total', 'gcs_motor']})
+        vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'vital_category', 'recorded_dttm', 'vital_value'],
+            filters={'vital_category': ['spo2', 'map', 'weight_kg']})
+        cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_dose', 'med_dose_unit', 'mar_action_category'])
+        resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm', 'device_category', 'mode_category', 'fio2_set', 'lpm_set'])
         ecmo_rel = _load_ecmo_optional(clif_config_path)
         intm_meds_rel = _load_intm_meds_optional(clif_config_path)
 
@@ -309,6 +322,47 @@ def _calculate_sofa2_impl(
         resp_rel = _remap_clif_rel(resp_rel, id_name, id_mapping)
         ecmo_rel = _remap_clif_rel(ecmo_rel, id_name, id_mapping)
         intm_meds_rel = _remap_clif_rel(intm_meds_rel, id_name, id_mapping)
+
+    # =========================================================================
+    # Materialize CLIF tables filtered to cohort (Phase 1+2 optimization)
+    # =========================================================================
+    # Materializing breaks the lazy relation chains and gives DuckDB concrete
+    # statistics (row count, min/max) for optimal join planning. Without this,
+    # each subscore re-scans the full parquet file through nested lazy relations
+    # — labs_rel alone is referenced 8 times across 4 subscores.
+    # SEMI JOIN filters to cohort patients, reducing downstream table sizes by
+    # ~99% for small cohorts (n=100 out of 10K hospitalizations).
+    with timer.step("materialize_clif"):
+        logger.info("Materializing CLIF tables (filtered to cohort)...")
+        clif_tables = {
+            'labs': labs_rel,
+            'vitals': vitals_rel,
+            'assessments': assessments_rel,
+            'cont_meds': cont_meds_rel,
+            'resp': resp_rel,
+            'crrt': crrt_rel,
+            'ecmo': ecmo_rel,
+            'intm_meds': intm_meds_rel,
+        }
+        for tbl_name, rel in clif_tables.items():
+            table_id = f"_clif_{tbl_name}"
+            duckdb.execute(f"""
+                CREATE OR REPLACE TEMP TABLE {table_id} AS
+                FROM rel t
+                SEMI JOIN cohort_rel c ON t.{id_name} = c.{id_name}
+                SELECT t.*
+            """)
+            _register_temp_table(table_id)
+
+        labs_rel = duckdb.table("_clif_labs")
+        vitals_rel = duckdb.table("_clif_vitals")
+        assessments_rel = duckdb.table("_clif_assessments")
+        cont_meds_rel = duckdb.table("_clif_cont_meds")
+        resp_rel = duckdb.table("_clif_resp")
+        crrt_rel = duckdb.table("_clif_crrt")
+        ecmo_rel = duckdb.table("_clif_ecmo")
+        intm_meds_rel = duckdb.table("_clif_intm_meds")
+        logger.info("CLIF tables materialized")
 
     # =========================================================================
     # Calculate subscores
