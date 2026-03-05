@@ -427,18 +427,18 @@ def _calculate_sofa2_impl(
                 , c.start_dttm
                 , c.end_dttm
                 -- SOFA-2 total and subscores
-                , sofa2_total: COALESCE(b.brain, 0)
-                    + COALESCE(resp.resp, 0)
-                    + COALESCE(cv.cv, 0)
-                    + COALESCE(li.liver, 0)
-                    + COALESCE(k.kidney, 0)
-                    + COALESCE(h.hemo, 0)
-                , sofa2_brain: b.brain
-                , sofa2_resp: resp.resp
-                , sofa2_cv: cv.cv
-                , sofa2_liver: li.liver
-                , sofa2_kidney: k.kidney
-                , sofa2_hemo: h.hemo
+                , sofa2_total: COALESCE(b.sofa2_brain, 0)
+                    + COALESCE(resp.sofa2_resp, 0)
+                    + COALESCE(cv.sofa2_cv, 0)
+                    + COALESCE(li.sofa2_liver, 0)
+                    + COALESCE(k.sofa2_kidney, 0)
+                    + COALESCE(h.sofa2_hemo, 0)
+                , b.sofa2_brain
+                , resp.sofa2_resp
+                , cv.sofa2_cv
+                , li.sofa2_liver
+                , k.sofa2_kidney
+                , h.sofa2_hemo
                 -- Brain scoring variables
                 , b.gcs_min
                 , b.gcs_type

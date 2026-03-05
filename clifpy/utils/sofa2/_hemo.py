@@ -53,8 +53,8 @@ def _calculate_hemo_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [id_name, start_dttm, platelet_count, platelet_dttm_offset, hemo]
-        Where hemo is the subscore (0-4) or NULL if no platelet data.
+        Columns: [id_name, start_dttm, platelet_count, platelet_dttm_offset, sofa2_hemo]
+        Where sofa2_hemo is the subscore (0-4) or NULL if no platelet data.
         Offset is interval from start_dttm (negative = pre-window, positive = in-window)
     """
     logger.info("Calculating hemostasis subscore...")
@@ -125,7 +125,7 @@ def _calculate_hemo_subscore(
             , c.start_dttm
             , p.platelet_count
             , p.platelet_dttm_offset
-            , hemo: CASE
+            , sofa2_hemo: CASE
                 WHEN p.platelet_count IS NULL THEN NULL
                 WHEN p.platelet_count <= 50 THEN 4
                 WHEN p.platelet_count <= 80 THEN 3

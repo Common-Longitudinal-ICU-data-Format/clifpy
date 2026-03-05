@@ -53,8 +53,8 @@ def _calculate_liver_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [id_name, start_dttm, bilirubin_total, bilirubin_dttm_offset, liver]
-        Where liver is the subscore (0-4) or NULL if no bilirubin data.
+        Columns: [id_name, start_dttm, bilirubin_total, bilirubin_dttm_offset, sofa2_liver]
+        Where sofa2_liver is the subscore (0-4) or NULL if no bilirubin data.
         Offset is interval from start_dttm (negative = pre-window, positive = in-window)
     """
     logger.info("Calculating liver subscore...")
@@ -125,7 +125,7 @@ def _calculate_liver_subscore(
             , c.start_dttm
             , b.bilirubin_total
             , b.bilirubin_dttm_offset
-            , liver: CASE
+            , sofa2_liver: CASE
                 WHEN b.bilirubin_total <= 1.2 THEN 0
                 WHEN b.bilirubin_total <= 3.0 THEN 1
                 WHEN b.bilirubin_total <= 6.0 THEN 2

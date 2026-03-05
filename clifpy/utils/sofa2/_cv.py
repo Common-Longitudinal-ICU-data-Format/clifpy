@@ -83,7 +83,7 @@ def _calculate_cv_subscore(
     DuckDBPyRelation
         Columns: [hospitalization_id, start_dttm, map_min, map_min_dttm_offset,
                   norepi_epi_maxsum, norepi_epi_maxsum_dttm_offset,
-                  dopa_max, dopa_max_dttm_offset, ..., cv]
+                  dopa_max, dopa_max_dttm_offset, ..., sofa2_cv]
         Offset columns are intervals from start_dttm (always positive for in-window).
     """
     logger.info("Calculating cardiovascular subscore...")
@@ -480,7 +480,7 @@ def _calculate_cv_subscore(
                    THEN 1 ELSE 0 END AS has_other_vaso
             , COALESCE(mcv.has_mechanical_cv_support, 0) AS has_mechanical_cv_support
             , mcv.mechanical_cv_dttm_offset
-            , cv: CASE
+            , sofa2_cv: CASE
                 -- Footnote n: Mechanical CV support → 4 points (highest priority)
                 WHEN COALESCE(mcv.has_mechanical_cv_support, 0) = 1 THEN 4
                 -- Footnote l: Dopamine-only scoring (no norepi/epi, no other pressors)

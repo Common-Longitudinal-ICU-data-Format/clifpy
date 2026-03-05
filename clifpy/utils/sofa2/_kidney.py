@@ -63,8 +63,8 @@ def _calculate_kidney_subscore(
     Returns
     -------
     DuckDBPyRelation
-        Columns: [id_name, start_dttm, creatinine, creatinine_dttm_offset, ..., kidney]
-        Where kidney is the subscore (0-4) or NULL if no creatinine data.
+        Columns: [id_name, start_dttm, creatinine, creatinine_dttm_offset, ..., sofa2_kidney]
+        Where sofa2_kidney is the subscore (0-4) or NULL if no creatinine data.
         Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window)
     """
     logger.info("Calculating kidney subscore...")
@@ -207,7 +207,7 @@ def _calculate_kidney_subscore(
                      AND (l.potassium >= 6.0
                           OR (l.ph <= 7.20 AND l.bicarbonate <= 12.0))
                 THEN 1 ELSE 0 END
-            , kidney: CASE
+            , sofa2_kidney: CASE
                 WHEN r.has_rrt = 1 THEN 4
                 WHEN rrt_criteria_met = 1 THEN 4  -- Footnote p fallback
                 WHEN l.creatinine > 3.50 THEN 3

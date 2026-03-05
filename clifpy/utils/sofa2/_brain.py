@@ -70,8 +70,8 @@ def _calculate_brain_subscore(
         Columns: [id_name, start_dttm, gcs_min, gcs_type,
                   gcs_min_dttm_offset, has_sedation, sedation_start_dttm_offset,
                   sedation_end_dttm_offset, has_delirium_drug,
-                  delirium_drug_dttm_offset, brain]
-        Where brain is the subscore (0-4), 0 if sedated with no valid GCS,
+                  delirium_drug_dttm_offset, sofa2_brain]
+        Where sofa2_brain is the subscore (0-4), 0 if sedated with no valid GCS,
         or NULL if no GCS data and no sedation.
     """
     logger.info("Calculating brain subscore...")
@@ -217,7 +217,7 @@ def _calculate_brain_subscore(
             , s.sedation_end_dttm_offset
             , COALESCE(d.has_delirium_drug, 0) AS has_delirium_drug
             , d.delirium_drug_dttm_offset
-            , brain: CASE
+            , sofa2_brain: CASE
                 -- If we have gcs_total, use standard GCS scoring
                 WHEN g.gcs_type = 'gcs_total' THEN
                     CASE

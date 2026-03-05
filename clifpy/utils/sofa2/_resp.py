@@ -155,7 +155,7 @@ def _calculate_resp_subscore(
     DuckDBPyRelation
         Columns: [id_name, start_dttm, pf_ratio, sf_ratio, has_advanced_support,
                   pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
-                  fio2_at_worst, fio2_dttm_offset, pf_sf_dttm_offset, has_ecmo, resp]
+                  fio2_at_worst, fio2_dttm_offset, pf_sf_dttm_offset, has_ecmo, sofa2_resp]
         pf_ratio and sf_ratio are mutually exclusive (one will be NULL).
         Offset columns are intervals from start_dttm (negative = pre-window, positive = in-window).
         pf_sf_dttm_offset is the time gap between the PaO2/SpO2 and FiO2 measurements used for the ratio.
@@ -543,7 +543,7 @@ def _calculate_resp_subscore(
               END
             , COALESCE(e.has_ecmo, 0) AS has_ecmo
             , e.ecmo_dttm_offset
-            , resp: CASE
+            , sofa2_resp: CASE
                 -- ECMO override: 4 points regardless of ratio
                 WHEN COALESCE(e.has_ecmo, 0) = 1 THEN 4
                 -- P/F ratio cutoffs (pf_ratio IS NOT NULL means P/F data exists)
