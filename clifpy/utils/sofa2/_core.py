@@ -221,7 +221,7 @@ def _calculate_sofa2_batched(
 ):
     """Split cohort into batches, run _calculate_sofa2_impl per batch, concat."""
     chunks = [cohort_df[i:i + batch_size] for i in range(0, len(cohort_df), batch_size)]
-    logger.info(f"Batching: {len(cohort_df)} rows → {len(chunks)} batches of ≤{batch_size}")
+    logger.info(f"Batching: {len(cohort_df)} rows -> {len(chunks)} batches of <={batch_size}")
 
     all_results = []
     last_timer = None
@@ -279,7 +279,7 @@ def _calculate_sofa2_impl(
     if id_name != 'hospitalization_id':
         _validate_id_name(cohort_rel, id_name, id_mapping_provided=id_mapping is not None)
         if id_mapping is None:
-            logger.info(f"Extracting hospitalization_id → {id_name} mapping from cohort...")
+            logger.info(f"Extracting hospitalization_id -> {id_name} mapping from cohort...")
             id_mapping = _extract_id_mapping(cohort_rel, id_name)
         logger.info(f"Deduplicating cohort to ({id_name}, start_dttm, end_dttm)...")
         cohort_rel = _dedup_cohort(cohort_rel, id_name).df()
@@ -313,7 +313,7 @@ def _calculate_sofa2_impl(
 
     # Remap CLIF tables when using alternative ID
     if id_mapping is not None:
-        logger.info(f"Remapping CLIF tables: hospitalization_id → {id_name}...")
+        logger.info(f"Remapping CLIF tables: hospitalization_id -> {id_name}...")
         labs_rel = _remap_clif_rel(labs_rel, id_name, id_mapping)
         crrt_rel = _remap_clif_rel(crrt_rel, id_name, id_mapping)
         assessments_rel = _remap_clif_rel(assessments_rel, id_name, id_mapping)
@@ -672,7 +672,7 @@ def _calculate_sofa2_daily_impl(
     if id_name != 'hospitalization_id':
         _validate_id_name(cohort_rel, id_name, id_mapping_provided=id_mapping is not None)
         if id_mapping is None:
-            logger.info(f"Extracting hospitalization_id → {id_name} mapping from cohort...")
+            logger.info(f"Extracting hospitalization_id -> {id_name} mapping from cohort...")
             id_mapping = _extract_id_mapping(cohort_rel, id_name)
         logger.info(f"Deduplicating cohort to ({id_name}, start_dttm, end_dttm)...")
         cohort_rel = _dedup_cohort(cohort_rel, id_name).df()

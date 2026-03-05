@@ -21,6 +21,7 @@ Requires CLIF config at config/config.yaml (or pass --config).
 """
 import io
 import logging
+import platform
 import sys
 import time
 import traceback
@@ -44,30 +45,42 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 BOX_WIDTH = 58
 
+# Box-drawing characters — ASCII fallback on Windows (cp1252 can't encode Unicode box chars)
+if platform.system() == 'Windows':
+    _H_DBL, _V_DBL = '=', '|'
+    _TL_DBL, _TR_DBL, _BL_DBL, _BR_DBL = '+', '+', '+', '+'
+    _H_SGL, _V_SGL = '-', '|'
+    _TL_SGL, _TR_SGL, _BL_SGL, _BR_SGL = '+', '+', '+', '+'
+else:
+    _H_DBL, _V_DBL = '═', '║'
+    _TL_DBL, _TR_DBL, _BL_DBL, _BR_DBL = '╔', '╗', '╚', '╝'
+    _H_SGL, _V_SGL = '─', '│'
+    _TL_SGL, _TR_SGL, _BL_SGL, _BR_SGL = '┌', '┐', '└', '┘'
+
 
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
 
 def _box_double(text: str) -> str:
-    """Mode-level header with double-line box: ╔═╗ ║ ║ ╚═╝"""
+    """Mode-level header with double-line box."""
     inner = f"  {text}"
     pad = BOX_WIDTH - len(inner)
     return (
-        f"╔{'═' * BOX_WIDTH}╗\n"
-        f"║{inner}{' ' * max(pad, 0)}║\n"
-        f"╚{'═' * BOX_WIDTH}╝"
+        f"{_TL_DBL}{_H_DBL * BOX_WIDTH}{_TR_DBL}\n"
+        f"{_V_DBL}{inner}{' ' * max(pad, 0)}{_V_DBL}\n"
+        f"{_BL_DBL}{_H_DBL * BOX_WIDTH}{_BR_DBL}"
     )
 
 
 def _box_single(text: str) -> str:
-    """Sub-section header with single-line box: ┌─┐ │ │ └─┘"""
+    """Sub-section header with single-line box."""
     inner = f"  {text}"
     pad = BOX_WIDTH - len(inner)
     return (
-        f"┌{'─' * BOX_WIDTH}┐\n"
-        f"│{inner}{' ' * max(pad, 0)}│\n"
-        f"└{'─' * BOX_WIDTH}┘"
+        f"{_TL_SGL}{_H_SGL * BOX_WIDTH}{_TR_SGL}\n"
+        f"{_V_SGL}{inner}{' ' * max(pad, 0)}{_V_SGL}\n"
+        f"{_BL_SGL}{_H_SGL * BOX_WIDTH}{_BR_SGL}"
     )
 
 
@@ -80,7 +93,10 @@ class TeeOutput:
         self.encoding = getattr(original_stdout, 'encoding', 'utf-8')
 
     def write(self, text):
-        self.original.write(text)
+        try:
+            self.original.write(text)
+        except UnicodeEncodeError:
+            self.original.write(text.encode('ascii', errors='replace').decode('ascii'))
         self.buffer.write(text)
 
     def flush(self):
@@ -170,7 +186,7 @@ def save_report(
     timestamp = datetime.now().strftime("%y%m%d_%H%M%S")
     name_part = f"_{site_name}" if site_name else ""
     filepath = report_dir / f"{prefix}{name_part}_{timestamp}.md"
-    filepath.write_text(content)
+    filepath.write_text(content, encoding='utf-8')
     return filepath
 
 
@@ -185,7 +201,7 @@ def _log_system_info(duckdb_config=None):
     from clifpy.utils._duckdb_config import DuckDBResourceConfig
 
     mem = psutil.virtual_memory()
-    disk = shutil.disk_usage('/')
+    disk = shutil.disk_usage(Path.home())
 
     profiler_logger.info(f"OS: {platform.system()} {platform.release()} ({platform.machine()})")
     profiler_logger.info(f"Python: {platform.python_version()}")
