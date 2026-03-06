@@ -164,6 +164,10 @@ def compute_table_stats(df, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
     if n_rows == 0:
         return []
 
+    import pandas as pd
+
+    _RANGE_DTYPES = {'DATETIME', 'DATE', 'INT', 'INTEGER', 'DOUBLE', 'FLOAT', 'NUMERIC'}
+
     schema_cols = [c['name'] for c in schema.get('columns', [])]
     stats: List[Dict[str, Any]] = []
     for col_def in schema.get('columns', []):
@@ -174,12 +178,35 @@ def compute_table_stats(df, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
         null_count = int(series.isna().sum())
         null_pct = round(null_count / n_rows * 100, 1) if n_rows else 0.0
         unique = int(series.nunique(dropna=True))
+        col_dtype = col_def.get('data_type', str(series.dtype)).upper()
+
+        # Compute min/max for numeric and datetime columns
+        col_min = None
+        col_max = None
+        if col_dtype in _RANGE_DTYPES:
+            non_null = series.dropna()
+            if len(non_null) > 0:
+                try:
+                    raw_min = non_null.min()
+                    raw_max = non_null.max()
+                    if col_dtype in ('DATETIME', 'DATE'):
+                        fmt = '%Y-%m-%d %H:%M' if col_dtype == 'DATETIME' else '%Y-%m-%d'
+                        col_min = pd.Timestamp(raw_min).strftime(fmt)
+                        col_max = pd.Timestamp(raw_max).strftime(fmt)
+                    else:
+                        col_min = str(raw_min)
+                        col_max = str(raw_max)
+                except Exception:
+                    pass
+
         stats.append({
             'column': col_name,
             'dtype': col_def.get('data_type', str(series.dtype)),
             'null_count': null_count,
             'null_pct': null_pct,
             'unique': unique,
+            'min': col_min,
+            'max': col_max,
         })
     return stats
 
@@ -395,17 +422,19 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
         story.append(Paragraph(f"Total Rows: {total_rows:,}", profile_subtitle))
         story.append(Spacer(1, 0.1 * inch))
 
-        profile_header = ['Column', 'Dtype', 'Null', 'Null%', 'Unique']
+        profile_header = ['Column', 'Dtype', 'Null', 'Null%', 'Unique', 'Min', 'Max']
         profile_rows = [profile_header]
         for s in table_stats:
             profile_rows.append([
                 s['column'], s['dtype'],
                 f"{s['null_count']:,}",
                 f"{s['null_pct']:.1f}%", f"{s['unique']:,}",
+                s.get('min') or '', s.get('max') or '',
             ])
 
-        profile_col_widths = [2.0 * inch, 1.2 * inch,
-                              0.8 * inch, 0.8 * inch, 0.8 * inch]
+        profile_col_widths = [1.6 * inch, 0.9 * inch,
+                              0.6 * inch, 0.6 * inch, 0.6 * inch,
+                              1.3 * inch, 1.3 * inch]
         profile_tbl = Table(profile_rows, colWidths=profile_col_widths)
 
         profile_style = [
@@ -610,24 +639,30 @@ def generate_text_report(validation_data: Dict[str, Any],
         total_rows = validation_data.get('total_rows', 0)
         lines.append(f"  Total Rows: {total_rows:,}")
         lines.append("")
-        w_col, w_dtype, w_null, w_pct, w_uniq = 25, 12, 8, 8, 10
+        w_col, w_dtype, w_null, w_pct, w_uniq, w_min, w_max = 25, 12, 8, 8, 10, 20, 20
         hdr = (f"  {'Column':<{w_col}}"
                f"{'Dtype':<{w_dtype}}"
                f"{'Null':>{w_null}}"
                f"{'Null%':>{w_pct}}"
-               f"{'Unique':>{w_uniq}}")
+               f"{'Unique':>{w_uniq}}"
+               f"  {'Min':<{w_min}}"
+               f"{'Max':<{w_max}}")
         lines.append(hdr)
-        lines.append("  " + "-" * (w_col + w_dtype + w_null + w_pct + w_uniq))
+        lines.append("  " + "-" * (w_col + w_dtype + w_null + w_pct + w_uniq + 2 + w_min + w_max))
         for s in table_stats:
             col_name = s['column']
             if len(col_name) > w_col - 2:
                 col_name = col_name[:w_col - 4] + '..'
+            col_min = s.get('min') or ''
+            col_max = s.get('max') or ''
             lines.append(
                 f"  {col_name:<{w_col}}"
                 f"{s['dtype']:<{w_dtype}}"
                 f"{s['null_count']:>{w_null},}"
                 f"{s['null_pct']:>{w_pct}.1f}%"
                 f"{s['unique']:>{w_uniq},}"
+                f"  {col_min:<{w_min}}"
+                f"{col_max:<{w_max}}"
             )
         lines.append("")
 
