@@ -69,6 +69,66 @@ class SOFA2Config:
   # Brain subscore (footnote c)
   post_sedation_gcs_invalidate_hours: float = 12.0
 ```
+
+## `DuckDBResourceConfig` (dataclass)
+
+Controls DuckDB resource limits (memory, threads, disk) during SOFA-2 computation. When all fields are None (the default on macOS/Linux), DuckDB uses system defaults.
+
+```python
+from clifpy.utils._duckdb_config import DuckDBResourceConfig
+
+@dataclass
+class DuckDBResourceConfig:
+  memory_limit: str | None = None              # e.g., '8GB'. Spills to disk when exceeded.
+  temp_directory: str | None = None            # Where spill files go. Default: .tmp in CWD.
+  max_temp_directory_size: str | None = None   # e.g., '10GB'. Clean error if exceeded.
+  batch_size: int | None = None                # Process cohort in chunks of this size.
+  threads: int | None = None                   # Parallel execution thread count.
+```
+
+### Auto-detect from system
+
+```python
+config = DuckDBResourceConfig.from_system()
+```
+
+Detects available RAM and disk, then sets conservative limits. Platform-aware:
+
+| Setting | macOS/Linux | Windows |
+|---------|-------------|---------|
+| `memory_limit` | 70% of available RAM | 50% of available RAM |
+| `threads` | system default (all logical cores) | physical cores only |
+| `temp_directory` | system default (.tmp in CWD) | `%TEMP%` (system temp dir) |
+| `max_temp_directory_size` | 50% of free disk | 50% of free disk |
+
+### Windows auto-tuning
+
+On Windows, when no `duckdb_config` is passed to `calculate_sofa2()` or `calculate_sofa2_daily()`, `from_system()` is automatically applied. This prevents the default DuckDB behavior (all logical cores, ~80% RAM) from causing excessive context switching and swapping on Windows. The applied settings are logged.
+
+To override on Windows:
+```python
+# Use explicit config
+sofa2_results = calculate_sofa2(
+  cohort_df=cohort_df,
+  clif_config_path=CONFIG_PATH,
+  duckdb_config=DuckDBResourceConfig(memory_limit='4GB', threads=4),
+)
+
+# Or use auto-detect with custom memory fraction
+sofa2_results = calculate_sofa2(
+  cohort_df=cohort_df,
+  clif_config_path=CONFIG_PATH,
+  duckdb_config=DuckDBResourceConfig.from_system(memory_fraction=0.6),
+)
+
+# Use system defaults (skip auto-tuning) by passing empty config
+sofa2_results = calculate_sofa2(
+  cohort_df=cohort_df,
+  clif_config_path=CONFIG_PATH,
+  duckdb_config=DuckDBResourceConfig(),  # all None = DuckDB defaults
+)
+```
+
 ---
 
 # Specs
@@ -186,10 +246,10 @@ END AS fio2_imputed
 | score | spec | status |
 |----------|----------|----------|
 | 0 | Creatinine ≤1.20 mg/dL (≤110 μmol/L) | DONE |
-| 1 | Creatinine ≤2.0 mg/dL (≤170 μmol/L) or urine output <0.5 mL/kg/h for 6–12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
-| 2 | Creatinine ≤3.50 mg/dL (≤300 μmol/L) or urine output <0.5 mL/kg/h for ≥12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
-| 3 | Creatinine >3.50 mg/dL (>300 μmol/L)  OR urine output <0.3 mL/kg/h for ≥24 h OR anuria (0 mL) for ≥12 h | DONE (UO is not yet in CLIF and thus FUTURE) |
-| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | TODO: carry forward score 4 that results from CRRT for 3 days |
+| 1 | Creatinine ≤2.0 mg/dL (≤170 μmol/L) or urine output <0.5 mL/kg/h for 6–12 h | Creatinine DONE and UO is TODO |
+| 2 | Creatinine ≤3.50 mg/dL (≤300 μmol/L) or urine output <0.5 mL/kg/h for ≥12 h | Creatinine DONE and UO is TODO |
+| 3 | Creatinine >3.50 mg/dL (>300 μmol/L)  OR urine output <0.3 mL/kg/h for ≥24 h OR anuria (0 mL) for ≥12 h | Creatinine DONE and UO is TODO |
+| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | DONE: carry forward score 4 from CRRT for 3 days (configurable via `rrt_carryforward_days`) |
 
 | footnote | status |
 |----------|----------|
