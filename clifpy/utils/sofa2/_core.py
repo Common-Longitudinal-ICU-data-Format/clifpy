@@ -119,6 +119,44 @@ def _load_intm_meds_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     return rel
 
 
+def _load_crrt_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load crrt_therapy table; return empty sentinel if unavailable.
+
+    Many sites may not have the CRRT therapy table. It is used for:
+    - RRT detection in the kidney subscore (automatic score 4)
+
+    The empty relation flows harmlessly through the downstream LEFT JOIN +
+    COALESCE pattern in _flag_rrt(), resulting in has_rrt defaulting to 0.
+    The kidney subscore still works correctly based on creatinine alone.
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm'}
+    EMPTY_CRRT = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMP AS recorded_dttm
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm'])
+    except Exception as e:
+        logger.warning(f"CRRT therapy table not available ({e}). RRT scoring will be skipped.")
+        return EMPTY_CRRT
+
+    # Validate required columns exist
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"CRRT therapy table missing required columns: {missing}. RRT scoring will be skipped."
+        )
+        return EMPTY_CRRT
+
+    return rel
+
+
 def calculate_sofa2(
     cohort_df: pd.DataFrame | DuckDBPyRelation,
     clif_config_path: str | None = None,
@@ -307,8 +345,7 @@ def _calculate_sofa2_impl(
                 'potassium', 'ph_arterial', 'ph_venous',
                 'bicarbonate', 'po2_arterial',
             ]})
-        crrt_rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True,
-            columns=['hospitalization_id', 'recorded_dttm'])
+        crrt_rel = _load_crrt_optional(clif_config_path)
         assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True,
             columns=['hospitalization_id', 'assessment_category', 'recorded_dttm', 'numerical_value'],
             filters={'assessment_category': ['gcs_total', 'gcs_motor']})
