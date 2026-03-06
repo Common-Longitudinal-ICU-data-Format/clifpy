@@ -1,0 +1,26 @@
+hospitalization_id,admin_dttm,med_category,med_dose,med_dose_unit,mar_action_category
+107,2024-01-01 12:00:00,dexmedetomidine,0.5,mcg/kg/hr,start
+107,2024-01-01 15:00:00,dexmedetomidine,0.5,mcg/kg/hr,going
+107,2024-01-01 18:00:00,dexmedetomidine,0,mcg/kg/hr,stop
+108,2024-01-01 12:00:00,dexmedetomidine,0.5,mcg/kg/hr,start
+108,2024-01-01 15:00:00,dexmedetomidine,0.5,mcg/kg/hr,going
+108,2024-01-01 18:00:00,dexmedetomidine,0,mcg/kg/hr,stop
+110,2024-01-01 12:00:00,propofol,50,mcg/kg/min,start
+110,2024-01-01 15:00:00,propofol,50,mcg/kg/min,going
+110,2024-01-01 18:00:00,propofol,0,mcg/kg/min,stop
+111,2024-01-01 12:00:00,propofol,50,mcg/kg/min,start
+111,2024-01-01 15:00:00,propofol,50,mcg/kg/min,going
+111,2024-01-01 18:00:00,propofol,0,mcg/kg/min,stop
+112,2024-01-01 08:00:00,propofol,50,mcg/kg/min,start
+112,2024-01-01 09:00:00,propofol,50,mcg/kg/min,going
+112,2024-01-01 10:00:00,propofol,0,mcg/kg/min,stop
+112,2024-01-01 23:00:00,propofol,50,mcg/kg/min,start
+112,2024-01-01 23:30:00,propofol,50,mcg/kg/min,going
+113,2024-01-01 08:00:00,propofol,50,mcg/kg/min,start
+113,2024-01-01 09:00:00,propofol,50,mcg/kg/min,going
+113,2024-01-01 10:00:00,propofol,0,mcg/kg/min,stop
+113,2024-01-01 23:00:00,propofol,50,mcg/kg/min,start
+113,2024-01-01 23:30:00,propofol,50,mcg/kg/min,going
+119,2024-01-01 12:00:00,propofol,50,mcg/kg/min,start
+119,2024-01-01 15:00:00,propofol,50,mcg/kg/min,going
+119,2024-01-01 18:00:00,propofol,0,mcg/kg/min,stop

@@ -1,0 +1,3 @@
+hospitalization_id,admin_dttm,med_category,med_dose,mar_action_category
+109,2024-01-01 10:00:00,haloperidol,5,given
+120,2024-01-01 12:00:00,haloperidol,5,given
