@@ -99,8 +99,8 @@ def test_liver_row_count(result_df, expected_df):
 def test_liver_scores(result_df, expected_df):
     """Verify liver scores match expected (all cases from CSV)."""
     pd.testing.assert_series_equal(
-        result_df['liver'].astype('Int64'),
-        expected_df['liver'].astype('Int64'),
+        result_df['sofa2_liver'].astype('Int64'),
+        expected_df['sofa2_liver'].astype('Int64'),
         check_names=False,
     )
 
@@ -160,8 +160,8 @@ def test_liver_custom_lookback(cohort_rel, labs_rel, case):
         f"case={case}: expected {len(expected)} rows, got {len(result_df)}"
     )
     pd.testing.assert_series_equal(
-        result_df['liver'].astype('Int64'),
-        expected['liver'].astype('Int64'),
+        result_df['sofa2_liver'].astype('Int64'),
+        expected['sofa2_liver'].astype('Int64'),
         check_names=False,
     )
     pd.testing.assert_series_equal(
