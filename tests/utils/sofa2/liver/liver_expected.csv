@@ -8,10 +8,10 @@ default,306,2024-01-01 08:00:00,,,,no data at all,validated
 default,307,2024-01-01 08:00:00,5.0,-08:00:00,2,pre-window fallback (no in-window),validated
 default,308,2024-01-01 08:00:00,4.0,02:00:00,2,in-window preferred over pre-window,validated
 default,309,2024-01-01 08:00:00,,,,pre-window outside 24hr lookback,validated
-default,310,2024-01-01 08:00:00,1.0,02:00:00,0,multi-window: w1 stable,
-default,310,2024-01-02 08:00:00,10.0,02:00:00,3,multi-window: w2 deterioration,
-default,311,2024-01-01 08:00:00,15.0,02:00:00,4,multi-window: w1 critical,
-default,311,2024-01-02 08:00:00,2.5,02:00:00,1,multi-window: w2 recovery,
-default,312,2024-01-01 08:00:00,5.0,06:00:00,2,multi-obs: MAX selects worst,
-short_lookback,307,2024-01-01 08:00:00,,,,lookback=6hr excludes -8hr pre-window,
-long_lookback,309,2024-01-01 08:00:00,8.0,-28:00:00,3,lookback=36hr includes -28hr pre-window,
+default,310,2024-01-01 08:00:00,1.0,02:00:00,0,multi-window: w1 stable,validated
+default,310,2024-01-02 08:00:00,10.0,02:00:00,3,multi-window: w2 deterioration,validated
+default,311,2024-01-01 08:00:00,6.0,02:00:00,2,daily: d1 in-window scored,validated
+default,311,2024-01-02 08:00:00,6.0,-22:00:00,2,daily: d2 cross-day pre-window within 24hr lookback,validated
+default,311,2024-01-03 08:00:00,,,,daily: d3 lookback expired (46hr > 24hr),validated
+short_lookback,307,2024-01-01 08:00:00,,,,lookback=6hr excludes -8hr pre-window,validated
+long_lookback,309,2024-01-01 08:00:00,8.0,-28:00:00,3,lookback=36hr includes -28hr pre-window,validated

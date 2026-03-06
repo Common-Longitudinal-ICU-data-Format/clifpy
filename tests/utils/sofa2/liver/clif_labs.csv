@@ -18,9 +18,4 @@ hospitalization_id,lab_collect_dttm,lab_category,lab_value_numeric
 310,2024-01-01 14:00:00,bilirubin_total,0.5
 310,2024-01-02 10:00:00,bilirubin_total,10.0
 310,2024-01-02 14:00:00,bilirubin_total,4.0
-311,2024-01-01 10:00:00,bilirubin_total,15.0
-311,2024-01-01 14:00:00,bilirubin_total,8.0
-311,2024-01-02 10:00:00,bilirubin_total,2.5
-311,2024-01-02 14:00:00,bilirubin_total,1.0
-312,2024-01-01 10:00:00,bilirubin_total,2.0
-312,2024-01-01 14:00:00,bilirubin_total,5.0
+311,2024-01-01 10:00:00,bilirubin_total,6.0
