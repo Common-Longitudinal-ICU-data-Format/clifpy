@@ -22,8 +22,8 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-  "pandas",
-  "duckdb",
+  "pandas==2.3.3",
+  "duckdb>=1.0.0",
   "pyarrow",
   "matplotlib",
   "seaborn",
@@ -57,12 +57,14 @@ clifpy = [
 [tool.pytest.ini_options]
 markers = [
   "unit_conversion: marks tests related to unit conversion",
+  "tz_conversion: marks tests related to timezone conversion",
 ]
 # addopts = "-p no:doctestplus"
 
 
 [dependency-groups]
 dev = [
+    "altair>=6.0.0",
     "ipykernel>=6.31.0",
     "marimo>=0.15.5",
     "memray>=1.19.1",
@@ -70,5 +72,7 @@ dev = [
     "mkdocs-material>=9.6.20",
     "mkdocstrings[python]>=0.30.0",
     "nbformat>=5.10.4",
+    "scipy>=1.13.1",
+    "sqlglot>=28.5.0",
     "sybil>=9.2.0",
 ]

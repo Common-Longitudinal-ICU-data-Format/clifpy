@@ -34,7 +34,6 @@ def _cast_id_cols_to_string(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_tz_converted_select(
-    con: duckdb.DuckDBPyConnection,
     file_path: str,
     columns: Optional[List[str]],
     site_tz: Optional[str],
@@ -47,8 +46,6 @@ def _build_tz_converted_select(
 
     Parameters
     ----------
-    con : duckdb.DuckDBPyConnection
-        Active DuckDB connection.
     file_path : str
         Path to the data file.
     columns : list of str, optional
@@ -69,7 +66,7 @@ def _build_tz_converted_select(
     else:  # csv
         schema_query = f"DESCRIBE SELECT * FROM read_csv_auto('{file_path}')"
 
-    schema_result = con.execute(schema_query).fetchall()
+    schema_result = duckdb.execute(schema_query).fetchall()
     all_columns = [row[0] for row in schema_result]
 
     # Filter to requested columns or use all
@@ -162,7 +159,7 @@ def load_parquet_with_tz(
 
     # Build SELECT clause with timezone conversion if site_tz is provided
     if site_tz:
-        sel = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="parquet")
+        sel = _build_tz_converted_select(file_path, columns, site_tz, source_type="parquet")
     else:
         sel = "*" if columns is None else ", ".join(columns)
 
@@ -311,7 +308,7 @@ def load_data(
 
         # Build SELECT clause with timezone conversion if site_tz is provided
         if site_tz:
-            select_clause = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="csv")
+            select_clause = _build_tz_converted_select(file_path, columns, site_tz, source_type="csv")
         else:
             select_clause = "*" if not columns else ", ".join(columns)
 
