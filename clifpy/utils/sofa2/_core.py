@@ -7,6 +7,8 @@ This module contains the main public functions:
 
 from __future__ import annotations
 
+import platform
+
 import pandas as pd
 import polars as pl
 import duckdb
@@ -193,9 +195,18 @@ def calculate_sofa2(
     # Backward compat: wrap legacy memory_limit into DuckDBResourceConfig
     if memory_limit is not None and duckdb_config is None:
         duckdb_config = DuckDBResourceConfig(memory_limit=memory_limit)
-    cfg = duckdb_config or DuckDBResourceConfig()
 
-    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size):
+    if duckdb_config is not None:
+        cfg = duckdb_config
+    elif platform.system() == 'Windows':
+        cfg = DuckDBResourceConfig.from_system()
+        logger.info("Windows detected: auto-applying resource limits")
+        for line in cfg.summary().splitlines():
+            logger.info(f"  {line}")
+    else:
+        cfg = DuckDBResourceConfig()
+
+    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size, cfg.threads):
         # Batching: split large cohorts into chunks to reduce peak memory
         if (
             cfg.batch_size
@@ -641,9 +652,18 @@ def calculate_sofa2_daily(
     # Backward compat: wrap legacy memory_limit into DuckDBResourceConfig
     if memory_limit is not None and duckdb_config is None:
         duckdb_config = DuckDBResourceConfig(memory_limit=memory_limit)
-    cfg = duckdb_config or DuckDBResourceConfig()
 
-    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size):
+    if duckdb_config is not None:
+        cfg = duckdb_config
+    elif platform.system() == 'Windows':
+        cfg = DuckDBResourceConfig.from_system()
+        logger.info("Windows detected: auto-applying resource limits")
+        for line in cfg.summary().splitlines():
+            logger.info(f"  {line}")
+    else:
+        cfg = DuckDBResourceConfig()
+
+    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size, cfg.threads):
         return _calculate_sofa2_daily_impl(
             cohort_df, clif_config_path, return_rel,
             sofa2_config=sofa2_config, perf_profile=perf_profile,

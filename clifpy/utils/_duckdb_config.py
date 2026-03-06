@@ -35,25 +35,32 @@ class DuckDBResourceConfig:
         Process cohort in chunks of this size to reduce peak memory.
         Each batch reloads CLIF tables (I/O cost) but limits intermediate
         result size. Default: None (process all at once).
+    threads : int, optional
+        Number of threads for DuckDB parallel execution.
+        Default: None (DuckDB uses all logical cores).
     """
 
     memory_limit: str | None = None
     temp_directory: str | None = None
     max_temp_directory_size: str | None = None
     batch_size: int | None = None
+    threads: int | None = None
 
     @classmethod
-    def from_system(cls, memory_fraction: float = 0.7) -> DuckDBResourceConfig:
+    def from_system(cls, memory_fraction: float | None = None) -> DuckDBResourceConfig:
         """Create a config based on detected system resources.
 
         Uses psutil to detect available RAM and disk, then sets
-        conservative limits. Useful for users who want guardrails
-        without manually checking system specs.
+        conservative limits. On Windows, applies more aggressive
+        defaults: physical cores only (avoids hyperthreading overhead),
+        lower memory fraction (50% vs 70%), and system temp directory
+        (avoids antivirus-scanned CWD).
 
         Parameters
         ----------
-        memory_fraction : float, default 0.7
+        memory_fraction : float, optional
             Fraction of available RAM to allocate to DuckDB.
+            Default: 0.5 on Windows, 0.7 on macOS/Linux.
 
         Returns
         -------
@@ -67,8 +74,17 @@ class DuckDBResourceConfig:
         temp_directory:            system default (.tmp in CWD)
         max_temp_directory_size:   50GB
         batch_size:               disabled (all at once)
+        threads:                  system default (all logical cores)
         """
+        import platform
+        import tempfile
+
         import psutil
+
+        is_windows = platform.system() == 'Windows'
+
+        if memory_fraction is None:
+            memory_fraction = 0.5 if is_windows else 0.7
 
         mem = psutil.virtual_memory()
         available_gb = mem.available / (1024**3)
@@ -78,9 +94,21 @@ class DuckDBResourceConfig:
         disk = shutil.disk_usage(Path.home())
         disk_free_gb = int(disk.free / (1024**3) * 0.5)  # use 50% of free disk
 
+        # Windows: physical cores only (hyperthreading + antivirus = context-switch overhead)
+        threads = None
+        if is_windows:
+            threads = psutil.cpu_count(logical=False)
+            if threads is None:
+                threads = psutil.cpu_count(logical=True) or 4
+
+        # Windows: use system temp dir (avoids antivirus-scanned CWD .tmp)
+        temp_directory = tempfile.gettempdir() if is_windows else None
+
         return cls(
             memory_limit=f'{max(1, limit_gb)}GB',
             max_temp_directory_size=f'{max(1, disk_free_gb)}GB',
+            threads=threads,
+            temp_directory=temp_directory,
         )
 
     def summary(self) -> str:
@@ -90,5 +118,6 @@ class DuckDBResourceConfig:
             f"temp_directory:            {self.temp_directory or 'system default (.tmp in CWD)'}",
             f"max_temp_directory_size:   {self.max_temp_directory_size or 'unlimited'}",
             f"batch_size:               {self.batch_size or 'disabled (all at once)'}",
+            f"threads:                  {self.threads or 'system default (all logical cores)'}",
         ]
         return '\n'.join(lines)

@@ -702,6 +702,10 @@ def main():
         '--batch-size', type=int, default=None, metavar='N',
         help="Process cohort in batches of N rows. Reduces peak memory.",
     )
+    parser.add_argument(
+        '--threads', type=int, default=None, metavar='N',
+        help="DuckDB thread count. Default: all logical cores (physical cores on Windows).",
+    )
     args = parser.parse_args()
 
     from clifpy.utils._duckdb_config import DuckDBResourceConfig
@@ -711,12 +715,13 @@ def main():
     mem_profile_dir = report_dir / "mem" if args.mem_profile else None
 
     # Build DuckDB resource config from CLI flags
-    has_duckdb_flags = any([args.mem_limit, args.temp_dir, args.max_temp_size, args.batch_size])
+    has_duckdb_flags = any([args.mem_limit, args.temp_dir, args.max_temp_size, args.batch_size, args.threads])
     duckdb_cfg = DuckDBResourceConfig(
         memory_limit=args.mem_limit,
         temp_directory=args.temp_dir,
         max_temp_directory_size=args.max_temp_size,
         batch_size=args.batch_size,
+        threads=args.threads,
     ) if has_duckdb_flags else None
 
     # ── Resolve mode ──────────────────────────────────────────────────────
@@ -780,6 +785,8 @@ def main():
             print(f"Max temp size: {args.max_temp_size}")
         if args.batch_size:
             print(f"Batch size: {args.batch_size}")
+        if args.threads:
+            print(f"Threads: {args.threads}")
         if args.mem_profile:
             print(f"Memory profiling: {args.mem_profile} (native C/C++ allocations)")
         if args.max:
