@@ -7,7 +7,7 @@ Test cases (documented in liver_expected.csv notes column):
 - 308: Pre-window ignored when in-window exists
 - 309: Pre-window outside 24hr lookback -> NULL
 - 310: Multi-window same hosp_id (stable -> deterioration)
-- 311: Multi-window same hosp_id (critical -> recovery)
+- 311: Daily / missing data (3 consecutive days, lab only on day 1)
 
 Custom lookback cases (case column in expected CSV):
 - short_lookback: liver_lookback_hours=6.0
@@ -16,15 +16,21 @@ Custom lookback cases (case column in expected CSV):
 
 import pytest
 from pathlib import Path
-import pandas as pd
 import duckdb
 
 from clifpy.utils.sofa2._liver import _calculate_liver_subscore
 from clifpy.utils.sofa2._utils import SOFA2Config
+from tests.utils.sofa2.conftest import load_expected, assert_columns_match
 
 
 FIXTURES_DIR = Path(__file__).parent
 SORT_COLS = ['hospitalization_id', 'start_dttm']
+
+LIVER_COLUMNS = [
+    ('sofa2_liver', 'Int64'),
+    ('bilirubin_total', 'Float64'),
+    ('bilirubin_dttm_offset', 'offset'),
+]
 
 LOOKBACK_CONFIGS = {
     'short_lookback': SOFA2Config(liver_lookback_hours=6.0),
@@ -32,34 +38,8 @@ LOOKBACK_CONFIGS = {
 }
 
 
-def _to_total_seconds(x):
-    """Convert timedelta/interval to total seconds for comparison."""
-    if pd.isna(x):
-        return None
-    if isinstance(x, pd.Timedelta):
-        return x.total_seconds()
-    if isinstance(x, str):
-        negative = x.startswith('-')
-        time_str = x.lstrip('-')
-        parts = time_str.split(':')
-        hours, mins, secs = int(parts[0]), int(parts[1]), float(parts[2])
-        total = hours * 3600 + mins * 60 + secs
-        return -total if negative else total
-    return None
-
-
-def _load_expected(case: str) -> pd.DataFrame:
-    """Load expected CSV filtered to a specific case."""
-    df = pd.read_csv(
-        str(FIXTURES_DIR / 'liver_expected.csv'),
-        dtype={'hospitalization_id': str},
-    )
-    return df[df['case'] == case].sort_values(SORT_COLS).reset_index(drop=True)
-
-
 @pytest.fixture
 def cohort_rel():
-    """Load cohort fixture as DuckDBPyRelation."""
     return duckdb.read_csv(
         str(FIXTURES_DIR / 'clif_cohort.csv'),
         dtype={'hospitalization_id': 'VARCHAR'},
@@ -68,7 +48,6 @@ def cohort_rel():
 
 @pytest.fixture
 def labs_rel():
-    """Load labs fixture as DuckDBPyRelation."""
     return duckdb.read_csv(
         str(FIXTURES_DIR / 'clif_labs.csv'),
         dtype={'hospitalization_id': 'VARCHAR'},
@@ -77,53 +56,19 @@ def labs_rel():
 
 @pytest.fixture
 def expected_df():
-    """Load expected output for default case as DataFrame."""
-    return _load_expected('default')
+    return load_expected(FIXTURES_DIR, 'liver_expected.csv', 'default')
 
 
 @pytest.fixture
 def result_df(cohort_rel, labs_rel):
-    """Run the liver subscore and return sorted result DataFrame."""
     cfg = SOFA2Config()
     result = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
     return result.df().sort_values(SORT_COLS).reset_index(drop=True)
 
 
-def test_liver_row_count(result_df, expected_df):
-    """Verify output has one row per cohort window."""
-    assert len(result_df) == len(expected_df), (
-        f"Expected {len(expected_df)} rows, got {len(result_df)}"
-    )
-
-
-def test_liver_scores(result_df, expected_df):
-    """Verify liver scores match expected (all cases from CSV)."""
-    pd.testing.assert_series_equal(
-        result_df['sofa2_liver'].astype('Int64'),
-        expected_df['sofa2_liver'].astype('Int64'),
-        check_names=False,
-    )
-
-
-def test_liver_bilirubin_total(result_df, expected_df):
-    """Verify bilirubin_total values match expected."""
-    pd.testing.assert_series_equal(
-        result_df['bilirubin_total'].astype('Float64'),
-        expected_df['bilirubin_total'].astype('Float64'),
-        check_names=False,
-    )
-
-
-def test_liver_dttm_offset(result_df, expected_df):
-    """Verify bilirubin_dttm_offset values match expected."""
-    result_seconds = result_df['bilirubin_dttm_offset'].apply(_to_total_seconds)
-    expected_seconds = expected_df['bilirubin_dttm_offset'].apply(_to_total_seconds)
-
-    pd.testing.assert_series_equal(
-        result_seconds,
-        expected_seconds,
-        check_names=False,
-    )
+def test_liver_default(result_df, expected_df):
+    """Verify all output columns match expected for default case."""
+    assert_columns_match(result_df, expected_df, LIVER_COLUMNS)
 
 
 def test_liver_intermediates(cohort_rel, labs_rel):
@@ -138,14 +83,11 @@ def test_liver_intermediates(cohort_rel, labs_rel):
         assert hasattr(intermediates[key], 'df'), f"{key} is not a DuckDBPyRelation"
 
 
-# --- Custom lookback tests (data-driven from expected CSV case column) ---
-
-
 @pytest.mark.parametrize('case', ['short_lookback', 'long_lookback'])
 def test_liver_custom_lookback(cohort_rel, labs_rel, case):
     """Verify custom lookback config produces expected results from CSV."""
     cfg = LOOKBACK_CONFIGS[case]
-    expected = _load_expected(case)
+    expected = load_expected(FIXTURES_DIR, 'liver_expected.csv', case)
     hosp_ids = expected['hospitalization_id'].tolist()
 
     result = _calculate_liver_subscore(cohort_rel, labs_rel, cfg)
@@ -156,23 +98,4 @@ def test_liver_custom_lookback(cohort_rel, labs_rel, case):
         .reset_index(drop=True)
     )
 
-    assert len(result_df) == len(expected), (
-        f"case={case}: expected {len(expected)} rows, got {len(result_df)}"
-    )
-    pd.testing.assert_series_equal(
-        result_df['sofa2_liver'].astype('Int64'),
-        expected['sofa2_liver'].astype('Int64'),
-        check_names=False,
-    )
-    pd.testing.assert_series_equal(
-        result_df['bilirubin_total'].astype('Float64'),
-        expected['bilirubin_total'].astype('Float64'),
-        check_names=False,
-    )
-    result_seconds = result_df['bilirubin_dttm_offset'].apply(_to_total_seconds)
-    expected_seconds = expected['bilirubin_dttm_offset'].apply(_to_total_seconds)
-    pd.testing.assert_series_equal(
-        result_seconds,
-        expected_seconds,
-        check_names=False,
-    )
+    assert_columns_match(result_df, expected, LIVER_COLUMNS)
