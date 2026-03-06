@@ -10,8 +10,8 @@ default,508,2024-01-01 08:00:00,80,02:00:00,3,in-window preferred over pre-windo
 default,509,2024-01-01 08:00:00,,,,pre-window outside 24hr lookback,validated
 default,510,2024-01-01 08:00:00,200,02:00:00,0,multi-window: w1 stable,validated
 default,510,2024-01-02 08:00:00,60,02:00:00,3,multi-window: w2 deterioration,validated
-default,511,2024-01-01 08:00:00,50,02:00:00,4,multi-window: w1 critical,validated
-default,511,2024-01-02 08:00:00,160,02:00:00,0,multi-window: w2 recovery,validated
-default,512,2024-01-01 08:00:00,90,06:00:00,2,multi-obs: MIN selects worst,validated
+default,511,2024-01-01 08:00:00,100,02:00:00,2,daily: d1 in-window scored,validated
+default,511,2024-01-02 08:00:00,100,-22:00:00,2,daily: d2 cross-day pre-window within 24hr lookback,validated
+default,511,2024-01-03 08:00:00,,,,daily: d3 lookback expired (46hr > 24hr),validated
 short_lookback,507,2024-01-01 08:00:00,,,,lookback=1hr excludes -2hr pre-window,validated
 long_lookback,509,2024-01-01 08:00:00,60,-28:00:00,3,lookback=36hr includes -28hr pre-window,validated
