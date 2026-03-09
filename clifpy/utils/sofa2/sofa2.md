@@ -133,10 +133,10 @@ sofa2_results = calculate_sofa2(
 
 # Specs
 
-| additional specs | status |
-|----------|----------|
-| lab_collect_dttm are used instead of lab_result_dttm for all labs. | DONE |
-| in addition to the subscores and total SOFA-2 score, the final output df will also return all the deciding values (e.g. the worst creatinine that decides the kidney score) as well as all the `*_dttm_offset` columns, defined as `measure_dttm - start_dttm` for all the deciding values. Thus, a positive `creatinine_dttm_offset` would show how long after the start of the target time window was the creatinine value measured, while a negative `creatinine_dttm_offset` would mean no creatineine value is found within the target window, and we had to fall back to before the start of the time window for the most recent value -- up to a certain hours defined in details below | DONE |
+| additional specs | windowed status | rolling status |
+|----------|----------|----------|
+| lab_collect_dttm are used instead of lab_result_dttm for all labs. | DONE | |
+| in addition to the subscores and total SOFA-2 score, the final output df will also return all the deciding values (e.g. the worst creatinine that decides the kidney score) as well as all the `*_dttm_offset` columns, defined as `measure_dttm - start_dttm` for all the deciding values. Thus, a positive `creatinine_dttm_offset` would show how long after the start of the target time window was the creatinine value measured, while a negative `creatinine_dttm_offset` would mean no creatineine value is found within the target window, and we had to fall back to before the start of the time window for the most recent value -- up to a certain hours defined in details below | DONE | |
 
 
 ## Brain (footnote c, d)
@@ -146,11 +146,11 @@ sofa2_results = calculate_sofa2(
 - score 3 = GCS 6–8 (or, when gcs_total unavailable, gcs_motor = 3 'flexion to pain')
 - score 4 = GCS 3–5 (or, when gcs_total unavailable, gcs_motor in [0, 1, 2] 'extension to pain, no response to pain, generalized myoclonus')
 
-| footnote | status |
-|----------|----------|
-| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: uses episode-based sedation detection (`_detect_sedation_episodes()`) from continuous meds only. GCS measurements falling within any sedation episode (from `sedation_start` to `sedation_end_extended`, where extended = `sedation_end + post_sedation_gcs_invalidate_hours`) are invalidated. If no valid GCS and sedation present, score 0. Sedation drugs: `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']` DISCUSSION |
-| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. outside sedation episodes) gcs_total is available. |
-| e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: continuous delirium drugs (`['dexmedetomidine']`) use pre-window ASOF + in-window from `medication_admin_continuous`; intermittent delirium drugs (`['haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']`) use in-window only from `medication_admin_intermittent` with `med_dose > 0 AND mar_action_category != 'not_given'`. |
+| footnote | windowed status | rolling status |
+|----------|----------|----------|
+| c. For sedated patients, use the last GCS before sedation; if unknown, score 0. | DONE: uses episode-based sedation detection (`_detect_sedation_episodes()`) from continuous meds only. GCS measurements falling within any sedation episode (from `sedation_start` to `sedation_end_extended`, where extended = `sedation_end + post_sedation_gcs_invalidate_hours`) are invalidated. If no valid GCS and sedation present, score 0. Sedation drugs: `['propofol', 'dexmedetomidine', 'ketamine', 'midazolam', 'fentanyl', 'hydromorphone', 'morphine', 'remifentanil', 'pentobarbital', 'lorazepam']` DISCUSSION | |
+| d. If full GCS cannot be assessed, use the best motor response score only. | DONE: gcs_motor is only used as fallback when no valid (i.e. outside sedation episodes) gcs_total is available. | |
+| e. If the patient is receiving drug therapy for delirium, score 1 point even if GCS is 15. For relevant drugs, see the International Management of Pain, Agitation, and Delirium in Adult Patients in the ICU Guidelines. | DONE: continuous delirium drugs (`['dexmedetomidine']`) use pre-window ASOF + in-window from `medication_admin_continuous`; intermittent delirium drugs (`['haloperidol', 'quetiapine', 'ziprasidone', 'olanzapine']`) use in-window only from `medication_admin_intermittent` with `med_dose > 0 AND mar_action_category != 'not_given'`. | |
 
 delirium drugs:
 - Mentioned in the PADIS guideline and already in MCIDE: dexmedetomidine
@@ -172,20 +172,20 @@ Consequence: GCS recorded **before** dex starts remains valid (not within a seda
 - score 3 = PaO₂:FiO₂ ratio ≤150 mm Hg (≤20 kPa) (or, when applicable, SpO₂:FiO₂ ratio ≤200 mm Hg) and advanced ventilatory support (footnote g, h)
 - score 4 = PaO₂:FiO₂ ratio ≤75 mm Hg (≤10 kPa) (or, when applicable, SpO₂:FiO₂ ratio ≤120 mm Hg) and advanced ventilatory support (footnote g, h) or ECMO (footnote i)
 
-| footnote | status |
-|------|----------|
-| f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE |
-| g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | DONE except for 'ignore transient changes within 1 hour' which is FUTURE |
-| h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | NOT_APPLICABLE cannot operationalize |
-| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | DONE: resp ecmo_flag filters to actual ECMO devices only (`mcs_group = 'ecmo' OR ecmo_configuration_category IS NOT NULL`); non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`) scores 4 in both resp and CV via `_flag_mechanical_cv_support()`. VV-ECMO (`ecmo_configuration_category = 'vv'`) scores 4 in resp only. |
+| footnote | windowed status | rolling status |
+|------|----------|----------|
+| f. Use the SpO₂:FiO₂ ratio only when PaO₂:FiO₂ ratio is unavailable and SpO₂ <98%. | DONE | |
+| g. Advanced ventilatory support includes HFNC, CPAP, BiPAP, noninvasive or invasive mechanical ventilation, or long-term home ventilation. Scores of 3-4 require both an appropriate PaO₂:FiO₂ or SpO₂:FiO₂ ratio and advanced ventilatory support; ignore transient changes within 1 hour (e.g., after suctioning). | DONE except for 'ignore transient changes within 1 hour' which is FUTURE | |
+| h. Patients without advanced respiratory support can score at most 2 points unless ventilatory support is (1) unavailable or (2) limited by ceiling of treatment; if so, scored by PaO₂:FiO₂ or SpO₂:FiO₂ alone. | NOT_APPLICABLE cannot operationalize | |
+| i. If ECMO is used for respiratory failure, assign 4 points in the respiratory system (regardless of PaO₂:FiO₂) and do not score it in the cardiovascular system. If ECMO is used for cardiovascular indications, score it in both cardiovascular and respiratory systems. | DONE: resp ecmo_flag filters to actual ECMO devices only (`mcs_group = 'ecmo' OR ecmo_configuration_category IS NOT NULL`); non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`) scores 4 in both resp and CV via `_flag_mechanical_cv_support()`. VV-ECMO (`ecmo_configuration_category = 'vv'`) scores 4 in resp only. | |
 
-| additional specs | status |
-|----------|----------|
-| impute fio2 from lpm_set and room air (see details below) | DONE |
-| fio2 are matched to their most recent pao2 or spo2 measurements up to `pf_sf_tolerance_hours` (default = 4 hrs) | DONE; `pf_sf_dttm_offset` column added showing the time gap between PaO2/SpO2 and FiO2 measurements |
-| if no pao2, spo2, or fio2 is found within the target window, the most recent values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 6 hr) | DONE |
-| infer `device_category = 'imv'` when NULL but `mode_category` suggests IMV (Step 0 in `_resp.py`) | DONE |
-| forward-fill `fio2_set` within contiguous device_category episodes before imputation (Step 0b via `_forward_fill_fio2()` in `_resp.py`) | DONE |
+| additional specs | windowed status | rolling status |
+|----------|----------|----------|
+| impute fio2 from lpm_set and room air (see details below) | DONE | |
+| fio2 are matched to their most recent pao2 or spo2 measurements up to `pf_sf_tolerance_hours` (default = 4 hrs) | DONE; `pf_sf_dttm_offset` column added showing the time gap between PaO2/SpO2 and FiO2 measurements | |
+| if no pao2, spo2, or fio2 is found within the target window, the most recent values from before the `start_dttm` of the target window are used, up to `resp_lookback_hours` (default = 6 hr) | DONE | |
+| infer `device_category = 'imv'` when NULL but `mode_category` suggests IMV (Step 0 in `_resp.py`) | DONE | |
+| forward-fill `fio2_set` within contiguous device_category episodes before imputation (Step 0b via `_forward_fill_fio2()` in `_resp.py`) | DONE | |
 
 ### Respiratory preprocessing (Steps 0, 0b)
 
@@ -214,21 +214,21 @@ END AS fio2_imputed
 
 
 # Cardiovascular (footnotes j,k,l,m)
-| score | spec | status |
-|----------|----------|----------|
-| 0 | MAP ≥70 mm Hg, no vasopressor or inotrope use | DONE |
-| 1 | MAP <70 mm Hg, no vasopressor or inotrope use | DONE |
-| 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | DONE|
-| 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | DONE|
-| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | DONE |
+| score | spec | windowed status | rolling status |
+|----------|----------|----------|----------|
+| 0 | MAP ≥70 mm Hg, no vasopressor or inotrope use | DONE | |
+| 1 | MAP <70 mm Hg, no vasopressor or inotrope use | DONE | |
+| 2 | Low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) or any dose of other vasopressor or inotrope | DONE | |
+| 3 | Medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) or low-dose vasopressor (sum of norepinephrine and epinephrine ≤0.2 μg/kg/min) with any other vasopressor or inotrope | DONE | |
+| 4 | High-dose vasopressor (sum of norepinephrine and epinephrine >0.4 μg/kg/min)  or medium-dose vasopressor (sum of norepinephrine and epinephrine >0.2 to ≤0.4 μg/kg/min) with any other vasopressor or inotrope or mechanical support (footnote i, n) | DONE | |
 
-| footnotes | status |
-|----------|----------|
-| j. Count vasopressors only if given as a continuous IV infusion for ≥1 hour. | DONE. applied to ALL vasopressors (norepi, epi, dopamine, dobutamine, vasopressin, phenylephrine, milrinone, angiotensin, isoproterenol). |
-| k. Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | NOT_APPLICABLE |
-| l. If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | DONE. `is_dopamine_only: dopamine_max > 0 AND norepi_epi_sum = 0 AND has_other_non_dopa = 0`|
-| m. When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | NOT_APPLICABLE cannot operationalize |
-| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | DONE: `_flag_mechanical_cv_support()` detects non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`), IABP (`mcs_group = 'iabp'`), LV assist/microaxial (`mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')`), RV assist (`mcs_group = 'temporary_rvad'`). Mechanical CV support → 4 points (highest priority in CASE). |
+| footnotes | windowed status | rolling status |
+|----------|----------|----------|
+| j. Count vasopressors only if given as a continuous IV infusion for ≥1 hour. | DONE. applied to ALL vasopressors (norepi, epi, dopamine, dobutamine, vasopressin, phenylephrine, milrinone, angiotensin, isoproterenol). | |
+| k. Norepinephrine dosing should be expressed as the base: 1 mg norepinephrine base ≈ 2 mg norepinephrine bitartrate monohydrate ≈ 1.89 mg anhydrous bitartrate (hydrogen/acid/tartrate) ≈ 1.22 mg hydrochloride. | NOT_APPLICABLE | |
+| l. If dopamine is used as a single vasopressor, use these cutoffs: 2 points, ≤20 μg/kg/min; 3 points, >20 to ≤40 μg/kg/min; 4 points, >40 μg/kg/min. | DONE. `is_dopamine_only: dopamine_max > 0 AND norepi_epi_sum = 0 AND has_other_non_dopa = 0` | |
+| m. When vasoactive drugs are unavailable or limited by ceiling of treatment, use MAP cutoffs for scoring: 0 point, ≥70 mm Hg; 1 point, 60-69 mm Hg; 2 points, 50-59 mm Hg; 3 points, 40-49 mm Hg; 4 points, <40 mm Hg. | NOT_APPLICABLE cannot operationalize | |
+| n. Mechanical cardiovascular support includes venoarterial ECMO, IABP, LV assist device, microaxial flow pump. | DONE: `_flag_mechanical_cv_support()` detects non-VV ECMO (`ecmo_configuration_category IN ('va','va_v', 'vv_a')`), IABP (`mcs_group = 'iabp'`), LV assist/microaxial (`mcs_group IN ('impella_lvad', 'temporary_lvad', 'durable_lvad')`), RV assist (`mcs_group = 'temporary_rvad'`). Mechanical CV support → 4 points (highest priority in CASE). | |
 
 
 # Liver
@@ -238,24 +238,24 @@ END AS fio2_imputed
 - score 3 = Total bilirubin ≤12.0 mg/dL (≤205 μmol/L)
 - score 4 = Total bilirubin >12 mg/dL (>205 μmol/L)
 
-| additional specs | status |
-|----------|----------| 
-| if no bilirubin_total is found within the target window, the most recent value from before the `start_dttm` of the target window is used, up to `liver_lookback_hours` (default = 24 hr) DISCUSSION | DONE |
+| additional specs | windowed status | rolling status |
+|----------|----------|----------|
+| if no bilirubin_total is found within the target window, the most recent value from before the `start_dttm` of the target window is used, up to `liver_lookback_hours` (default = 24 hr) DISCUSSION | DONE | |
 
 # Kidney
-| score | spec | status |
-|----------|----------|----------|
-| 0 | Creatinine ≤1.20 mg/dL (≤110 μmol/L) | DONE |
-| 1 | Creatinine ≤2.0 mg/dL (≤170 μmol/L) or urine output <0.5 mL/kg/h for 6–12 h | Creatinine DONE and UO is TODO |
-| 2 | Creatinine ≤3.50 mg/dL (≤300 μmol/L) or urine output <0.5 mL/kg/h for ≥12 h | Creatinine DONE and UO is TODO |
-| 3 | Creatinine >3.50 mg/dL (>300 μmol/L)  OR urine output <0.3 mL/kg/h for ≥24 h OR anuria (0 mL) for ≥12 h | Creatinine DONE and UO is TODO |
-| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | DONE: carry forward score 4 from CRRT for 3 days (configurable via `rrt_carryforward_days`) |
+| score | spec | windowed status | rolling status |
+|----------|----------|----------|----------|
+| 0 | Creatinine ≤1.20 mg/dL (≤110 μmol/L) | DONE | |
+| 1 | Creatinine ≤2.0 mg/dL (≤170 μmol/L) or urine output <0.5 mL/kg/h for 6–12 h | Creatinine DONE and UO is TODO | |
+| 2 | Creatinine ≤3.50 mg/dL (≤300 μmol/L) or urine output <0.5 mL/kg/h for ≥12 h | Creatinine DONE and UO is TODO | |
+| 3 | Creatinine >3.50 mg/dL (>300 μmol/L)  OR urine output <0.3 mL/kg/h for ≥24 h OR anuria (0 mL) for ≥12 h | Creatinine DONE and UO is TODO | |
+| 4 | Receiving or fulfills criteria for RRT (footnotes o,p,q) (includes chronic use) | DONE: carry forward score 4 from CRRT for 3 days (configurable via `rrt_carryforward_days`) | |
 
-| footnote | status |
-|----------|----------|
-| o. Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal). | NOT_APPLICABLE cannot operationalize |
-| p. For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria (defined below) | DONE |
-| q. For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated. | FUTURE - we dont have intermittent RRT for now |
+| footnote | windowed status | rolling status |
+|----------|----------|----------|
+| o. Excludes patients receiving RRT exclusively for nonrenal causes (e.g., toxin, bacterial toxin, or cytokine removal). | NOT_APPLICABLE cannot operationalize | |
+| p. For patients not receiving RRT (eg, ceiling of treatment, machine unavailability, or delayed start), score 4 points if they otherwise meet RRT criteria (defined below) | DONE | |
+| q. For patients on intermittent RRT, score 4 points on days not receiving RRT until RRT use is terminated. | FUTURE - we dont have intermittent RRT for now | |
 
 RRT criteria in footnote p:
 - creatinine >1.2 mg/dL (>110 μmol/L) OR oliguria (<0.3 mL/kg/h) for >6 hours
@@ -263,9 +263,9 @@ RRT criteria in footnote p:
   - serum potassium >= 6.0 mmol/L OR 
   - metabolic acidosis (pH <= 7.20 and serum bicarbonate <= 12 mmol/L)
 
-| additional specs | status |
-|----------|----------| 
-| if no creatinine, potassium, pH, bicarbonate is found within the target window, values from before the `start_dttm` of the target window are used, up to `kidney_lookback_hours` (default = 12 hr) | DONE 
+| additional specs | windowed status | rolling status |
+|----------|----------|----------|
+| if no creatinine, potassium, pH, bicarbonate is found within the target window, values from before the `start_dttm` of the target window are used, up to `kidney_lookback_hours` (default = 12 hr) | DONE | |
 
 # Hemostasis
 - score 0 = Platelets >150 × 10³/μL
@@ -274,15 +274,15 @@ RRT criteria in footnote p:
 - score 3 = Platelets ≤80 × 10³/μL
 - score 4 = Platelets ≤50 × 10³/μL
 
-| additional specs | status |
-|----------|----------| 
-| if no platelet_count is found within the target window, values from before the `start_dttm` of the target window are used, up to `hemo_lookback_hours` (default = 24 hr) | DONE |
+| additional specs | windowed status | rolling status |
+|----------|----------|----------|
+| if no platelet_count is found within the target window, values from before the `start_dttm` of the target window are used, up to `hemo_lookback_hours` (default = 24 hr) | DONE | DONE (POC) |
 
 ##  Other footnotes
-| footnote | status |
-|----------|----------|
-| a. The final score is obtained by summing the maximum points from each of the 6 organ systems individually within a 24-hour period, ranging from 0 to 24. | DONE |
-| b. For missing values at day 1, the general recommendation is to score these as 0 points. This may vary for specific purposes (eg, bedside use, research, etc). For sequential scoring, for missing data after day 1, it is to carry forward the last observation, the rationale being that nonmeasurement suggests stability. | DONE: implemented in `calculate_sofa2_daily()` |
+| footnote | windowed status | rolling status |
+|----------|----------|----------|
+| a. The final score is obtained by summing the maximum points from each of the 6 organ systems individually within a 24-hour period, ranging from 0 to 24. | DONE | |
+| b. For missing values at day 1, the general recommendation is to score these as 0 points. This may vary for specific purposes (eg, bedside use, research, etc). For sequential scoring, for missing data after day 1, it is to carry forward the last observation, the rationale being that nonmeasurement suggests stability. | DONE: implemented in `calculate_sofa2_daily()` | |
 
 
 
@@ -441,14 +441,19 @@ ORDER BY hospitalization_id, med_category, admin_dttm;
 ```
 clifpy/utils/sofa2/
   __init__.py    # Public exports: calculate_sofa2, calculate_sofa2_daily, SOFA2Config
-  _utils.py      # SOFA2Config + shared aggregation/flag queries
-  _brain.py      # Brain subscore
-  _resp.py       # Respiratory subscore
-  _cv.py         # Cardiovascular subscore (most complex)
-  _liver.py      # Liver subscore
-  _kidney.py     # Kidney subscore
-  _hemo.py       # Hemostasis subscore
-  _core.py       # Main orchestration functions
+  _utils.py      # SOFA2Config + shared aggregation/flag queries + shared scoring SQL helpers
+  _brain.py      # Brain subscore (windowed)
+  _resp.py       # Respiratory subscore (windowed)
+  _cv.py         # Cardiovascular subscore (windowed, most complex)
+  _liver.py      # Liver subscore (windowed)
+  _kidney.py     # Kidney subscore (windowed)
+  _hemo.py       # Hemostasis subscore (windowed)
+  _core.py       # Main orchestration functions (windowed)
+  _perf.py       # Performance profiling utilities
+  rolling/
+    __init__.py  # Public exports: calculate_rolling_hemo, RollingSOFA2Config
+    _config.py   # RollingSOFA2Config dataclass
+    _hemo.py     # Hemostasis subscore (rolling, POC)
 ```
 
 
