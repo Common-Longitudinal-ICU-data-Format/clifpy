@@ -10,8 +10,8 @@ default,108,2024-01-01 08:00:00,10,gcs_total,00:30:00,1,04:00:00,10:00:00,1,04:0
 default,109,2024-01-01 08:00:00,15,gcs_total,02:00:00,0,,,1,02:00:00,1,haloperidol intm: delirium forces >= 1,validated
 default,110,2024-01-01 08:00:00,,,,1,04:00:00,10:00:00,0,,0,all GCS during sedation invalidated,validated
 default,111,2024-01-01 08:00:00,14,gcs_total,01:00:00,1,04:00:00,10:00:00,0,,1,valid GCS=14 before sed used; GCS=6 during sed discarded,validated
-default,112,2024-01-01 08:00:00,,,,1,00:00:00,15:30:00,0,,0,two-episode: GCS +5hr after ep1 stop within 12hr post_sed,validated
-default,113,2024-01-01 08:00:00,14,gcs_total,14:30:00,1,00:00:00,15:30:00,0,,1,two-episode: GCS +12.5hr after ep1 stop outside 12hr post_sed,validated
+default,112,2024-01-01 08:00:00,,,,1,00:00:00,24:00:00,0,,0,two-episode: GCS +5hr after ep1 stop within 12hr post_sed,validated
+default,113,2024-01-01 08:00:00,14,gcs_total,14:30:00,1,00:00:00,24:00:00,0,,1,two-episode: GCS +12.5hr after ep1 stop outside 12hr post_sed,validated
 default,114,2024-01-01 08:00:00,6,gcs_motor,02:00:00,0,,,0,,0,motor=6 fallback,validated
 default,115,2024-01-01 08:00:00,3,gcs_motor,02:00:00,0,,,0,,3,motor=3 fallback,validated
 default,116,2024-01-01 08:00:00,14,gcs_total,02:00:00,0,,,0,,1,gcs_total preferred over gcs_motor,validated
@@ -22,5 +22,5 @@ default,118,2024-01-02 08:00:00,,,,0,,,0,,,daily: d2 no GCS (no pre-window lookb
 default,118,2024-01-03 08:00:00,,,,0,,,0,,,daily: d3 no GCS (same as d2),validated
 default,119,2024-01-01 08:00:00,,,,1,04:00:00,10:00:00,0,,0,sedation present but no GCS at all,validated
 default,120,2024-01-01 08:00:00,,,,0,,,1,04:00:00,,haloperidol intm but no GCS,validated
-short_post_sed,112,2024-01-01 08:00:00,14,gcs_total,07:00:00,1,00:00:00,15:30:00,0,,1,post_sed=2hr: +5hr after ep1 valid (GCS=14),validated
-long_post_sed,113,2024-01-01 08:00:00,,,,1,00:00:00,15:30:00,0,,0,post_sed=14hr: +12.5hr after ep1 invalidated,validated
+short_post_sed,112,2024-01-01 08:00:00,14,gcs_total,07:00:00,1,00:00:00,24:00:00,0,,1,post_sed=2hr: +5hr after ep1 valid (GCS=14),validated
+long_post_sed,113,2024-01-01 08:00:00,,,,1,00:00:00,24:00:00,0,,0,post_sed=14hr: +12.5hr after ep1 invalidated,validated

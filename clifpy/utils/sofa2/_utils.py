@@ -800,6 +800,8 @@ def _detect_sedation_episodes(
             , t.med_dose
             , t.mar_action_category
         WHERE t.{id_name} IS NOT NULL
+            AND t.med_dose > 0
+            AND COALESCE(t.mar_action_category, '') != 'stop'
     """)
 
     # Combine all temporal slices
