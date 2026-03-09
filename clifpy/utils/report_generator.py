@@ -522,10 +522,13 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                     finding_cell,
                 ]
                 if has_feedback:
-                    error_id = _make_error_id(issue)
-                    decision_info = feedback_lookup.get(error_id, {})
-                    status_text = decision_info.get('decision', '').upper()
-                    row.append(Paragraph(escape(status_text), cell_style))
+                    if issue['severity'] == 'error':
+                        error_id = _make_error_id(issue)
+                        decision_info = feedback_lookup.get(error_id, {})
+                        status_text = decision_info.get('decision', '').upper()
+                        row.append(Paragraph(escape(status_text), cell_style))
+                    else:
+                        row.append(Paragraph('', cell_style))
                 table_data.append(row)
 
             detail_tbl = Table(table_data, colWidths=detail_col_widths,
