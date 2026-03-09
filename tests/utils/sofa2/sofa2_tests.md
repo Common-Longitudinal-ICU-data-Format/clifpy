@@ -103,6 +103,53 @@ spo2_dttm_offset, fio2_at_worst, fio2_dttm_offset, has_ecmo, resp
 
 Most test cases include a **distractor observation** — a second in-window measurement that is "better" than the scoring value (higher platelet/GCS for MIN aggregation, lower bilirubin for MAX aggregation). This verifies that the MIN/MAX aggregation and `ARG_MIN`/`ARG_MAX` timestamp selection correctly pick the worst value from multiple observations. Cases where distractors are not viable (no data, pre-window only, GCS=15/motor=6 ties, all-invalidated sedation cases) are skipped.
 
+## Pre-Window Fallback Preference Testing
+
+For test cases that verify "in-window preferred over pre-window" (e.g., hemo 508, liver 308), the **pre-window value must be worse** than the in-window scoring value. "Worse" means the direction that the aggregation function would select:
+
+- **MIN aggregation** (hemo/platelet): pre-window value must be **lower** than in-window MIN
+
+- **MAX aggregation** (liver/bilirubin): pre-window value must be **higher** than in-window MAX
+
+If the pre-window value is already "better" than the in-window value, the aggregation function (MIN or MAX) would select the correct in-window value regardless of whether the fallback logic correctly excludes pre-window data — making the test **moot**. A properly constructed test should fail if the code incorrectly unions pre-window + in-window before aggregating.
+
+| Subscore | Agg | Case | Pre-window | In-window worst | Correct? |
+|----------|-----|------|------------|-----------------|----------|
+| Hemo | MIN | 508 | 10 | 80 | pre < in-window (leaking pre would change MIN) |
+| Liver | MAX | 308 | 8.0 | 4.0 | pre > in-window (leaking pre would change MAX) |
+
+## Test Design Patterns
+
+These patterns should be applied consistently across all subscores when building or updating test data.
+
+### 1. Distractors already cover multi-obs aggregation
+
+Each boundary case (e.g., hemo 501-505) includes 2 in-window observations: the scoring value and a "better" distractor. This means MIN/MAX aggregation and ARG_MIN/ARG_MAX timestamp selection are already exercised by every boundary test. A dedicated "multi-obs selects worst" case is **redundant** and should not be added separately.
+
+### 2. Multi-window: one direction suffices
+
+Two multi-window cases testing different score directions (e.g., stable→deterioration and critical→recovery) exercise the same underlying logic: **window isolation** — each `(hospitalization_id, start_dttm)` pair is scored independently. One multi-window case is sufficient. The second adds no coverage.
+
+### 3. Daily / missing data pattern (3-day case)
+
+To test daily behavior at the subscore level, use a **3-consecutive-day case with data only on day 1**. This exercises three distinct code paths in a single hosp_id:
+
+| Day | Mechanism | What it tests |
+|-----|-----------|---------------|
+| Day 1 | In-window scoring | Baseline — normal aggregation within the window |
+| Day 2 | Cross-day pre-window ASOF | Day 1's observation is within the lookback window (e.g., 22hr < 24hr) → pre-window fallback activates |
+| Day 3 | Lookback expiry → NULL | Day 1's observation is outside the lookback window (e.g., 46hr > 24hr) → no data → NULL |
+
+The concrete lab timing matters: place the day 1 lab early enough that its offset to day 2's start is within the lookback, but its offset to day 3's start exceeds it.
+
+### 4. Subscore vs daily testing boundary
+
+Subscore tests (`_calculate_*_subscore`) validate **raw scores**, including NULL for days with no data within the lookback window. The carry-forward logic (fillna from `LAST_VALUE(... IGNORE NULLS)`) belongs to `calculate_sofa2_daily` in `_core.py` and is tested at the **integration level**, not the subscore level.
+
+At the subscore level: day 3 = NULL (correct raw result).
+
+At the daily level: day 3 = day 2's score (carry-forward).
+
 ---
 
 ## Test Case Outlines (Future Subscores)
@@ -176,14 +223,22 @@ Default post-sedation invalidation: 12hr (`post_sedation_gcs_invalidate_hours`)
 | 115 | 3 | gcs_motor | 3 | motor=3 fallback |
 | 116 | 14 | gcs_total | 1 | gcs_total preferred over gcs_motor |
 
-**Multi-window (117-118):**
+**Multi-window (117):**
 
 | hosp_id | window | gcs_min | brain | notes |
 |---------|--------|---------|-------|-------|
 | 117 | w1 | 15 | 0 | Stable |
 | 117 | w2 | 7 | 3 | Deterioration |
-| 118 | w1 | 4 | 4 | Critical |
-| 118 | w2 | 14 | 1 | Recovery |
+
+**Daily / missing data (118) — 3 consecutive days, GCS only on day 1:**
+
+| hosp_id | gcs_min | gcs_type | offset | brain | notes |
+|---------|---------|----------|--------|-------|-------|
+| 118-d1 | 10 | gcs_total | +2hr | 2 | In-window: normal scoring |
+| 118-d2 | NULL | NULL | NULL | NULL | No GCS in window (no pre-window lookback for brain) |
+| 118-d3 | NULL | NULL | NULL | NULL | Same as d2 |
+
+Note: Brain has no pre-window ASOF lookback for GCS (GCS is in-window only per spec). Both days 2+3 produce NULL. In `calculate_sofa2_daily`, carry-forward would fill these.
 
 **Edge cases (119-120):**
 
@@ -191,7 +246,6 @@ Default post-sedation invalidation: 12hr (`post_sedation_gcs_invalidate_hours`)
 |---------|--------------|-------------------|-------|-------|
 | 119 | 1 | 0 | 0 | Sedation present, no GCS at all |
 | 120 | 0 | 1 | NULL | Haloperidol intm but no GCS |
-| 121 | 0 | 0 | 2 | Multi-obs: MIN selects worst GCS |
 
 Custom post_sedation_gcs_invalidate_hours tests (via `case` column in `brain_expected.csv`):
 
@@ -222,6 +276,8 @@ Custom post_sedation_gcs_invalidate_hours tests (via `case` column in `brain_exp
 
 Default lookback: 24hr (`liver_lookback_hours`)
 
+**Score boundaries (301-305) — each has a distractor observation testing MAX aggregation:**
+
 | hosp_id | bilirubin_total | bilirubin_dttm_offset | liver | notes |
 |---------|-----------------|----------------------|-------|-------|
 | 301 | 1.0 | +2hr | 0 | <= 1.2 |
@@ -229,15 +285,30 @@ Default lookback: 24hr (`liver_lookback_hours`)
 | 303 | 5.0 | +2hr | 2 | <= 6.0 |
 | 304 | 10.0 | +2hr | 3 | <= 12.0 |
 | 305 | 15.0 | +2hr | 4 | > 12.0 |
+
+**Edge cases (306-309):**
+
+| hosp_id | bilirubin_total | bilirubin_dttm_offset | liver | notes |
+|---------|-----------------|----------------------|-------|-------|
 | 306 | NULL | NULL | NULL | No data |
 | 307 | 5.0 | -8hr | 2 | Pre-window fallback (no in-window) |
 | 308 | 4.0 | +2hr | 2 | In-window preferred over pre-window |
 | 309 | NULL | NULL | NULL | Pre-window outside 24hr lookback |
+
+**Multi-window (310):**
+
+| hosp_id | bilirubin_total | bilirubin_dttm_offset | liver | notes |
+|---------|-----------------|----------------------|-------|-------|
 | 310-w1 | 1.0 | +2hr | 0 | Multi-window: stable |
 | 310-w2 | 10.0 | +2hr | 3 | Multi-window: deterioration |
-| 311-w1 | 15.0 | +2hr | 4 | Multi-window: critical |
-| 311-w2 | 2.5 | +2hr | 1 | Multi-window: recovery |
-| 312 | 5.0 | +6hr | 2 | Multi-obs: MAX selects worst |
+
+**Daily / missing data (311) — 3 consecutive days, lab only on day 1:**
+
+| hosp_id | bilirubin_total | bilirubin_dttm_offset | liver | notes |
+|---------|-----------------|----------------------|-------|-------|
+| 311-d1 | 6.0 | +2hr | 2 | In-window: normal scoring |
+| 311-d2 | 6.0 | -22hr | 2 | Cross-day pre-window ASOF (within 24hr lookback) |
+| 311-d3 | NULL | NULL | NULL | Lookback expired (46hr > 24hr) |
 
 Custom lookback tests (via `case` column in `liver_expected.csv`):
 
@@ -261,7 +332,9 @@ Custom lookback tests (via `case` column in `liver_expected.csv`):
 
 ### Hemo (hosp_id 501-511)
 
-Default lookback: 12hr (`hemo_lookback_hours`)
+Default lookback: 24hr (`hemo_lookback_hours`)
+
+**Score boundaries (501-505) — each has a distractor observation testing MIN aggregation:**
 
 | hosp_id | platelet_count | platelet_dttm_offset | hemo | notes |
 |---------|---------------|---------------------|------|-------|
@@ -270,22 +343,39 @@ Default lookback: 12hr (`hemo_lookback_hours`)
 | 503 | 90 | +2hr | 2 | <= 100 |
 | 504 | 70 | +2hr | 3 | <= 80 |
 | 505 | 40 | +2hr | 4 | <= 50 |
+
+**Edge cases (506-509):**
+
+| hosp_id | platelet_count | platelet_dttm_offset | hemo | notes |
+|---------|---------------|---------------------|------|-------|
 | 506 | NULL | NULL | NULL | No data |
 | 507 | 100 | -2hr | 2 | Pre-window fallback (no in-window) |
 | 508 | 80 | +2hr | 3 | In-window preferred over pre-window |
-| 509 | NULL | NULL | NULL | Pre-window outside 12hr lookback |
+| 509 | NULL | NULL | NULL | Pre-window outside 24hr lookback |
+
+**Multi-window (510):**
+
+| hosp_id | platelet_count | platelet_dttm_offset | hemo | notes |
+|---------|---------------|---------------------|------|-------|
 | 510-w1 | 200 | +2hr | 0 | Multi-window: stable |
 | 510-w2 | 60 | +2hr | 3 | Multi-window: deterioration |
-| 511-w1 | 50 | +2hr | 4 | Multi-window: critical |
-| 511-w2 | 160 | +2hr | 0 | Multi-window: recovery |
-| 512 | 90 | +6hr | 2 | Multi-obs: MIN selects worst |
+
+**Daily / missing data (511) — 3 consecutive days, lab only on day 1:**
+
+| hosp_id | platelet_count | platelet_dttm_offset | hemo | notes |
+|---------|---------------|---------------------|------|-------|
+| 511-d1 | 100 | +2hr | 2 | In-window: normal scoring |
+| 511-d2 | 100 | -22hr | 2 | Cross-day pre-window ASOF (within 24hr lookback) |
+| 511-d3 | NULL | NULL | NULL | Lookback expired (46hr > 24hr) |
+
+Note: In `calculate_sofa2_daily`, day 3's NULL would be carried forward from day 2. Carry-forward is tested at the integration level, not subscore level.
 
 Custom lookback tests (via `case` column in `hemo_expected.csv`):
 
 | case | hosp_id | lookback | platelet_count | hemo | notes |
 |------|---------|----------|---------------|------|-------|
 | short_lookback | 507 | 1hr | NULL | NULL | -2hr pre-window excluded |
-| long_lookback | 509 | 24hr | 60 | 3 | -14hr pre-window included |
+| long_lookback | 509 | 36hr | 60 | 3 | -28hr pre-window included |
 
 ---
 
@@ -304,3 +394,15 @@ Custom lookback tests (via `case` column in `hemo_expected.csv`):
 ### Phase 4: Integration Test
 
 - Small cohort testing `calculate_sofa2()` end-to-end
+
+- Daily carry-forward testing via `calculate_sofa2_daily()`: verify day 2+ NULL subscores are filled from last observed value (subscore tests only validate raw scores, not carry-forward)
+
+### Phase 5: Encounter Stitching Integration Test
+
+- Test `calculate_sofa2()` with `id_name='encounter_block'` and `id_mapping`
+
+- Verify `_remap_clif_rel()`, `_dedup_cohort()`, `_validate_id_name()` and full assembly
+
+- Key scenario: cross-hospitalization pre-window ASOF lookback under a shared encounter_block
+
+- Lives in `tests/utils/sofa2/integration/` alongside the general integration test
