@@ -57,6 +57,17 @@ except (ImportError, Exception) as _pl_err:
 _ACTIVE_BACKEND = 'polars' if HAS_POLARS else 'duckdb'
 _logger.info("DQA backend: %s", _ACTIVE_BACKEND)
 
+# Default plausibility thresholds: {check_name: {error_threshold, warning_threshold}}
+# - warning_threshold: percent above which a warning is raised
+# - error_threshold: percent above which an error is raised
+_DEFAULT_PLAUSIBILITY_THRESHOLDS: Dict[str, Dict[str, float]] = {
+    "temporal_ordering": {"error_threshold": 10.0, "warning_threshold": 0.0},
+    "numeric_range_plausibility": {"error_threshold": 10.0, "warning_threshold": 0.0},
+    "medication_dose_unit_consistency": {"error_threshold": 10.0, "warning_threshold": 0.0},
+    "cross_table_temporal": {"error_threshold": 10.0, "warning_threshold": 0.0},
+    "duplicate_composite_keys": {"error_threshold": 10.0, "warning_threshold": 0.0},
+}
+
 
 def _load_schema(table_name: str, schema_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Load YAML schema for a table."""
@@ -2434,6 +2445,8 @@ def check_temporal_ordering_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
     temporal_rules: Optional[List[Dict[str, str]]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check that datetime pairs follow expected temporal ordering using Polars."""
     result = DQAPlausibilityResult("temporal_ordering", table_name)
@@ -2484,13 +2497,13 @@ def check_temporal_ordering_polars(
                 "description": description,
             }
 
-            if pct > 5:
+            if pct > error_threshold:
                 result.add_error(
                     f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
-            elif violation_count > 0:
+            elif pct > warning_threshold:
                 result.add_warning(
                     f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
@@ -2522,6 +2535,8 @@ def check_temporal_ordering_duckdb(
     df: pd.DataFrame,
     table_name: str,
     temporal_rules: Optional[List[Dict[str, str]]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check that datetime pairs follow expected temporal ordering using DuckDB."""
     result = DQAPlausibilityResult("temporal_ordering", table_name)
@@ -2566,13 +2581,13 @@ def check_temporal_ordering_duckdb(
                 "description": description,
             }
 
-            if pct > 5:
+            if pct > error_threshold:
                 result.add_error(
                     f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
-            elif violation_count > 0:
+            elif pct > warning_threshold:
                 result.add_warning(
                     f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
@@ -2604,13 +2619,19 @@ def check_temporal_ordering(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
     temporal_rules: Optional[List[Dict[str, str]]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check that datetime pairs follow expected temporal ordering."""
     _logger.debug("check_temporal_ordering: starting for table '%s'", table_name)
     if _ACTIVE_BACKEND == 'polars':
-        result = check_temporal_ordering_polars(df, table_name, temporal_rules)
+        result = check_temporal_ordering_polars(df, table_name, temporal_rules,
+                                                warning_threshold=warning_threshold,
+                                                error_threshold=error_threshold)
     else:
-        result = check_temporal_ordering_duckdb(df, table_name, temporal_rules)
+        result = check_temporal_ordering_duckdb(df, table_name, temporal_rules,
+                                                warning_threshold=warning_threshold,
+                                                error_threshold=error_threshold)
     _logger.debug("check_temporal_ordering: table '%s' — pairs_checked=%s",
                   table_name, result.metrics.get("pairs_checked"))
     return result
@@ -2624,6 +2645,8 @@ def check_numeric_range_plausibility_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
     outlier_config: Optional[Dict[str, Any]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check numeric values are within plausible ranges using Polars."""
     result = DQAPlausibilityResult("numeric_range_plausibility", table_name)
@@ -2641,6 +2664,17 @@ def check_numeric_range_plausibility_polars(
         col_names = lf.collect_schema().names()
         oor_summary = {}
         cat_map = _CATEGORY_COLUMN_MAP.get(table_name, {})
+
+        # Pre-cast: ensure all configured columns are numeric (string → Float64)
+        schema = lf.collect_schema()
+        cast_exprs = []
+        for _col in table_config:
+            if _col in schema.names():
+                _dtype = schema[_col]
+                if _dtype in (pl.Utf8, pl.String):
+                    cast_exprs.append(pl.col(_col).cast(pl.Float64, strict=False))
+        if cast_exprs:
+            lf = lf.with_columns(cast_exprs)
 
         for col_name, col_ranges in table_config.items():
             if col_name not in col_names:
@@ -2669,7 +2703,12 @@ def check_numeric_range_plausibility_polars(
                     "min": rmin, "max": rmax,
                 }
 
-                if pct > 10:
+                if pct > error_threshold:
+                    result.add_error(
+                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
+                        {"column": col_name, "percent": round(pct, 2)}
+                    )
+                elif pct > warning_threshold:
                     result.add_warning(
                         f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
                         {"column": col_name, "percent": round(pct, 2)}
@@ -2704,19 +2743,28 @@ def check_numeric_range_plausibility_polars(
                                 pl.len().alias('total'),
                                 ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
                             ]).collect(streaming=True)
-                            total_count += stats[0, 'total']
-                            total_oor += stats[0, 'oor']
+                            cat_oor = stats[0, 'oor']
+                            cat_total = stats[0, 'total']
+                            cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
+                            total_count += cat_total
+                            total_oor += cat_oor
+
+                            if cat_oor > 0 and cat_pct > error_threshold:
+                                result.add_error(
+                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                                )
+                            elif cat_oor > 0 and cat_pct > warning_threshold:
+                                result.add_warning(
+                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                                )
 
                     pct = (total_oor / total_count * 100) if total_count > 0 else 0
                     oor_summary[col_name] = {
                         "total_non_null": int(total_count), "out_of_range": int(total_oor),
                         "out_of_range_percent": round(pct, 2),
                     }
-                    if pct > 10:
-                        result.add_warning(
-                            f"Column '{col_name}': {total_oor}/{total_count} values ({pct:.1f}%) outside plausible ranges",
-                            {"column": col_name, "percent": round(pct, 2)}
-                        )
                 else:
                     # 1-level category-dependent
                     cat_col = cat_col_info
@@ -2736,19 +2784,28 @@ def check_numeric_range_plausibility_polars(
                             pl.len().alias('total'),
                             ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
                         ]).collect(streaming=True)
-                        total_count += stats[0, 'total']
-                        total_oor += stats[0, 'oor']
+                        cat_oor = stats[0, 'oor']
+                        cat_total = stats[0, 'total']
+                        cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
+                        total_count += cat_total
+                        total_oor += cat_oor
+
+                        if cat_oor > 0 and cat_pct > error_threshold:
+                            result.add_error(
+                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
+                            )
+                        elif cat_oor > 0 and cat_pct > warning_threshold:
+                            result.add_warning(
+                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
+                            )
 
                     pct = (total_oor / total_count * 100) if total_count > 0 else 0
                     oor_summary[col_name] = {
                         "total_non_null": int(total_count), "out_of_range": int(total_oor),
                         "out_of_range_percent": round(pct, 2),
                     }
-                    if pct > 10:
-                        result.add_warning(
-                            f"Column '{col_name}': {total_oor}/{total_count} values ({pct:.1f}%) outside plausible ranges",
-                            {"column": col_name, "percent": round(pct, 2)}
-                        )
 
         result.metrics["columns_checked"] = len(oor_summary)
         result.metrics["out_of_range_summary"] = oor_summary
@@ -2776,6 +2833,8 @@ def check_numeric_range_plausibility_duckdb(
     df: pd.DataFrame,
     table_name: str,
     outlier_config: Optional[Dict[str, Any]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check numeric values are within plausible ranges using DuckDB."""
     result = DQAPlausibilityResult("numeric_range_plausibility", table_name)
@@ -2794,6 +2853,16 @@ def check_numeric_range_plausibility_duckdb(
         actual_cols = list(df.columns)
         oor_summary = {}
         cat_map = _CATEGORY_COLUMN_MAP.get(table_name, {})
+
+        # Pre-cast: ensure all configured columns are numeric (string → float)
+        _needs_reregister = False
+        for _col in table_config:
+            if _col in actual_cols:
+                if df[_col].dtype == object or pd.api.types.is_string_dtype(df[_col].dtype):
+                    df[_col] = pd.to_numeric(df[_col], errors='coerce')
+                    _needs_reregister = True
+        if _needs_reregister:
+            con.register('df', df)
 
         for col_name, col_ranges in table_config.items():
             if col_name not in actual_cols:
@@ -2821,7 +2890,12 @@ def check_numeric_range_plausibility_duckdb(
                     "min": rmin, "max": rmax,
                 }
 
-                if pct > 10:
+                if pct > error_threshold:
+                    result.add_error(
+                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
+                        {"column": col_name, "percent": round(pct, 2)}
+                    )
+                elif pct > warning_threshold:
                     result.add_warning(
                         f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
                         {"column": col_name, "percent": round(pct, 2)}
@@ -2854,8 +2928,22 @@ def check_numeric_range_plausibility_duckdb(
                                   AND TRIM(LOWER(CAST("{unit_col}" AS VARCHAR))) = '{str(unit_val).lower().strip()}'
                                   AND "{col_name}" IS NOT NULL
                             """).fetchone()
-                            total_count += stats[0]
-                            total_oor += stats[1]
+                            cat_oor = stats[1]
+                            cat_total = stats[0]
+                            cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
+                            total_count += cat_total
+                            total_oor += cat_oor
+
+                            if cat_oor > 0 and cat_pct > error_threshold:
+                                result.add_error(
+                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                                )
+                            elif cat_oor > 0 and cat_pct > warning_threshold:
+                                result.add_warning(
+                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                                )
                 else:
                     cat_col = cat_col_info
                     if cat_col not in actual_cols:
@@ -2871,19 +2959,28 @@ def check_numeric_range_plausibility_duckdb(
                             WHERE TRIM(LOWER(CAST("{cat_col}" AS VARCHAR))) = '{str(cat_val).lower().strip()}'
                               AND "{col_name}" IS NOT NULL
                         """).fetchone()
-                        total_count += stats[0]
-                        total_oor += stats[1]
+                        cat_oor = stats[1]
+                        cat_total = stats[0]
+                        cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
+                        total_count += cat_total
+                        total_oor += cat_oor
+
+                        if cat_oor > 0 and cat_pct > error_threshold:
+                            result.add_error(
+                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
+                            )
+                        elif cat_oor > 0 and cat_pct > warning_threshold:
+                            result.add_warning(
+                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
+                            )
 
                 pct = (total_oor / total_count * 100) if total_count > 0 else 0
                 oor_summary[col_name] = {
                     "total_non_null": int(total_count), "out_of_range": int(total_oor),
                     "out_of_range_percent": round(pct, 2),
                 }
-                if pct > 10:
-                    result.add_warning(
-                        f"Column '{col_name}': {total_oor}/{total_count} values ({pct:.1f}%) outside plausible ranges",
-                        {"column": col_name, "percent": round(pct, 2)}
-                    )
 
         result.metrics["columns_checked"] = len(oor_summary)
         result.metrics["out_of_range_summary"] = oor_summary
@@ -2912,13 +3009,19 @@ def check_numeric_range_plausibility(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
     outlier_config: Optional[Dict[str, Any]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check numeric values are within plausible ranges."""
     _logger.debug("check_numeric_range_plausibility: starting for table '%s'", table_name)
     if _ACTIVE_BACKEND == 'polars':
-        result = check_numeric_range_plausibility_polars(df, table_name, outlier_config)
+        result = check_numeric_range_plausibility_polars(df, table_name, outlier_config,
+                                                         warning_threshold=warning_threshold,
+                                                         error_threshold=error_threshold)
     else:
-        result = check_numeric_range_plausibility_duckdb(df, table_name, outlier_config)
+        result = check_numeric_range_plausibility_duckdb(df, table_name, outlier_config,
+                                                         warning_threshold=warning_threshold,
+                                                         error_threshold=error_threshold)
     _logger.debug("check_numeric_range_plausibility: table '%s' — columns_checked=%s",
                   table_name, result.metrics.get("columns_checked"))
     return result
@@ -3118,6 +3221,8 @@ def check_field_plausibility(
 def check_medication_dose_unit_consistency_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check medication dose unit consistency using Polars."""
     result = DQAPlausibilityResult("medication_dose_unit_consistency", table_name)
@@ -3188,9 +3293,9 @@ def check_medication_dose_unit_consistency_polars(
                 warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use non-rate-based units unexpected for continuous administration"
             else:
                 warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use rate-based units unexpected for intermittent administration"
-            if pct > 10:
-                result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
-            else:
+            if pct > error_threshold:
+                result.add_error(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
+            elif pct > warning_threshold:
                 result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
         else:
             if expect == 'per_time':
@@ -3210,6 +3315,8 @@ def check_medication_dose_unit_consistency_polars(
 def check_medication_dose_unit_consistency_duckdb(
     df: pd.DataFrame,
     table_name: str,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check medication dose unit consistency using DuckDB."""
     result = DQAPlausibilityResult("medication_dose_unit_consistency", table_name)
@@ -3269,7 +3376,10 @@ def check_medication_dose_unit_consistency_duckdb(
                 warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use non-rate-based units unexpected for continuous administration"
             else:
                 warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use rate-based units unexpected for intermittent administration"
-            result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
+            if pct > error_threshold:
+                result.add_error(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
+            elif pct > warning_threshold:
+                result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
         else:
             if expect == 'per_time':
                 result.add_info("All med_dose_unit values use rate-based units (e.g. mcg/kg/min) appropriate for continuous administration")
@@ -3289,13 +3399,19 @@ def check_medication_dose_unit_consistency_duckdb(
 def check_medication_dose_unit_consistency(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check medication dose unit consistency."""
     _logger.debug("check_medication_dose_unit_consistency: starting for table '%s'", table_name)
     if _ACTIVE_BACKEND == 'polars':
-        result = check_medication_dose_unit_consistency_polars(df, table_name)
+        result = check_medication_dose_unit_consistency_polars(df, table_name,
+                                                               warning_threshold=warning_threshold,
+                                                               error_threshold=error_threshold)
     else:
-        result = check_medication_dose_unit_consistency_duckdb(df, table_name)
+        result = check_medication_dose_unit_consistency_duckdb(df, table_name,
+                                                               warning_threshold=warning_threshold,
+                                                               error_threshold=error_threshold)
     _logger.debug("check_medication_dose_unit_consistency: table '%s' — violations=%s",
                   table_name, result.metrics.get("unit_pattern_violations"))
     return result
@@ -3310,6 +3426,8 @@ def check_cross_table_temporal_plausibility_polars(
     hospitalization_df: Union['pl.DataFrame', 'pl.LazyFrame'],
     target_table: str,
     time_columns: List[str],
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check that datetime values fall within hospitalization bounds using Polars."""
     result = DQAPlausibilityResult("cross_table_temporal", target_table)
@@ -3366,13 +3484,13 @@ def check_cross_table_temporal_plausibility_polars(
                 "violation_percent": round(pct, 2),
             }
 
-            if pct > 5:
+            if pct > error_threshold:
                 result.add_error(
                     f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
-            elif violation_total > 0:
+            elif pct > warning_threshold:
                 result.add_warning(
                     f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
@@ -3399,6 +3517,8 @@ def check_cross_table_temporal_plausibility_duckdb(
     hospitalization_df: pd.DataFrame,
     target_table: str,
     time_columns: List[str],
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check that datetime values fall within hospitalization bounds using DuckDB."""
     result = DQAPlausibilityResult("cross_table_temporal", target_table)
@@ -3448,13 +3568,13 @@ def check_cross_table_temporal_plausibility_duckdb(
                 "violation_percent": round(pct, 2),
             }
 
-            if pct > 5:
+            if pct > error_threshold:
                 result.add_error(
                     f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
-            elif violation_total > 0:
+            elif pct > warning_threshold:
                 result.add_warning(
                     f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
                     {"column": time_col, "before_admission": int(before),
@@ -3482,15 +3602,19 @@ def check_cross_table_temporal_plausibility(
     hospitalization_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     target_table: str,
     time_columns: List[str],
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check that datetime values fall within hospitalization bounds."""
     _logger.debug("check_cross_table_temporal_plausibility: starting for table '%s'", target_table)
     if _ACTIVE_BACKEND == 'polars':
         result = check_cross_table_temporal_plausibility_polars(
-            target_df, hospitalization_df, target_table, time_columns)
+            target_df, hospitalization_df, target_table, time_columns,
+            warning_threshold=warning_threshold, error_threshold=error_threshold)
     else:
         result = check_cross_table_temporal_plausibility_duckdb(
-            target_df, hospitalization_df, target_table, time_columns)
+            target_df, hospitalization_df, target_table, time_columns,
+            warning_threshold=warning_threshold, error_threshold=error_threshold)
     _logger.debug("check_cross_table_temporal_plausibility: table '%s' complete", target_table)
     return result
 
@@ -4064,6 +4188,8 @@ def check_duplicate_composite_keys_polars(
     table_name: str,
     composite_keys: Optional[List[str]] = None,
     schema: Optional[Dict[str, Any]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check for duplicate composite keys using Polars."""
     result = DQAPlausibilityResult("duplicate_composite_keys", table_name)
@@ -4096,13 +4222,13 @@ def check_duplicate_composite_keys_polars(
         result.metrics["duplicate_records"] = int(duplicates)
         result.metrics["duplicate_percent"] = round(pct, 2)
 
-        if pct > 10:
+        if pct > error_threshold:
             result.add_error(
                 f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
                  "keys": composite_keys}
             )
-        elif duplicates > 0:
+        elif pct > warning_threshold:
             result.add_warning(
                 f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
@@ -4125,6 +4251,8 @@ def check_duplicate_composite_keys_duckdb(
     table_name: str,
     composite_keys: Optional[List[str]] = None,
     schema: Optional[Dict[str, Any]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check for duplicate composite keys using DuckDB."""
     result = DQAPlausibilityResult("duplicate_composite_keys", table_name)
@@ -4163,13 +4291,13 @@ def check_duplicate_composite_keys_duckdb(
         result.metrics["duplicate_records"] = int(duplicates)
         result.metrics["duplicate_percent"] = round(pct, 2)
 
-        if pct > 10:
+        if pct > error_threshold:
             result.add_error(
                 f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
                  "keys": composite_keys}
             )
-        elif duplicates > 0:
+        elif pct > warning_threshold:
             result.add_warning(
                 f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
@@ -4193,13 +4321,19 @@ def check_duplicate_composite_keys(
     table_name: str,
     composite_keys: Optional[List[str]] = None,
     schema: Optional[Dict[str, Any]] = None,
+    warning_threshold: float = 0.0,
+    error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
     """Check for duplicate composite keys."""
     _logger.debug("check_duplicate_composite_keys: starting for table '%s'", table_name)
     if _ACTIVE_BACKEND == 'polars':
-        result = check_duplicate_composite_keys_polars(df, table_name, composite_keys, schema)
+        result = check_duplicate_composite_keys_polars(df, table_name, composite_keys, schema,
+                                                       warning_threshold=warning_threshold,
+                                                       error_threshold=error_threshold)
     else:
-        result = check_duplicate_composite_keys_duckdb(df, table_name, composite_keys, schema)
+        result = check_duplicate_composite_keys_duckdb(df, table_name, composite_keys, schema,
+                                                       warning_threshold=warning_threshold,
+                                                       error_threshold=error_threshold)
     _logger.debug("check_duplicate_composite_keys: table '%s' — duplicates=%s",
                   table_name, result.metrics.get("duplicate_records"))
     return result
@@ -4673,6 +4807,7 @@ def run_relational_integrity_checks_from_cache(
 
 def run_cross_table_plausibility_checks_from_cache(
     caches: Dict[str, Dict[str, Any]],
+    plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, Dict[str, DQAPlausibilityResult]]:
     """Run cross-table plausibility checks using pre-extracted caches.
 
@@ -4685,6 +4820,8 @@ def run_cross_table_plausibility_checks_from_cache(
     caches : dict
         ``{table_name: cache_dict}`` as returned by
         :func:`extract_cross_table_cache`.
+    plausibility_thresholds : dict, optional
+        Override default plausibility thresholds per check.
 
     Returns
     -------
@@ -4695,6 +4832,15 @@ def run_cross_table_plausibility_checks_from_cache(
         "run_cross_table_plausibility_checks_from_cache: starting with %d cached tables",
         len(caches),
     )
+
+    # Merge caller overrides with defaults
+    thresholds = {k: dict(v) for k, v in _DEFAULT_PLAUSIBILITY_THRESHOLDS.items()}
+    if plausibility_thresholds:
+        for check_name, overrides in plausibility_thresholds.items():
+            if check_name in thresholds:
+                thresholds[check_name].update(overrides)
+            else:
+                thresholds[check_name] = overrides
 
     # Need hospitalization bounds
     hosp_cache = caches.get('hospitalization')
@@ -4738,7 +4884,8 @@ def run_cross_table_plausibility_checks_from_cache(
             continue
 
         result = check_cross_table_temporal_plausibility(
-            temporal_df, hosp_bounds_df, tbl_name, available_time_cols
+            temporal_df, hosp_bounds_df, tbl_name, available_time_cols,
+            **thresholds['cross_table_temporal']
         )
         results.setdefault(tbl_name, {})["cross_table_temporal"] = result
 
@@ -4755,6 +4902,7 @@ def run_plausibility_checks(
     schema: Dict[str, Any],
     table_name: str,
     hosp_years: Optional[set] = None,
+    plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, DQAPlausibilityResult]:
     """
     Run all single-table plausibility checks on a table.
@@ -4767,6 +4915,8 @@ def run_plausibility_checks(
         Schema for the table
     table_name : str
         Name of the table
+    plausibility_thresholds : dict, optional
+        Override default plausibility thresholds per check.
 
     Returns
     -------
@@ -4775,6 +4925,15 @@ def run_plausibility_checks(
     """
     _logger.info("Running plausibility checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
 
+    # Merge caller overrides with defaults
+    thresholds = {k: dict(v) for k, v in _DEFAULT_PLAUSIBILITY_THRESHOLDS.items()}
+    if plausibility_thresholds:
+        for check_name, overrides in plausibility_thresholds.items():
+            if check_name in thresholds:
+                thresholds[check_name].update(overrides)
+            else:
+                thresholds[check_name] = overrides
+
     if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
         _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
         df = pl.from_pandas(df)
@@ -4782,11 +4941,13 @@ def run_plausibility_checks(
     results = {}
 
     # A.1 Temporal ordering
-    results['temporal_ordering'] = check_temporal_ordering(df, table_name)
+    results['temporal_ordering'] = check_temporal_ordering(
+        df, table_name, **thresholds['temporal_ordering'])
     gc.collect()
 
     # A.2 Numeric range plausibility
-    results['numeric_range_plausibility'] = check_numeric_range_plausibility(df, table_name)
+    results['numeric_range_plausibility'] = check_numeric_range_plausibility(
+        df, table_name, **thresholds['numeric_range_plausibility'])
     gc.collect()
 
     # A.3 Field-level plausibility
@@ -4795,7 +4956,8 @@ def run_plausibility_checks(
 
     # A.4 Medication dose unit consistency (only for med tables)
     if table_name in ('medication_admin_continuous', 'medication_admin_intermittent'):
-        results['medication_dose_unit_consistency'] = check_medication_dose_unit_consistency(df, table_name)
+        results['medication_dose_unit_consistency'] = check_medication_dose_unit_consistency(
+            df, table_name, **thresholds['medication_dose_unit_consistency'])
         gc.collect()
 
     # C.1 Overlapping periods
@@ -4814,7 +4976,8 @@ def run_plausibility_checks(
     gc.collect()
 
     # D.1 Duplicate composite keys
-    results['duplicate_composite_keys'] = check_duplicate_composite_keys(df, table_name, schema=schema)
+    results['duplicate_composite_keys'] = check_duplicate_composite_keys(
+        df, table_name, schema=schema, **thresholds['duplicate_composite_keys'])
     gc.collect()
 
     passed = sum(1 for r in results.values() if r.passed)
@@ -4825,6 +4988,7 @@ def run_plausibility_checks(
 
 def run_cross_table_plausibility_checks(
     tables: list,
+    plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, Dict[str, DQAPlausibilityResult]]:
     """Run cross-table plausibility checks (B.1).
 
@@ -4832,6 +4996,8 @@ def run_cross_table_plausibility_checks(
     ----------
     tables : list
         Objects with ``.table_name`` and ``.df`` attributes.
+    plausibility_thresholds : dict, optional
+        Override default plausibility thresholds per check.
 
     Returns
     -------
@@ -4839,6 +5005,15 @@ def run_cross_table_plausibility_checks(
         ``{table_name: {"cross_table_temporal": DQAPlausibilityResult}}``.
     """
     _logger.info("run_cross_table_plausibility_checks: starting with %d tables", len(tables))
+
+    # Merge caller overrides with defaults
+    thresholds = {k: dict(v) for k, v in _DEFAULT_PLAUSIBILITY_THRESHOLDS.items()}
+    if plausibility_thresholds:
+        for check_name, overrides in plausibility_thresholds.items():
+            if check_name in thresholds:
+                thresholds[check_name].update(overrides)
+            else:
+                thresholds[check_name] = overrides
 
     lookup = {}
     for obj in tables:
@@ -4872,7 +5047,8 @@ def run_cross_table_plausibility_checks(
             continue
 
         result = check_cross_table_temporal_plausibility(
-            tdf, hosp_df, tbl_name, available_time_cols
+            tdf, hosp_df, tbl_name, available_time_cols,
+            **thresholds['cross_table_temporal']
         )
         results.setdefault(tbl_name, {})["cross_table_temporal"] = result
 
@@ -4892,6 +5068,7 @@ def run_full_dqa(
     error_threshold: float = 50.0,
     warning_threshold: float = 10.0,
     hosp_years: Optional[set] = None,
+    plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, Any]:
     """Run the complete DQA suite on a single table.
 
@@ -4919,6 +5096,8 @@ def run_full_dqa(
         Pre-extracted hospitalization years for P.6 temporal consistency.
         When provided, skips scanning the hospitalization table to
         extract years.
+    plausibility_thresholds : dict, optional
+        Override default plausibility thresholds per check.
 
     Returns
     -------
@@ -4985,12 +5164,16 @@ def run_full_dqa(
     # Plausibility checks (single-table)
     results['plausibility'] = {
         k: v.to_dict()
-        for k, v in run_plausibility_checks(df, schema, table_name, hosp_years=hosp_years).items()
+        for k, v in run_plausibility_checks(
+            df, schema, table_name, hosp_years=hosp_years,
+            plausibility_thresholds=plausibility_thresholds,
+        ).items()
     }
 
     # Cross-table plausibility checks (when tables provided)
     if tables is not None:
-        cross_plaus = run_cross_table_plausibility_checks(tables)
+        cross_plaus = run_cross_table_plausibility_checks(
+            tables, plausibility_thresholds=plausibility_thresholds)
         if table_name in cross_plaus:
             for k, v in cross_plaus[table_name].items():
                 results['plausibility'][k] = v.to_dict()
@@ -5009,7 +5192,8 @@ def run_full_dqa(
 def validate_dataframe(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
-    table_name: Optional[str] = None
+    table_name: Optional[str] = None,
+    plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Validate a dataframe against schema and return list of errors.
@@ -5025,6 +5209,8 @@ def validate_dataframe(
         Table schema containing columns, required_columns, etc.
     table_name : str, optional
         Name of the table (inferred from schema if not provided)
+    plausibility_thresholds : dict, optional
+        Override default plausibility thresholds per check.
 
     Returns
     -------
@@ -5086,7 +5272,10 @@ def validate_dataframe(
             })
 
     # Run plausibility checks
-    plausibility_results = run_plausibility_checks(df, schema, table_name)
+    plausibility_results = run_plausibility_checks(
+        df, schema, table_name,
+        plausibility_thresholds=plausibility_thresholds,
+    )
     for check_name, result in plausibility_results.items():
         for err in result.errors:
             errors.append({
