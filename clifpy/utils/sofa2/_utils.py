@@ -700,9 +700,11 @@ def _detect_sedation_episodes(
     """
     Detect sedation episodes within each scoring window for brain subscore.
 
-    Uses the window-bounded episode pattern: pre-window ASOF + in-window +
-    forward-fill at end_dttm. This captures sedation that started before the
-    window and extends episodes to the window boundary if the drug is still running.
+    Uses the window-bounded episode pattern: pre-window ASOF + pre-window
+    lookback + in-window + forward-fill at end_dttm. This captures sedation
+    that started before the window (including recently-stopped episodes whose
+    post-sedation period extends into the window) and extends episodes to the
+    window boundary if the drug is still running.
 
     Episode detection uses LAG + cumulative SUM (same as CV subscore).
     Sedation episodes invalidate GCS measurements during the episode and for
@@ -731,7 +733,7 @@ def _detect_sedation_episodes(
     sedation_drugs_tuple = tuple(SEDATION_DRUGS)
 
     # -------------------------------------------------------------------------
-    # Collect sedation events from 3 temporal slices
+    # Collect sedation events from 4 temporal slices
     # -------------------------------------------------------------------------
 
     # Pre-window: ASOF JOIN to detect drugs already infusing at window start
@@ -757,6 +759,26 @@ def _detect_sedation_episodes(
             , t.med_dose
             , t.mar_action_category
         WHERE t.{id_name} IS NOT NULL
+    """)
+
+    # Pre-window lookback: all sedation events in [start - post_sed_hours, start)
+    # Captures recently-stopped episodes whose post-sedation period extends into
+    # the window. The ASOF above only returns the single nearest record (which may
+    # be a stop), missing earlier events needed to reconstruct the full episode.
+    sedation_pre_window = duckdb.sql(f"""
+        FROM cont_meds_rel t
+        JOIN cohort_rel c ON
+            t.{id_name} = c.{id_name}
+            AND t.admin_dttm >= c.start_dttm - INTERVAL '{post_sedation_gcs_invalidate_hours} hours'
+            AND t.admin_dttm < c.start_dttm
+        SELECT
+            t.{id_name}
+            , c.start_dttm
+            , t.admin_dttm
+            , t.med_category
+            , t.med_dose
+            , t.mar_action_category
+        WHERE t.med_category IN {sedation_drugs_tuple}
     """)
 
     # In-window: standard events during [start_dttm, end_dttm]
@@ -807,6 +829,8 @@ def _detect_sedation_episodes(
     # Combine all temporal slices
     sedation_events = duckdb.sql("""
         FROM sedation_at_start SELECT *
+        UNION ALL
+        FROM sedation_pre_window SELECT *
         UNION ALL
         FROM sedation_in_window SELECT *
         UNION ALL

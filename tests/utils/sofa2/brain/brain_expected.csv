@@ -23,7 +23,7 @@ default,118,2024-01-03 08:00:00,,,,0,,,0,,,daily: d3 no GCS (same as d2),validat
 default,119,2024-01-01 08:00:00,,,,1,04:00:00,10:00:00,0,,0,sedation present but no GCS at all,validated
 default,120,2024-01-01 08:00:00,,,,0,,,1,04:00:00,,haloperidol intm but no GCS,validated
 default,121,2024-01-01 08:00:00,,,,1,-01:00:00,06:00:00,0,,0,pre-window sed: ASOF picks up going@07:00; stops@14:00 in-window,validated
-default,122,2024-01-01 08:00:00,,,,1,-04:00:00,-02:00:00,0,,0,preview sedation should still invalidate GCS within the extended end dttm,validated
+default,122,2024-01-01 08:00:00,,,,1,-04:00:00,-02:00:00,0,,0,prewindow sedation should still invalidate inwindow GCS within the extended end dttm,validated
 default,123,2024-01-01 08:00:00,13,gcs_total,02:00:00,1,06:00:00,24:00:00,0,,1,single ongoing episode: carry-forward to end_dttm,validated
 default,124,2024-01-01 08:00:00,,,,1,-01:00:00,24:00:00,0,,0,pre-window + carry-forward: sedation runs entire window,validated
 default,125,2024-01-01 08:00:00,14,gcs_total,01:00:00,1,02:00:00,14:00:00,0,,1,two clean episodes both stop: GCS between eps in post_sed,validated
