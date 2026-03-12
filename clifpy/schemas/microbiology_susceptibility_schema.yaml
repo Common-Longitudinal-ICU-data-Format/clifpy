@@ -203,7 +203,7 @@ columns:
   permissible_values:
   - susceptible
   - non_susceptible
-  - intermediate
+  - indeterminate
   - NA
 
 required_columns:

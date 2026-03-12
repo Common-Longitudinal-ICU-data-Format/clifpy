@@ -28,6 +28,7 @@ columns:
   - UDNR
   - DNR/DNI
   - DNAR/DNI
+  - DNI_only
   - AND
   - Full
   - Presume Full
