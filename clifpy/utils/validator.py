@@ -4652,6 +4652,56 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
                     int(y) for y in df['admission_dttm'].dropna().dt.year.unique()
                 )
 
+    # --- Cross-table conditional requirements cache ---
+    ct_cond_rules = _load_validation_rules().get('cross_table_conditional_requirements', [])
+    conditional_source_ids: Dict[str, set] = {}
+    conditional_target_ids: Dict[str, set] = {}
+
+    for rule in ct_cond_rules:
+        rule_key = f"{rule['source_column']}_{rule['target_column']}"
+        join_col = rule['join_column']
+
+        if tname == rule['source_table'] and join_col in actual_cols and rule['source_column'] in actual_cols:
+            # Extract join_column IDs where source_column matches source_value (case-insensitive)
+            match_values = [str(v).strip().lower() for v in rule['source_value']]
+            if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+                lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+                matched = (
+                    lf.filter(
+                        pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
+                    )
+                    .select(pl.col(join_col).drop_nulls().unique())
+                    .collect(streaming=True)
+                )
+                conditional_source_ids[rule_key] = set(matched[join_col].to_list())
+            else:
+                mask = df[rule['source_column']].astype(str).str.strip().str.lower().isin(match_values)
+                conditional_source_ids[rule_key] = set(df.loc[mask, join_col].dropna().unique().tolist())
+
+        if tname == rule['target_table'] and join_col in actual_cols and rule['target_column'] in actual_cols:
+            # Extract join_column IDs where target_column is not null (and not empty string)
+            if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+                lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+                tcol = pl.col(rule['target_column'])
+                # Handle both datetime and string columns: not null AND not empty string
+                not_null_filter = tcol.is_not_null()
+                dtype = lf.collect_schema()[rule['target_column']]
+                if dtype == pl.Utf8 or dtype == pl.String:
+                    not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
+                matched = (
+                    lf.filter(not_null_filter)
+                    .select(pl.col(join_col).drop_nulls().unique())
+                    .collect(streaming=True)
+                )
+                conditional_target_ids[rule_key] = set(matched[join_col].to_list())
+            else:
+                target_col = df[rule['target_column']]
+                mask = target_col.notna()
+                # If string dtype, also exclude empty/whitespace-only strings
+                if hasattr(target_col, 'str') and target_col.dtype == 'object':
+                    mask = mask & (target_col.astype(str).str.strip() != '')
+                conditional_target_ids[rule_key] = set(df.loc[mask, join_col].dropna().unique().tolist())
+
     cache = {
         'table_name': tname,
         'fk_ids': fk_ids,
@@ -4659,10 +4709,14 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
         'temporal_df': temporal_df,
         'hosp_bounds_df': hosp_bounds_df,
         'hosp_years': hosp_years,
+        'conditional_source_ids': conditional_source_ids,
+        'conditional_target_ids': conditional_target_ids,
     }
     _logger.info(
-        "extract_cross_table_cache: table='%s', fk_keys=%s, temporal=%s, hosp_bounds=%s",
+        "extract_cross_table_cache: table='%s', fk_keys=%s, temporal=%s, hosp_bounds=%s, "
+        "cond_source_keys=%s, cond_target_keys=%s",
         tname, list(fk_ids.keys()), temporal_df is not None, hosp_bounds_df is not None,
+        list(conditional_source_ids.keys()), list(conditional_target_ids.keys()),
     )
     return cache
 
@@ -4800,6 +4854,263 @@ def run_relational_integrity_checks_from_cache(
     checked = sum(len(v) for v in results.values())
     _logger.info(
         "run_relational_integrity_checks_from_cache: completed %d checks across %d tables",
+        checked, len(results),
+    )
+    return results
+
+
+def run_cross_table_completeness_checks_from_cache(
+    caches: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, DQACompletenessResult]]:
+    """Run cross-table conditional completeness checks (K.5) from caches.
+
+    For each YAML rule in ``cross_table_conditional_requirements``, computes
+    the set of join-column IDs that satisfy the source condition but are
+    missing the required target column value.
+
+    Parameters
+    ----------
+    caches : dict
+        ``{table_name: cache_dict}`` as returned by
+        :func:`extract_cross_table_cache`.
+
+    Returns
+    -------
+    Dict[str, Dict[str, DQACompletenessResult]]
+        Results keyed by **target** table name, then by a descriptive
+        check key.
+    """
+    _logger.info(
+        "run_cross_table_completeness_checks_from_cache: starting with %d cached tables",
+        len(caches),
+    )
+
+    ct_cond_rules = _load_validation_rules().get('cross_table_conditional_requirements', [])
+    if not ct_cond_rules:
+        return {}
+
+    results: Dict[str, Dict[str, DQACompletenessResult]] = {}
+
+    for rule in ct_cond_rules:
+        rule_key = f"{rule['source_column']}_{rule['target_column']}"
+        source_table = rule['source_table']
+        target_table = rule['target_table']
+
+        # Both tables must be cached
+        if source_table not in caches or target_table not in caches:
+            _logger.debug(
+                "K.5: skipping rule '%s' — source '%s' or target '%s' not cached",
+                rule_key, source_table, target_table,
+            )
+            continue
+
+        source_cache = caches[source_table]
+        target_cache = caches[target_table]
+
+        source_ids = source_cache.get('conditional_source_ids', {}).get(rule_key)
+        target_ids = target_cache.get('conditional_target_ids', {}).get(rule_key)
+
+        result = DQACompletenessResult(
+            "cross_table_conditional_completeness",
+            f"{source_table}->{target_table}",
+        )
+
+        if source_ids is None or target_ids is None:
+            result.add_info(
+                "No cross-table conditional requirements applicable"
+            )
+            results.setdefault(target_table, {})[rule_key] = result
+            continue
+
+        if not source_ids:
+            result.add_info(
+                f"No {rule['source_column']} = {rule['source_value']} found in "
+                f"{source_table}; cross-table conditional check not triggered"
+            )
+            results.setdefault(target_table, {})[rule_key] = result
+            continue
+
+        missing_ids = source_ids - target_ids
+        total = len(source_ids)
+        missing_count = len(missing_ids)
+        pct = round(missing_count / total * 100, 1) if total > 0 else 0
+
+        result.metrics["total_matching_source"] = total
+        result.metrics["missing_in_target"] = missing_count
+        result.metrics["coverage_percent"] = round(100 - pct, 2)
+
+        if missing_ids:
+            sample = sorted(list(missing_ids))[:10]
+            result.add_warning(
+                f"{missing_count}/{total} patients discharged as {rule['source_value']} "
+                f"in {source_table} are missing {rule['target_column']} in {target_table} "
+                f"({pct}% missing)",
+                {
+                    "column": rule['target_column'],
+                    "missing_count": missing_count,
+                    "total_matching": total,
+                    "percent_missing": pct,
+                    "sample_ids": sample,
+                    "source_condition": f"{rule['source_column']} in {rule['source_value']}",
+                },
+            )
+        else:
+            result.add_info(
+                f"All {total} patients discharged as {rule['source_value']} in "
+                f"{source_table} have {rule['target_column']} in {target_table}"
+            )
+
+        results.setdefault(target_table, {})[rule_key] = result
+        _logger.info(
+            "K.5: %s->%s rule '%s': %d/%d missing (%.1f%%)",
+            source_table, target_table, rule_key, missing_count, total, pct,
+        )
+
+    checked = sum(len(v) for v in results.values())
+    _logger.info(
+        "run_cross_table_completeness_checks_from_cache: completed %d checks across %d tables",
+        checked, len(results),
+    )
+    return results
+
+
+def run_cross_table_completeness_checks(
+    tables: list,
+) -> Dict[str, Dict[str, DQACompletenessResult]]:
+    """Run cross-table conditional completeness checks (K.5) on full DataFrames.
+
+    Parameters
+    ----------
+    tables : list
+        Objects with ``.table_name`` and ``.df`` attributes.
+
+    Returns
+    -------
+    Dict[str, Dict[str, DQACompletenessResult]]
+        Results keyed by **target** table name.
+    """
+    _logger.info("run_cross_table_completeness_checks: starting with %d tables", len(tables))
+
+    ct_cond_rules = _load_validation_rules().get('cross_table_conditional_requirements', [])
+    if not ct_cond_rules:
+        return {}
+
+    lookup = {}
+    for obj in tables:
+        tname = getattr(obj, 'table_name', '').replace('clif_', '')
+        tdf = obj.df
+        if _ACTIVE_BACKEND == 'polars' and isinstance(tdf, pd.DataFrame):
+            tdf = pl.from_pandas(tdf)
+        lookup[tname] = tdf
+
+    results: Dict[str, Dict[str, DQACompletenessResult]] = {}
+
+    for rule in ct_cond_rules:
+        rule_key = f"{rule['source_column']}_{rule['target_column']}"
+        source_table = rule['source_table']
+        target_table = rule['target_table']
+        join_col = rule['join_column']
+
+        if source_table not in lookup or target_table not in lookup:
+            continue
+
+        src_df = lookup[source_table]
+        tgt_df = lookup[target_table]
+        match_values = [str(v).strip().lower() for v in rule['source_value']]
+
+        # Get source IDs matching condition
+        if HAS_POLARS and isinstance(src_df, (pl.DataFrame, pl.LazyFrame)):
+            lf = src_df if isinstance(src_df, pl.LazyFrame) else src_df.lazy()
+            if rule['source_column'] not in lf.collect_schema().names() or join_col not in lf.collect_schema().names():
+                continue
+            matched = (
+                lf.filter(
+                    pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
+                )
+                .select(pl.col(join_col).drop_nulls().unique())
+                .collect(streaming=True)
+            )
+            source_ids = set(matched[join_col].to_list())
+        else:
+            if rule['source_column'] not in src_df.columns or join_col not in src_df.columns:
+                continue
+            mask = src_df[rule['source_column']].astype(str).str.strip().str.lower().isin(match_values)
+            source_ids = set(src_df.loc[mask, join_col].dropna().unique().tolist())
+
+        # Get target IDs with non-null target column (also exclude empty strings)
+        if HAS_POLARS and isinstance(tgt_df, (pl.DataFrame, pl.LazyFrame)):
+            lf = tgt_df if isinstance(tgt_df, pl.LazyFrame) else tgt_df.lazy()
+            schema_names = lf.collect_schema().names()
+            if rule['target_column'] not in schema_names or join_col not in schema_names:
+                continue
+            tcol = pl.col(rule['target_column'])
+            not_null_filter = tcol.is_not_null()
+            dtype = lf.collect_schema()[rule['target_column']]
+            if dtype == pl.Utf8 or dtype == pl.String:
+                not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
+            matched = (
+                lf.filter(not_null_filter)
+                .select(pl.col(join_col).drop_nulls().unique())
+                .collect(streaming=True)
+            )
+            target_ids = set(matched[join_col].to_list())
+        else:
+            if rule['target_column'] not in tgt_df.columns or join_col not in tgt_df.columns:
+                continue
+            target_col = tgt_df[rule['target_column']]
+            mask = target_col.notna()
+            if hasattr(target_col, 'str') and target_col.dtype == 'object':
+                mask = mask & (target_col.astype(str).str.strip() != '')
+            target_ids = set(tgt_df.loc[mask, join_col].dropna().unique().tolist())
+
+        result = DQACompletenessResult(
+            "cross_table_conditional_completeness",
+            f"{source_table}->{target_table}",
+        )
+
+        if not source_ids:
+            result.add_info(
+                f"No {rule['source_column']} = {rule['source_value']} found in "
+                f"{source_table}; cross-table conditional check not triggered"
+            )
+            results.setdefault(target_table, {})[rule_key] = result
+            continue
+
+        missing_ids = source_ids - target_ids
+        total = len(source_ids)
+        missing_count = len(missing_ids)
+        pct = round(missing_count / total * 100, 1) if total > 0 else 0
+
+        result.metrics["total_matching_source"] = total
+        result.metrics["missing_in_target"] = missing_count
+        result.metrics["coverage_percent"] = round(100 - pct, 2)
+
+        if missing_ids:
+            sample = sorted(list(missing_ids))[:10]
+            result.add_warning(
+                f"{missing_count}/{total} patients discharged as {rule['source_value']} "
+                f"in {source_table} are missing {rule['target_column']} in {target_table} "
+                f"({pct}% missing)",
+                {
+                    "column": rule['target_column'],
+                    "missing_count": missing_count,
+                    "total_matching": total,
+                    "percent_missing": pct,
+                    "sample_ids": sample,
+                    "source_condition": f"{rule['source_column']} in {rule['source_value']}",
+                },
+            )
+        else:
+            result.add_info(
+                f"All {total} patients discharged as {rule['source_value']} in "
+                f"{source_table} have {rule['target_column']} in {target_table}"
+            )
+
+        results.setdefault(target_table, {})[rule_key] = result
+
+    checked = sum(len(v) for v in results.values())
+    _logger.info(
+        "run_cross_table_completeness_checks: completed %d checks across %d tables",
         checked, len(results),
     )
     return results

@@ -100,6 +100,16 @@ conditional_requirements:
       then_required: [dialysate_flow_rate]
       description: "CVVHD and CVVHDF modes require dialysate flow rate"
 
+cross_table_conditional_requirements:
+  - source_table: hospitalization
+    source_column: discharge_category
+    source_value: [Expired]
+    target_table: patient
+    target_column: death_dttm
+    join_column: patient_id
+    check_type: not_null
+    description: "Patients discharged as 'Expired' should have death_dttm in patient table"
+
 relational_integrity:
   hospitalization_id:
     references_table: hospitalization

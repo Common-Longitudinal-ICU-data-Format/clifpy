@@ -17,6 +17,7 @@ RULE_CODES: Dict[tuple, tuple] = {
     ('completeness', 'conditional_requirements'):   ('K.2', 'Conditional field requirements'),
     ('completeness', 'mcide_value_coverage'):       ('K.3', 'mCIDE value coverage'),
     ('completeness', 'relational_integrity'):       ('K.4', 'Foreign key referential coverage'),
+    ('completeness', 'cross_table_conditional_completeness'): ('K.5', 'Cross-table conditional completeness'),
 
     ('plausibility', 'temporal_ordering'):          ('P.1', 'Temporal ordering constraints'),
     ('plausibility', 'numeric_range_plausibility'): ('P.2', 'Numeric range plausibility'),
@@ -43,6 +44,7 @@ _NOT_APPLICABLE_PREFIXES = (
     "No suitable datetime column found for temporal consistency check",
     "No category columns found for temporal consistency check",
     "No numeric columns with range configuration to check",
+    "No cross-table conditional requirements applicable",
 )
 
 
