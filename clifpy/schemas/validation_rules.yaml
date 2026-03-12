@@ -197,7 +197,7 @@ composite_keys:
   patient_procedures:
     keys: [hospitalization_id, procedure_billed_dttm, procedure_code]
   microbiology_culture:
-    keys: [hospitalization_id, collect_dttm, organism_category]
+    keys: [hospitalization_id, collect_dttm, organism_category, result_dttm]
   microbiology_susceptibility:
     keys: [organism_id, antimicrobial_category]
   hospital_diagnosis:
