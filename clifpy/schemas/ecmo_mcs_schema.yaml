@@ -1,4 +1,5 @@
 table_name: ecmo_mcs
+version: "2.1"
 
 columns:
 - name: hospitalization_id

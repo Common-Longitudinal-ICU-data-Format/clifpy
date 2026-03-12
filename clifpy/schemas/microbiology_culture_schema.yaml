@@ -1,4 +1,5 @@
 table_name: microbiology_culture
+version: "2.1"
 
 columns:
 - name: patient_id

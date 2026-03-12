@@ -1,4 +1,5 @@
 table_name: microbiology_nonculture
+version: "2.1"
 
 columns:
 - name: patient_id

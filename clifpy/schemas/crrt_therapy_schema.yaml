@@ -1,4 +1,5 @@
 table_name: crrt_therapy
+version: "2.1"
 
 columns:
 - name: hospitalization_id

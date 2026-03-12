@@ -1,4 +1,5 @@
 table_name: hospitalization
+version: "2.1"
 composite_keys:
   - hospitalization_id
 

@@ -1,4 +1,5 @@
 table_name: medication_admin_intermittent
+version: "2.1"
 
 columns:
 - name: hospitalization_id

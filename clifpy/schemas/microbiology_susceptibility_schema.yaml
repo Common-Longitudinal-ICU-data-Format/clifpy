@@ -1,4 +1,5 @@
 table_name: microbiology_susceptibility
+version: "2.1"
 
 columns:
 - name: organism_id

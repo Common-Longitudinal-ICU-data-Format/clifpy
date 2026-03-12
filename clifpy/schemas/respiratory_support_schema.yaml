@@ -1,4 +1,5 @@
 table_name: respiratory_support
+version: "2.1"
 
 columns:
   - name: hospitalization_id

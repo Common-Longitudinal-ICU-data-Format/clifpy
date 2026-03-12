@@ -1,4 +1,5 @@
 table_name: patient
+version: "2.1"
 composite_keys:
   - patient_id
   
