@@ -22,6 +22,7 @@ __pycache__/
 venv/
 .venv*/
 .claude
+.vscode/
 todo.md
 
 # dev
