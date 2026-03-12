@@ -178,9 +178,31 @@ overlapping_periods:
     description: "ADT records for same hospitalization should not overlap"
 
 composite_keys:
+  patient:
+    keys: [patient_id]
   hospitalization:
     keys: [hospitalization_id]
   adt:
     keys: [hospitalization_id, in_dttm]
-  patient:
-    keys: [patient_id]
+  labs:
+    keys: [hospitalization_id, lab_collect_dttm, lab_category]
+  vitals:
+    keys: [hospitalization_id, recorded_dttm, vital_category]
+  respiratory_support:
+    keys: [hospitalization_id, recorded_dttm]
+  position:
+    keys: [hospitalization_id, recorded_dttm]
+  patient_assessments:
+    keys: [hospitalization_id, recorded_dttm, assessment_category]
+  patient_procedures:
+    keys: [hospitalization_id, procedure_billed_dttm, procedure_code]
+  microbiology_culture:
+    keys: [hospitalization_id, collect_dttm, organism_category]
+  microbiology_susceptibility:
+    keys: [organism_id, antimicrobial_category]
+  hospital_diagnosis:
+    keys: [hospitalization_id, diagnosis_code]
+  medication_admin_continuous:
+    keys: [hospitalization_id, admin_dttm, med_category, mar_action_category]
+  medication_admin_intermittent:
+    keys: [hospitalization_id, admin_dttm, med_category, mar_action_category]
