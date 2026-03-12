@@ -82,6 +82,11 @@ def extract_column_field(issue: Dict[str, Any]) -> str:
     if missing and isinstance(missing, list):
         return ', '.join(str(c) for c in missing[:3])
 
+    # Composite keys (from duplicate_composite_keys check)
+    keys = details.get('keys')
+    if keys and isinstance(keys, list):
+        return ', '.join(str(c) for c in keys)
+
     # Category-group mapping columns
     cat_col = details.get('category_column')
     grp_col = details.get('group_column')

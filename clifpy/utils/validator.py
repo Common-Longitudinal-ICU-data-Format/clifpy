@@ -4222,15 +4222,16 @@ def check_duplicate_composite_keys_polars(
         result.metrics["duplicate_records"] = int(duplicates)
         result.metrics["duplicate_percent"] = round(pct, 2)
 
+        keys_str = ', '.join(composite_keys)
         if pct > error_threshold:
             result.add_error(
-                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                f"{duplicates} duplicate records ({pct:.1f}%) on composite key ({keys_str}) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
                  "keys": composite_keys}
             )
         elif pct > warning_threshold:
             result.add_warning(
-                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                f"{duplicates} duplicate records ({pct:.1f}%) on composite key ({keys_str}) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
                  "keys": composite_keys}
             )
@@ -4291,15 +4292,16 @@ def check_duplicate_composite_keys_duckdb(
         result.metrics["duplicate_records"] = int(duplicates)
         result.metrics["duplicate_percent"] = round(pct, 2)
 
+        keys_str = ', '.join(composite_keys)
         if pct > error_threshold:
             result.add_error(
-                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                f"{duplicates} duplicate records ({pct:.1f}%) on composite key ({keys_str}) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
                  "keys": composite_keys}
             )
         elif pct > warning_threshold:
             result.add_warning(
-                f"{duplicates} duplicate composite key records ({pct:.1f}%) in {table_name}",
+                f"{duplicates} duplicate records ({pct:.1f}%) on composite key ({keys_str}) in {table_name}",
                 {"duplicate_records": int(duplicates), "percent": round(pct, 2),
                  "keys": composite_keys}
             )
