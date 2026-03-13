@@ -161,6 +161,12 @@ field_plausibility_rules:
       when_not_value: [icu]
       then_null_or_absent: [location_type]
       description: "Non-ICU locations should not have ICU location_type"
+  hospitalization:
+    - when_column: discharge_dttm
+      when_not_null: true
+      then_column: discharge_category
+      then_not_value: [Still Admitted]
+      description: "Discharged patients (discharge_dttm not null) should not have discharge_category 'Still Admitted'"
 
 medication_dose_unit_rules:
   medication_admin_continuous:

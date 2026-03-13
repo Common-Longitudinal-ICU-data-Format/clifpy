@@ -3053,12 +3053,58 @@ def check_field_plausibility_polars(
 
         for rule in rules:
             when_col = rule['when_column']
-            when_not_values = rule['when_not_value']
-            then_null_cols = rule['then_null_or_absent']
             description = rule.get('description', '')
 
             if when_col not in col_names:
                 continue
+
+            # New-variant: when_not_null + then_column + then_not_value
+            if rule.get('when_not_null'):
+                then_col = rule['then_column']
+                forbidden = rule['then_not_value']
+                if not isinstance(forbidden, list):
+                    forbidden = [forbidden]
+
+                if then_col not in col_names:
+                    continue
+
+                filtered = lf.filter(pl.col(when_col).is_not_null())
+                stats = filtered.select([
+                    pl.len().alias('total'),
+                    pl.col(then_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
+                        [str(v).lower().strip() for v in forbidden]
+                    ).sum().alias('violations')
+                ]).collect(streaming=True)
+
+                total = stats[0, 'total']
+                violations = stats[0, 'violations']
+                pct = (violations / total * 100) if total > 0 else 0
+
+                if violations > 0:
+                    violations_by_rule[description] = {
+                        "total_applicable": int(total),
+                        "violations": int(violations),
+                        "violation_percent": round(pct, 2),
+                    }
+                    result.add_warning(
+                        f"Field plausibility violation: {description} — {violations}/{total} rows ({pct:.1f}%)",
+                        {"rule": description, "violations": int(violations),
+                         "total": int(total), "percent": round(pct, 2)}
+                    )
+                else:
+                    if total > 0:
+                        result.add_info(
+                            f"Field plausibility satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                            {"column": then_col,
+                             "rows_checked": int(total),
+                             "rows_valid": int(total),
+                             "percent_valid": 100.0}
+                        )
+                continue
+
+            # Old-variant: when_not_value + then_null_or_absent
+            when_not_values = rule['when_not_value']
+            then_null_cols = rule['then_null_or_absent']
 
             if not isinstance(when_not_values, list):
                 when_not_values = [when_not_values]
@@ -3138,12 +3184,59 @@ def check_field_plausibility_duckdb(
 
         for rule in rules:
             when_col = rule['when_column']
-            when_not_values = rule['when_not_value']
-            then_null_cols = rule['then_null_or_absent']
             description = rule.get('description', '')
 
             if when_col not in df.columns:
                 continue
+
+            # New-variant: when_not_null + then_column + then_not_value
+            if rule.get('when_not_null'):
+                then_col = rule['then_column']
+                forbidden = rule['then_not_value']
+                if not isinstance(forbidden, list):
+                    forbidden = [forbidden]
+
+                if then_col not in df.columns:
+                    continue
+
+                forbidden_str = ', '.join([f"'{str(v).lower().strip()}'" for v in forbidden])
+
+                stats = con.execute(f"""
+                    SELECT
+                        COUNT(*) as total,
+                        SUM(CASE WHEN TRIM(LOWER(CAST("{then_col}" AS VARCHAR))) IN ({forbidden_str}) THEN 1 ELSE 0 END) as violations
+                    FROM df
+                    WHERE "{when_col}" IS NOT NULL
+                """).fetchone()
+
+                total, violations = stats
+                pct = (violations / total * 100) if total > 0 else 0
+
+                if violations > 0:
+                    violations_by_rule[description] = {
+                        "total_applicable": int(total),
+                        "violations": int(violations),
+                        "violation_percent": round(pct, 2),
+                    }
+                    result.add_warning(
+                        f"Field plausibility violation: {description} — {violations}/{total} rows ({pct:.1f}%)",
+                        {"rule": description, "violations": int(violations),
+                         "total": int(total), "percent": round(pct, 2)}
+                    )
+                else:
+                    if total > 0:
+                        result.add_info(
+                            f"Field plausibility satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                            {"column": then_col,
+                             "rows_checked": int(total),
+                             "rows_valid": int(total),
+                             "percent_valid": 100.0}
+                        )
+                continue
+
+            # Old-variant: when_not_value + then_null_or_absent
+            when_not_values = rule['when_not_value']
+            then_null_cols = rule['then_null_or_absent']
 
             if not isinstance(when_not_values, list):
                 when_not_values = [when_not_values]
