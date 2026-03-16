@@ -1,0 +1,5 @@
+hospitalization_id,recorded_dttm,mcs_group,ecmo_configuration_category
+414,2024-01-01 12:00:00,ecmo,vv
+414,2024-01-01 13:00:00,iabp,
+414,2024-01-01 14:00:00,temporary_lvad,
+401,2024-01-01 12:00:00,iabp,

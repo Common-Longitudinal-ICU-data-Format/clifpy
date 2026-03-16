@@ -1,0 +1,24 @@
+case,hospitalization_id,start_dttm,pf_ratio,sf_ratio,pao2_at_worst,pao2_dttm_offset,spo2_at_worst,spo2_dttm_offset,fio2_at_worst,fio2_dttm_offset,pf_sf_dttm_offset,has_advanced_support,device_category,has_ecmo,ecmo_dttm_offset,sofa2_resp,notes,status
+default,401,1/1/24 8:00,400,,200,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,0,P/F > 300,validated
+default,402,1/1/24 8:00,250,,125,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,1,P/F <= 300,validated
+default,403,1/1/24 8:00,200,,100,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,2,P/F <= 225,validated
+default,404,1/1/24 8:00,120,,60,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,3,P/F <= 150 + advanced support,validated
+default,405,1/1/24 8:00,50,,25,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,4,P/F <= 75 + advanced support,validated
+default,406,1/1/24 8:00,,380,,,95,2:00:00,0.25,2:00:00,0:00:00,0,nasal cannula,0,,0,S/F > 300 (no PaO2),validated
+default,407,1/1/24 8:00,,176,,,88,2:00:00,0.5,2:00:00,0:00:00,0,nasal cannula,0,,2,S/F <= 250 and no adv support,validated
+default,408,1/1/24 8:00,,88,,,88,2:00:00,1,2:00:00,0:00:00,1,imv,0,,4,S/F <= 120 + adv (no PaO2),validated
+default,409,1/1/24 8:00,120,,60,2:00:00,,,0.5,2:00:00,0:00:00,0,nasal cannula,0,,2,P/F <= 150 no adv -> capped at 2,validated
+default,410,1/1/24 8:00,50,,25,2:00:00,,,0.5,2:00:00,0:00:00,0,nasal cannula,0,,2,P/F <= 75 no adv -> capped at 2,validated
+default,411,1/1/24 8:00,400,,84,2:00:00,,,0.21,2:00:00,0:00:00,0,room air,0,,0,FiO2 impute: room air -> 0.21,validated
+default,412,1/1/24 8:00,250,,80,2:00:00,,,0.32,2:00:00,0:00:00,0,nasal cannula,0,,1,FiO2 impute: NC+LPM=3 -> 0.32,validated
+default,413,1/1/24 8:00,200,,100,2:00:00,,,0.5,2:00:00,0:00:00,0,nasal cannula,0,,2,FiO2 impute: explicit overrides LPM,validated
+default,414,1/1/24 8:00,400,,200,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,1,4:00:00,4,ECMO override (P/F=400 but ECMO -> 4),validated
+default,415,1/1/24 8:00,250,,125,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,1,P/F priority over S/F,validated
+default,416,1/1/24 8:00,,,,,,,,,,,,0,,,no data at all,validated
+default,417,1/1/24 8:00,250,,125,1:00:00,,,0.5,-02:00:00,3:00:00,1,imv,0,,1,pre-window FiO2 within lookback+tolerance,validated
+default,418,1/1/24 8:00,,,,,,,,,,,,0,,,tolerance exceeded: gap=6hr > 4hr,validated
+default,419,1/1/24 8:00,250,,100,2:00:00,,,0.8,2:00:00,0:00:00,1,imv,0,,3,device heuristic: mode -> imv inferred,validated
+default,420,1/1/24 8:00,400,,200,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,0,multi-window: w1 stable,validated
+default,420,1/2/24 8:00,50,,25,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,4,multi-window: w2 deterioration,validated
+short_tolerance,417,1/1/24 8:00,,,,,,,,,,,,0,,,tolerance=1hr: gap=3hr exceeded,validated
+long_tolerance,418,1/1/24 8:00,250,,125,8:00:00,,,0.5,2:00:00,6:00:00,1,imv,0,,1,tolerance=8hr: gap=6hr within,validated
