@@ -20,11 +20,10 @@ Custom tolerance cases (case column in expected CSV):
 
 import pytest
 from pathlib import Path
-import duckdb
 
 from clifpy.utils.sofa2._resp import _calculate_resp_subscore
 from clifpy.utils.sofa2._utils import SOFA2Config
-from tests.utils.sofa2.conftest import load_expected, assert_columns_match
+from tests.utils.sofa2.conftest import load_expected, assert_columns_match, load_csv_fixture
 
 
 FIXTURES_DIR = Path(__file__).parent
@@ -55,42 +54,27 @@ TOLERANCE_CONFIGS = {
 
 @pytest.fixture
 def cohort_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_cohort.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
-    )
+    return load_csv_fixture(FIXTURES_DIR / 'clif_cohort.csv', ['start_dttm', 'end_dttm'])
 
 
 @pytest.fixture
 def resp_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_respiratory_support.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
-    )
+    return load_csv_fixture(FIXTURES_DIR / 'clif_respiratory_support.csv', ['recorded_dttm'])
 
 
 @pytest.fixture
 def labs_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_labs.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
-    )
+    return load_csv_fixture(FIXTURES_DIR / 'clif_labs.csv', ['lab_collect_dttm'])
 
 
 @pytest.fixture
 def vitals_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_vitals.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
-    )
+    return load_csv_fixture(FIXTURES_DIR / 'clif_vitals.csv', ['recorded_dttm'])
 
 
 @pytest.fixture
 def ecmo_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_ecmo_mcs.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
-    )
+    return load_csv_fixture(FIXTURES_DIR / 'clif_ecmo_mcs.csv', ['recorded_dttm'])
 
 
 @pytest.fixture

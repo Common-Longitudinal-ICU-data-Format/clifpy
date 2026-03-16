@@ -2,7 +2,23 @@
 
 from pathlib import Path
 
+import duckdb
+import numpy as np
 import pandas as pd
+
+
+def load_csv_fixture(path, datetime_cols):
+    """Read CSV fixture with robust datetime parsing (handles Excel date mangling).
+
+    Excel reformats ISO timestamps (2024-01-01 10:00:00) to short format
+    (1/1/24 10:00). pandas.to_datetime handles both formats, so we read
+    through pandas first, then convert to a DuckDB relation.
+    """
+    df = pd.read_csv(str(path), dtype={'hospitalization_id': str})
+    for col in datetime_cols:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], format='mixed')
+    return duckdb.sql("SELECT * FROM df")
 
 
 def to_total_seconds(x):
@@ -28,6 +44,7 @@ def load_expected(fixtures_dir: Path, filename: str, case: str) -> pd.DataFrame:
         str(fixtures_dir / filename),
         dtype={'hospitalization_id': str},
     )
+    df['start_dttm'] = pd.to_datetime(df['start_dttm'], format='mixed')
     return df[df['case'] == case].sort_values(sort_cols).reset_index(drop=True)
 
 
@@ -42,8 +59,18 @@ def _compare_column(result_series, expected_series, comparison_type):
     elif comparison_type == 'str':
         r = result_series.fillna('')
         e = expected_series.fillna('')
+    elif comparison_type == 'Float64':
+        r = result_series.astype('Float64')
+        e = expected_series.astype('Float64')
+        both_na = r.isna() & e.isna()
+        close = np.isclose(
+            r.to_numpy(dtype='float64', na_value=np.nan),
+            e.to_numpy(dtype='float64', na_value=np.nan),
+            rtol=1e-9, equal_nan=True,
+        )
+        return ~pd.array(both_na.to_numpy() | close, dtype='boolean'), r, e
     else:
-        # Int64, Float64
+        # Int64
         r = result_series.astype(comparison_type)
         e = expected_series.astype(comparison_type)
 

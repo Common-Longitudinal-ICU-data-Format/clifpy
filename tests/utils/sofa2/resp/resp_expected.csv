@@ -17,7 +17,7 @@ default,415,1/1/24 8:00,250,,125,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,1,P/F pr
 default,416,1/1/24 8:00,,,,,,,,,,,,0,,,no data at all,validated
 default,417,1/1/24 8:00,250,,125,1:00:00,,,0.5,-02:00:00,3:00:00,1,imv,0,,1,pre-window FiO2 within lookback+tolerance,validated
 default,418,1/1/24 8:00,,,,,,,,,,,,0,,,tolerance exceeded: gap=6hr > 4hr,validated
-default,419,1/1/24 8:00,250,,100,2:00:00,,,0.8,2:00:00,0:00:00,1,imv,0,,3,device heuristic: mode -> imv inferred,validated
+default,419,1/1/24 8:00,125,,100,2:00:00,,,0.8,2:00:00,0:00:00,1,imv,0,,3,device heuristic: mode -> imv inferred,validated
 default,420,1/1/24 8:00,400,,200,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,0,multi-window: w1 stable,validated
 default,420,1/2/24 8:00,50,,25,2:00:00,,,0.5,2:00:00,0:00:00,1,imv,0,,4,multi-window: w2 deterioration,validated
 short_tolerance,417,1/1/24 8:00,,,,,,,,,,,,0,,,tolerance=1hr: gap=3hr exceeded,validated
