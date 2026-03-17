@@ -2721,12 +2721,18 @@ def check_numeric_range_plausibility_polars(
                     continue
 
                 if isinstance(cat_col_info, tuple):
-                    # 2-level: (category_col, unit_col)
+                    # 2-level: (category_col, unit_col) — batched single scan
                     cat_col, unit_col = cat_col_info
                     if cat_col not in col_names or unit_col not in col_names:
                         continue
-                    total_oor = 0
-                    total_count = 0
+
+                    combo_keys = []  # (cat_val, unit_val, rmin, rmax)
+                    range_exprs = []
+                    lf_cat = lf.with_columns([
+                        pl.col(cat_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().alias('_cat_norm'),
+                        pl.col(unit_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().alias('_unit_norm'),
+                    ])
+
                     for cat_val, unit_ranges in col_ranges.items():
                         if not isinstance(unit_ranges, dict):
                             continue
@@ -2734,31 +2740,42 @@ def check_numeric_range_plausibility_polars(
                             if not isinstance(ranges, dict) or 'min' not in ranges:
                                 continue
                             rmin, rmax = ranges['min'], ranges['max']
-                            filtered = lf.filter(
-                                (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars() == str(cat_val).lower().strip()) &
-                                (pl.col(unit_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars() == str(unit_val).lower().strip()) &
+                            idx = len(combo_keys)
+                            combo_keys.append((cat_val, unit_val, rmin, rmax))
+                            cat_norm = str(cat_val).lower().strip()
+                            unit_norm = str(unit_val).lower().strip()
+                            mask = (
+                                (pl.col('_cat_norm') == cat_norm) &
+                                (pl.col('_unit_norm') == unit_norm) &
                                 pl.col(col_name).is_not_null()
                             )
-                            stats = filtered.select([
-                                pl.len().alias('total'),
-                                ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
-                            ]).collect(streaming=True)
-                            cat_oor = stats[0, 'oor']
-                            cat_total = stats[0, 'total']
-                            cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
-                            total_count += cat_total
-                            total_oor += cat_oor
+                            oor = (pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)
+                            range_exprs.append(mask.sum().alias(f'_t{idx}'))
+                            range_exprs.append((mask & oor).sum().alias(f'_o{idx}'))
 
-                            if cat_oor > 0 and cat_pct > error_threshold:
-                                result.add_error(
-                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                                )
-                            elif cat_oor > 0 and cat_pct > warning_threshold:
-                                result.add_warning(
-                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                                )
+                    if not range_exprs:
+                        continue
+
+                    stats_row = lf_cat.select(range_exprs).collect(streaming=True)
+                    total_oor = 0
+                    total_count = 0
+                    for idx, (cat_val, unit_val, rmin, rmax) in enumerate(combo_keys):
+                        cat_total = int(stats_row[0, f'_t{idx}'])
+                        cat_oor = int(stats_row[0, f'_o{idx}'])
+                        cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
+                        total_count += cat_total
+                        total_oor += cat_oor
+
+                        if cat_oor > 0 and cat_pct > error_threshold:
+                            result.add_error(
+                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                            )
+                        elif cat_oor > 0 and cat_pct > warning_threshold:
+                            result.add_warning(
+                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                            )
 
                     pct = (total_oor / total_count * 100) if total_count > 0 else 0
                     oor_summary[col_name] = {
@@ -2766,26 +2783,38 @@ def check_numeric_range_plausibility_polars(
                         "out_of_range_percent": round(pct, 2),
                     }
                 else:
-                    # 1-level category-dependent
+                    # 1-level category-dependent — batched single scan
                     cat_col = cat_col_info
                     if cat_col not in col_names:
                         continue
-                    total_oor = 0
-                    total_count = 0
+
+                    combo_keys = []  # (cat_val, rmin, rmax)
+                    range_exprs = []
+                    lf_cat = lf.with_columns(
+                        pl.col(cat_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().alias('_cat_norm')
+                    )
+
                     for cat_val, ranges in col_ranges.items():
                         if not isinstance(ranges, dict) or 'min' not in ranges:
                             continue
                         rmin, rmax = ranges['min'], ranges['max']
-                        filtered = lf.filter(
-                            (pl.col(cat_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars() == str(cat_val).lower().strip()) &
-                            pl.col(col_name).is_not_null()
-                        )
-                        stats = filtered.select([
-                            pl.len().alias('total'),
-                            ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
-                        ]).collect(streaming=True)
-                        cat_oor = stats[0, 'oor']
-                        cat_total = stats[0, 'total']
+                        idx = len(combo_keys)
+                        combo_keys.append((cat_val, rmin, rmax))
+                        cat_norm = str(cat_val).lower().strip()
+                        mask = (pl.col('_cat_norm') == cat_norm) & pl.col(col_name).is_not_null()
+                        oor = (pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)
+                        range_exprs.append(mask.sum().alias(f'_t{idx}'))
+                        range_exprs.append((mask & oor).sum().alias(f'_o{idx}'))
+
+                    if not range_exprs:
+                        continue
+
+                    stats_row = lf_cat.select(range_exprs).collect(streaming=True)
+                    total_oor = 0
+                    total_count = 0
+                    for idx, (cat_val, rmin, rmax) in enumerate(combo_keys):
+                        cat_total = int(stats_row[0, f'_t{idx}'])
+                        cat_oor = int(stats_row[0, f'_o{idx}'])
                         cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
                         total_count += cat_total
                         total_oor += cat_oor
@@ -2910,9 +2939,13 @@ def check_numeric_range_plausibility_duckdb(
                 total_count = 0
 
                 if isinstance(cat_col_info, tuple):
+                    # 2-level: (category_col, unit_col) — batched single query
                     cat_col, unit_col = cat_col_info
                     if cat_col not in actual_cols or unit_col not in actual_cols:
                         continue
+
+                    combo_keys = []  # (cat_val, unit_val, rmin, rmax)
+                    case_parts = []
                     for cat_val, unit_ranges in col_ranges.items():
                         if not isinstance(unit_ranges, dict):
                             continue
@@ -2920,47 +2953,76 @@ def check_numeric_range_plausibility_duckdb(
                             if not isinstance(ranges, dict) or 'min' not in ranges:
                                 continue
                             rmin, rmax = ranges['min'], ranges['max']
-                            stats = con.execute(f"""
-                                SELECT COUNT(*) as total,
-                                       COALESCE(SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END), 0) as oor
-                                FROM df
-                                WHERE TRIM(LOWER(CAST("{cat_col}" AS VARCHAR))) = '{str(cat_val).lower().strip()}'
-                                  AND TRIM(LOWER(CAST("{unit_col}" AS VARCHAR))) = '{str(unit_val).lower().strip()}'
-                                  AND "{col_name}" IS NOT NULL
-                            """).fetchone()
-                            cat_oor = stats[1]
-                            cat_total = stats[0]
-                            cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
-                            total_count += cat_total
-                            total_oor += cat_oor
+                            idx = len(combo_keys)
+                            combo_keys.append((cat_val, unit_val, rmin, rmax))
+                            cat_norm = str(cat_val).lower().strip().replace("'", "''")
+                            unit_norm = str(unit_val).lower().strip().replace("'", "''")
+                            where = (
+                                f"TRIM(LOWER(CAST(\"{cat_col}\" AS VARCHAR))) = '{cat_norm}' "
+                                f"AND TRIM(LOWER(CAST(\"{unit_col}\" AS VARCHAR))) = '{unit_norm}' "
+                                f"AND \"{col_name}\" IS NOT NULL"
+                            )
+                            case_parts.append(
+                                f"COALESCE(SUM(CASE WHEN {where} THEN 1 ELSE 0 END), 0) AS col_{idx}_total, "
+                                f"COALESCE(SUM(CASE WHEN {where} AND (\"{col_name}\" < {rmin} OR \"{col_name}\" > {rmax}) THEN 1 ELSE 0 END), 0) AS col_{idx}_oor"
+                            )
 
-                            if cat_oor > 0 and cat_pct > error_threshold:
-                                result.add_error(
-                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                                )
-                            elif cat_oor > 0 and cat_pct > warning_threshold:
-                                result.add_warning(
-                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                                )
+                    if not case_parts:
+                        continue
+
+                    sql = f'SELECT {", ".join(case_parts)} FROM df'
+                    row = con.execute(sql).fetchone()
+
+                    for idx, (cat_val, unit_val, rmin, rmax) in enumerate(combo_keys):
+                        cat_total = row[idx * 2] or 0
+                        cat_oor = row[idx * 2 + 1] or 0
+                        cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
+                        total_count += cat_total
+                        total_oor += cat_oor
+
+                        if cat_oor > 0 and cat_pct > error_threshold:
+                            result.add_error(
+                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                            )
+                        elif cat_oor > 0 and cat_pct > warning_threshold:
+                            result.add_warning(
+                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                            )
                 else:
+                    # 1-level category-dependent — batched single query
                     cat_col = cat_col_info
                     if cat_col not in actual_cols:
                         continue
+
+                    combo_keys = []  # (cat_val, rmin, rmax)
+                    case_parts = []
                     for cat_val, ranges in col_ranges.items():
                         if not isinstance(ranges, dict) or 'min' not in ranges:
                             continue
                         rmin, rmax = ranges['min'], ranges['max']
-                        stats = con.execute(f"""
-                            SELECT COUNT(*) as total,
-                                   COALESCE(SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END), 0) as oor
-                            FROM df
-                            WHERE TRIM(LOWER(CAST("{cat_col}" AS VARCHAR))) = '{str(cat_val).lower().strip()}'
-                              AND "{col_name}" IS NOT NULL
-                        """).fetchone()
-                        cat_oor = stats[1]
-                        cat_total = stats[0]
+                        idx = len(combo_keys)
+                        combo_keys.append((cat_val, rmin, rmax))
+                        cat_norm = str(cat_val).lower().strip().replace("'", "''")
+                        where = (
+                            f"TRIM(LOWER(CAST(\"{cat_col}\" AS VARCHAR))) = '{cat_norm}' "
+                            f"AND \"{col_name}\" IS NOT NULL"
+                        )
+                        case_parts.append(
+                            f"COALESCE(SUM(CASE WHEN {where} THEN 1 ELSE 0 END), 0) AS col_{idx}_total, "
+                            f"COALESCE(SUM(CASE WHEN {where} AND (\"{col_name}\" < {rmin} OR \"{col_name}\" > {rmax}) THEN 1 ELSE 0 END), 0) AS col_{idx}_oor"
+                        )
+
+                    if not case_parts:
+                        continue
+
+                    sql = f'SELECT {", ".join(case_parts)} FROM df'
+                    row = con.execute(sql).fetchone()
+
+                    for idx, (cat_val, rmin, rmax) in enumerate(combo_keys):
+                        cat_total = row[idx * 2] or 0
+                        cat_oor = row[idx * 2 + 1] or 0
                         cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
                         total_count += cat_total
                         total_oor += cat_oor
@@ -4304,8 +4366,14 @@ def check_duplicate_composite_keys_polars(
             result.add_info(f"Composite key columns missing: {missing_keys}")
             return result
 
-        total = lf.select(pl.len()).collect().item()
-        unique = lf.select(composite_keys).unique().select(pl.len()).collect().item()
+        total = lf.select(pl.len()).collect(streaming=True).item()
+        unique = (
+            lf.group_by(composite_keys)
+            .agg(pl.len().alias('_n'))
+            .select(pl.len())
+            .collect(streaming=True)
+            .item()
+        )
         duplicates = total - unique
         pct = (duplicates / total * 100) if total > 0 else 0
 
