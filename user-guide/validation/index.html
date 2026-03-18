@@ -22,15 +22,15 @@
       
       
       <link rel="icon" href="../../images/clif_logo_red_no_text.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
     
     
       
-        <title>Data Validation - CLIFpy Documentation</title>
+        <title>Data Quality Assessment (DQA) - CLIFpy Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.e53b48f4.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#data-validation" class="md-skip">
+        <a href="#data-quality-assessment-dqa" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Data Validation
+              Data Quality Assessment (DQA)
             
           </span>
         </div>
@@ -204,7 +204,7 @@
         <a href="https://github.com/Common-Longitudinal-ICU-data-Format/clifpy" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     clifpy
@@ -359,7 +359,7 @@
       <a href="https://github.com/Common-Longitudinal-ICU-data-Format/clifpy" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     clifpy
@@ -633,7 +633,7 @@
   
   
   <span class="md-ellipsis">
-    Data Validation
+    Data Quality Assessment (DQA)
     
   </span>
   
@@ -646,7 +646,7 @@
   
   
   <span class="md-ellipsis">
-    Data Validation
+    Data Quality Assessment (DQA)
     
   </span>
   
@@ -669,37 +669,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
-      Overview
+      Quick Start
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Running Validation
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Running Validation">
+    <nav class="md-nav" aria-label="Quick Start">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#basic-validation" class="md-nav__link">
+  <a href="#full-dqa-on-a-single-table" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Validation
+      Full DQA on a Single Table
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#bulk-validation-with-orchestrator" class="md-nav__link">
+  <a href="#via-the-orchestrator" class="md-nav__link">
     <span class="md-ellipsis">
-      Bulk Validation with Orchestrator
+      Via the Orchestrator
     </span>
   </a>
   
@@ -711,28 +702,64 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#understanding-validation-results" class="md-nav__link">
+  <a href="#running-individual-check-categories" class="md-nav__link">
     <span class="md-ellipsis">
-      Understanding Validation Results
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Understanding Validation Results">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#error-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Error Types
+      Running Individual Check Categories
     </span>
   </a>
   
 </li>
+      
+        <li class="md-nav__item">
+  <a href="#understanding-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Understanding Results
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conformance-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Conformance Checks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completeness-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Completeness Checks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plausibility-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Plausibility Checks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-table-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cross-Table Checks
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-Table Checks">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#validation-reports" class="md-nav__link">
+  <a href="#memory-optimized-cache-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
-      Validation Reports
+      Memory-Optimized Cache Pipeline
     </span>
   </a>
   
@@ -744,28 +771,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#schema-validation" class="md-nav__link">
+  <a href="#report-generation" class="md-nav__link">
     <span class="md-ellipsis">
-      Schema Validation
+      Report Generation
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Schema Validation">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-thresholds" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuring Thresholds
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring Thresholds">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#required-columns" class="md-nav__link">
+  <a href="#missingness-thresholds" class="md-nav__link">
     <span class="md-ellipsis">
-      Required Columns
+      Missingness Thresholds
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#data-types" class="md-nav__link">
+  <a href="#plausibility-thresholds" class="md-nav__link">
     <span class="md-ellipsis">
-      Data Types
+      Plausibility Thresholds
     </span>
   </a>
   
@@ -777,54 +813,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#category-validation" class="md-nav__link">
+  <a href="#dual-backend-architecture" class="md-nav__link">
     <span class="md-ellipsis">
-      Category Validation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#range-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Range Validation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#timezone-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timezone Validation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#duplicate-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      Duplicate Detection
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#missing-data-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Missing Data Analysis
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#custom-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Custom Validation
+      Dual Backend Architecture
     </span>
   </a>
   
@@ -834,57 +825,6 @@
   <a href="#best-practices" class="md-nav__link">
     <span class="md-ellipsis">
       Best Practices
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#handling-validation-errors" class="md-nav__link">
-    <span class="md-ellipsis">
-      Handling Validation Errors
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Handling Validation Errors">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#option-1-fix-and-reload" class="md-nav__link">
-    <span class="md-ellipsis">
-      Option 1: Fix and Reload
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-2-filter-invalid-records" class="md-nav__link">
-    <span class="md-ellipsis">
-      Option 2: Filter Invalid Records
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-3-document-and-proceed" class="md-nav__link">
-    <span class="md-ellipsis">
-      Option 3: Document and Proceed
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      Next Steps
     </span>
   </a>
   
@@ -1344,6 +1284,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/dqa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DQA (Validation)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/utilities/" class="md-nav__link">
         
   
@@ -1438,37 +1401,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
-      Overview
+      Quick Start
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Running Validation
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Running Validation">
+    <nav class="md-nav" aria-label="Quick Start">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#basic-validation" class="md-nav__link">
+  <a href="#full-dqa-on-a-single-table" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Validation
+      Full DQA on a Single Table
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#bulk-validation-with-orchestrator" class="md-nav__link">
+  <a href="#via-the-orchestrator" class="md-nav__link">
     <span class="md-ellipsis">
-      Bulk Validation with Orchestrator
+      Via the Orchestrator
     </span>
   </a>
   
@@ -1480,28 +1434,64 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#understanding-validation-results" class="md-nav__link">
+  <a href="#running-individual-check-categories" class="md-nav__link">
     <span class="md-ellipsis">
-      Understanding Validation Results
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Understanding Validation Results">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#error-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Error Types
+      Running Individual Check Categories
     </span>
   </a>
   
 </li>
+      
+        <li class="md-nav__item">
+  <a href="#understanding-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Understanding Results
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conformance-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Conformance Checks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completeness-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Completeness Checks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plausibility-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Plausibility Checks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-table-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cross-Table Checks
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-Table Checks">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#validation-reports" class="md-nav__link">
+  <a href="#memory-optimized-cache-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
-      Validation Reports
+      Memory-Optimized Cache Pipeline
     </span>
   </a>
   
@@ -1513,28 +1503,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#schema-validation" class="md-nav__link">
+  <a href="#report-generation" class="md-nav__link">
     <span class="md-ellipsis">
-      Schema Validation
+      Report Generation
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Schema Validation">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-thresholds" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuring Thresholds
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring Thresholds">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#required-columns" class="md-nav__link">
+  <a href="#missingness-thresholds" class="md-nav__link">
     <span class="md-ellipsis">
-      Required Columns
+      Missingness Thresholds
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#data-types" class="md-nav__link">
+  <a href="#plausibility-thresholds" class="md-nav__link">
     <span class="md-ellipsis">
-      Data Types
+      Plausibility Thresholds
     </span>
   </a>
   
@@ -1546,54 +1545,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#category-validation" class="md-nav__link">
+  <a href="#dual-backend-architecture" class="md-nav__link">
     <span class="md-ellipsis">
-      Category Validation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#range-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Range Validation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#timezone-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timezone Validation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#duplicate-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      Duplicate Detection
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#missing-data-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Missing Data Analysis
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#custom-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Custom Validation
+      Dual Backend Architecture
     </span>
   </a>
   
@@ -1603,57 +1557,6 @@
   <a href="#best-practices" class="md-nav__link">
     <span class="md-ellipsis">
       Best Practices
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#handling-validation-errors" class="md-nav__link">
-    <span class="md-ellipsis">
-      Handling Validation Errors
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Handling Validation Errors">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#option-1-fix-and-reload" class="md-nav__link">
-    <span class="md-ellipsis">
-      Option 1: Fix and Reload
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-2-filter-invalid-records" class="md-nav__link">
-    <span class="md-ellipsis">
-      Option 2: Filter Invalid Records
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-3-document-and-proceed" class="md-nav__link">
-    <span class="md-ellipsis">
-      Option 3: Document and Proceed
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      Next Steps
     </span>
   </a>
   
@@ -1678,205 +1581,321 @@
   
 
 
-<h1 id="data-validation">Data Validation<a class="headerlink" href="#data-validation" title="Permanent link">&para;</a></h1>
-<p>CLIFpy provides comprehensive validation to ensure your data conforms to CLIF standards. This guide explains the validation process and how to interpret results.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>Validation in CLIFpy operates at multiple levels:</p>
-<ol>
-<li><strong>Schema Validation</strong> - Ensures required columns exist with correct data types</li>
-<li><strong>Category Validation</strong> - Verifies values match standardized categories</li>
-<li><strong>Range Validation</strong> - Checks values fall within clinically reasonable ranges</li>
-<li><strong>Timezone Validation</strong> - Ensures datetime columns are timezone-aware</li>
-<li><strong>Duplicate Detection</strong> - Identifies duplicate records based on composite keys</li>
-<li><strong>Completeness Checks</strong> - Analyzes missing data patterns</li>
-</ol>
-<h2 id="running-validation">Running Validation<a class="headerlink" href="#running-validation" title="Permanent link">&para;</a></h2>
-<h3 id="basic-validation">Basic Validation<a class="headerlink" href="#basic-validation" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Load and validate a table</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">TableClass</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">table</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Check if valid</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">if</span> <span class="n">table</span><span class="o">.</span><span class="n">isvalid</span><span class="p">():</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Validation passed!&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">errors</span><span class="p">)</span><span class="si">}</span><span class="s2"> validation errors&quot;</span><span class="p">)</span>
+<h1 id="data-quality-assessment-dqa">Data Quality Assessment (DQA)<a class="headerlink" href="#data-quality-assessment-dqa" title="Permanent link">&para;</a></h1>
+<p>CLIFpy provides a comprehensive Data Quality Assessment framework for validating CLIF tables. DQA is organized around three pillars:</p>
+<ul>
+<li><strong>Conformance</strong> — Does the data match expected structure, types, and allowed values?</li>
+<li><strong>Completeness</strong> — Is the data sufficiently present and relationally connected?</li>
+<li><strong>Plausibility</strong> — Are values clinically reasonable and logically consistent?</li>
+</ul>
+<p>For full API signatures, see the <a href="../../api/dqa/">DQA API Reference</a>.</p>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<h3 id="full-dqa-on-a-single-table">Full DQA on a Single Table<a class="headerlink" href="#full-dqa-on-a-single-table" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.validator</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_full_dqa</span><span class="p">,</span> <span class="n">_load_schema</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">_load_schema</span><span class="p">(</span><span class="s2">&quot;labs&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">results</span> <span class="o">=</span> <span class="n">run_full_dqa</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;labs&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Results organized by pillar</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;conformance&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">check_name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;PASS&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">result</span><span class="o">.</span><span class="n">passed</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;FAIL&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;completeness&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">check_name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;PASS&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">result</span><span class="o">.</span><span class="n">passed</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;FAIL&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;plausibility&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">check_name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;PASS&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">result</span><span class="o">.</span><span class="n">passed</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;FAIL&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="bulk-validation-with-orchestrator">Bulk Validation with Orchestrator<a class="headerlink" href="#bulk-validation-with-orchestrator" title="Permanent link">&para;</a></h3>
+<h3 id="via-the-orchestrator">Via the Orchestrator<a class="headerlink" href="#via-the-orchestrator" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.clif_orchestrator</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClifOrchestrator</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">)</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">orchestrator</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;patient&#39;</span><span class="p">,</span> <span class="s1">&#39;labs&#39;</span><span class="p">,</span> <span class="s1">&#39;vitals&#39;</span><span class="p">])</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">orchestrator</span> <span class="o">=</span> <span class="n">ClifOrchestrator</span><span class="p">(</span><span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;parquet&quot;</span><span class="p">,</span> <span class="n">timezone</span><span class="o">=</span><span class="s2">&quot;US/Central&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">orchestrator</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;patient&quot;</span><span class="p">,</span> <span class="s2">&quot;labs&quot;</span><span class="p">,</span> <span class="s2">&quot;vitals&quot;</span><span class="p">])</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># Validate all tables</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">orchestrator</span><span class="o">.</span><span class="n">validate_all</span><span class="p">()</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># DQA is run during initialization; results are stored per table</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">table_obj</span> <span class="ow">in</span> <span class="n">orchestrator</span><span class="o">.</span><span class="n">tables</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">table_obj</span><span class="o">.</span><span class="n">validation_status</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
-<h2 id="understanding-validation-results">Understanding Validation Results<a class="headerlink" href="#understanding-validation-results" title="Permanent link">&para;</a></h2>
-<h3 id="error-types">Error Types<a class="headerlink" href="#error-types" title="Permanent link">&para;</a></h3>
-<p>Validation errors are stored in the <code>errors</code> attribute:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Review errors</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">errors</span><span class="p">[:</span><span class="mi">10</span><span class="p">]:</span>  <span class="c1"># First 10 errors</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Type: </span><span class="si">{</span><span class="n">error</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Message: </span><span class="si">{</span><span class="n">error</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Details: </span><span class="si">{</span><span class="n">error</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;N/A&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">50</span><span class="p">)</span>
+<h2 id="running-individual-check-categories">Running Individual Check Categories<a class="headerlink" href="#running-individual-check-categories" title="Permanent link">&para;</a></h2>
+<p>You can run just one pillar at a time:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.validator</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">run_conformance_checks</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">run_completeness_checks</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">run_plausibility_checks</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">_load_schema</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">_load_schema</span><span class="p">(</span><span class="s2">&quot;vitals&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Conformance only</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">conformance</span> <span class="o">=</span> <span class="n">run_conformance_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;vitals&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># Completeness only (with custom missingness thresholds)</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">completeness</span> <span class="o">=</span> <span class="n">run_completeness_checks</span><span class="p">(</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;vitals&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">error_threshold</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span> <span class="n">warning_threshold</span><span class="o">=</span><span class="mf">10.0</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="p">)</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="c1"># Plausibility only</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="n">plausibility</span> <span class="o">=</span> <span class="n">run_plausibility_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;vitals&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Common error types:
-- <code>missing_column</code> - Required column not found
-- <code>invalid_category</code> - Value not in permissible list
-- <code>out_of_range</code> - Value outside acceptable range
-- <code>invalid_timezone</code> - Datetime column not timezone-aware
-- <code>duplicate_rows</code> - Duplicate records found</p>
-<h3 id="validation-reports">Validation Reports<a class="headerlink" href="#validation-reports" title="Permanent link">&para;</a></h3>
-<p>Validation results are automatically saved to the output directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Set custom output directory</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">table</span> <span class="o">=</span> <span class="n">TableClass</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">data_directory</span><span class="o">=</span><span class="s1">&#39;/data&#39;</span><span class="p">,</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">filetype</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">output_directory</span><span class="o">=</span><span class="s1">&#39;/path/to/reports&#39;</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># After validation, these files are created:</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># - validation_log_[table_name].log</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># - validation_errors_[table_name].csv</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># - missing_data_stats_[table_name].csv</span>
+<h2 id="understanding-results">Understanding Results<a class="headerlink" href="#understanding-results" title="Permanent link">&para;</a></h2>
+<p>Every check returns a result object (<code>DQAConformanceResult</code>, <code>DQACompletenessResult</code>, or <code>DQAPlausibilityResult</code>) with a consistent interface:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">conformance</span><span class="p">[</span><span class="s2">&quot;required_columns&quot;</span><span class="p">]</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">result</span><span class="o">.</span><span class="n">passed</span>       <span class="c1"># bool — overall pass/fail</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">result</span><span class="o">.</span><span class="n">errors</span>       <span class="c1"># list of dicts — critical issues</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">result</span><span class="o">.</span><span class="n">warnings</span>     <span class="c1"># list of dicts — non-blocking concerns</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span>         <span class="c1"># list of dicts — informational messages</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">result</span><span class="o">.</span><span class="n">metrics</span>      <span class="c1"># dict — quantitative details (counts, percentages)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># Serialize for export</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">result</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
 </code></pre></div>
-<h2 id="schema-validation">Schema Validation<a class="headerlink" href="#schema-validation" title="Permanent link">&para;</a></h2>
-<p>Each table has a YAML schema defining its structure:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Example from patient_schema.yaml</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">columns</span><span class="p">:</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">patient_id</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">data_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">VARCHAR</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">is_category_column</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sex_category</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nt">data_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">VARCHAR</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="nt">is_category_column</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="nt">permissible_values</span><span class="p">:</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Male</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Female</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Unknown</span>
+<p>Each error/warning/info entry is a dict with <code>message</code> and optional <code>details</code> keys.</p>
+<h2 id="conformance-checks">Conformance Checks<a class="headerlink" href="#conformance-checks" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Check</th>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A.1</td>
+<td>Table Presence</td>
+<td><code>check_table_exists</code>, <code>check_table_presence</code></td>
+<td>Verify file exists and DataFrame has data</td>
+</tr>
+<tr>
+<td>A.2</td>
+<td>Required Columns</td>
+<td><code>check_required_columns</code></td>
+<td>All schema-required columns are present</td>
+</tr>
+<tr>
+<td>B.1</td>
+<td>Data Types</td>
+<td><code>check_column_dtypes</code></td>
+<td>Column dtypes match schema (VARCHAR, DATETIME, etc.)</td>
+</tr>
+<tr>
+<td>B.2</td>
+<td>Datetime Format</td>
+<td><code>check_datetime_format</code></td>
+<td>Datetime columns are timezone-aware</td>
+</tr>
+<tr>
+<td>B.3</td>
+<td>Lab Reference Units</td>
+<td><code>check_lab_reference_units</code></td>
+<td>Lab units match schema definitions (labs only)</td>
+</tr>
+<tr>
+<td>B.4</td>
+<td>Categorical Values</td>
+<td><code>check_categorical_values</code></td>
+<td>Values match mCIDE permissible values</td>
+</tr>
+<tr>
+<td>B.5</td>
+<td>Category-Group Mapping</td>
+<td><code>check_category_group_mapping</code></td>
+<td>Category-to-group mappings are consistent</td>
+</tr>
+</tbody>
+</table>
+<h2 id="completeness-checks">Completeness Checks<a class="headerlink" href="#completeness-checks" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Check</th>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A.1</td>
+<td>Missingness</td>
+<td><code>check_missingness</code></td>
+<td>Required columns have data below null thresholds</td>
+</tr>
+<tr>
+<td>A.2</td>
+<td>Conditional Requirements</td>
+<td><code>check_conditional_requirements</code></td>
+<td>If column X = value, then column Y is present</td>
+</tr>
+<tr>
+<td>B</td>
+<td>mCIDE Value Coverage</td>
+<td><code>check_mcide_value_coverage</code></td>
+<td>All standardized category values are represented</td>
+</tr>
+<tr>
+<td>C.1</td>
+<td>Relational Integrity</td>
+<td><code>check_relational_integrity</code></td>
+<td>Foreign key coverage between tables</td>
+</tr>
+</tbody>
+</table>
+<h2 id="plausibility-checks">Plausibility Checks<a class="headerlink" href="#plausibility-checks" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Check</th>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A.1</td>
+<td>Temporal Ordering</td>
+<td><code>check_temporal_ordering</code></td>
+<td>Start times precede end times</td>
+</tr>
+<tr>
+<td>A.2</td>
+<td>Numeric Range</td>
+<td><code>check_numeric_range_plausibility</code></td>
+<td>Values within clinically plausible ranges</td>
+</tr>
+<tr>
+<td>A.3</td>
+<td>Field Plausibility</td>
+<td><code>check_field_plausibility</code></td>
+<td>Complex conditional field constraints</td>
+</tr>
+<tr>
+<td>A.4</td>
+<td>Med Dose Units</td>
+<td><code>check_medication_dose_unit_consistency</code></td>
+<td>Dose units match admin type (rate vs. discrete)</td>
+</tr>
+<tr>
+<td>B.1</td>
+<td>Cross-Table Temporal</td>
+<td><code>check_cross_table_temporal_plausibility</code></td>
+<td>Events fall within hospitalization bounds</td>
+</tr>
+<tr>
+<td>C.1</td>
+<td>Overlapping Periods</td>
+<td><code>check_overlapping_periods</code></td>
+<td>No overlapping time intervals for same entity</td>
+</tr>
+<tr>
+<td>C.2</td>
+<td>Category Temporal Consistency</td>
+<td><code>check_category_temporal_consistency</code></td>
+<td>Category distributions stable over time</td>
+</tr>
+<tr>
+<td>D.1</td>
+<td>Duplicate Composite Keys</td>
+<td><code>check_duplicate_composite_keys</code></td>
+<td>No duplicate records by composite key</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cross-table-checks">Cross-Table Checks<a class="headerlink" href="#cross-table-checks" title="Permanent link">&para;</a></h2>
+<p>Some checks require data from multiple tables. These are run with lists of table objects or pre-extracted caches:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.validator</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">run_relational_integrity_checks</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">run_cross_table_completeness_checks</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">run_cross_table_plausibility_checks</span><span class="p">,</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># tables is a list of loaded table objects</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">ri_results</span> <span class="o">=</span> <span class="n">run_relational_integrity_checks</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">ct_completeness</span> <span class="o">=</span> <span class="n">run_cross_table_completeness_checks</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">ct_plausibility</span> <span class="o">=</span> <span class="n">run_cross_table_plausibility_checks</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="required-columns">Required Columns<a class="headerlink" href="#required-columns" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Check which required columns are missing</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">table</span><span class="o">.</span><span class="n">isvalid</span><span class="p">():</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">missing_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">errors</span> <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;missing_column&#39;</span><span class="p">]</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">missing_cols</span><span class="p">:</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing required column: </span><span class="si">{</span><span class="n">error</span><span class="p">[</span><span class="s1">&#39;column&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<h3 id="memory-optimized-cache-pipeline">Memory-Optimized Cache Pipeline<a class="headerlink" href="#memory-optimized-cache-pipeline" title="Permanent link">&para;</a></h3>
+<p>For large datasets, extract lightweight caches to avoid keeping full DataFrames in memory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.validator</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">extract_cross_table_cache</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">run_relational_integrity_checks_from_cache</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">run_cross_table_completeness_checks_from_cache</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">run_cross_table_plausibility_checks_from_cache</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">caches</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">for</span> <span class="n">table_obj</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="n">caches</span><span class="p">[</span><span class="n">table_obj</span><span class="o">.</span><span class="n">table_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">extract_cross_table_cache</span><span class="p">(</span><span class="n">table_obj</span><span class="p">)</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">ri_results</span> <span class="o">=</span> <span class="n">run_relational_integrity_checks_from_cache</span><span class="p">(</span><span class="n">caches</span><span class="p">)</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="n">ct_completeness</span> <span class="o">=</span> <span class="n">run_cross_table_completeness_checks_from_cache</span><span class="p">(</span><span class="n">caches</span><span class="p">)</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="n">ct_plausibility</span> <span class="o">=</span> <span class="n">run_cross_table_plausibility_checks_from_cache</span><span class="p">(</span><span class="n">caches</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="data-types">Data Types<a class="headerlink" href="#data-types" title="Permanent link">&para;</a></h3>
-<p>CLIFpy validates that columns have appropriate data types:
-- <code>VARCHAR</code> - String/text data
-- <code>DATETIME</code> - Timezone-aware datetime
-- <code>NUMERIC</code> - Numeric values (int or float)</p>
-<h2 id="category-validation">Category Validation<a class="headerlink" href="#category-validation" title="Permanent link">&para;</a></h2>
-<p>Standardized categories ensure consistency across institutions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Example: Validating location categories in ADT</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">valid_locations</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ed&#39;</span><span class="p">,</span> <span class="s1">&#39;ward&#39;</span><span class="p">,</span> <span class="s1">&#39;stepdown&#39;</span><span class="p">,</span> <span class="s1">&#39;icu&#39;</span><span class="p">,</span> <span class="s1">&#39;procedural&#39;</span><span class="p">,</span> 
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>                   <span class="s1">&#39;l&amp;d&#39;</span><span class="p">,</span> <span class="s1">&#39;hospice&#39;</span><span class="p">,</span> <span class="s1">&#39;psych&#39;</span><span class="p">,</span> <span class="s1">&#39;rehab&#39;</span><span class="p">,</span> <span class="s1">&#39;radiology&#39;</span><span class="p">,</span> 
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>                   <span class="s1">&#39;dialysis&#39;</span><span class="p">,</span> <span class="s1">&#39;other&#39;</span><span class="p">]</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># Check for invalid categories</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">category_errors</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">errors</span> 
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>                   <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;invalid_category&#39;</span><span class="p">]</span>
+<h2 id="report-generation">Report Generation<a class="headerlink" href="#report-generation" title="Permanent link">&para;</a></h2>
+<p>Generate PDF or text reports from DQA results:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.report_generator</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">collect_dqa_issues</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">generate_validation_pdf</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">generate_text_report</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Collect all issues from run_full_dqa output</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">category_scores</span><span class="p">,</span> <span class="n">all_issues</span> <span class="o">=</span> <span class="n">collect_dqa_issues</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># PDF report</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">generate_validation_pdf</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="s2">&quot;dqa_report.pdf&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># Text report</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="n">generate_text_report</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="s2">&quot;dqa_report.txt&quot;</span><span class="p">)</span>
 </code></pre></div>
-<h2 id="range-validation">Range Validation<a class="headerlink" href="#range-validation" title="Permanent link">&para;</a></h2>
-<p>Clinical values are checked against reasonable ranges:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Example: Vital signs ranges</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">ranges</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s1">&#39;heart_rate&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="s1">&#39;sbp&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="s1">&#39;dbp&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">200</span><span class="p">),</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="s1">&#39;temp_c&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="mi">44</span><span class="p">),</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="s1">&#39;spo2&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">}</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Identify out-of-range values</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="n">range_errors</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">errors</span> 
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>                <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;out_of_range&#39;</span><span class="p">]</span>
+<h2 id="configuring-thresholds">Configuring Thresholds<a class="headerlink" href="#configuring-thresholds" title="Permanent link">&para;</a></h2>
+<h3 id="missingness-thresholds">Missingness Thresholds<a class="headerlink" href="#missingness-thresholds" title="Permanent link">&para;</a></h3>
+<p>Control when null percentages trigger errors vs. warnings:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">completeness</span> <span class="o">=</span> <span class="n">run_completeness_checks</span><span class="p">(</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;labs&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">error_threshold</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span>    <span class="c1"># &gt;50% null → error</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">warning_threshold</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>  <span class="c1"># &gt;10% null → warning</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">)</span>
 </code></pre></div>
-<h2 id="timezone-validation">Timezone Validation<a class="headerlink" href="#timezone-validation" title="Permanent link">&para;</a></h2>
-<p>All datetime columns must be timezone-aware:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Check timezone issues</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">tz_errors</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">errors</span> 
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>             <span class="k">if</span> <span class="s1">&#39;timezone&#39;</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;message&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()]</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">if</span> <span class="n">tz_errors</span><span class="p">:</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Datetime columns must be timezone-aware&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Consider reloading with explicit timezone:&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;table = TableClass.from_file(&#39;/data&#39;, &#39;parquet&#39;, timezone=&#39;US/Central&#39;)&quot;</span><span class="p">)</span>
+<h3 id="plausibility-thresholds">Plausibility Thresholds<a class="headerlink" href="#plausibility-thresholds" title="Permanent link">&para;</a></h3>
+<p>Override the default thresholds for plausibility checks:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">custom_thresholds</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">&quot;temporal_ordering&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s2">&quot;numeric_range_plausibility&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">},</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="s2">&quot;duplicate_composite_keys&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">},</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">}</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">results</span> <span class="o">=</span> <span class="n">run_full_dqa</span><span class="p">(</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;labs&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">custom_thresholds</span><span class="p">,</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="p">)</span>
 </code></pre></div>
-<h2 id="duplicate-detection">Duplicate Detection<a class="headerlink" href="#duplicate-detection" title="Permanent link">&para;</a></h2>
-<p>Duplicates are identified based on composite keys:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Check for duplicates</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">duplicate_errors</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">errors</span> 
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>                    <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;duplicate_rows&#39;</span><span class="p">]</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">if</span> <span class="n">duplicate_errors</span><span class="p">:</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">duplicate_errors</span><span class="p">:</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="n">error</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> duplicate rows&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Composite keys: </span><span class="si">{</span><span class="n">error</span><span class="p">[</span><span class="s1">&#39;keys&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<p>Default plausibility thresholds use 10% error / 0% warning for all check types.</p>
+<h2 id="dual-backend-architecture">Dual Backend Architecture<a class="headerlink" href="#dual-backend-architecture" title="Permanent link">&para;</a></h2>
+<p>The DQA module automatically selects between two backends:</p>
+<ul>
+<li><strong>Polars</strong> (preferred) — Uses lazy evaluation and streaming for memory efficiency</li>
+<li><strong>DuckDB</strong> (fallback) — Used when Polars is unavailable</li>
+</ul>
+<p>The active backend is detected at import time:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.validator</span><span class="w"> </span><span class="kn">import</span> <span class="n">_ACTIVE_BACKEND</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using backend: </span><span class="si">{</span><span class="n">_ACTIVE_BACKEND</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># &#39;polars&#39; or &#39;duckdb&#39;</span>
 </code></pre></div>
-<h2 id="missing-data-analysis">Missing Data Analysis<a class="headerlink" href="#missing-data-analysis" title="Permanent link">&para;</a></h2>
-<p>CLIFpy analyzes missing data patterns:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Get missing data statistics</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">get_summary</span><span class="p">()</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="k">if</span> <span class="s1">&#39;missing_data&#39;</span> <span class="ow">in</span> <span class="n">summary</span><span class="p">:</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Columns with missing data:&quot;</span><span class="p">)</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;missing_data&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="n">pct</span> <span class="o">=</span> <span class="p">(</span><span class="n">count</span> <span class="o">/</span> <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;num_rows&#39;</span><span class="p">])</span> <span class="o">*</span> <span class="mi">100</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">pct</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%)&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="custom-validation">Custom Validation<a class="headerlink" href="#custom-validation" title="Permanent link">&para;</a></h2>
-<p>Tables may include specific validation logic:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Example: Labs table validates reference ranges</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># Example: Medications validates dose units match drug</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># Example: Respiratory support validates device/mode combinations</span>
-</code></pre></div>
+<p>Both backends produce identical results. All DataFrames (Pandas, Polars, or Polars LazyFrames) are accepted as input.</p>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Always validate after loading</strong> - Catch issues early</li>
-<li><strong>Review all error types</strong> - Don't just check if valid</li>
-<li><strong>Save validation reports</strong> - Keep audit trail</li>
-<li><strong>Fix data at source</strong> - Update extraction/ETL process</li>
-<li><strong>Document exceptions</strong> - Some errors may be acceptable</li>
+<li><strong>Run <code>run_full_dqa</code> for comprehensive coverage</strong> — It orchestrates all single-table checks in one call.</li>
+<li><strong>Use the cache pipeline for multi-table checks on large datasets</strong> — <code>extract_cross_table_cache</code> keeps memory usage low.</li>
+<li><strong>Check <code>result.metrics</code> for quantitative detail</strong> — Pass/fail alone doesn't tell you how close a check was to the threshold.</li>
+<li><strong>Customize thresholds per institution</strong> — Default thresholds are starting points; adjust based on your data characteristics.</li>
+<li><strong>Generate PDF reports for stakeholder review</strong> — <code>generate_validation_pdf</code> produces formatted reports with issue summaries.</li>
+<li><strong>Fix data at the source</strong> — DQA identifies issues; the fix belongs in your ETL pipeline.</li>
 </ol>
-<h2 id="handling-validation-errors">Handling Validation Errors<a class="headerlink" href="#handling-validation-errors" title="Permanent link">&para;</a></h2>
-<h3 id="option-1-fix-and-reload">Option 1: Fix and Reload<a class="headerlink" href="#option-1-fix-and-reload" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Identify issues</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">table</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">errors_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">errors</span><span class="p">)</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">errors_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="s1">&#39;validation_errors.csv&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1"># Fix source data based on errors</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># Then reload</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">table</span> <span class="o">=</span> <span class="n">TableClass</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;/fixed_data&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet&#39;</span><span class="p">)</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="n">table</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-</code></pre></div>
-<h3 id="option-2-filter-invalid-records">Option 2: Filter Invalid Records<a class="headerlink" href="#option-2-filter-invalid-records" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Remove records with invalid categories</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">valid_categories</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Male&#39;</span><span class="p">,</span> <span class="s1">&#39;Female&#39;</span><span class="p">,</span> <span class="s1">&#39;Unknown&#39;</span><span class="p">]</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">cleaned_df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="n">table</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;sex_category&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">valid_categories</span><span class="p">)]</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># Create new table instance with cleaned data</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">table</span> <span class="o">=</span> <span class="n">TableClass</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">cleaned_df</span><span class="p">,</span> <span class="n">timezone</span><span class="o">=</span><span class="s1">&#39;US/Central&#39;</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="option-3-document-and-proceed">Option 3: Document and Proceed<a class="headerlink" href="#option-3-document-and-proceed" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># For acceptable validation errors</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">table</span><span class="o">.</span><span class="n">isvalid</span><span class="p">():</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="c1"># Document why proceeding despite errors</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;validation_notes.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Proceeding with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">errors</span><span class="p">)</span><span class="si">}</span><span class="s2"> known issues:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;- Missing optional columns</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;- Historical data outside current ranges</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Learn about <a href="../timezones/">timezone handling</a></li>
-<li>Explore <a href="../../api/tables/">table-specific guides</a></li>
-<li>See <a href="">practical examples</a></li>
-</ul>
 
 
 
@@ -1921,7 +1940,8 @@
   
 </div>
       
-        <div class="md-social">
+        
+<div class="md-social">
   
     
     
@@ -1931,7 +1951,7 @@
       
     
     <a href="https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
     </a>
   
 </div>
@@ -1951,7 +1971,7 @@
       <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
         <script src="../../js/dark-mode-default.js"></script>
       
