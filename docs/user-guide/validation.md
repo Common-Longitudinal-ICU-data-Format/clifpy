@@ -13,10 +13,9 @@ For full API signatures, see the [DQA API Reference](../api/dqa.md).
 ### Full DQA on a Single Table
 
 ```python
-from clifpy.utils.validator import run_full_dqa, _load_schema
+from clifpy.utils.validator import run_full_dqa
 
-schema = _load_schema("labs")
-results = run_full_dqa(df, schema, table_name="labs")
+results = run_full_dqa(df, table_name="labs")
 
 # Results organized by pillar
 for check_name, result in results["conformance"].items():

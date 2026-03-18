@@ -5536,8 +5536,8 @@ def run_cross_table_plausibility_checks(
 
 def run_full_dqa(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
-    schema: Dict[str, Any],
-    table_name: str,
+    schema: Optional[Dict[str, Any]] = None,
+    table_name: str = "",
     tables: Optional[list] = None,
     error_threshold: float = 50.0,
     warning_threshold: float = 10.0,
@@ -5554,8 +5554,9 @@ def run_full_dqa(
     ----------
     df : DataFrame
         The data to validate.
-    schema : dict
-        Schema for the table.
+    schema : dict, optional
+        Schema for the table.  When *None* (the default), the schema is
+        loaded automatically from the built-in schemas using *table_name*.
     table_name : str
         Name of the table.
     tables : list, optional
@@ -5579,6 +5580,15 @@ def run_full_dqa(
         Keys: ``table_name``, ``backend``, ``conformance``,
         ``completeness``, ``relational``, ``plausibility``.
     """
+    if not table_name:
+        raise ValueError("table_name is required")
+    if schema is None:
+        schema = _load_schema(table_name)
+        if schema is None:
+            raise FileNotFoundError(
+                f"No built-in schema found for table '{table_name}'. "
+                "Pass a schema dict explicitly."
+            )
     _logger.info("Starting full DQA for table: %s", table_name)
 
     results: Dict[str, Any] = {
