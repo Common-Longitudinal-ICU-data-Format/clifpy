@@ -10227,7 +10227,7 @@ and percentages without modifying the data.</p>
 
 
 <a href="#clifpy.utils.validator.run_full_dqa" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_full_dqa</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">tables</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">error_threshold</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span> <span class="n">warning_threshold</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">hosp_years</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_full_dqa</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tables</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">error_threshold</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span> <span class="n">warning_threshold</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">hosp_years</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
@@ -10274,11 +10274,12 @@ integrity and cross-table plausibility checks.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Schema for the table.</p>
+                <p>Schema for the table.  When <em>None</em> (the default), the schema is
+loaded automatically from the built-in schemas using <em>table_name</em>.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -10294,7 +10295,7 @@ integrity and cross-table plausibility checks.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>&#39;&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -10531,10 +10532,20 @@ extract years.</p>
 <span class="normal"><a href="#__codelineno-0-5654">5654</a></span>
 <span class="normal"><a href="#__codelineno-0-5655">5655</a></span>
 <span class="normal"><a href="#__codelineno-0-5656">5656</a></span>
-<span class="normal"><a href="#__codelineno-0-5657">5657</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-5537" name="__codelineno-0-5537"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_full_dqa</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-5657">5657</a></span>
+<span class="normal"><a href="#__codelineno-0-5658">5658</a></span>
+<span class="normal"><a href="#__codelineno-0-5659">5659</a></span>
+<span class="normal"><a href="#__codelineno-0-5660">5660</a></span>
+<span class="normal"><a href="#__codelineno-0-5661">5661</a></span>
+<span class="normal"><a href="#__codelineno-0-5662">5662</a></span>
+<span class="normal"><a href="#__codelineno-0-5663">5663</a></span>
+<span class="normal"><a href="#__codelineno-0-5664">5664</a></span>
+<span class="normal"><a href="#__codelineno-0-5665">5665</a></span>
+<span class="normal"><a href="#__codelineno-0-5666">5666</a></span>
+<span class="normal"><a href="#__codelineno-0-5667">5667</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-5537" name="__codelineno-0-5537"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_full_dqa</span><span class="p">(</span>
 <a id="__codelineno-0-5538" name="__codelineno-0-5538"></a>    <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="s1">&#39;pl.DataFrame&#39;</span><span class="p">,</span> <span class="s1">&#39;pl.LazyFrame&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5539" name="__codelineno-0-5539"></a>    <span class="n">schema</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-<a id="__codelineno-0-5540" name="__codelineno-0-5540"></a>    <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-5539" name="__codelineno-0-5539"></a>    <span class="n">schema</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-5540" name="__codelineno-0-5540"></a>    <span class="n">table_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-5541" name="__codelineno-0-5541"></a>    <span class="n">tables</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">list</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-5542" name="__codelineno-0-5542"></a>    <span class="n">error_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">50.0</span><span class="p">,</span>
 <a id="__codelineno-0-5543" name="__codelineno-0-5543"></a>    <span class="n">warning_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
@@ -10551,107 +10562,117 @@ extract years.</p>
 <a id="__codelineno-0-5554" name="__codelineno-0-5554"></a><span class="sd">    ----------</span>
 <a id="__codelineno-0-5555" name="__codelineno-0-5555"></a><span class="sd">    df : DataFrame</span>
 <a id="__codelineno-0-5556" name="__codelineno-0-5556"></a><span class="sd">        The data to validate.</span>
-<a id="__codelineno-0-5557" name="__codelineno-0-5557"></a><span class="sd">    schema : dict</span>
-<a id="__codelineno-0-5558" name="__codelineno-0-5558"></a><span class="sd">        Schema for the table.</span>
-<a id="__codelineno-0-5559" name="__codelineno-0-5559"></a><span class="sd">    table_name : str</span>
-<a id="__codelineno-0-5560" name="__codelineno-0-5560"></a><span class="sd">        Name of the table.</span>
-<a id="__codelineno-0-5561" name="__codelineno-0-5561"></a><span class="sd">    tables : list, optional</span>
-<a id="__codelineno-0-5562" name="__codelineno-0-5562"></a><span class="sd">        Objects with ``.table_name`` and ``.df`` attributes (e.g.</span>
-<a id="__codelineno-0-5563" name="__codelineno-0-5563"></a><span class="sd">        :class:`BaseTable` instances).  When provided, relational</span>
-<a id="__codelineno-0-5564" name="__codelineno-0-5564"></a><span class="sd">        integrity and cross-table plausibility checks are run.</span>
-<a id="__codelineno-0-5565" name="__codelineno-0-5565"></a><span class="sd">    error_threshold : float</span>
-<a id="__codelineno-0-5566" name="__codelineno-0-5566"></a><span class="sd">        Percent missing above which an error is raised (default 50).</span>
-<a id="__codelineno-0-5567" name="__codelineno-0-5567"></a><span class="sd">    warning_threshold : float</span>
-<a id="__codelineno-0-5568" name="__codelineno-0-5568"></a><span class="sd">        Percent missing above which a warning is raised (default 10).</span>
-<a id="__codelineno-0-5569" name="__codelineno-0-5569"></a><span class="sd">    hosp_years : set, optional</span>
-<a id="__codelineno-0-5570" name="__codelineno-0-5570"></a><span class="sd">        Pre-extracted hospitalization years for P.6 temporal consistency.</span>
-<a id="__codelineno-0-5571" name="__codelineno-0-5571"></a><span class="sd">        When provided, skips scanning the hospitalization table to</span>
-<a id="__codelineno-0-5572" name="__codelineno-0-5572"></a><span class="sd">        extract years.</span>
-<a id="__codelineno-0-5573" name="__codelineno-0-5573"></a><span class="sd">    plausibility_thresholds : dict, optional</span>
-<a id="__codelineno-0-5574" name="__codelineno-0-5574"></a><span class="sd">        Override default plausibility thresholds per check.</span>
-<a id="__codelineno-0-5575" name="__codelineno-0-5575"></a>
-<a id="__codelineno-0-5576" name="__codelineno-0-5576"></a><span class="sd">    Returns</span>
-<a id="__codelineno-0-5577" name="__codelineno-0-5577"></a><span class="sd">    -------</span>
-<a id="__codelineno-0-5578" name="__codelineno-0-5578"></a><span class="sd">    Dict[str, Any]</span>
-<a id="__codelineno-0-5579" name="__codelineno-0-5579"></a><span class="sd">        Keys: ``table_name``, ``backend``, ``conformance``,</span>
-<a id="__codelineno-0-5580" name="__codelineno-0-5580"></a><span class="sd">        ``completeness``, ``relational``, ``plausibility``.</span>
-<a id="__codelineno-0-5581" name="__codelineno-0-5581"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-5582" name="__codelineno-0-5582"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Starting full DQA for table: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
-<a id="__codelineno-0-5583" name="__codelineno-0-5583"></a>
-<a id="__codelineno-0-5584" name="__codelineno-0-5584"></a>    <span class="n">results</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-5585" name="__codelineno-0-5585"></a>        <span class="s1">&#39;table_name&#39;</span><span class="p">:</span> <span class="n">table_name</span><span class="p">,</span>
-<a id="__codelineno-0-5586" name="__codelineno-0-5586"></a>        <span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="n">_ACTIVE_BACKEND</span><span class="p">,</span>
-<a id="__codelineno-0-5587" name="__codelineno-0-5587"></a>        <span class="s1">&#39;conformance&#39;</span><span class="p">:</span> <span class="p">{},</span>
-<a id="__codelineno-0-5588" name="__codelineno-0-5588"></a>        <span class="s1">&#39;completeness&#39;</span><span class="p">:</span> <span class="p">{},</span>
-<a id="__codelineno-0-5589" name="__codelineno-0-5589"></a>        <span class="s1">&#39;relational&#39;</span><span class="p">:</span> <span class="p">{},</span>
-<a id="__codelineno-0-5590" name="__codelineno-0-5590"></a>        <span class="s1">&#39;plausibility&#39;</span><span class="p">:</span> <span class="p">{},</span>
-<a id="__codelineno-0-5591" name="__codelineno-0-5591"></a>    <span class="p">}</span>
-<a id="__codelineno-0-5592" name="__codelineno-0-5592"></a>
-<a id="__codelineno-0-5593" name="__codelineno-0-5593"></a>    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;conformance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-5594" name="__codelineno-0-5594"></a>        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
-<a id="__codelineno-0-5595" name="__codelineno-0-5595"></a>        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">run_conformance_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-<a id="__codelineno-0-5596" name="__codelineno-0-5596"></a>    <span class="p">}</span>
-<a id="__codelineno-0-5597" name="__codelineno-0-5597"></a>
-<a id="__codelineno-0-5598" name="__codelineno-0-5598"></a>    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;completeness&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-5599" name="__codelineno-0-5599"></a>        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
-<a id="__codelineno-0-5600" name="__codelineno-0-5600"></a>        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">run_completeness_checks</span><span class="p">(</span>
-<a id="__codelineno-0-5601" name="__codelineno-0-5601"></a>            <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">error_threshold</span><span class="p">,</span> <span class="n">warning_threshold</span>
-<a id="__codelineno-0-5602" name="__codelineno-0-5602"></a>        <span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-<a id="__codelineno-0-5603" name="__codelineno-0-5603"></a>    <span class="p">}</span>
-<a id="__codelineno-0-5604" name="__codelineno-0-5604"></a>
-<a id="__codelineno-0-5605" name="__codelineno-0-5605"></a>    <span class="k">if</span> <span class="n">tables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-5606" name="__codelineno-0-5606"></a>        <span class="n">rel_results</span> <span class="o">=</span> <span class="n">run_relational_integrity_checks</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span>
-<a id="__codelineno-0-5607" name="__codelineno-0-5607"></a>        <span class="k">if</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">rel_results</span><span class="p">:</span>
-<a id="__codelineno-0-5608" name="__codelineno-0-5608"></a>            <span class="n">results</span><span class="p">[</span><span class="s1">&#39;relational&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-5609" name="__codelineno-0-5609"></a>                <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
-<a id="__codelineno-0-5610" name="__codelineno-0-5610"></a>                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rel_results</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-<a id="__codelineno-0-5611" name="__codelineno-0-5611"></a>            <span class="p">}</span>
-<a id="__codelineno-0-5612" name="__codelineno-0-5612"></a>
-<a id="__codelineno-0-5613" name="__codelineno-0-5613"></a>    <span class="c1"># Extract hospitalization years for P.6 temporal consistency context</span>
-<a id="__codelineno-0-5614" name="__codelineno-0-5614"></a>    <span class="c1"># (skip scan if hosp_years was provided by caller)</span>
-<a id="__codelineno-0-5615" name="__codelineno-0-5615"></a>    <span class="k">if</span> <span class="n">hosp_years</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">tables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-5616" name="__codelineno-0-5616"></a>        <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
-<a id="__codelineno-0-5617" name="__codelineno-0-5617"></a>            <span class="n">tname</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;clif_&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-5618" name="__codelineno-0-5618"></a>            <span class="k">if</span> <span class="n">tname</span> <span class="o">==</span> <span class="s1">&#39;hospitalization&#39;</span><span class="p">:</span>
-<a id="__codelineno-0-5619" name="__codelineno-0-5619"></a>                <span class="n">hdf</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">df</span>
-<a id="__codelineno-0-5620" name="__codelineno-0-5620"></a>                <span class="k">if</span> <span class="n">HAS_POLARS</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdf</span><span class="p">,</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">LazyFrame</span><span class="p">)):</span>
-<a id="__codelineno-0-5621" name="__codelineno-0-5621"></a>                    <span class="n">hlf</span> <span class="o">=</span> <span class="n">hdf</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdf</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">LazyFrame</span><span class="p">)</span> <span class="k">else</span> <span class="n">hdf</span><span class="o">.</span><span class="n">lazy</span><span class="p">()</span>
-<a id="__codelineno-0-5622" name="__codelineno-0-5622"></a>                    <span class="n">hcols</span> <span class="o">=</span> <span class="n">hlf</span><span class="o">.</span><span class="n">collect_schema</span><span class="p">()</span><span class="o">.</span><span class="n">names</span><span class="p">()</span>
-<a id="__codelineno-0-5623" name="__codelineno-0-5623"></a>                    <span class="k">if</span> <span class="s1">&#39;admission_dttm&#39;</span> <span class="ow">in</span> <span class="n">hcols</span><span class="p">:</span>
-<a id="__codelineno-0-5624" name="__codelineno-0-5624"></a>                        <span class="n">hosp_years</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
-<a id="__codelineno-0-5625" name="__codelineno-0-5625"></a>                            <span class="n">hlf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;admission_dttm&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;yr&#39;</span><span class="p">))</span>
-<a id="__codelineno-0-5626" name="__codelineno-0-5626"></a>                            <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;yr&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
-<a id="__codelineno-0-5627" name="__codelineno-0-5627"></a>                            <span class="o">.</span><span class="n">unique</span><span class="p">()</span>
-<a id="__codelineno-0-5628" name="__codelineno-0-5628"></a>                            <span class="o">.</span><span class="n">collect</span><span class="p">()</span>
-<a id="__codelineno-0-5629" name="__codelineno-0-5629"></a>                            <span class="o">.</span><span class="n">get_column</span><span class="p">(</span><span class="s1">&#39;yr&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-5630" name="__codelineno-0-5630"></a>                            <span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
-<a id="__codelineno-0-5631" name="__codelineno-0-5631"></a>                        <span class="p">)</span>
-<a id="__codelineno-0-5632" name="__codelineno-0-5632"></a>                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdf</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="s1">&#39;admission_dttm&#39;</span> <span class="ow">in</span> <span class="n">hdf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-<a id="__codelineno-0-5633" name="__codelineno-0-5633"></a>                    <span class="n">hosp_years</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
-<a id="__codelineno-0-5634" name="__codelineno-0-5634"></a>                        <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">hdf</span><span class="p">[</span><span class="s1">&#39;admission_dttm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
-<a id="__codelineno-0-5635" name="__codelineno-0-5635"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-5636" name="__codelineno-0-5636"></a>                <span class="k">break</span>
-<a id="__codelineno-0-5637" name="__codelineno-0-5637"></a>
-<a id="__codelineno-0-5638" name="__codelineno-0-5638"></a>    <span class="c1"># Plausibility checks (single-table)</span>
-<a id="__codelineno-0-5639" name="__codelineno-0-5639"></a>    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;plausibility&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-5640" name="__codelineno-0-5640"></a>        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
-<a id="__codelineno-0-5641" name="__codelineno-0-5641"></a>        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">run_plausibility_checks</span><span class="p">(</span>
-<a id="__codelineno-0-5642" name="__codelineno-0-5642"></a>            <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">hosp_years</span><span class="o">=</span><span class="n">hosp_years</span><span class="p">,</span>
-<a id="__codelineno-0-5643" name="__codelineno-0-5643"></a>            <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">plausibility_thresholds</span><span class="p">,</span>
-<a id="__codelineno-0-5644" name="__codelineno-0-5644"></a>        <span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-<a id="__codelineno-0-5645" name="__codelineno-0-5645"></a>    <span class="p">}</span>
-<a id="__codelineno-0-5646" name="__codelineno-0-5646"></a>
-<a id="__codelineno-0-5647" name="__codelineno-0-5647"></a>    <span class="c1"># Cross-table plausibility checks (when tables provided)</span>
-<a id="__codelineno-0-5648" name="__codelineno-0-5648"></a>    <span class="k">if</span> <span class="n">tables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-5649" name="__codelineno-0-5649"></a>        <span class="n">cross_plaus</span> <span class="o">=</span> <span class="n">run_cross_table_plausibility_checks</span><span class="p">(</span>
-<a id="__codelineno-0-5650" name="__codelineno-0-5650"></a>            <span class="n">tables</span><span class="p">,</span> <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">plausibility_thresholds</span><span class="p">)</span>
-<a id="__codelineno-0-5651" name="__codelineno-0-5651"></a>        <span class="k">if</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">cross_plaus</span><span class="p">:</span>
-<a id="__codelineno-0-5652" name="__codelineno-0-5652"></a>            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cross_plaus</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-5653" name="__codelineno-0-5653"></a>                <span class="n">results</span><span class="p">[</span><span class="s1">&#39;plausibility&#39;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
-<a id="__codelineno-0-5654" name="__codelineno-0-5654"></a>
-<a id="__codelineno-0-5655" name="__codelineno-0-5655"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
-<a id="__codelineno-0-5656" name="__codelineno-0-5656"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Completed full DQA for table: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
-<a id="__codelineno-0-5657" name="__codelineno-0-5657"></a>    <span class="k">return</span> <span class="n">results</span>
+<a id="__codelineno-0-5557" name="__codelineno-0-5557"></a><span class="sd">    schema : dict, optional</span>
+<a id="__codelineno-0-5558" name="__codelineno-0-5558"></a><span class="sd">        Schema for the table.  When *None* (the default), the schema is</span>
+<a id="__codelineno-0-5559" name="__codelineno-0-5559"></a><span class="sd">        loaded automatically from the built-in schemas using *table_name*.</span>
+<a id="__codelineno-0-5560" name="__codelineno-0-5560"></a><span class="sd">    table_name : str</span>
+<a id="__codelineno-0-5561" name="__codelineno-0-5561"></a><span class="sd">        Name of the table.</span>
+<a id="__codelineno-0-5562" name="__codelineno-0-5562"></a><span class="sd">    tables : list, optional</span>
+<a id="__codelineno-0-5563" name="__codelineno-0-5563"></a><span class="sd">        Objects with ``.table_name`` and ``.df`` attributes (e.g.</span>
+<a id="__codelineno-0-5564" name="__codelineno-0-5564"></a><span class="sd">        :class:`BaseTable` instances).  When provided, relational</span>
+<a id="__codelineno-0-5565" name="__codelineno-0-5565"></a><span class="sd">        integrity and cross-table plausibility checks are run.</span>
+<a id="__codelineno-0-5566" name="__codelineno-0-5566"></a><span class="sd">    error_threshold : float</span>
+<a id="__codelineno-0-5567" name="__codelineno-0-5567"></a><span class="sd">        Percent missing above which an error is raised (default 50).</span>
+<a id="__codelineno-0-5568" name="__codelineno-0-5568"></a><span class="sd">    warning_threshold : float</span>
+<a id="__codelineno-0-5569" name="__codelineno-0-5569"></a><span class="sd">        Percent missing above which a warning is raised (default 10).</span>
+<a id="__codelineno-0-5570" name="__codelineno-0-5570"></a><span class="sd">    hosp_years : set, optional</span>
+<a id="__codelineno-0-5571" name="__codelineno-0-5571"></a><span class="sd">        Pre-extracted hospitalization years for P.6 temporal consistency.</span>
+<a id="__codelineno-0-5572" name="__codelineno-0-5572"></a><span class="sd">        When provided, skips scanning the hospitalization table to</span>
+<a id="__codelineno-0-5573" name="__codelineno-0-5573"></a><span class="sd">        extract years.</span>
+<a id="__codelineno-0-5574" name="__codelineno-0-5574"></a><span class="sd">    plausibility_thresholds : dict, optional</span>
+<a id="__codelineno-0-5575" name="__codelineno-0-5575"></a><span class="sd">        Override default plausibility thresholds per check.</span>
+<a id="__codelineno-0-5576" name="__codelineno-0-5576"></a>
+<a id="__codelineno-0-5577" name="__codelineno-0-5577"></a><span class="sd">    Returns</span>
+<a id="__codelineno-0-5578" name="__codelineno-0-5578"></a><span class="sd">    -------</span>
+<a id="__codelineno-0-5579" name="__codelineno-0-5579"></a><span class="sd">    Dict[str, Any]</span>
+<a id="__codelineno-0-5580" name="__codelineno-0-5580"></a><span class="sd">        Keys: ``table_name``, ``backend``, ``conformance``,</span>
+<a id="__codelineno-0-5581" name="__codelineno-0-5581"></a><span class="sd">        ``completeness``, ``relational``, ``plausibility``.</span>
+<a id="__codelineno-0-5582" name="__codelineno-0-5582"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-5583" name="__codelineno-0-5583"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">table_name</span><span class="p">:</span>
+<a id="__codelineno-0-5584" name="__codelineno-0-5584"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;table_name is required&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-5585" name="__codelineno-0-5585"></a>    <span class="k">if</span> <span class="n">schema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-5586" name="__codelineno-0-5586"></a>        <span class="n">schema</span> <span class="o">=</span> <span class="n">_load_schema</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span>
+<a id="__codelineno-0-5587" name="__codelineno-0-5587"></a>        <span class="k">if</span> <span class="n">schema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-5588" name="__codelineno-0-5588"></a>            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
+<a id="__codelineno-0-5589" name="__codelineno-0-5589"></a>                <span class="sa">f</span><span class="s2">&quot;No built-in schema found for table &#39;</span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+<a id="__codelineno-0-5590" name="__codelineno-0-5590"></a>                <span class="s2">&quot;Pass a schema dict explicitly.&quot;</span>
+<a id="__codelineno-0-5591" name="__codelineno-0-5591"></a>            <span class="p">)</span>
+<a id="__codelineno-0-5592" name="__codelineno-0-5592"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Starting full DQA for table: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
+<a id="__codelineno-0-5593" name="__codelineno-0-5593"></a>
+<a id="__codelineno-0-5594" name="__codelineno-0-5594"></a>    <span class="n">results</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-5595" name="__codelineno-0-5595"></a>        <span class="s1">&#39;table_name&#39;</span><span class="p">:</span> <span class="n">table_name</span><span class="p">,</span>
+<a id="__codelineno-0-5596" name="__codelineno-0-5596"></a>        <span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="n">_ACTIVE_BACKEND</span><span class="p">,</span>
+<a id="__codelineno-0-5597" name="__codelineno-0-5597"></a>        <span class="s1">&#39;conformance&#39;</span><span class="p">:</span> <span class="p">{},</span>
+<a id="__codelineno-0-5598" name="__codelineno-0-5598"></a>        <span class="s1">&#39;completeness&#39;</span><span class="p">:</span> <span class="p">{},</span>
+<a id="__codelineno-0-5599" name="__codelineno-0-5599"></a>        <span class="s1">&#39;relational&#39;</span><span class="p">:</span> <span class="p">{},</span>
+<a id="__codelineno-0-5600" name="__codelineno-0-5600"></a>        <span class="s1">&#39;plausibility&#39;</span><span class="p">:</span> <span class="p">{},</span>
+<a id="__codelineno-0-5601" name="__codelineno-0-5601"></a>    <span class="p">}</span>
+<a id="__codelineno-0-5602" name="__codelineno-0-5602"></a>
+<a id="__codelineno-0-5603" name="__codelineno-0-5603"></a>    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;conformance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-5604" name="__codelineno-0-5604"></a>        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<a id="__codelineno-0-5605" name="__codelineno-0-5605"></a>        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">run_conformance_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="__codelineno-0-5606" name="__codelineno-0-5606"></a>    <span class="p">}</span>
+<a id="__codelineno-0-5607" name="__codelineno-0-5607"></a>
+<a id="__codelineno-0-5608" name="__codelineno-0-5608"></a>    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;completeness&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-5609" name="__codelineno-0-5609"></a>        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<a id="__codelineno-0-5610" name="__codelineno-0-5610"></a>        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">run_completeness_checks</span><span class="p">(</span>
+<a id="__codelineno-0-5611" name="__codelineno-0-5611"></a>            <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">error_threshold</span><span class="p">,</span> <span class="n">warning_threshold</span>
+<a id="__codelineno-0-5612" name="__codelineno-0-5612"></a>        <span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="__codelineno-0-5613" name="__codelineno-0-5613"></a>    <span class="p">}</span>
+<a id="__codelineno-0-5614" name="__codelineno-0-5614"></a>
+<a id="__codelineno-0-5615" name="__codelineno-0-5615"></a>    <span class="k">if</span> <span class="n">tables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-5616" name="__codelineno-0-5616"></a>        <span class="n">rel_results</span> <span class="o">=</span> <span class="n">run_relational_integrity_checks</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span>
+<a id="__codelineno-0-5617" name="__codelineno-0-5617"></a>        <span class="k">if</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">rel_results</span><span class="p">:</span>
+<a id="__codelineno-0-5618" name="__codelineno-0-5618"></a>            <span class="n">results</span><span class="p">[</span><span class="s1">&#39;relational&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-5619" name="__codelineno-0-5619"></a>                <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<a id="__codelineno-0-5620" name="__codelineno-0-5620"></a>                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rel_results</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="__codelineno-0-5621" name="__codelineno-0-5621"></a>            <span class="p">}</span>
+<a id="__codelineno-0-5622" name="__codelineno-0-5622"></a>
+<a id="__codelineno-0-5623" name="__codelineno-0-5623"></a>    <span class="c1"># Extract hospitalization years for P.6 temporal consistency context</span>
+<a id="__codelineno-0-5624" name="__codelineno-0-5624"></a>    <span class="c1"># (skip scan if hosp_years was provided by caller)</span>
+<a id="__codelineno-0-5625" name="__codelineno-0-5625"></a>    <span class="k">if</span> <span class="n">hosp_years</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">tables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-5626" name="__codelineno-0-5626"></a>        <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+<a id="__codelineno-0-5627" name="__codelineno-0-5627"></a>            <span class="n">tname</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;clif_&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-5628" name="__codelineno-0-5628"></a>            <span class="k">if</span> <span class="n">tname</span> <span class="o">==</span> <span class="s1">&#39;hospitalization&#39;</span><span class="p">:</span>
+<a id="__codelineno-0-5629" name="__codelineno-0-5629"></a>                <span class="n">hdf</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">df</span>
+<a id="__codelineno-0-5630" name="__codelineno-0-5630"></a>                <span class="k">if</span> <span class="n">HAS_POLARS</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdf</span><span class="p">,</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">LazyFrame</span><span class="p">)):</span>
+<a id="__codelineno-0-5631" name="__codelineno-0-5631"></a>                    <span class="n">hlf</span> <span class="o">=</span> <span class="n">hdf</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdf</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">LazyFrame</span><span class="p">)</span> <span class="k">else</span> <span class="n">hdf</span><span class="o">.</span><span class="n">lazy</span><span class="p">()</span>
+<a id="__codelineno-0-5632" name="__codelineno-0-5632"></a>                    <span class="n">hcols</span> <span class="o">=</span> <span class="n">hlf</span><span class="o">.</span><span class="n">collect_schema</span><span class="p">()</span><span class="o">.</span><span class="n">names</span><span class="p">()</span>
+<a id="__codelineno-0-5633" name="__codelineno-0-5633"></a>                    <span class="k">if</span> <span class="s1">&#39;admission_dttm&#39;</span> <span class="ow">in</span> <span class="n">hcols</span><span class="p">:</span>
+<a id="__codelineno-0-5634" name="__codelineno-0-5634"></a>                        <span class="n">hosp_years</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+<a id="__codelineno-0-5635" name="__codelineno-0-5635"></a>                            <span class="n">hlf</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;admission_dttm&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s1">&#39;yr&#39;</span><span class="p">))</span>
+<a id="__codelineno-0-5636" name="__codelineno-0-5636"></a>                            <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;yr&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+<a id="__codelineno-0-5637" name="__codelineno-0-5637"></a>                            <span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+<a id="__codelineno-0-5638" name="__codelineno-0-5638"></a>                            <span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<a id="__codelineno-0-5639" name="__codelineno-0-5639"></a>                            <span class="o">.</span><span class="n">get_column</span><span class="p">(</span><span class="s1">&#39;yr&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-5640" name="__codelineno-0-5640"></a>                            <span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<a id="__codelineno-0-5641" name="__codelineno-0-5641"></a>                        <span class="p">)</span>
+<a id="__codelineno-0-5642" name="__codelineno-0-5642"></a>                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdf</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="s1">&#39;admission_dttm&#39;</span> <span class="ow">in</span> <span class="n">hdf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+<a id="__codelineno-0-5643" name="__codelineno-0-5643"></a>                    <span class="n">hosp_years</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+<a id="__codelineno-0-5644" name="__codelineno-0-5644"></a>                        <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">hdf</span><span class="p">[</span><span class="s1">&#39;admission_dttm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+<a id="__codelineno-0-5645" name="__codelineno-0-5645"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-5646" name="__codelineno-0-5646"></a>                <span class="k">break</span>
+<a id="__codelineno-0-5647" name="__codelineno-0-5647"></a>
+<a id="__codelineno-0-5648" name="__codelineno-0-5648"></a>    <span class="c1"># Plausibility checks (single-table)</span>
+<a id="__codelineno-0-5649" name="__codelineno-0-5649"></a>    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;plausibility&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-5650" name="__codelineno-0-5650"></a>        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<a id="__codelineno-0-5651" name="__codelineno-0-5651"></a>        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">run_plausibility_checks</span><span class="p">(</span>
+<a id="__codelineno-0-5652" name="__codelineno-0-5652"></a>            <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">hosp_years</span><span class="o">=</span><span class="n">hosp_years</span><span class="p">,</span>
+<a id="__codelineno-0-5653" name="__codelineno-0-5653"></a>            <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">plausibility_thresholds</span><span class="p">,</span>
+<a id="__codelineno-0-5654" name="__codelineno-0-5654"></a>        <span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="__codelineno-0-5655" name="__codelineno-0-5655"></a>    <span class="p">}</span>
+<a id="__codelineno-0-5656" name="__codelineno-0-5656"></a>
+<a id="__codelineno-0-5657" name="__codelineno-0-5657"></a>    <span class="c1"># Cross-table plausibility checks (when tables provided)</span>
+<a id="__codelineno-0-5658" name="__codelineno-0-5658"></a>    <span class="k">if</span> <span class="n">tables</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-5659" name="__codelineno-0-5659"></a>        <span class="n">cross_plaus</span> <span class="o">=</span> <span class="n">run_cross_table_plausibility_checks</span><span class="p">(</span>
+<a id="__codelineno-0-5660" name="__codelineno-0-5660"></a>            <span class="n">tables</span><span class="p">,</span> <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">plausibility_thresholds</span><span class="p">)</span>
+<a id="__codelineno-0-5661" name="__codelineno-0-5661"></a>        <span class="k">if</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">cross_plaus</span><span class="p">:</span>
+<a id="__codelineno-0-5662" name="__codelineno-0-5662"></a>            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cross_plaus</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-5663" name="__codelineno-0-5663"></a>                <span class="n">results</span><span class="p">[</span><span class="s1">&#39;plausibility&#39;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<a id="__codelineno-0-5664" name="__codelineno-0-5664"></a>
+<a id="__codelineno-0-5665" name="__codelineno-0-5665"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<a id="__codelineno-0-5666" name="__codelineno-0-5666"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Completed full DQA for table: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
+<a id="__codelineno-0-5667" name="__codelineno-0-5667"></a>    <span class="k">return</span> <span class="n">results</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -10784,17 +10805,7 @@ validation interface.</p>
 
             <details class="quote">
               <summary>Source code in <code>clifpy/utils/validator.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-5666">5666</a></span>
-<span class="normal"><a href="#__codelineno-0-5667">5667</a></span>
-<span class="normal"><a href="#__codelineno-0-5668">5668</a></span>
-<span class="normal"><a href="#__codelineno-0-5669">5669</a></span>
-<span class="normal"><a href="#__codelineno-0-5670">5670</a></span>
-<span class="normal"><a href="#__codelineno-0-5671">5671</a></span>
-<span class="normal"><a href="#__codelineno-0-5672">5672</a></span>
-<span class="normal"><a href="#__codelineno-0-5673">5673</a></span>
-<span class="normal"><a href="#__codelineno-0-5674">5674</a></span>
-<span class="normal"><a href="#__codelineno-0-5675">5675</a></span>
-<span class="normal"><a href="#__codelineno-0-5676">5676</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-5676">5676</a></span>
 <span class="normal"><a href="#__codelineno-0-5677">5677</a></span>
 <span class="normal"><a href="#__codelineno-0-5678">5678</a></span>
 <span class="normal"><a href="#__codelineno-0-5679">5679</a></span>
@@ -10894,117 +10905,127 @@ validation interface.</p>
 <span class="normal"><a href="#__codelineno-0-5773">5773</a></span>
 <span class="normal"><a href="#__codelineno-0-5774">5774</a></span>
 <span class="normal"><a href="#__codelineno-0-5775">5775</a></span>
-<span class="normal"><a href="#__codelineno-0-5776">5776</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-5666" name="__codelineno-0-5666"></a><span class="k">def</span><span class="w"> </span><span class="nf">validate_dataframe</span><span class="p">(</span>
-<a id="__codelineno-0-5667" name="__codelineno-0-5667"></a>    <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="s1">&#39;pl.DataFrame&#39;</span><span class="p">,</span> <span class="s1">&#39;pl.LazyFrame&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5668" name="__codelineno-0-5668"></a>    <span class="n">schema</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-<a id="__codelineno-0-5669" name="__codelineno-0-5669"></a>    <span class="n">table_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-5670" name="__codelineno-0-5670"></a>    <span class="n">plausibility_thresholds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-5671" name="__codelineno-0-5671"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<a id="__codelineno-0-5672" name="__codelineno-0-5672"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-5673" name="__codelineno-0-5673"></a><span class="sd">    Validate a dataframe against schema and return list of errors.</span>
-<a id="__codelineno-0-5674" name="__codelineno-0-5674"></a>
-<a id="__codelineno-0-5675" name="__codelineno-0-5675"></a><span class="sd">    This function provides compatibility with CLIF-TableOne&#39;s expected</span>
-<a id="__codelineno-0-5676" name="__codelineno-0-5676"></a><span class="sd">    validation interface.</span>
-<a id="__codelineno-0-5677" name="__codelineno-0-5677"></a>
-<a id="__codelineno-0-5678" name="__codelineno-0-5678"></a><span class="sd">    Parameters</span>
-<a id="__codelineno-0-5679" name="__codelineno-0-5679"></a><span class="sd">    ----------</span>
-<a id="__codelineno-0-5680" name="__codelineno-0-5680"></a><span class="sd">    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame</span>
-<a id="__codelineno-0-5681" name="__codelineno-0-5681"></a><span class="sd">        Data to validate</span>
-<a id="__codelineno-0-5682" name="__codelineno-0-5682"></a><span class="sd">    schema : dict</span>
-<a id="__codelineno-0-5683" name="__codelineno-0-5683"></a><span class="sd">        Table schema containing columns, required_columns, etc.</span>
-<a id="__codelineno-0-5684" name="__codelineno-0-5684"></a><span class="sd">    table_name : str, optional</span>
-<a id="__codelineno-0-5685" name="__codelineno-0-5685"></a><span class="sd">        Name of the table (inferred from schema if not provided)</span>
-<a id="__codelineno-0-5686" name="__codelineno-0-5686"></a><span class="sd">    plausibility_thresholds : dict, optional</span>
-<a id="__codelineno-0-5687" name="__codelineno-0-5687"></a><span class="sd">        Override default plausibility thresholds per check.</span>
-<a id="__codelineno-0-5688" name="__codelineno-0-5688"></a>
-<a id="__codelineno-0-5689" name="__codelineno-0-5689"></a><span class="sd">    Returns</span>
-<a id="__codelineno-0-5690" name="__codelineno-0-5690"></a><span class="sd">    -------</span>
-<a id="__codelineno-0-5691" name="__codelineno-0-5691"></a><span class="sd">    List[Dict[str, Any]]</span>
-<a id="__codelineno-0-5692" name="__codelineno-0-5692"></a><span class="sd">        List of error dictionaries with keys:</span>
-<a id="__codelineno-0-5693" name="__codelineno-0-5693"></a><span class="sd">        - type: str - Error type/check name</span>
-<a id="__codelineno-0-5694" name="__codelineno-0-5694"></a><span class="sd">        - description: str - Human-readable error description</span>
-<a id="__codelineno-0-5695" name="__codelineno-0-5695"></a><span class="sd">        - details: dict - Additional error details</span>
-<a id="__codelineno-0-5696" name="__codelineno-0-5696"></a><span class="sd">        - category: str - &#39;schema&#39; or &#39;data_quality&#39;</span>
-<a id="__codelineno-0-5697" name="__codelineno-0-5697"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-5698" name="__codelineno-0-5698"></a>    <span class="n">table_name</span> <span class="o">=</span> <span class="n">table_name</span> <span class="ow">or</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;unknown&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-5699" name="__codelineno-0-5699"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;validate_dataframe: starting validation for table &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
-<a id="__codelineno-0-5700" name="__codelineno-0-5700"></a>    <span class="n">errors</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-5701" name="__codelineno-0-5701"></a>
-<a id="__codelineno-0-5702" name="__codelineno-0-5702"></a>    <span class="c1"># Schema-level checks (affect &#39;incomplete&#39; status)</span>
-<a id="__codelineno-0-5703" name="__codelineno-0-5703"></a>    <span class="n">schema_checks</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;required_columns&#39;</span><span class="p">,</span> <span class="s1">&#39;column_dtypes&#39;</span><span class="p">]</span>
-<a id="__codelineno-0-5704" name="__codelineno-0-5704"></a>
-<a id="__codelineno-0-5705" name="__codelineno-0-5705"></a>    <span class="c1"># Run conformance checks</span>
-<a id="__codelineno-0-5706" name="__codelineno-0-5706"></a>    <span class="n">conformance_results</span> <span class="o">=</span> <span class="n">run_conformance_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
-<a id="__codelineno-0-5707" name="__codelineno-0-5707"></a>    <span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">conformance_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-5708" name="__codelineno-0-5708"></a>        <span class="n">category</span> <span class="o">=</span> <span class="s1">&#39;schema&#39;</span> <span class="k">if</span> <span class="n">check_name</span> <span class="ow">in</span> <span class="n">schema_checks</span> <span class="k">else</span> <span class="s1">&#39;data_quality&#39;</span>
-<a id="__codelineno-0-5709" name="__codelineno-0-5709"></a>
-<a id="__codelineno-0-5710" name="__codelineno-0-5710"></a>        <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
-<a id="__codelineno-0-5711" name="__codelineno-0-5711"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-0-5712" name="__codelineno-0-5712"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
-<a id="__codelineno-0-5713" name="__codelineno-0-5713"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5714" name="__codelineno-0-5714"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">err</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
-<a id="__codelineno-0-5715" name="__codelineno-0-5715"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="n">category</span>
-<a id="__codelineno-0-5716" name="__codelineno-0-5716"></a>            <span class="p">})</span>
-<a id="__codelineno-0-5717" name="__codelineno-0-5717"></a>
-<a id="__codelineno-0-5718" name="__codelineno-0-5718"></a>        <span class="c1"># Include warnings as data quality issues</span>
-<a id="__codelineno-0-5719" name="__codelineno-0-5719"></a>        <span class="k">for</span> <span class="n">warn</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
-<a id="__codelineno-0-5720" name="__codelineno-0-5720"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-0-5721" name="__codelineno-0-5721"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
-<a id="__codelineno-0-5722" name="__codelineno-0-5722"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5723" name="__codelineno-0-5723"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
-<a id="__codelineno-0-5724" name="__codelineno-0-5724"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-5725" name="__codelineno-0-5725"></a>                <span class="s1">&#39;severity&#39;</span><span class="p">:</span> <span class="s1">&#39;warning&#39;</span>
+<span class="normal"><a href="#__codelineno-0-5776">5776</a></span>
+<span class="normal"><a href="#__codelineno-0-5777">5777</a></span>
+<span class="normal"><a href="#__codelineno-0-5778">5778</a></span>
+<span class="normal"><a href="#__codelineno-0-5779">5779</a></span>
+<span class="normal"><a href="#__codelineno-0-5780">5780</a></span>
+<span class="normal"><a href="#__codelineno-0-5781">5781</a></span>
+<span class="normal"><a href="#__codelineno-0-5782">5782</a></span>
+<span class="normal"><a href="#__codelineno-0-5783">5783</a></span>
+<span class="normal"><a href="#__codelineno-0-5784">5784</a></span>
+<span class="normal"><a href="#__codelineno-0-5785">5785</a></span>
+<span class="normal"><a href="#__codelineno-0-5786">5786</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-5676" name="__codelineno-0-5676"></a><span class="k">def</span><span class="w"> </span><span class="nf">validate_dataframe</span><span class="p">(</span>
+<a id="__codelineno-0-5677" name="__codelineno-0-5677"></a>    <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="s1">&#39;pl.DataFrame&#39;</span><span class="p">,</span> <span class="s1">&#39;pl.LazyFrame&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5678" name="__codelineno-0-5678"></a>    <span class="n">schema</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+<a id="__codelineno-0-5679" name="__codelineno-0-5679"></a>    <span class="n">table_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-5680" name="__codelineno-0-5680"></a>    <span class="n">plausibility_thresholds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-5681" name="__codelineno-0-5681"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<a id="__codelineno-0-5682" name="__codelineno-0-5682"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-5683" name="__codelineno-0-5683"></a><span class="sd">    Validate a dataframe against schema and return list of errors.</span>
+<a id="__codelineno-0-5684" name="__codelineno-0-5684"></a>
+<a id="__codelineno-0-5685" name="__codelineno-0-5685"></a><span class="sd">    This function provides compatibility with CLIF-TableOne&#39;s expected</span>
+<a id="__codelineno-0-5686" name="__codelineno-0-5686"></a><span class="sd">    validation interface.</span>
+<a id="__codelineno-0-5687" name="__codelineno-0-5687"></a>
+<a id="__codelineno-0-5688" name="__codelineno-0-5688"></a><span class="sd">    Parameters</span>
+<a id="__codelineno-0-5689" name="__codelineno-0-5689"></a><span class="sd">    ----------</span>
+<a id="__codelineno-0-5690" name="__codelineno-0-5690"></a><span class="sd">    df : pd.DataFrame, pl.DataFrame, or pl.LazyFrame</span>
+<a id="__codelineno-0-5691" name="__codelineno-0-5691"></a><span class="sd">        Data to validate</span>
+<a id="__codelineno-0-5692" name="__codelineno-0-5692"></a><span class="sd">    schema : dict</span>
+<a id="__codelineno-0-5693" name="__codelineno-0-5693"></a><span class="sd">        Table schema containing columns, required_columns, etc.</span>
+<a id="__codelineno-0-5694" name="__codelineno-0-5694"></a><span class="sd">    table_name : str, optional</span>
+<a id="__codelineno-0-5695" name="__codelineno-0-5695"></a><span class="sd">        Name of the table (inferred from schema if not provided)</span>
+<a id="__codelineno-0-5696" name="__codelineno-0-5696"></a><span class="sd">    plausibility_thresholds : dict, optional</span>
+<a id="__codelineno-0-5697" name="__codelineno-0-5697"></a><span class="sd">        Override default plausibility thresholds per check.</span>
+<a id="__codelineno-0-5698" name="__codelineno-0-5698"></a>
+<a id="__codelineno-0-5699" name="__codelineno-0-5699"></a><span class="sd">    Returns</span>
+<a id="__codelineno-0-5700" name="__codelineno-0-5700"></a><span class="sd">    -------</span>
+<a id="__codelineno-0-5701" name="__codelineno-0-5701"></a><span class="sd">    List[Dict[str, Any]]</span>
+<a id="__codelineno-0-5702" name="__codelineno-0-5702"></a><span class="sd">        List of error dictionaries with keys:</span>
+<a id="__codelineno-0-5703" name="__codelineno-0-5703"></a><span class="sd">        - type: str - Error type/check name</span>
+<a id="__codelineno-0-5704" name="__codelineno-0-5704"></a><span class="sd">        - description: str - Human-readable error description</span>
+<a id="__codelineno-0-5705" name="__codelineno-0-5705"></a><span class="sd">        - details: dict - Additional error details</span>
+<a id="__codelineno-0-5706" name="__codelineno-0-5706"></a><span class="sd">        - category: str - &#39;schema&#39; or &#39;data_quality&#39;</span>
+<a id="__codelineno-0-5707" name="__codelineno-0-5707"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-5708" name="__codelineno-0-5708"></a>    <span class="n">table_name</span> <span class="o">=</span> <span class="n">table_name</span> <span class="ow">or</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;unknown&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-5709" name="__codelineno-0-5709"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;validate_dataframe: starting validation for table &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
+<a id="__codelineno-0-5710" name="__codelineno-0-5710"></a>    <span class="n">errors</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-5711" name="__codelineno-0-5711"></a>
+<a id="__codelineno-0-5712" name="__codelineno-0-5712"></a>    <span class="c1"># Schema-level checks (affect &#39;incomplete&#39; status)</span>
+<a id="__codelineno-0-5713" name="__codelineno-0-5713"></a>    <span class="n">schema_checks</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;required_columns&#39;</span><span class="p">,</span> <span class="s1">&#39;column_dtypes&#39;</span><span class="p">]</span>
+<a id="__codelineno-0-5714" name="__codelineno-0-5714"></a>
+<a id="__codelineno-0-5715" name="__codelineno-0-5715"></a>    <span class="c1"># Run conformance checks</span>
+<a id="__codelineno-0-5716" name="__codelineno-0-5716"></a>    <span class="n">conformance_results</span> <span class="o">=</span> <span class="n">run_conformance_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
+<a id="__codelineno-0-5717" name="__codelineno-0-5717"></a>    <span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">conformance_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-5718" name="__codelineno-0-5718"></a>        <span class="n">category</span> <span class="o">=</span> <span class="s1">&#39;schema&#39;</span> <span class="k">if</span> <span class="n">check_name</span> <span class="ow">in</span> <span class="n">schema_checks</span> <span class="k">else</span> <span class="s1">&#39;data_quality&#39;</span>
+<a id="__codelineno-0-5719" name="__codelineno-0-5719"></a>
+<a id="__codelineno-0-5720" name="__codelineno-0-5720"></a>        <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+<a id="__codelineno-0-5721" name="__codelineno-0-5721"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+<a id="__codelineno-0-5722" name="__codelineno-0-5722"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
+<a id="__codelineno-0-5723" name="__codelineno-0-5723"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5724" name="__codelineno-0-5724"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">err</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+<a id="__codelineno-0-5725" name="__codelineno-0-5725"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="n">category</span>
 <a id="__codelineno-0-5726" name="__codelineno-0-5726"></a>            <span class="p">})</span>
 <a id="__codelineno-0-5727" name="__codelineno-0-5727"></a>
-<a id="__codelineno-0-5728" name="__codelineno-0-5728"></a>    <span class="c1"># Run completeness checks</span>
-<a id="__codelineno-0-5729" name="__codelineno-0-5729"></a>    <span class="n">completeness_results</span> <span class="o">=</span> <span class="n">run_completeness_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
-<a id="__codelineno-0-5730" name="__codelineno-0-5730"></a>    <span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">completeness_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-5731" name="__codelineno-0-5731"></a>        <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
-<a id="__codelineno-0-5732" name="__codelineno-0-5732"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-0-5733" name="__codelineno-0-5733"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
-<a id="__codelineno-0-5734" name="__codelineno-0-5734"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5735" name="__codelineno-0-5735"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">err</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
-<a id="__codelineno-0-5736" name="__codelineno-0-5736"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span>
-<a id="__codelineno-0-5737" name="__codelineno-0-5737"></a>            <span class="p">})</span>
-<a id="__codelineno-0-5738" name="__codelineno-0-5738"></a>
-<a id="__codelineno-0-5739" name="__codelineno-0-5739"></a>        <span class="k">for</span> <span class="n">warn</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
-<a id="__codelineno-0-5740" name="__codelineno-0-5740"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-0-5741" name="__codelineno-0-5741"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
-<a id="__codelineno-0-5742" name="__codelineno-0-5742"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5743" name="__codelineno-0-5743"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
-<a id="__codelineno-0-5744" name="__codelineno-0-5744"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-5745" name="__codelineno-0-5745"></a>                <span class="s1">&#39;severity&#39;</span><span class="p">:</span> <span class="s1">&#39;warning&#39;</span>
-<a id="__codelineno-0-5746" name="__codelineno-0-5746"></a>            <span class="p">})</span>
-<a id="__codelineno-0-5747" name="__codelineno-0-5747"></a>
-<a id="__codelineno-0-5748" name="__codelineno-0-5748"></a>    <span class="c1"># Run plausibility checks</span>
-<a id="__codelineno-0-5749" name="__codelineno-0-5749"></a>    <span class="n">plausibility_results</span> <span class="o">=</span> <span class="n">run_plausibility_checks</span><span class="p">(</span>
-<a id="__codelineno-0-5750" name="__codelineno-0-5750"></a>        <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span>
-<a id="__codelineno-0-5751" name="__codelineno-0-5751"></a>        <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">plausibility_thresholds</span><span class="p">,</span>
-<a id="__codelineno-0-5752" name="__codelineno-0-5752"></a>    <span class="p">)</span>
-<a id="__codelineno-0-5753" name="__codelineno-0-5753"></a>    <span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">plausibility_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-5754" name="__codelineno-0-5754"></a>        <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
-<a id="__codelineno-0-5755" name="__codelineno-0-5755"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-0-5756" name="__codelineno-0-5756"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
-<a id="__codelineno-0-5757" name="__codelineno-0-5757"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5758" name="__codelineno-0-5758"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">err</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
-<a id="__codelineno-0-5759" name="__codelineno-0-5759"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span>
-<a id="__codelineno-0-5760" name="__codelineno-0-5760"></a>            <span class="p">})</span>
-<a id="__codelineno-0-5761" name="__codelineno-0-5761"></a>
-<a id="__codelineno-0-5762" name="__codelineno-0-5762"></a>        <span class="k">for</span> <span class="n">warn</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
-<a id="__codelineno-0-5763" name="__codelineno-0-5763"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-<a id="__codelineno-0-5764" name="__codelineno-0-5764"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
-<a id="__codelineno-0-5765" name="__codelineno-0-5765"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
-<a id="__codelineno-0-5766" name="__codelineno-0-5766"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
-<a id="__codelineno-0-5767" name="__codelineno-0-5767"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-5768" name="__codelineno-0-5768"></a>                <span class="s1">&#39;severity&#39;</span><span class="p">:</span> <span class="s1">&#39;warning&#39;</span>
-<a id="__codelineno-0-5769" name="__codelineno-0-5769"></a>            <span class="p">})</span>
-<a id="__codelineno-0-5770" name="__codelineno-0-5770"></a>
-<a id="__codelineno-0-5771" name="__codelineno-0-5771"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
-<a id="__codelineno-0-5772" name="__codelineno-0-5772"></a>    <span class="n">error_count</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">errors</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;severity&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;error&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-5773" name="__codelineno-0-5773"></a>    <span class="n">warning_count</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">errors</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;severity&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;warning&#39;</span><span class="p">)</span>
-<a id="__codelineno-0-5774" name="__codelineno-0-5774"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;validate_dataframe: table &#39;</span><span class="si">%s</span><span class="s2">&#39; complete — </span><span class="si">%d</span><span class="s2"> errors, </span><span class="si">%d</span><span class="s2"> warnings&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5775" name="__codelineno-0-5775"></a>                 <span class="n">table_name</span><span class="p">,</span> <span class="n">error_count</span><span class="p">,</span> <span class="n">warning_count</span><span class="p">)</span>
-<a id="__codelineno-0-5776" name="__codelineno-0-5776"></a>    <span class="k">return</span> <span class="n">errors</span>
+<a id="__codelineno-0-5728" name="__codelineno-0-5728"></a>        <span class="c1"># Include warnings as data quality issues</span>
+<a id="__codelineno-0-5729" name="__codelineno-0-5729"></a>        <span class="k">for</span> <span class="n">warn</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+<a id="__codelineno-0-5730" name="__codelineno-0-5730"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+<a id="__codelineno-0-5731" name="__codelineno-0-5731"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
+<a id="__codelineno-0-5732" name="__codelineno-0-5732"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5733" name="__codelineno-0-5733"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+<a id="__codelineno-0-5734" name="__codelineno-0-5734"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-5735" name="__codelineno-0-5735"></a>                <span class="s1">&#39;severity&#39;</span><span class="p">:</span> <span class="s1">&#39;warning&#39;</span>
+<a id="__codelineno-0-5736" name="__codelineno-0-5736"></a>            <span class="p">})</span>
+<a id="__codelineno-0-5737" name="__codelineno-0-5737"></a>
+<a id="__codelineno-0-5738" name="__codelineno-0-5738"></a>    <span class="c1"># Run completeness checks</span>
+<a id="__codelineno-0-5739" name="__codelineno-0-5739"></a>    <span class="n">completeness_results</span> <span class="o">=</span> <span class="n">run_completeness_checks</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
+<a id="__codelineno-0-5740" name="__codelineno-0-5740"></a>    <span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">completeness_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-5741" name="__codelineno-0-5741"></a>        <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+<a id="__codelineno-0-5742" name="__codelineno-0-5742"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+<a id="__codelineno-0-5743" name="__codelineno-0-5743"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
+<a id="__codelineno-0-5744" name="__codelineno-0-5744"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5745" name="__codelineno-0-5745"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">err</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+<a id="__codelineno-0-5746" name="__codelineno-0-5746"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span>
+<a id="__codelineno-0-5747" name="__codelineno-0-5747"></a>            <span class="p">})</span>
+<a id="__codelineno-0-5748" name="__codelineno-0-5748"></a>
+<a id="__codelineno-0-5749" name="__codelineno-0-5749"></a>        <span class="k">for</span> <span class="n">warn</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+<a id="__codelineno-0-5750" name="__codelineno-0-5750"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+<a id="__codelineno-0-5751" name="__codelineno-0-5751"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
+<a id="__codelineno-0-5752" name="__codelineno-0-5752"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5753" name="__codelineno-0-5753"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+<a id="__codelineno-0-5754" name="__codelineno-0-5754"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-5755" name="__codelineno-0-5755"></a>                <span class="s1">&#39;severity&#39;</span><span class="p">:</span> <span class="s1">&#39;warning&#39;</span>
+<a id="__codelineno-0-5756" name="__codelineno-0-5756"></a>            <span class="p">})</span>
+<a id="__codelineno-0-5757" name="__codelineno-0-5757"></a>
+<a id="__codelineno-0-5758" name="__codelineno-0-5758"></a>    <span class="c1"># Run plausibility checks</span>
+<a id="__codelineno-0-5759" name="__codelineno-0-5759"></a>    <span class="n">plausibility_results</span> <span class="o">=</span> <span class="n">run_plausibility_checks</span><span class="p">(</span>
+<a id="__codelineno-0-5760" name="__codelineno-0-5760"></a>        <span class="n">df</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span>
+<a id="__codelineno-0-5761" name="__codelineno-0-5761"></a>        <span class="n">plausibility_thresholds</span><span class="o">=</span><span class="n">plausibility_thresholds</span><span class="p">,</span>
+<a id="__codelineno-0-5762" name="__codelineno-0-5762"></a>    <span class="p">)</span>
+<a id="__codelineno-0-5763" name="__codelineno-0-5763"></a>    <span class="k">for</span> <span class="n">check_name</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">plausibility_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-5764" name="__codelineno-0-5764"></a>        <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+<a id="__codelineno-0-5765" name="__codelineno-0-5765"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+<a id="__codelineno-0-5766" name="__codelineno-0-5766"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
+<a id="__codelineno-0-5767" name="__codelineno-0-5767"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5768" name="__codelineno-0-5768"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">err</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+<a id="__codelineno-0-5769" name="__codelineno-0-5769"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span>
+<a id="__codelineno-0-5770" name="__codelineno-0-5770"></a>            <span class="p">})</span>
+<a id="__codelineno-0-5771" name="__codelineno-0-5771"></a>
+<a id="__codelineno-0-5772" name="__codelineno-0-5772"></a>        <span class="k">for</span> <span class="n">warn</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+<a id="__codelineno-0-5773" name="__codelineno-0-5773"></a>            <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+<a id="__codelineno-0-5774" name="__codelineno-0-5774"></a>                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">_format_check_type</span><span class="p">(</span><span class="n">check_name</span><span class="p">),</span>
+<a id="__codelineno-0-5775" name="__codelineno-0-5775"></a>                <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span>
+<a id="__codelineno-0-5776" name="__codelineno-0-5776"></a>                <span class="s1">&#39;details&#39;</span><span class="p">:</span> <span class="n">warn</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;details&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+<a id="__codelineno-0-5777" name="__codelineno-0-5777"></a>                <span class="s1">&#39;category&#39;</span><span class="p">:</span> <span class="s1">&#39;data_quality&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-5778" name="__codelineno-0-5778"></a>                <span class="s1">&#39;severity&#39;</span><span class="p">:</span> <span class="s1">&#39;warning&#39;</span>
+<a id="__codelineno-0-5779" name="__codelineno-0-5779"></a>            <span class="p">})</span>
+<a id="__codelineno-0-5780" name="__codelineno-0-5780"></a>
+<a id="__codelineno-0-5781" name="__codelineno-0-5781"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<a id="__codelineno-0-5782" name="__codelineno-0-5782"></a>    <span class="n">error_count</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">errors</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;severity&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;error&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-5783" name="__codelineno-0-5783"></a>    <span class="n">warning_count</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">errors</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;severity&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;warning&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-5784" name="__codelineno-0-5784"></a>    <span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;validate_dataframe: table &#39;</span><span class="si">%s</span><span class="s2">&#39; complete — </span><span class="si">%d</span><span class="s2"> errors, </span><span class="si">%d</span><span class="s2"> warnings&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5785" name="__codelineno-0-5785"></a>                 <span class="n">table_name</span><span class="p">,</span> <span class="n">error_count</span><span class="p">,</span> <span class="n">warning_count</span><span class="p">)</span>
+<a id="__codelineno-0-5786" name="__codelineno-0-5786"></a>    <span class="k">return</span> <span class="n">errors</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
