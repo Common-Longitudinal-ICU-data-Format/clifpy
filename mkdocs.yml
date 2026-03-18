@@ -81,7 +81,7 @@ nav:
         - Installation: user-guide/installation.md
         - Quickstart: user-guide/quickstart.md
       - Core Features:
-        - Data Validation: user-guide/validation.md
+        - Data Quality Assessment (DQA): user-guide/validation.md
         - Outlier Handling: user-guide/outlier-handling.md
         - Encounter Stitching: user-guide/encounter-stitching.md
         - Wide Dataset Creation: user-guide/wide-dataset.md
@@ -98,6 +98,7 @@ nav:
       - Orchestrator: api/orchestrator.md
       - Base Table: api/base-table.md
       - Tables: api/tables.md
+      - DQA (Validation): api/dqa.md
       - Utilities: api/utilities.md
   - Logging: logging.md
   - Contributing: contributing.md

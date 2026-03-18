@@ -1,261 +1,240 @@
-# Data Validation
+# Data Quality Assessment (DQA)
 
-CLIFpy provides comprehensive validation to ensure your data conforms to CLIF standards. This guide explains the validation process and how to interpret results.
+CLIFpy provides a comprehensive Data Quality Assessment framework for validating CLIF tables. DQA is organized around three pillars:
 
-## Overview
+- **Conformance** — Does the data match expected structure, types, and allowed values?
+- **Completeness** — Is the data sufficiently present and relationally connected?
+- **Plausibility** — Are values clinically reasonable and logically consistent?
 
-Validation in CLIFpy operates at multiple levels:
+For full API signatures, see the [DQA API Reference](../api/dqa.md).
 
-1. **Schema Validation** - Ensures required columns exist with correct data types
-2. **Category Validation** - Verifies values match standardized categories
-3. **Range Validation** - Checks values fall within clinically reasonable ranges
-4. **Timezone Validation** - Ensures datetime columns are timezone-aware
-5. **Duplicate Detection** - Identifies duplicate records based on composite keys
-6. **Completeness Checks** - Analyzes missing data patterns
+## Quick Start
 
-## Running Validation
-
-### Basic Validation
+### Full DQA on a Single Table
 
 ```python
-# Load and validate a table
-table = TableClass.from_file('/data', 'parquet')
-table.validate()
+from clifpy.utils.validator import run_full_dqa, _load_schema
 
-# Check if valid
-if table.isvalid():
-    print("Validation passed!")
-else:
-    print(f"Found {len(table.errors)} validation errors")
+schema = _load_schema("labs")
+results = run_full_dqa(df, schema, table_name="labs")
+
+# Results organized by pillar
+for check_name, result in results["conformance"].items():
+    print(f"{check_name}: {'PASS' if result.passed else 'FAIL'}")
+
+for check_name, result in results["completeness"].items():
+    print(f"{check_name}: {'PASS' if result.passed else 'FAIL'}")
+
+for check_name, result in results["plausibility"].items():
+    print(f"{check_name}: {'PASS' if result.passed else 'FAIL'}")
 ```
 
-### Bulk Validation with Orchestrator
+### Via the Orchestrator
 
 ```python
 from clifpy.clif_orchestrator import ClifOrchestrator
 
-orchestrator = ClifOrchestrator('/data', 'parquet')
-orchestrator.initialize(tables=['patient', 'labs', 'vitals'])
+orchestrator = ClifOrchestrator("/data", "parquet", timezone="US/Central")
+orchestrator.initialize(tables=["patient", "labs", "vitals"])
 
-# Validate all tables
-orchestrator.validate_all()
+# DQA is run during initialization; results are stored per table
+for name, table_obj in orchestrator.tables.items():
+    print(f"{name}: {table_obj.validation_status}")
 ```
 
-## Understanding Validation Results
+## Running Individual Check Categories
 
-### Error Types
-
-Validation errors are stored in the `errors` attribute:
+You can run just one pillar at a time:
 
 ```python
-# Review errors
-for error in table.errors[:10]:  # First 10 errors
-    print(f"Type: {error['type']}")
-    print(f"Message: {error['message']}")
-    print(f"Details: {error.get('details', 'N/A')}")
-    print("-" * 50)
-```
-
-Common error types:
-- `missing_column` - Required column not found
-- `invalid_category` - Value not in permissible list
-- `out_of_range` - Value outside acceptable range
-- `invalid_timezone` - Datetime column not timezone-aware
-- `duplicate_rows` - Duplicate records found
-
-### Validation Reports
-
-Validation results are automatically saved to the output directory:
-
-```python
-# Set custom output directory
-table = TableClass.from_file(
-    data_directory='/data',
-    filetype='parquet',
-    output_directory='/path/to/reports'
+from clifpy.utils.validator import (
+    run_conformance_checks,
+    run_completeness_checks,
+    run_plausibility_checks,
+    _load_schema,
 )
 
-# After validation, these files are created:
-# - validation_log_[table_name].log
-# - validation_errors_[table_name].csv
-# - missing_data_stats_[table_name].csv
+schema = _load_schema("vitals")
+
+# Conformance only
+conformance = run_conformance_checks(df, schema, table_name="vitals")
+
+# Completeness only (with custom missingness thresholds)
+completeness = run_completeness_checks(
+    df, schema, table_name="vitals",
+    error_threshold=50.0, warning_threshold=10.0
+)
+
+# Plausibility only
+plausibility = run_plausibility_checks(df, schema, table_name="vitals")
 ```
 
-## Schema Validation
+## Understanding Results
 
-Each table has a YAML schema defining its structure:
-
-```yaml
-# Example from patient_schema.yaml
-columns:
-  - name: patient_id
-    data_type: VARCHAR
-    required: true
-    is_category_column: false
-  - name: sex_category
-    data_type: VARCHAR
-    required: true
-    is_category_column: true
-    permissible_values:
-      - Male
-      - Female
-      - Unknown
-```
-
-### Required Columns
+Every check returns a result object (`DQAConformanceResult`, `DQACompletenessResult`, or `DQAPlausibilityResult`) with a consistent interface:
 
 ```python
-# Check which required columns are missing
-if not table.isvalid():
-    missing_cols = [e for e in table.errors if e['type'] == 'missing_column']
-    for error in missing_cols:
-        print(f"Missing required column: {error['column']}")
+result = conformance["required_columns"]
+
+result.passed       # bool — overall pass/fail
+result.errors       # list of dicts — critical issues
+result.warnings     # list of dicts — non-blocking concerns
+result.info         # list of dicts — informational messages
+result.metrics      # dict — quantitative details (counts, percentages)
+
+# Serialize for export
+result.to_dict()
 ```
 
-### Data Types
+Each error/warning/info entry is a dict with `message` and optional `details` keys.
 
-CLIFpy validates that columns have appropriate data types:
-- `VARCHAR` - String/text data
-- `DATETIME` - Timezone-aware datetime
-- `NUMERIC` - Numeric values (int or float)
+## Conformance Checks
 
-## Category Validation
+| Code | Check | Function | Purpose |
+|------|-------|----------|---------|
+| A.1 | Table Presence | `check_table_exists`, `check_table_presence` | Verify file exists and DataFrame has data |
+| A.2 | Required Columns | `check_required_columns` | All schema-required columns are present |
+| B.1 | Data Types | `check_column_dtypes` | Column dtypes match schema (VARCHAR, DATETIME, etc.) |
+| B.2 | Datetime Format | `check_datetime_format` | Datetime columns are timezone-aware |
+| B.3 | Lab Reference Units | `check_lab_reference_units` | Lab units match schema definitions (labs only) |
+| B.4 | Categorical Values | `check_categorical_values` | Values match mCIDE permissible values |
+| B.5 | Category-Group Mapping | `check_category_group_mapping` | Category-to-group mappings are consistent |
 
-Standardized categories ensure consistency across institutions:
+## Completeness Checks
+
+| Code | Check | Function | Purpose |
+|------|-------|----------|---------|
+| A.1 | Missingness | `check_missingness` | Required columns have data below null thresholds |
+| A.2 | Conditional Requirements | `check_conditional_requirements` | If column X = value, then column Y is present |
+| B | mCIDE Value Coverage | `check_mcide_value_coverage` | All standardized category values are represented |
+| C.1 | Relational Integrity | `check_relational_integrity` | Foreign key coverage between tables |
+
+## Plausibility Checks
+
+| Code | Check | Function | Purpose |
+|------|-------|----------|---------|
+| A.1 | Temporal Ordering | `check_temporal_ordering` | Start times precede end times |
+| A.2 | Numeric Range | `check_numeric_range_plausibility` | Values within clinically plausible ranges |
+| A.3 | Field Plausibility | `check_field_plausibility` | Complex conditional field constraints |
+| A.4 | Med Dose Units | `check_medication_dose_unit_consistency` | Dose units match admin type (rate vs. discrete) |
+| B.1 | Cross-Table Temporal | `check_cross_table_temporal_plausibility` | Events fall within hospitalization bounds |
+| C.1 | Overlapping Periods | `check_overlapping_periods` | No overlapping time intervals for same entity |
+| C.2 | Category Temporal Consistency | `check_category_temporal_consistency` | Category distributions stable over time |
+| D.1 | Duplicate Composite Keys | `check_duplicate_composite_keys` | No duplicate records by composite key |
+
+## Cross-Table Checks
+
+Some checks require data from multiple tables. These are run with lists of table objects or pre-extracted caches:
 
 ```python
-# Example: Validating location categories in ADT
-valid_locations = ['ed', 'ward', 'stepdown', 'icu', 'procedural', 
-                   'l&d', 'hospice', 'psych', 'rehab', 'radiology', 
-                   'dialysis', 'other']
+from clifpy.utils.validator import (
+    run_relational_integrity_checks,
+    run_cross_table_completeness_checks,
+    run_cross_table_plausibility_checks,
+)
 
-# Check for invalid categories
-category_errors = [e for e in table.errors 
-                   if e['type'] == 'invalid_category']
+# tables is a list of loaded table objects
+ri_results = run_relational_integrity_checks(tables)
+ct_completeness = run_cross_table_completeness_checks(tables)
+ct_plausibility = run_cross_table_plausibility_checks(tables)
 ```
 
-## Range Validation
+### Memory-Optimized Cache Pipeline
 
-Clinical values are checked against reasonable ranges:
+For large datasets, extract lightweight caches to avoid keeping full DataFrames in memory:
 
 ```python
-# Example: Vital signs ranges
-ranges = {
-    'heart_rate': (0, 300),
-    'sbp': (0, 300),
-    'dbp': (0, 200),
-    'temp_c': (25, 44),
-    'spo2': (50, 100)
+from clifpy.utils.validator import (
+    extract_cross_table_cache,
+    run_relational_integrity_checks_from_cache,
+    run_cross_table_completeness_checks_from_cache,
+    run_cross_table_plausibility_checks_from_cache,
+)
+
+caches = {}
+for table_obj in tables:
+    caches[table_obj.table_name] = extract_cross_table_cache(table_obj)
+
+ri_results = run_relational_integrity_checks_from_cache(caches)
+ct_completeness = run_cross_table_completeness_checks_from_cache(caches)
+ct_plausibility = run_cross_table_plausibility_checks_from_cache(caches)
+```
+
+## Report Generation
+
+Generate PDF or text reports from DQA results:
+
+```python
+from clifpy.utils.report_generator import (
+    collect_dqa_issues,
+    generate_validation_pdf,
+    generate_text_report,
+)
+
+# Collect all issues from run_full_dqa output
+category_scores, all_issues = collect_dqa_issues(results)
+
+# PDF report
+generate_validation_pdf(results, output_path="dqa_report.pdf")
+
+# Text report
+generate_text_report(results, output_path="dqa_report.txt")
+```
+
+## Configuring Thresholds
+
+### Missingness Thresholds
+
+Control when null percentages trigger errors vs. warnings:
+
+```python
+completeness = run_completeness_checks(
+    df, schema, table_name="labs",
+    error_threshold=50.0,    # >50% null → error
+    warning_threshold=10.0,  # >10% null → warning
+)
+```
+
+### Plausibility Thresholds
+
+Override the default thresholds for plausibility checks:
+
+```python
+custom_thresholds = {
+    "temporal_ordering": {"error_threshold": 5.0, "warning_threshold": 1.0},
+    "numeric_range_plausibility": {"error_threshold": 10.0, "warning_threshold": 2.0},
+    "duplicate_composite_keys": {"error_threshold": 5.0, "warning_threshold": 0.0},
 }
 
-# Identify out-of-range values
-range_errors = [e for e in table.errors 
-                if e['type'] == 'out_of_range']
+results = run_full_dqa(
+    df, schema, table_name="labs",
+    plausibility_thresholds=custom_thresholds,
+)
 ```
 
-## Timezone Validation
+Default plausibility thresholds use 10% error / 0% warning for all check types.
 
-All datetime columns must be timezone-aware:
+## Dual Backend Architecture
+
+The DQA module automatically selects between two backends:
+
+- **Polars** (preferred) — Uses lazy evaluation and streaming for memory efficiency
+- **DuckDB** (fallback) — Used when Polars is unavailable
+
+The active backend is detected at import time:
 
 ```python
-# Check timezone issues
-tz_errors = [e for e in table.errors 
-             if 'timezone' in e.get('message', '').lower()]
-
-if tz_errors:
-    print("Datetime columns must be timezone-aware")
-    print("Consider reloading with explicit timezone:")
-    print("table = TableClass.from_file('/data', 'parquet', timezone='US/Central')")
+from clifpy.utils.validator import _ACTIVE_BACKEND
+print(f"Using backend: {_ACTIVE_BACKEND}")  # 'polars' or 'duckdb'
 ```
 
-## Duplicate Detection
-
-Duplicates are identified based on composite keys:
-
-```python
-# Check for duplicates
-duplicate_errors = [e for e in table.errors 
-                    if e['type'] == 'duplicate_rows']
-
-if duplicate_errors:
-    for error in duplicate_errors:
-        print(f"Found {error['count']} duplicate rows")
-        print(f"Composite keys: {error['keys']}")
-```
-
-## Missing Data Analysis
-
-CLIFpy analyzes missing data patterns:
-
-```python
-# Get missing data statistics
-summary = table.get_summary()
-if 'missing_data' in summary:
-    print("Columns with missing data:")
-    for col, count in summary['missing_data'].items():
-        pct = (count / summary['num_rows']) * 100
-        print(f"  {col}: {count} ({pct:.1f}%)")
-```
-
-## Custom Validation
-
-Tables may include specific validation logic:
-
-```python
-# Example: Labs table validates reference ranges
-# Example: Medications validates dose units match drug
-# Example: Respiratory support validates device/mode combinations
-```
+Both backends produce identical results. All DataFrames (Pandas, Polars, or Polars LazyFrames) are accepted as input.
 
 ## Best Practices
 
-1. **Always validate after loading** - Catch issues early
-2. **Review all error types** - Don't just check if valid
-3. **Save validation reports** - Keep audit trail
-4. **Fix data at source** - Update extraction/ETL process
-5. **Document exceptions** - Some errors may be acceptable
-
-## Handling Validation Errors
-
-### Option 1: Fix and Reload
-
-```python
-# Identify issues
-table.validate()
-errors_df = pd.DataFrame(table.errors)
-errors_df.to_csv('validation_errors.csv', index=False)
-
-# Fix source data based on errors
-# Then reload
-table = TableClass.from_file('/fixed_data', 'parquet')
-table.validate()
-```
-
-### Option 2: Filter Invalid Records
-
-```python
-# Remove records with invalid categories
-valid_categories = ['Male', 'Female', 'Unknown']
-cleaned_df = table.df[table.df['sex_category'].isin(valid_categories)]
-
-# Create new table instance with cleaned data
-table = TableClass(data=cleaned_df, timezone='US/Central')
-```
-
-### Option 3: Document and Proceed
-
-```python
-# For acceptable validation errors
-if not table.isvalid():
-    # Document why proceeding despite errors
-    with open('validation_notes.txt', 'w') as f:
-        f.write(f"Proceeding with {len(table.errors)} known issues:\n")
-        f.write("- Missing optional columns\n")
-        f.write("- Historical data outside current ranges\n")
-```
-
-## Next Steps
-
-- Learn about [timezone handling](timezones.md)
-- Explore [table-specific guides](../api/tables.md)
-- See [practical examples]()
+1. **Run `run_full_dqa` for comprehensive coverage** — It orchestrates all single-table checks in one call.
+2. **Use the cache pipeline for multi-table checks on large datasets** — `extract_cross_table_cache` keeps memory usage low.
+3. **Check `result.metrics` for quantitative detail** — Pass/fail alone doesn't tell you how close a check was to the threshold.
+4. **Customize thresholds per institution** — Default thresholds are starting points; adjust based on your data characteristics.
+5. **Generate PDF reports for stakeholder review** — `generate_validation_pdf` produces formatted reports with issue summaries.
+6. **Fix data at the source** — DQA identifies issues; the fix belongs in your ETL pipeline.
