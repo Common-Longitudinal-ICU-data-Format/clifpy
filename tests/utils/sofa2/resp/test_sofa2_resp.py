@@ -51,6 +51,11 @@ TOLERANCE_CONFIGS = {
     'long_tolerance': SOFA2Config(pf_sf_tolerance_hours=8.0),
 }
 
+LOOKBACK_CONFIGS = {
+    'short_lookback': SOFA2Config(resp_lookback_hours=2.0),
+    'long_lookback': SOFA2Config(resp_lookback_hours=10.0),
+}
+
 
 @pytest.fixture
 def cohort_rel():
@@ -120,6 +125,26 @@ def test_resp_intermediates(cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel
 def test_resp_custom_tolerance(cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, case):
     """Verify custom tolerance config produces expected results from CSV."""
     cfg = TOLERANCE_CONFIGS[case]
+    expected = load_expected(FIXTURES_DIR, 'resp_expected.csv', case)
+    hosp_ids = expected['hospitalization_id'].tolist()
+
+    result = _calculate_resp_subscore(
+        cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg,
+    )
+    result_df = (
+        result.df()
+        .query('hospitalization_id in @hosp_ids')
+        .sort_values(SORT_COLS)
+        .reset_index(drop=True)
+    )
+
+    assert_columns_match(result_df, expected, RESP_COLUMNS)
+
+
+@pytest.mark.parametrize('case', ['short_lookback', 'long_lookback'])
+def test_resp_custom_lookback(cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, case):
+    """Verify custom lookback config produces expected results from CSV."""
+    cfg = LOOKBACK_CONFIGS[case]
     expected = load_expected(FIXTURES_DIR, 'resp_expected.csv', case)
     hosp_ids = expected['hospitalization_id'].tolist()
 

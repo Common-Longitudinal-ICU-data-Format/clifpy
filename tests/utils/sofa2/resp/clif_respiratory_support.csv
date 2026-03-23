@@ -19,3 +19,10 @@ hospitalization_id,recorded_dttm,device_category,fio2_set,lpm_set,mode_category
 419,1/1/24 10:00,,0.8,,Assist Control-Volume Control
 420,1/1/24 10:00,imv,0.5,,
 420,1/2/24 10:00,imv,0.5,,
+421,1/1/24 4:00,imv,0.5,,
+422,1/1/24 1:00,imv,0.5,,
+423,1/1/24 10:00,nasal cannula,0.5,,
+424,1/1/24 10:00,imv,0.5,,
+424,1/2/24 4:00,imv,0.5,,
+425,1/1/24 10:00,imv,0.5,,
+426,1/1/24 10:00,imv,0.5,,

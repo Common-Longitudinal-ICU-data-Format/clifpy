@@ -31,3 +31,13 @@ hospitalization_id,lab_collect_dttm,lab_category,lab_value_numeric
 420,2024-01-01 14:00:00,po2_arterial,250
 420,2024-01-02 10:00:00,po2_arterial,25
 420,2024-01-02 14:00:00,po2_arterial,50
+421,2024-01-01 04:00:00,po2_arterial,125
+422,2024-01-01 01:00:00,po2_arterial,125
+423,2024-01-01 16:00:00,po2_arterial,60
+423,2024-01-01 18:00:00,po2_arterial,90
+424,2024-01-01 10:00:00,po2_arterial,200
+424,2024-01-02 04:00:00,po2_arterial,100
+425,2024-01-01 10:00:00,po2_arterial,125
+425,2024-01-01 14:00:00,po2_arterial,175
+426,2024-01-01 10:00:00,po2_arterial,200
+426,2024-01-01 14:00:00,po2_arterial,250
