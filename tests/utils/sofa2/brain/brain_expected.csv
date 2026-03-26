@@ -14,7 +14,7 @@ default,112,2024-01-01 08:00:00,,,,1,00:00:00,24:00:00,0,,0,two-episode: GCS +5h
 default,113,2024-01-01 08:00:00,14,gcs_total,14:30:00,1,00:00:00,24:00:00,0,,1,two-episode: GCS +12.5hr after ep1 stop outside 12hr post_sed,validated
 default,114,2024-01-01 08:00:00,6,gcs_motor,02:00:00,0,,,0,,0,motor=6 fallback,validated
 default,115,2024-01-01 08:00:00,3,gcs_motor,02:00:00,0,,,0,,3,motor=3 fallback,validated
-default,116,2024-01-01 08:00:00,14,gcs_total,02:00:00,0,,,0,,1,gcs_total preferred over gcs_motor,validated
+default,116,2024-01-01 08:00:00,3,gcs_motor,02:00:00,0,,,0,,3,both-source: motor=3 (score 3) worse than total=14 (score 1),
 default,117,2024-01-01 08:00:00,15,gcs_total,02:00:00,0,,,0,,0,multi-window: w1 stable,validated
 default,117,2024-01-02 08:00:00,7,gcs_total,02:00:00,0,,,0,,3,multi-window: w2 deterioration,validated
 default,118,2024-01-01 08:00:00,10,gcs_total,02:00:00,0,,,0,,2,daily: d1 in-window scored,validated
@@ -29,3 +29,4 @@ default,124,2024-01-01 08:00:00,,,,1,-01:00:00,24:00:00,0,,0,pre-window + carry-
 default,125,2024-01-01 08:00:00,14,gcs_total,01:00:00,1,02:00:00,14:00:00,0,,1,two clean episodes both stop: GCS between eps in post_sed,validated
 short_post_sed,112,2024-01-01 08:00:00,14,gcs_total,07:00:00,1,00:00:00,24:00:00,0,,1,post_sed=2hr: +5hr after ep1 valid (GCS=14),validated
 long_post_sed,113,2024-01-01 08:00:00,,,,1,00:00:00,24:00:00,0,,0,post_sed=14hr: +12.5hr after ep1 invalidated,validated
+deprioritize,116,2024-01-01 08:00:00,14,gcs_total,02:00:00,0,,,0,,1,fallback-only: gcs_total preferred; gcs_motor ignored,

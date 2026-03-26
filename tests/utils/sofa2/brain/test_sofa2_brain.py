@@ -19,6 +19,9 @@ Test cases (documented in brain_expected.csv notes column):
 Custom post_sedation_gcs_invalidate_hours cases:
 - short_post_sed: post_sedation_gcs_invalidate_hours=2.0
 - long_post_sed: post_sedation_gcs_invalidate_hours=14.0
+
+Custom deprioritize_gcs_motor cases:
+- deprioritize: deprioritize_gcs_motor=True (legacy fallback-only behavior)
 """
 
 import pytest
@@ -48,6 +51,10 @@ BRAIN_COLUMNS = [
 POST_SED_CONFIGS = {
     'short_post_sed': SOFA2Config(post_sedation_gcs_invalidate_hours=2.0),
     'long_post_sed': SOFA2Config(post_sedation_gcs_invalidate_hours=14.0),
+}
+
+DEPRIORITIZE_CONFIGS = {
+    'deprioritize': SOFA2Config(deprioritize_gcs_motor=True),
 }
 
 
@@ -131,6 +138,28 @@ def test_brain_custom_post_sed(
 ):
     """Verify custom post_sedation_gcs_invalidate_hours produces expected results."""
     cfg = POST_SED_CONFIGS[case]
+    expected = load_expected(FIXTURES_DIR, 'brain_expected.csv', case)
+    hosp_ids = expected['hospitalization_id'].tolist()
+
+    result = _calculate_brain_subscore(
+        cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg
+    )
+    result_df = (
+        result.df()
+        .query('hospitalization_id in @hosp_ids')
+        .sort_values(SORT_COLS)
+        .reset_index(drop=True)
+    )
+
+    assert_columns_match(result_df, expected, BRAIN_COLUMNS)
+
+
+@pytest.mark.parametrize('case', ['deprioritize'])
+def test_brain_deprioritize_gcs_motor(
+    cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, case
+):
+    """Verify deprioritize_gcs_motor=True produces legacy fallback behavior."""
+    cfg = DEPRIORITIZE_CONFIGS[case]
     expected = load_expected(FIXTURES_DIR, 'brain_expected.csv', case)
     hosp_ids = expected['hospitalization_id'].tolist()
 

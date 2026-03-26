@@ -37,6 +37,10 @@ class SOFA2Config:
         Maximum time gap between O2 measurement and FiO2 for concurrent ratio. Default 4.0.
     post_sedation_gcs_invalidate_hours : float
         Hours after sedation ends where GCS measurements remain invalid (footnote c). Default 1.0.
+    deprioritize_gcs_motor : bool
+        If True, gcs_motor is only used as fallback when gcs_total is unavailable
+        (legacy behavior). If False (default), both gcs_total and gcs_motor are
+        scored independently and the worst (highest) subscore is used.
     include_timestamps : bool
         If True, include ARGMAX/ARGMIN timestamps for determining measurements. Default False.
     rrt_carryforward_days : int
@@ -57,6 +61,9 @@ class SOFA2Config:
 
     # Brain subscore (footnote c)
     post_sedation_gcs_invalidate_hours: float = 12.0
+
+    # Brain subscore (footnote d)
+    deprioritize_gcs_motor: bool = False
 
     # Kidney subscore (daily carry-forward)
     rrt_carryforward_days: int = 3

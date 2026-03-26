@@ -11,8 +11,10 @@ Special rules:
 - Footnote c: For sedated patients, GCS measurements during sedation episodes
   (plus post_sedation_gcs_invalidate_hours) are invalid. If no valid GCS and
   sedation present, score 0. Uses continuous meds only.
-- Footnote d: If gcs_total unavailable, use gcs_motor with mapping:
+- Footnote d: gcs_motor scoring with mapping:
   motor=6 -> 0, motor=5 -> 1, motor=4 -> 2, motor=3 -> 3, motor∈[0,1,2] -> 4
+  Default: both gcs_total and gcs_motor scored independently, worst subscore used.
+  With deprioritize_gcs_motor=True: gcs_motor only used as fallback when gcs_total unavailable.
 - Footnote e: If patient is receiving drug therapy for delirium, score 1 point
   even if GCS is 15. Continuous (dexmedetomidine) via pre-window ASOF + in-window;
   intermittent (haloperidol, quetiapine, ziprasidone, olanzapine) via in-window only.
@@ -44,7 +46,7 @@ def _calculate_brain_subscore(
 
     Implements:
     - Footnote c: Sedation-aware GCS (invalidate GCS during sedation episodes)
-    - Footnote d: GCS motor fallback when gcs_total unavailable
+    - Footnote d: GCS motor scoring (fallback-only or both-source, per cfg)
     - Footnote e: Delirium drug -> minimum 1 point (cont + intm)
 
     Parameters
@@ -58,7 +60,7 @@ def _calculate_brain_subscore(
     intm_meds_rel : DuckDBPyRelation
         Intermittent medication administrations (CLIF medication_admin_intermittent)
     cfg : SOFA2Config
-        Configuration with post_sedation_gcs_invalidate_hours
+        Configuration with post_sedation_gcs_invalidate_hours and deprioritize_gcs_motor
     dev : bool, default False
         If True, return (result, intermediates_dict) for debugging
     id_name : str
@@ -153,7 +155,8 @@ def _calculate_brain_subscore(
     # =========================================================================
     # Step 4: Aggregate valid GCS (prefer gcs_total, fallback to gcs_motor)
     # =========================================================================
-    logger.info("Aggregating worst valid GCS (prefer gcs_total, fallback to gcs_motor)...")
+    logger.info("Aggregating worst valid GCS...")
+    logger.info(f"deprioritize_gcs_motor={cfg.deprioritize_gcs_motor}")
     # Aggregate MIN for each type separately
     gcs_agg_by_type = duckdb.sql(f"""
         FROM valid_gcs
@@ -167,27 +170,39 @@ def _calculate_brain_subscore(
         GROUP BY {id_name}, start_dttm
     """)
 
-    # Combine: prefer gcs_total, fallback to gcs_motor
-    gcs_combined = duckdb.sql(f"""
-        FROM gcs_agg_by_type
-        SELECT
-            {id_name}
-            , start_dttm
-            , gcs_total_min
-            , gcs_motor_min
-            -- Choose gcs_total if available, else gcs_motor
-            , COALESCE(gcs_total_min, gcs_motor_min) AS gcs_min
-            , CASE
-                WHEN gcs_total_min IS NOT NULL THEN 'gcs_total'
-                WHEN gcs_motor_min IS NOT NULL THEN 'gcs_motor'
-                ELSE NULL
-              END AS gcs_type
-            , CASE
-                WHEN gcs_total_min IS NOT NULL THEN gcs_total_dttm_offset
-                WHEN gcs_motor_min IS NOT NULL THEN gcs_motor_dttm_offset
-                ELSE NULL
-              END AS gcs_min_dttm_offset
-    """)
+    if cfg.deprioritize_gcs_motor:
+        # Fallback-only: prefer gcs_total, use gcs_motor only when gcs_total unavailable
+        gcs_combined = duckdb.sql(f"""
+            FROM gcs_agg_by_type
+            SELECT
+                {id_name}
+                , start_dttm
+                , gcs_total_min
+                , gcs_motor_min
+                , COALESCE(gcs_total_min, gcs_motor_min) AS gcs_min
+                , CASE
+                    WHEN gcs_total_min IS NOT NULL THEN 'gcs_total'
+                    WHEN gcs_motor_min IS NOT NULL THEN 'gcs_motor'
+                    ELSE NULL
+                  END AS gcs_type
+                , CASE
+                    WHEN gcs_total_min IS NOT NULL THEN gcs_total_dttm_offset
+                    WHEN gcs_motor_min IS NOT NULL THEN gcs_motor_dttm_offset
+                    ELSE NULL
+                  END AS gcs_min_dttm_offset
+        """)
+    else:
+        # Both-source: pass through both values; scoring deferred to Step 6
+        gcs_combined = duckdb.sql(f"""
+            FROM gcs_agg_by_type
+            SELECT
+                {id_name}
+                , start_dttm
+                , gcs_total_min
+                , gcs_total_dttm_offset
+                , gcs_motor_min
+                , gcs_motor_dttm_offset
+        """)
 
     # =========================================================================
     # Step 5: Flag delirium drug administration (footnote e)
@@ -201,53 +216,116 @@ def _calculate_brain_subscore(
     # Step 6: Calculate final brain subscore
     # =========================================================================
     logger.info("Calculating final brain subscore with footnotes c, d, e...")
-    brain_score = duckdb.sql(f"""
-        FROM cohort_rel c
-        LEFT JOIN gcs_combined g USING ({id_name}, start_dttm)
-        LEFT JOIN has_sedation_flag s USING ({id_name}, start_dttm)
-        LEFT JOIN delirium_flag d USING ({id_name}, start_dttm)
-        SELECT
-            c.{id_name}
-            , c.start_dttm
-            , g.gcs_min
-            , g.gcs_type
-            , g.gcs_min_dttm_offset
-            , COALESCE(s.has_sedation, 0) AS has_sedation
-            , s.sedation_start_dttm_offset
-            , s.sedation_end_dttm_offset
-            , COALESCE(d.has_delirium_drug, 0) AS has_delirium_drug
-            , d.delirium_drug_dttm_offset
-            , sofa2_brain: CASE
-                -- If we have gcs_total, use standard GCS scoring
-                WHEN g.gcs_type = 'gcs_total' THEN
-                    CASE
-                        -- Footnote e: delirium drug with GCS 15 -> minimum 1 point
-                        WHEN g.gcs_min >= 15 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
-                        WHEN g.gcs_min >= 15 THEN 0
-                        WHEN g.gcs_min >= 13 THEN 1
-                        WHEN g.gcs_min >= 9 THEN 2
-                        WHEN g.gcs_min >= 6 THEN 3
-                        WHEN g.gcs_min >= 3 THEN 4
-                        ELSE NULL
-                    END
-                -- Footnote d: gcs_motor fallback with mapping
-                WHEN g.gcs_type = 'gcs_motor' THEN
-                    CASE
-                        -- Footnote e: delirium drug with motor=6 (equivalent to GCS 15) -> 1 point
-                        WHEN g.gcs_min = 6 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
-                        WHEN g.gcs_min = 6 THEN 0  -- motor=6 -> GCS 15 equivalent
-                        WHEN g.gcs_min = 5 THEN 1  -- motor=5 -> GCS 13-14 equivalent
-                        WHEN g.gcs_min = 4 THEN 2  -- motor=4 -> GCS 9-12 equivalent
-                        WHEN g.gcs_min = 3 THEN 3  -- motor=3 -> GCS 6-8 equivalent
-                        WHEN g.gcs_min IN (0, 1, 2) THEN 4  -- motor 0-2 -> GCS 3-5 equivalent
-                        ELSE NULL
-                    END
-                -- Footnote c: No valid GCS + has sedation -> score 0
-                WHEN COALESCE(s.has_sedation, 0) = 1 THEN 0
-                -- No valid GCS, no sedation -> NULL
-                ELSE NULL
-            END
-    """)
+    if cfg.deprioritize_gcs_motor:
+        # Fallback-only: score based on pre-resolved gcs_min/gcs_type from Step 4
+        brain_score = duckdb.sql(f"""
+            FROM cohort_rel c
+            LEFT JOIN gcs_combined g USING ({id_name}, start_dttm)
+            LEFT JOIN has_sedation_flag s USING ({id_name}, start_dttm)
+            LEFT JOIN delirium_flag d USING ({id_name}, start_dttm)
+            SELECT
+                c.{id_name}
+                , c.start_dttm
+                , g.gcs_min
+                , g.gcs_type
+                , g.gcs_min_dttm_offset
+                , COALESCE(s.has_sedation, 0) AS has_sedation
+                , s.sedation_start_dttm_offset
+                , s.sedation_end_dttm_offset
+                , COALESCE(d.has_delirium_drug, 0) AS has_delirium_drug
+                , d.delirium_drug_dttm_offset
+                , sofa2_brain: CASE
+                    WHEN g.gcs_type = 'gcs_total' THEN
+                        CASE
+                            WHEN g.gcs_min >= 15 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
+                            WHEN g.gcs_min >= 15 THEN 0
+                            WHEN g.gcs_min >= 13 THEN 1
+                            WHEN g.gcs_min >= 9 THEN 2
+                            WHEN g.gcs_min >= 6 THEN 3
+                            WHEN g.gcs_min >= 3 THEN 4
+                            ELSE NULL
+                        END
+                    WHEN g.gcs_type = 'gcs_motor' THEN
+                        CASE
+                            WHEN g.gcs_min = 6 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
+                            WHEN g.gcs_min = 6 THEN 0
+                            WHEN g.gcs_min = 5 THEN 1
+                            WHEN g.gcs_min = 4 THEN 2
+                            WHEN g.gcs_min = 3 THEN 3
+                            WHEN g.gcs_min IN (0, 1, 2) THEN 4
+                            ELSE NULL
+                        END
+                    WHEN COALESCE(s.has_sedation, 0) = 1 THEN 0
+                    ELSE NULL
+                END
+        """)
+    else:
+        # Both-source: score gcs_total and gcs_motor independently, keep worst
+        brain_score = duckdb.sql(f"""
+            FROM cohort_rel c
+            LEFT JOIN gcs_combined g USING ({id_name}, start_dttm)
+            LEFT JOIN has_sedation_flag s USING ({id_name}, start_dttm)
+            LEFT JOIN delirium_flag d USING ({id_name}, start_dttm)
+            SELECT
+                c.{id_name}
+                , c.start_dttm
+                -- Score gcs_total independently
+                , subscore_total: CASE
+                    WHEN g.gcs_total_min IS NULL THEN NULL
+                    WHEN g.gcs_total_min >= 15 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
+                    WHEN g.gcs_total_min >= 15 THEN 0
+                    WHEN g.gcs_total_min >= 13 THEN 1
+                    WHEN g.gcs_total_min >= 9 THEN 2
+                    WHEN g.gcs_total_min >= 6 THEN 3
+                    WHEN g.gcs_total_min >= 3 THEN 4
+                    ELSE NULL
+                  END
+                -- Score gcs_motor independently
+                , subscore_motor: CASE
+                    WHEN g.gcs_motor_min IS NULL THEN NULL
+                    WHEN g.gcs_motor_min = 6 AND COALESCE(d.has_delirium_drug, 0) = 1 THEN 1
+                    WHEN g.gcs_motor_min = 6 THEN 0
+                    WHEN g.gcs_motor_min = 5 THEN 1
+                    WHEN g.gcs_motor_min = 4 THEN 2
+                    WHEN g.gcs_motor_min = 3 THEN 3
+                    WHEN g.gcs_motor_min IN (0, 1, 2) THEN 4
+                    ELSE NULL
+                  END
+                -- Pick worst subscore; on tie prefer gcs_total
+                , gcs_min: CASE
+                    WHEN subscore_motor IS NOT NULL AND subscore_motor > COALESCE(subscore_total, -1) THEN g.gcs_motor_min
+                    WHEN subscore_total IS NOT NULL THEN g.gcs_total_min
+                    WHEN subscore_motor IS NOT NULL THEN g.gcs_motor_min
+                    ELSE NULL
+                  END
+                , gcs_type: CASE
+                    WHEN subscore_motor IS NOT NULL AND subscore_motor > COALESCE(subscore_total, -1) THEN 'gcs_motor'
+                    WHEN subscore_total IS NOT NULL THEN 'gcs_total'
+                    WHEN subscore_motor IS NOT NULL THEN 'gcs_motor'
+                    ELSE NULL
+                  END
+                , gcs_min_dttm_offset: CASE
+                    WHEN subscore_motor IS NOT NULL AND subscore_motor > COALESCE(subscore_total, -1) THEN g.gcs_motor_dttm_offset
+                    WHEN subscore_total IS NOT NULL THEN g.gcs_total_dttm_offset
+                    WHEN subscore_motor IS NOT NULL THEN g.gcs_motor_dttm_offset
+                    ELSE NULL
+                  END
+                , COALESCE(s.has_sedation, 0) AS has_sedation
+                , s.sedation_start_dttm_offset
+                , s.sedation_end_dttm_offset
+                , COALESCE(d.has_delirium_drug, 0) AS has_delirium_drug
+                , d.delirium_drug_dttm_offset
+                -- Final brain subscore: worst of both sources
+                , sofa2_brain: CASE
+                    WHEN subscore_total IS NOT NULL AND subscore_motor IS NOT NULL
+                        THEN GREATEST(subscore_total, subscore_motor)
+                    WHEN subscore_total IS NOT NULL THEN subscore_total
+                    WHEN subscore_motor IS NOT NULL THEN subscore_motor
+                    -- Footnote c: no valid GCS + sedation -> 0
+                    WHEN COALESCE(s.has_sedation, 0) = 1 THEN 0
+                    ELSE NULL
+                  END
+        """)
 
     logger.info("Brain subscore complete")
 
