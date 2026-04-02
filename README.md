@@ -90,15 +90,15 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
 
 ## Feature Contributors
 
-| Feature | Coder | Clinician |
-|---------|-------|-----------|
-| SOFA Score Computation | Kaveri Chhikara | Will Parker |
-| Respiratory Support Waterfall | Kaveri Chhikara | Nick Ingraham |
-| Presumed Infection and ASE | Vaishvik Chaudhari | Kevin Buell |
-| Cumulative Dose Calculation | Zewei (Whiskey) Liao | |
-| Lab Conversion Units | Dema Therese | Cathy Gao |
-| CRRT Waterfall | Kaveri Chhikara | Shan Guleria, Jay Koyner |
-| Medication Unit Conversion | Zewei (Whiskey) Liao | |
+| Feature | Coder | Clinician | Status |
+|---------|-------|-----------|--------|
+| SOFA Score Computation | Kaveri Chhikara | Will Parker | Published |
+| Respiratory Support Waterfall | Kaveri Chhikara | Nick Ingraham | Published |
+| Presumed Infection and ASE | Vaishvik Chaudhari | Kevin Buell | Published |
+| Cumulative Dose Calculation | Zewei (Whiskey) Liao | | Future Feature |
+| Lab Conversion Units | Dema Therese | Cathy Gao | In Progress |
+| CRRT Waterfall | Kaveri Chhikara | Shan Guleria, Jay Koyner | Future Feature |
+| Medication Unit Conversion | Zewei (Whiskey) Liao | | Published |
 
 ## Links & Resources
 
