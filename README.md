@@ -88,6 +88,18 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
    uv run pytest
    ```
 
+## Feature Contributors
+
+| Feature | Coder | Clinician |
+|---------|-------|-----------|
+| SOFA Score Computation | Kaveri Chhikara | Will Parker |
+| Respiratory Support Waterfall | Kaveri Chhikara | Nick Ingraham |
+| Presumed Infection and ASE | Vaishvik Chaudhari | Kevin Buell |
+| Cumulative Dose Calculation | Zewei (Whiskey) Liao | |
+| Lab Conversion Units | Dema Therese | Cathy Gao |
+| CRRT Waterfall | Kaveri Chhikara | Shan Guleria, Jay Koyner |
+| Medication Unit Conversion | Zewei (Whiskey) Liao | |
+
 ## Links & Resources
 
 - 📚 [Full Documentation](https://common-longitudinal-icu-data-format.github.io/clifpy/)
