@@ -4046,11 +4046,17 @@ def check_category_temporal_consistency_polars(
             if unit_col and unit_col in col_names:
                 group_cols.append(unit_col)
 
+            # n = unique hospitalization_ids (matches yearly distribution above and the
+            # PDF YearlySparkBar sparklines). avg remains a row-weighted mean, so n and
+            # avg use different denominators — n * avg does NOT approximate the sum of
+            # values. For tables grouped by a unit column, a hospitalization recording
+            # the same category in multiple units counts once per unit row.
+            n_expr = (pl.col(id_col).n_unique() if id_col else pl.len()).alias('n')
             monthly = (
                 lf.filter(pl.col(time_column).is_not_null() & pl.col(cat_col).is_not_null())
                 .with_columns(pl.col(time_column).dt.strftime('%Y-%m').alias('month_year'))
                 .group_by(group_cols)
-                .agg([pl.len().alias('n')] + avg_expr)
+                .agg([n_expr] + avg_expr)
                 .sort(group_cols)
                 .collect(streaming=True)
             )
@@ -4228,10 +4234,17 @@ def check_category_temporal_consistency_duckdb(
                 unit_group = f', "{unit_col}"'
                 unit_order = f', "{unit_col}"'
 
+            # n = unique hospitalization_ids (matches yearly distribution above and the
+            # PDF YearlySparkBar sparklines). avg remains a row-weighted mean, so n and
+            # avg use different denominators — n * avg does NOT approximate the sum of
+            # values. For tables grouped by a unit column, a hospitalization recording
+            # the same category in multiple units counts once per unit row.
+            n_select = f'COUNT(DISTINCT "{id_col}") as n' if id_col else 'COUNT(*) as n'
+
             monthly_rows = con.execute(f"""
                 SELECT STRFTIME(CAST("{time_column}" AS TIMESTAMP), '%Y-%m') as month_year,
                        "{cat_col}"{unit_select},
-                       COUNT(*) as n
+                       {n_select}
                        {avg_select}
                 FROM df
                 WHERE "{time_column}" IS NOT NULL AND "{cat_col}" IS NOT NULL
