@@ -2126,7 +2126,6 @@ def check_relational_integrity_polars(
                 f"not found in {reference_table} ({round(coverage_pct, 1)}% coverage)",
                 {
                     "orphan_count": total_orphan,
-                    "sample_orphan_ids": list(orphan_ids)[:10],
                     "coverage_percent": round(coverage_pct, 2)
                 }
             )
@@ -2187,26 +2186,11 @@ def check_relational_integrity_duckdb(
         result.metrics["coverage_percent"] = round(coverage_pct, 2)
 
         if orphan_count > 0:
-            # Fetch sample orphans lazily with LIMIT
-            sample_query = f"""
-                SELECT DISTINCT s."{key_column}"
-                FROM source_tbl s
-                WHERE s."{key_column}" IS NOT NULL
-                  AND NOT EXISTS (
-                      SELECT 1 FROM ref_tbl r
-                      WHERE r."{key_column}" = s."{key_column}"
-                  )
-                LIMIT 10
-            """
-            sample_result = con.execute(sample_query).fetchall()
-            sample_orphans = [row[0] for row in sample_result]
-
             result.add_warning(
                 f"{orphan_count}/{total_source} {key_column} values in {source_table} "
                 f"not found in {reference_table} ({round(coverage_pct, 1)}% coverage)",
                 {
                     "orphan_count": int(orphan_count),
-                    "sample_orphan_ids": sample_orphans,
                     "coverage_percent": round(coverage_pct, 2)
                 }
             )
@@ -4992,7 +4976,6 @@ def run_relational_integrity_checks_from_cache(
                         f"{fwd_orphan_count}/{fwd_total} {fk_column} values in {ref_table_name} "
                         f"not found in {table_name} ({round(fwd_coverage, 1)}% coverage)",
                         {"orphan_count": fwd_orphan_count,
-                         "sample_orphan_ids": list(fwd_orphans)[:10],
                          "coverage_percent": round(fwd_coverage, 2)}
                     )
 
@@ -5002,7 +4985,6 @@ def run_relational_integrity_checks_from_cache(
                         f"{rev_orphan_count}/{rev_total} {fk_column} values in {table_name} "
                         f"not found in {ref_table_name} ({round(rev_coverage, 1)}% coverage)",
                         {"orphan_count": rev_orphan_count,
-                         "sample_orphan_ids": list(rev_orphans)[:10],
                          "coverage_percent": round(rev_coverage, 2)}
                     )
 
