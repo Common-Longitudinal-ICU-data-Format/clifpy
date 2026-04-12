@@ -1,24 +1,39 @@
-case,hospitalization_id,start_dttm,creatinine,creatinine_dttm_offset,has_rrt,rrt_dttm_offset,rrt_criteria_met,sofa2_kidney,notes,status
-default,201,2024-01-01 08:00:00,1.0,02:00:00,0,,0,0,creatinine <= 1.20,validated
-default,202,2024-01-01 08:00:00,1.5,02:00:00,0,,0,1,MAX creatinine > 1.20,validated
-default,203,2024-01-01 08:00:00,2.5,02:00:00,0,,0,2,MAX creatinine > 2.0,validated
-default,204,2024-01-01 08:00:00,4.0,02:00:00,0,,0,3,creatinine > 3.50,validated
-default,205,2024-01-01 08:00:00,2.0,02:00:00,1,04:00:00,0,4,RRT override regardless of creatinine,validated
-default,206,2024-01-01 08:00:00,,,0,,0,,no creatinine data,validated
-default,207,2024-01-01 08:00:00,3.0,-06:00:00,0,,0,2,pre-window fallback within 12hr lookback,validated
-default,208,2024-01-01 08:00:00,2.0,02:00:00,0,,0,1,in-window preferred over pre-window,validated
-default,209,2024-01-01 08:00:00,,,0,,0,,pre-window outside 12hr lookback,validated
-default,210,2024-01-01 08:00:00,1.5,02:00:00,0,,1,4,footnote p: creat>1.2 AND K>=6.0,validated
-default,211,2024-01-01 08:00:00,1.5,02:00:00,0,,1,4,footnote p: creat>1.2 AND pH<=7.20 AND bicarb<=12.0,validated
-default,212,2024-01-01 08:00:00,4.0,02:00:00,0,,0,3,criteria not met: K<6.0 and pH>7.20,validated
-default,213,2024-01-01 08:00:00,1.0,02:00:00,0,,0,0,criteria not met: creat<=1.20 despite high K,validated
-default,214,2024-01-01 08:00:00,1.0,02:00:00,0,,0,0,multi-window: w1 stable,validated
-default,214,2024-01-02 08:00:00,4.0,02:00:00,0,,0,3,multi-window: w2 deterioration,validated
-default,215,2024-01-01 08:00:00,2.5,13:00:00,0,,0,2,daily: d1 in-window scored,validated
-default,215,2024-01-02 08:00:00,2.5,-11:00:00,0,,0,2,daily: d2 null but d1 value within 12hr lookback,validated
-default,215,2024-01-03 08:00:00,,,0,,0,,daily: d3 even further out,validated
-default,216,2024-01-01 08:00:00,1.5,02:00:00,0,,1,4,footnote p: LEAST(art=7.10 ven=7.25) selects arterial pH,validated
-default,217,2024-01-01 08:00:00,1.5,02:00:00,0,,1,4,footnote p: venous pH used when arterial absent,validated
-default,218,2024-01-01 08:00:00,0.8,02:00:00,1,04:00:00,0,4,RRT overrides even with normal creatinine,validated
-short_lookback,207,2024-01-01 08:00:00,,,0,,0,,lookback=1hr excludes -6hr pre-window,validated
-long_lookback,209,2024-01-01 08:00:00,2.5,-28:00:00,0,,0,2,lookback=36hr includes -28hr pre-window,validated
+case,hospitalization_id,start_dttm,creatinine,creatinine_dttm_offset,has_rrt,rrt_dttm_offset,rrt_criteria_met,uo_score,uo_rate_6hr,uo_rate_12hr,uo_rate_24hr,has_uo_oliguria,weight_at_uo,sofa2_kidney,notes,status
+default,201,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,creatinine <= 1.20,validated
+default,202,2024-01-01 08:00:00,1.5,02:00:00,0,,0,,,,,0,,1,MAX creatinine > 1.20,validated
+default,203,2024-01-01 08:00:00,2.5,02:00:00,0,,0,,,,,0,,2,MAX creatinine > 2.0,validated
+default,204,2024-01-01 08:00:00,4.0,02:00:00,0,,0,,,,,0,,3,creatinine > 3.50,validated
+default,205,2024-01-01 08:00:00,2.0,02:00:00,1,04:00:00,0,,,,,0,,4,RRT override regardless of creatinine,validated
+default,206,2024-01-01 08:00:00,,,0,,0,,,,,0,,,no creatinine data,validated
+default,207,2024-01-01 08:00:00,3.0,-06:00:00,0,,0,,,,,0,,2,pre-window fallback within 12hr lookback,validated
+default,208,2024-01-01 08:00:00,2.0,02:00:00,0,,0,,,,,0,,1,in-window preferred over pre-window,validated
+default,209,2024-01-01 08:00:00,,,0,,0,,,,,0,,,pre-window outside 12hr lookback,validated
+default,210,2024-01-01 08:00:00,1.5,02:00:00,0,,1,,,,,0,,4,footnote p: creat>1.2 AND K>=6.0,validated
+default,211,2024-01-01 08:00:00,1.5,02:00:00,0,,1,,,,,0,,4,footnote p: creat>1.2 AND pH<=7.20 AND bicarb<=12.0,validated
+default,212,2024-01-01 08:00:00,4.0,02:00:00,0,,0,,,,,0,,3,criteria not met: K<6.0 and pH>7.20,validated
+default,213,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,criteria not met: creat<=1.20 despite high K,validated
+default,214,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,multi-window: w1 stable,validated
+default,214,2024-01-02 08:00:00,4.0,02:00:00,0,,0,,,,,0,,3,multi-window: w2 deterioration,validated
+default,215,2024-01-01 08:00:00,2.5,13:00:00,0,,0,,,,,0,,2,daily: d1 in-window scored,validated
+default,215,2024-01-02 08:00:00,2.5,-11:00:00,0,,0,,,,,0,,2,daily: d2 null but d1 value within 12hr lookback,validated
+default,215,2024-01-03 08:00:00,,,0,,0,,,,,0,,,daily: d3 even further out,validated
+default,216,2024-01-01 08:00:00,1.5,02:00:00,0,,1,,,,,0,,4,footnote p: LEAST(art=7.10 ven=7.25) selects arterial pH,validated
+default,217,2024-01-01 08:00:00,1.5,02:00:00,0,,1,,,,,0,,4,footnote p: venous pH used when arterial absent,validated
+default,218,2024-01-01 08:00:00,0.8,02:00:00,1,04:00:00,0,,,,,0,,4,RRT overrides even with normal creatinine,validated
+default,219,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,irregular UO: late drop (no UO data in default),
+default,220,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,irregular UO: sustained moderate (no UO data in default),
+default,221,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,irregular UO: very low output (no UO data in default),
+default,222,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,irregular UO: anuria after 15:00 (no UO data in default),
+default,223,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,sparse UO: 5 measurements with 5-7h gaps (no UO data in default),
+default,224,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,irrigation subtraction patient (no UO data in default),
+default,225,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,between-window gap: high early then crash (no UO data in default),
+default,226,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,pre-window UO data (no UO data in default); covered by intermediate test,
+short_lookback,207,2024-01-01 08:00:00,,,0,,0,,,,,0,,,lookback=1hr excludes -6hr pre-window,validated
+long_lookback,209,2024-01-01 08:00:00,2.5,-28:00:00,0,,0,,,,,0,,2,lookback=36hr includes -28hr pre-window,validated
+uo,219,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 1: 6hr<0.5 but 12hr barely>=0.5 (irregular intervals),
+uo,220,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 2: sustained moderate oliguria (irregular intervals),
+uo,221,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 3: very low output with 24hr rate<0.3 (irregular intervals),
+uo,222,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 3: anuria after 15:00 — also hits 24hr rate path (irregular),
+uo,223,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 0: sparse but healthy output — tests validity gate,
+uo,224,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 3: irrigation subtraction drops net UO below threshold,
+uo,225,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 1: high early output buffers 12hr rate ≥ 0.5 despite 8h near-anuria,
