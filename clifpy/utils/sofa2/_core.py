@@ -119,6 +119,78 @@ def _load_intm_meds_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     return rel
 
 
+def _load_output_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load output table; return empty sentinel if unavailable.
+
+    Used for urine output scoring in the kidney subscore. When unavailable,
+    kidney scoring falls back to creatinine-only (existing behavior).
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm', 'output_volume', 'output_group'}
+    EMPTY = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::DOUBLE AS output_volume
+            , NULL::VARCHAR AS output_group
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('output', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm', 'output_volume', 'output_group'],
+            filters={'output_group': 'urine'})
+    except Exception as e:
+        logger.warning(f"Output table not available ({e}). UO scoring will be skipped.")
+        return EMPTY
+
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"Output table missing required columns: {missing}. UO scoring will be skipped."
+        )
+        return EMPTY
+
+    return rel
+
+
+def _load_input_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load input table; return empty sentinel if unavailable.
+
+    Used for bladder irrigation subtraction in UO scoring. When unavailable,
+    irrigation volumes are not subtracted (UO = gross output only).
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm', 'input_volume', 'input_category'}
+    EMPTY = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::DOUBLE AS input_volume
+            , NULL::VARCHAR AS input_category
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('input', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm', 'input_volume', 'input_category'],
+            filters={'input_category': 'flush_irrigation_urine'})
+    except Exception as e:
+        logger.warning(f"Input table not available ({e}). Irrigation subtraction will be skipped.")
+        return EMPTY
+
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"Input table missing required columns: {missing}. Irrigation subtraction will be skipped."
+        )
+        return EMPTY
+
+    return rel
+
+
 def _load_crrt_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     """Try to load crrt_therapy table; return empty sentinel if unavailable.
 
@@ -226,7 +298,9 @@ def calculate_sofa2(
             - Liver: bilirubin_total, bilirubin_dttm_offset
             - Kidney: creatinine, creatinine_dttm_offset, potassium,
               potassium_dttm_offset, ph, ph_type, ph_dttm_offset, bicarbonate,
-              bicarbonate_dttm_offset, has_rrt, rrt_dttm_offset, rrt_criteria_met
+              bicarbonate_dttm_offset, has_rrt, rrt_dttm_offset, rrt_criteria_met,
+              uo_score, uo_rate_6hr, uo_rate_12hr, uo_rate_24hr,
+              has_uo_oliguria, weight_at_uo
             - Hemo: platelet_count, platelet_dttm_offset
         If dev=True: (results, intermediates_dict)
     """
@@ -358,6 +432,8 @@ def _calculate_sofa2_impl(
             columns=['hospitalization_id', 'recorded_dttm', 'device_category', 'mode_category', 'fio2_set', 'lpm_set'])
         ecmo_rel = _load_ecmo_optional(clif_config_path)
         intm_meds_rel = _load_intm_meds_optional(clif_config_path)
+        output_rel = _load_output_optional(clif_config_path)
+        input_rel = _load_input_optional(clif_config_path)
 
     # Remap CLIF tables when using alternative ID
     if id_mapping is not None:
@@ -370,6 +446,8 @@ def _calculate_sofa2_impl(
         resp_rel = _remap_clif_rel(resp_rel, id_name, id_mapping)
         ecmo_rel = _remap_clif_rel(ecmo_rel, id_name, id_mapping)
         intm_meds_rel = _remap_clif_rel(intm_meds_rel, id_name, id_mapping)
+        output_rel = _remap_clif_rel(output_rel, id_name, id_mapping)
+        input_rel = _remap_clif_rel(input_rel, id_name, id_mapping)
 
     # =========================================================================
     # Materialize CLIF tables filtered to cohort (Phase 1+2 optimization)
@@ -391,6 +469,8 @@ def _calculate_sofa2_impl(
             'crrt': crrt_rel,
             'ecmo': ecmo_rel,
             'intm_meds': intm_meds_rel,
+            'output': output_rel,
+            'input': input_rel,
         }
         for tbl_name, rel in clif_tables.items():
             table_id = f"_clif_{tbl_name}"
@@ -410,6 +490,14 @@ def _calculate_sofa2_impl(
         crrt_rel = duckdb.table("_clif_crrt")
         ecmo_rel = duckdb.table("_clif_ecmo")
         intm_meds_rel = duckdb.table("_clif_intm_meds")
+        output_rel = duckdb.table("_clif_output")
+        input_rel = duckdb.table("_clif_input")
+        # Extract weight_rel from vitals for UO rate calculation
+        weight_rel = duckdb.sql(f"""
+            FROM vitals_rel
+            SELECT *
+            WHERE vital_category = 'weight_kg' AND vital_value IS NOT NULL
+        """)
         logger.info("CLIF tables materialized")
 
     # =========================================================================
@@ -487,13 +575,17 @@ def _calculate_sofa2_impl(
     with timer.step("kidney"):
         if dev:
             kidney_score, kidney_intermediates = _calculate_kidney_subscore(
-                cohort_rel, labs_rel, crrt_rel, cfg, dev=True, id_name=id_name,
+                cohort_rel, labs_rel, crrt_rel, cfg,
+                output_rel=output_rel, input_rel=input_rel, weight_rel=weight_rel,
+                dev=True, id_name=id_name,
             )
             intermediates.update({f'kidney_{k}': v for k, v in kidney_intermediates.items()})
             intermediates['kidney_score'] = kidney_score
         else:
             kidney_score = _calculate_kidney_subscore(
-                cohort_rel, labs_rel, crrt_rel, cfg, id_name=id_name,
+                cohort_rel, labs_rel, crrt_rel, cfg,
+                output_rel=output_rel, input_rel=input_rel, weight_rel=weight_rel,
+                id_name=id_name,
             )
         kidney_score = _materialize_subscore("kidney", kidney_score)
 
@@ -590,6 +682,13 @@ def _calculate_sofa2_impl(
                 , k.has_rrt
                 , k.rrt_dttm_offset
                 , k.rrt_criteria_met
+                -- Kidney UO scoring variables
+                , k.uo_score
+                , k.uo_rate_6hr
+                , k.uo_rate_12hr
+                , k.uo_rate_24hr
+                , k.has_uo_oliguria
+                , k.weight_at_uo
                 -- Hemostasis scoring variables
                 , h.platelet_count
                 , h.platelet_dttm_offset
@@ -889,6 +988,13 @@ def _calculate_sofa2_daily_impl(
             , has_rrt
             , rrt_dttm_offset
             , rrt_criteria_met
+            -- Kidney UO scoring variables
+            , uo_score
+            , uo_rate_6hr
+            , uo_rate_12hr
+            , uo_rate_24hr
+            , has_uo_oliguria
+            , weight_at_uo
             -- Hemostasis scoring variables
             , platelet_count
             , platelet_dttm_offset

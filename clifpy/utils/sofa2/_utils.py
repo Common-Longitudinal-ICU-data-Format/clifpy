@@ -45,6 +45,17 @@ class SOFA2Config:
         If True, include ARGMAX/ARGMIN timestamps for determining measurements. Default False.
     rrt_carryforward_days : int
         Days to carry forward kidney score 4 after CRRT (includes the CRRT day). Default 3.
+    uo_first_measurement_baseline : str
+        How to handle tm_since_last_uo for the patient's first-ever UO measurement.
+        Under global LAG (one partition per patient), this applies to the single row
+        where LAG is truly NULL — not once per scoring window.
+        'window_start' (default): tm = DATEDIFF('minute', earliest cohort start for patient, recorded_dttm),
+            clamped to 0 if negative (pre-cohort buffer rows).
+        'first_measurement': tm = 0 for the globally-first measurement.
+    uo_prewindow_lookback_hours : float
+        How much pre-cohort UO data to load per patient when computing global LAG.
+        Must be > 24 to ensure the -24h boundary row has a real predecessor.
+        Default 48.0.
     """
 
     # Pre-window lookback (hours) - per subscore type
@@ -67,6 +78,10 @@ class SOFA2Config:
 
     # Kidney subscore (daily carry-forward)
     rrt_carryforward_days: int = 3
+
+    # Kidney subscore (urine output)
+    uo_first_measurement_baseline: str = 'window_start'  # 'window_start' | 'first_measurement'
+    uo_prewindow_lookback_hours: float = 48.0
 
 
 # =============================================================================
@@ -567,6 +582,38 @@ def _flag_mechanical_cv_support(
 # =============================================================================
 # Sedation Detection (for brain subscore)
 # =============================================================================
+
+# =============================================================================
+# Shared Scoring SQL Helpers
+# =============================================================================
+
+def _hemo_score_sql(value_expr: str, alias: str = 'sofa2_hemo') -> str:
+    """Generate CASE WHEN SQL for hemostasis scoring thresholds.
+
+    Shared between windowed and rolling implementations to keep
+    scoring thresholds in one place.
+
+    Parameters
+    ----------
+    value_expr : str
+        SQL expression for the platelet count (e.g., 'p.platelet_count').
+    alias : str
+        Column alias for the result. Default 'sofa2_hemo'.
+
+    Returns
+    -------
+    str
+        SQL CASE expression with DuckDB reusable alias syntax.
+    """
+    return f"""{alias}: CASE
+                WHEN {value_expr} IS NULL THEN NULL
+                WHEN {value_expr} <= 50 THEN 4
+                WHEN {value_expr} <= 80 THEN 3
+                WHEN {value_expr} <= 100 THEN 2
+                WHEN {value_expr} <= 150 THEN 1
+                ELSE 0
+            END"""
+
 
 SEDATION_DRUGS = [
     'propofol',
