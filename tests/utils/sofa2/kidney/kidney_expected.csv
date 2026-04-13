@@ -28,6 +28,7 @@ default,223,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,sparse UO: 5 measurem
 default,224,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,irrigation subtraction patient (no UO data in default),
 default,225,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,between-window gap: high early then crash (no UO data in default),
 default,226,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,pre-window UO data (no UO data in default); covered by intermediate test,
+default,227,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,0,,0,in-window first measurement at 10:00 (no UO data in default),
 short_lookback,207,2024-01-01 08:00:00,,,0,,0,,,,,0,,,lookback=1hr excludes -6hr pre-window,validated
 long_lookback,209,2024-01-01 08:00:00,2.5,-28:00:00,0,,0,,,,,0,,2,lookback=36hr includes -28hr pre-window,validated
 uo,219,2024-01-01 08:00:00,1.0,02:00:00,0,,0,,,,,,,,score 1: 6hr<0.5 but 12hr barely>=0.5 (irregular intervals),

@@ -62,3 +62,7 @@ hospitalization_id,recorded_dttm,output_volume,output_category,output_group
 226,2024-01-01 18:00:00,70,indwelling_urinary_catheter,urine
 226,2024-01-02 00:00:00,60,indwelling_urinary_catheter,urine
 226,2024-01-02 06:00:00,50,indwelling_urinary_catheter,urine
+227,2024-01-01 10:00:00,150,indwelling_urinary_catheter,urine
+227,2024-01-01 14:00:00,100,indwelling_urinary_catheter,urine
+227,2024-01-01 20:00:00,80,indwelling_urinary_catheter,urine
+227,2024-01-02 08:00:00,60,indwelling_urinary_catheter,urine

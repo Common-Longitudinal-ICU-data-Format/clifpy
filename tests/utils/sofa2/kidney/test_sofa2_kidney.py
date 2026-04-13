@@ -184,7 +184,6 @@ def test_kidney_custom_lookback(cohort_rel, labs_rel, crrt_rel, case):
     assert_columns_match(result_df, expected, KIDNEY_COLUMNS)
 
 
-@pytest.mark.skip(reason="awaiting hand-computed expected values from user (Excel)")
 def test_urine_output_rate_intermediate(
     cohort_rel, output_rel, input_rel, weight_rel,
 ):
@@ -221,6 +220,8 @@ def test_urine_output_rate_intermediate(
         str(FIXTURES_DIR / 'net_output_rates.csv'),
         dtype={'hospitalization_id': str},
     )
+    # Convert "NULL" strings (user convention for explicit nulls in Excel) to NaN
+    expected = expected.replace('NULL', pd.NA)
     expected['start_dttm'] = pd.to_datetime(expected['start_dttm'], format='mixed')
     expected['recorded_dttm'] = pd.to_datetime(expected['recorded_dttm'], format='mixed')
 
