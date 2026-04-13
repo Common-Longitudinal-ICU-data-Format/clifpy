@@ -11,6 +11,7 @@ from .validator import (
     DQACompletenessResult,
     # Schema loader
     _load_schema,
+    get_schema_check_counts,
     # Backend info
     _ACTIVE_BACKEND,
     # Conformance checks
@@ -37,9 +38,14 @@ from .validator import (
 
 from .report_generator import (
     DQA_CATEGORIES,
+    TABLE_DISPLAY_NAMES,
     collect_dqa_issues,
+    collect_table_results,
     generate_validation_pdf,
     generate_text_report,
+    generate_combined_validation_pdf,
+    generate_consolidated_csv,
+    generate_combined_report,
 )
 
 from .waterfall import process_resp_support_waterfall
@@ -81,6 +87,7 @@ __all__ = [
       'DQAConformanceResult',
       'DQACompletenessResult',
       '_load_schema',
+      'get_schema_check_counts',
       'check_table_exists',
       'check_table_presence',
       'check_table_presence_polars',
@@ -100,7 +107,12 @@ __all__ = [
       'run_full_dqa',
       # Report generation
       'DQA_CATEGORIES',
+      'TABLE_DISPLAY_NAMES',
       'collect_dqa_issues',
+      'collect_table_results',
       'generate_validation_pdf',
       'generate_text_report',
+      'generate_combined_validation_pdf',
+      'generate_consolidated_csv',
+      'generate_combined_report',
   ]

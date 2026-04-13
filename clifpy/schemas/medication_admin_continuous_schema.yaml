@@ -165,6 +165,7 @@ columns:
     - verify 
     - other
   - name: mar_action_group
+    data_type: VARCHAR
     required: true
     is_category_column: false
     is_group_column: true

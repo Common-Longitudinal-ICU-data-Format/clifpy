@@ -1,6 +1,8 @@
 """PDF and text report generator for DQA validation results."""
 
+import csv
 import hashlib
+import json
 import os
 from html import escape
 from typing import Dict, Any, Optional, List
@@ -729,3 +731,532 @@ def generate_text_report(validation_data: Dict[str, Any],
         f.write('\n'.join(lines))
 
     return output_path
+
+
+# ---------------------------------------------------------------------------
+# Combined (multi-table) report generation
+# ---------------------------------------------------------------------------
+
+TABLE_DISPLAY_NAMES: Dict[str, str] = {
+    'adt': 'ADT',
+    'code_status': 'Code Status',
+    'crrt_therapy': 'CRRT Therapy',
+    'ecmo_mcs': 'ECMO/MCS',
+    'hospital_diagnosis': 'Hospital Diagnosis',
+    'hospitalization': 'Hospitalization',
+    'labs': 'Labs',
+    'medication_admin_continuous': 'Medication Admin Continuous',
+    'medication_admin_intermittent': 'Medication Admin Intermittent',
+    'microbiology_culture': 'Microbiology Culture',
+    'microbiology_nonculture': 'Microbiology Nonculture',
+    'microbiology_susceptibility': 'Microbiology Susceptibility',
+    'patient': 'Patient',
+    'patient_assessments': 'Patient Assessments',
+    'patient_procedures': 'Patient Procedures',
+    'position': 'Position',
+    'respiratory_support': 'Respiratory Support',
+    'vitals': 'Vitals',
+}
+
+
+def collect_table_results(
+    json_dir: str,
+    table_names: List[str],
+    feedback_dir: Optional[str] = None,
+):
+    """Load per-table DQA JSON results and optional feedback files.
+
+    Parameters
+    ----------
+    json_dir : str
+        Directory containing ``{table_name}_dqa.json`` files.
+    table_names : list[str]
+        Ordered list of table names to include.
+    feedback_dir : str, optional
+        Directory containing ``{table_name}_validation_response.json``
+        feedback files.  When *None*, no feedback is loaded.
+
+    Returns
+    -------
+    (dict, dict)
+        ``(results, feedback_map)`` where both map
+        ``table_name -> dict | None``.
+    """
+    results: Dict[str, Any] = {}
+    feedback_map: Dict[str, Any] = {}
+
+    for table_name in table_names:
+        json_path = os.path.join(json_dir, f'{table_name}_dqa.json')
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    results[table_name] = json.load(f)
+            except Exception:
+                results[table_name] = None
+        else:
+            results[table_name] = None
+
+        if feedback_dir:
+            fb_path = os.path.join(feedback_dir, f'{table_name}_validation_response.json')
+            if os.path.exists(fb_path):
+                try:
+                    with open(fb_path, 'r', encoding='utf-8') as f:
+                        feedback_map[table_name] = json.load(f)
+                except Exception:
+                    feedback_map[table_name] = None
+            else:
+                feedback_map[table_name] = None
+
+    return results, feedback_map
+
+
+def generate_combined_validation_pdf(
+    table_results: Dict[str, Any],
+    output_path: str,
+    table_names: List[str],
+    site_name: Optional[str] = None,
+    feedback_map: Optional[Dict[str, Any]] = None,
+    display_names: Optional[Dict[str, str]] = None,
+) -> str:
+    """Generate a combined PDF report from multiple table DQA results.
+
+    Creates the "DQA Overview" table with one row per CLIF table and
+    columns for Conformance, Completeness, Plausibility, and Overall.
+
+    For tables with no validation data, the conformance denominator is
+    computed from the schema via
+    :func:`~clifpy.utils.validator.get_schema_check_counts` so the
+    report shows ``0/N`` instead of ``N/A``.
+
+    Parameters
+    ----------
+    table_results : dict
+        Mapping of ``table_name -> serialized DQA result dict`` (or
+        *None* for tables that were not validated).
+    output_path : str
+        Path for the output PDF file.
+    table_names : list[str]
+        Ordered list of table names (controls row order).
+    site_name : str, optional
+        Site/hospital label for the report title.
+    feedback_map : dict, optional
+        Mapping of ``table_name -> feedback dict`` with user decisions.
+    display_names : dict, optional
+        Custom ``table_name -> display label`` mapping.  Falls back to
+        :data:`TABLE_DISPLAY_NAMES`.
+
+    Returns
+    -------
+    str
+        Path to the generated PDF.
+    """
+    from clifpy.utils.validator import get_schema_check_counts
+
+    if feedback_map is None:
+        feedback_map = {}
+    if display_names is None:
+        display_names = TABLE_DISPLAY_NAMES
+
+    doc = SimpleDocTemplate(output_path, pagesize=letter)
+    story = []
+    styles = getSampleStyleSheet()
+
+    primary_color = colors.HexColor('#1F4E79')
+    text_dark = colors.HexColor('#2C3E50')
+    text_medium = colors.HexColor('#5D6D7E')
+    header_bg = colors.HexColor('#F5F6FA')
+    pass_bg = colors.HexColor('#E8F5E8')
+    fail_bg = colors.HexColor('#FFEAEA')
+
+    title_style = ParagraphStyle(
+        'CustomTitle', parent=styles['Heading1'],
+        fontSize=22, textColor=primary_color, spaceAfter=24,
+        alignment=TA_CENTER, fontName='Helvetica-Bold',
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading', parent=styles['Heading2'],
+        fontSize=14, textColor=text_dark, spaceAfter=10,
+        spaceBefore=16, fontName='Helvetica-Bold',
+    )
+    normal_style = ParagraphStyle(
+        'CustomNormal', parent=styles['Normal'],
+        fontSize=9, textColor=text_medium, fontName='Helvetica',
+    )
+    timestamp_style = ParagraphStyle(
+        'TimestampStyle', parent=styles['Normal'],
+        fontSize=8, textColor=text_medium, alignment=1,
+        fontName='Helvetica',
+    )
+
+    # Timestamp
+    ts = Table(
+        [[Paragraph(
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            timestamp_style,
+        )]],
+        colWidths=[7.5 * inch],
+    )
+    ts.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'RIGHT'),
+        ('TOPPADDING', (0, 0), (0, 0), -24),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 2),
+    ]))
+    story.append(ts)
+
+    # Title
+    title_text = f"{site_name + ' ' if site_name else ''}CLIF DQA Report Card"
+    story.append(Paragraph(title_text, title_style))
+    story.append(Paragraph("Combined Validation Report", heading_style))
+    story.append(Spacer(1, 0.2 * inch))
+
+    # Check if any table has feedback
+    has_any_feedback = any(
+        fb and any(d.get('decision') in ('accepted', 'rejected')
+                   for d in fb.get('user_decisions', {}).values())
+        for fb in feedback_map.values() if fb
+    )
+
+    # Feedback banner
+    if has_any_feedback:
+        fb_banner_style = ParagraphStyle(
+            'FbBanner', parent=normal_style, fontSize=8,
+            textColor=colors.HexColor('#1F4E79'), fontName='Helvetica',
+        )
+        fb_banner = Table(
+            [[Paragraph(
+                "<i>This report includes user feedback decisions. "
+                "See individual table reports for details.</i>",
+                fb_banner_style,
+            )]],
+            colWidths=[7.5 * inch],
+        )
+        fb_banner.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#E8F0FE')),
+            ('TOPPADDING', (0, 0), (0, 0), 6),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 6),
+            ('LEFTPADDING', (0, 0), (0, 0), 10),
+            ('RIGHTPADDING', (0, 0), (0, 0), 10),
+        ]))
+        story.append(fb_banner)
+        story.append(Spacer(1, 0.15 * inch))
+
+    # --- DQA Overview table ---
+    story.append(Paragraph("DQA Overview", heading_style))
+    cat_labels = [c.title() for c in DQA_CATEGORIES]
+    overview_header = ['Table'] + cat_labels + ['Overall']
+    if has_any_feedback:
+        overview_header.append('Feedback')
+    overview_rows = [overview_header]
+
+    n_score_cols = len(DQA_CATEGORIES) + 1  # categories + Overall
+
+    def _row_overall(row):
+        """Sum p/t across category columns in a row."""
+        total_p, total_t = 0, 0
+        for cell in row[1:1 + len(DQA_CATEGORIES)]:
+            if cell == 'N/A':
+                continue
+            parts = cell.split('/')
+            if len(parts) == 2:
+                total_p += int(parts[0])
+                total_t += int(parts[1])
+        return f"{total_p}/{total_t}" if total_t > 0 else 'N/A'
+
+    def _feedback_summary(fb):
+        """Compact feedback summary like '2R/1A'."""
+        if not fb or not fb.get('user_decisions'):
+            return ''
+        n_a = sum(1 for d in fb['user_decisions'].values()
+                  if d.get('decision') == 'accepted')
+        n_r = sum(1 for d in fb['user_decisions'].values()
+                  if d.get('decision') == 'rejected')
+        parts = []
+        if n_r:
+            parts.append(f"{n_r}R")
+        if n_a:
+            parts.append(f"{n_a}A")
+        return '/'.join(parts)
+
+    for table_name in table_names:
+        dqa_data = table_results.get(table_name)
+        label = display_names.get(
+            table_name, table_name.replace('_', ' ').title())
+
+        if dqa_data is None:
+            # No data — use schema to provide expected denominators
+            expected = get_schema_check_counts(table_name)
+            conf_n = expected.get('conformance', 0)
+            row = [label]
+            for cat in DQA_CATEGORIES:
+                n = expected.get(cat, 0)
+                row.append(f"0/{n}" if n > 0 else 'N/A')
+            row.append(_row_overall(row))
+            if has_any_feedback:
+                row.append('')
+            overview_rows.append(row)
+            continue
+
+        scores, all_issues = collect_dqa_issues(dqa_data)
+
+        # Adjust scores for rejected feedback
+        fb = feedback_map.get(table_name)
+        rejected_ids: set = set()
+        if fb and fb.get('user_decisions'):
+            rejected_ids = {
+                eid for eid, d in fb['user_decisions'].items()
+                if d.get('decision') == 'rejected'
+            }
+        if rejected_ids:
+            for cat in list(scores.keys()):
+                cat_rejected = sum(
+                    1 for i in all_issues
+                    if i['category'] == cat and i['severity'] == 'error'
+                    and _make_error_id(i) in rejected_ids
+                )
+                if cat_rejected:
+                    p, t = scores[cat]
+                    scores[cat] = (p + cat_rejected, t)
+
+        row = [label]
+        for cat in DQA_CATEGORIES:
+            if cat in scores:
+                p, t = scores[cat]
+                row.append(f"{p}/{t}")
+            else:
+                row.append('N/A')
+        row.append(_row_overall(row))
+        if has_any_feedback:
+            row.append(_feedback_summary(feedback_map.get(table_name)))
+        overview_rows.append(row)
+
+    # Totals row
+    totals_row = ['Total']
+    for col_idx in range(1, len(DQA_CATEGORIES) + 1):
+        total_passed, total_count = 0, 0
+        for row in overview_rows[1:]:
+            cell_val = row[col_idx]
+            if cell_val == 'N/A':
+                continue
+            parts = cell_val.split('/')
+            if len(parts) == 2:
+                total_passed += int(parts[0])
+                total_count += int(parts[1])
+        totals_row.append(
+            f"{total_passed}/{total_count}" if total_count > 0 else 'N/A')
+    totals_row.append(_row_overall(totals_row))
+    if has_any_feedback:
+        totals_row.append('')
+    overview_rows.append(totals_row)
+
+    # Build table
+    col_widths = [2.2 * inch] + [1.2 * inch] * (len(DQA_CATEGORIES) + 1)
+    if has_any_feedback:
+        col_widths.append(0.7 * inch)
+    overview_tbl = Table(overview_rows, colWidths=col_widths)
+
+    totals_row_idx = len(overview_rows) - 1
+    tbl_style = [
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, totals_row_idx), (-1, totals_row_idx),
+         'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+        ('BACKGROUND', (0, totals_row_idx), (-1, totals_row_idx), header_bg),
+        ('TEXTCOLOR', (0, 0), (-1, -1), text_dark),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DADADA')),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]
+    # Color-code pass/fail cells
+    for row_idx in range(1, len(overview_rows)):
+        for col_idx in range(1, n_score_cols + 1):
+            cell_val = overview_rows[row_idx][col_idx]
+            if cell_val == 'N/A':
+                continue
+            parts = cell_val.split('/')
+            if len(parts) == 2 and parts[0] == parts[1]:
+                tbl_style.append(
+                    ('BACKGROUND', (col_idx, row_idx),
+                     (col_idx, row_idx), pass_bg))
+            else:
+                tbl_style.append(
+                    ('BACKGROUND', (col_idx, row_idx),
+                     (col_idx, row_idx), fail_bg))
+
+    overview_tbl.setStyle(TableStyle(tbl_style))
+    story.append(overview_tbl)
+    story.append(Spacer(1, 0.3 * inch))
+
+    doc.build(story)
+    return output_path
+
+
+def generate_consolidated_csv(
+    table_results: Dict[str, Any],
+    output_path: str,
+    table_names: List[str],
+    feedback_map: Optional[Dict[str, Any]] = None,
+    display_names: Optional[Dict[str, str]] = None,
+) -> str:
+    """Generate a consolidated CSV from multiple table DQA results.
+
+    Produces one row per issue across all tables, with feedback decisions
+    where available.
+
+    Parameters
+    ----------
+    table_results : dict
+        Mapping of ``table_name -> serialized DQA result dict`` (or *None*).
+    output_path : str
+        Path for the output CSV file.
+    table_names : list[str]
+        Ordered list of table names.
+    feedback_map : dict, optional
+        Mapping of ``table_name -> feedback dict``.
+    display_names : dict, optional
+        Custom ``table_name -> display label`` mapping.
+
+    Returns
+    -------
+    str
+        Path to the generated CSV.
+    """
+    if feedback_map is None:
+        feedback_map = {}
+    if display_names is None:
+        display_names = TABLE_DISPLAY_NAMES
+
+    rows = []
+    for table_name in table_names:
+        dqa_data = table_results.get(table_name)
+        label = display_names.get(
+            table_name, table_name.replace('_', ' ').title())
+        fb = feedback_map.get(table_name)
+        fb_decisions = fb.get('user_decisions', {}) if fb else {}
+
+        if dqa_data is None:
+            rows.append({
+                'table_name': label,
+                'category': '',
+                'rule_code': '',
+                'rule_description': '',
+                'check_type': 'Table Status',
+                'column_field': 'NA',
+                'severity': 'info',
+                'passed': True,
+                'message': 'Table not present in dataset',
+                'decision': '',
+                'reason': '',
+            })
+            continue
+
+        _, all_issues = collect_dqa_issues(dqa_data)
+
+        if not all_issues:
+            rows.append({
+                'table_name': label,
+                'category': '',
+                'rule_code': '',
+                'rule_description': '',
+                'check_type': 'Summary',
+                'column_field': 'NA',
+                'severity': 'info',
+                'passed': True,
+                'message': 'All DQA checks passed',
+                'decision': '',
+                'reason': '',
+            })
+            continue
+
+        for issue in all_issues:
+            error_id = _make_error_id(issue)
+            decision_info = fb_decisions.get(error_id, {})
+            rows.append({
+                'table_name': label,
+                'category': issue['category'],
+                'rule_code': issue.get('rule_code', ''),
+                'rule_description': issue.get('rule_description', ''),
+                'check_type': issue['check_type'],
+                'column_field': issue.get('column_field', 'NA'),
+                'severity': issue['severity'],
+                'passed': False,
+                'message': issue.get('finding', issue['message']),
+                'decision': (decision_info.get('decision', '')
+                             if issue['severity'] == 'error' else ''),
+                'reason': (decision_info.get('reason', '')
+                           if issue['severity'] == 'error' else ''),
+            })
+
+    fieldnames = [
+        'table_name', 'category', 'rule_code', 'rule_description',
+        'check_type', 'column_field', 'severity', 'passed', 'message',
+        'decision', 'reason',
+    ]
+    with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return output_path
+
+
+def generate_combined_report(
+    json_dir: str,
+    output_dir: str,
+    table_names: List[str],
+    site_name: Optional[str] = None,
+    feedback_dir: Optional[str] = None,
+) -> Optional[str]:
+    """Generate a combined DQA report (PDF + CSV) from JSON result files.
+
+    High-level convenience function that loads per-table JSON results
+    and produces both a combined PDF overview and a consolidated CSV.
+
+    Parameters
+    ----------
+    json_dir : str
+        Directory containing ``{table_name}_dqa.json`` files.
+    output_dir : str
+        Directory where the PDF and CSV will be written.
+    table_names : list[str]
+        Ordered list of table names to include.
+    site_name : str, optional
+        Site/hospital label for the report title.
+    feedback_dir : str, optional
+        Directory containing ``{table_name}_validation_response.json``
+        files.
+
+    Returns
+    -------
+    str or None
+        Path to generated PDF, or *None* on failure.
+    """
+    try:
+        table_results, feedback_map = collect_table_results(
+            json_dir, table_names, feedback_dir)
+
+        analyzed_count = sum(1 for r in table_results.values()
+                            if r is not None)
+        if analyzed_count == 0:
+            return None
+
+        os.makedirs(output_dir, exist_ok=True)
+        pdf_path = os.path.join(output_dir, 'combined_validation_report.pdf')
+        generate_combined_validation_pdf(
+            table_results, pdf_path, table_names, site_name,
+            feedback_map=feedback_map)
+
+        csv_path = os.path.join(output_dir, 'consolidated_validation.csv')
+        generate_consolidated_csv(
+            table_results, csv_path, table_names,
+            feedback_map=feedback_map)
+
+        return pdf_path
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return None

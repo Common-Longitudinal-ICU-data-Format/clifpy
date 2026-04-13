@@ -84,6 +84,71 @@ def _load_schema(table_name: str, schema_dir: Optional[str] = None) -> Optional[
         return yaml.safe_load(f)
 
 
+def get_schema_check_counts(
+    table_name: str,
+    schema_dir: Optional[str] = None,
+) -> Dict[str, int]:
+    """Compute expected DQA check message counts from schema alone.
+
+    Returns the expected number of messages per DQA category
+    (conformance, completeness, plausibility) for a table,
+    determined purely from the schema without needing any data.
+    This allows showing ``0/N`` instead of ``N/A`` in combined reports
+    for tables a site did not submit.
+
+    Parameters
+    ----------
+    table_name : str
+        Name of the CLIF table (e.g. ``'labs'``, ``'vitals'``).
+    schema_dir : str, optional
+        Override path to the schemas directory.
+
+    Returns
+    -------
+    Dict[str, int]
+        Keys ``conformance``, ``completeness``, ``plausibility`` each
+        mapping to the expected total message count for that category.
+    """
+    schema = _load_schema(table_name, schema_dir)
+    if schema is None:
+        return {"conformance": 0, "completeness": 0, "plausibility": 0}
+
+    columns = schema.get('columns', [])
+    category_columns = set(schema.get('category_columns') or [])
+
+    # --- Conformance ---
+    conf = 0
+    # C.1 table_presence: 1 message
+    conf += 1
+    # C.2 required_columns: 1 per required column
+    conf += len(schema.get('required_columns', []))
+    # C.3 column_dtypes: 1 per column with data_type
+    conf += sum(1 for c in columns if c.get('data_type'))
+    # C.4 datetime_format: 1 per DATETIME or DATE column
+    conf += sum(1 for c in columns if c.get('data_type') in ('DATETIME', 'DATE'))
+    # C.5 categorical_values: 1 per category column with permissible_values
+    conf += sum(
+        1 for c in columns
+        if c['name'] in category_columns and c.get('permissible_values')
+    )
+    # C.6 category_group_mapping: 1 per mapping entry (category → group pair).
+    # When no mappings exist the check emits a "not applicable" info that
+    # is filtered out by enrich_issue(), so it contributes 0 to the score.
+    mapping_keys = [k for k in schema if k.endswith('_category_to_group_mapping')]
+    for k in mapping_keys:
+        mapping = schema.get(k, {})
+        if mapping:
+            conf += len(mapping)
+    # C.7 lab_reference_units (labs only): 1 per lab category with defined units.
+    # When absent the "not applicable" info is filtered by enrich_issue().
+    if table_name == 'labs':
+        lab_units = schema.get('lab_reference_units', {})
+        if lab_units:
+            conf += len(lab_units)
+
+    return {"conformance": conf, "completeness": 0, "plausibility": 0}
+
+
 class DQAConformanceResult:
     """Container for DQA conformance check results."""
 
@@ -362,28 +427,25 @@ def check_required_columns_polars(
     try:
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         actual_columns = set(lf.collect_schema().names())
-        required_columns = set(schema.get('required_columns', []))
+        required_list = schema.get('required_columns', [])
 
-        missing = required_columns - actual_columns
-        extra = actual_columns - set(col['name'] for col in schema.get('columns', []))
+        missing = set(required_list) - actual_columns
 
-        result.metrics["total_required"] = len(required_columns)
-        result.metrics["total_present"] = len(required_columns - missing)
+        result.metrics["total_required"] = len(required_list)
+        result.metrics["total_present"] = len(required_list) - len(missing)
         result.metrics["total_missing"] = len(missing)
 
-        if missing:
-            result.add_error(
-                f"Missing {len(missing)} required columns: {sorted(missing)}",
-                {"missing_columns": sorted(missing)}
-            )
-        else:
-            result.add_info("All required columns present")
-
-        if extra:
-            result.add_warning(
-                f"Found {len(extra)} extra columns not in schema",
-                {"extra_columns": sorted(extra)}
-            )
+        for col_name in required_list:
+            if col_name in missing:
+                result.add_error(
+                    f"Column '{col_name}': missing from data",
+                    {"column": col_name}
+                )
+            else:
+                result.add_info(
+                    f"Column '{col_name}': present",
+                    {"column": col_name}
+                )
 
     except Exception as e:
         _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
@@ -401,36 +463,26 @@ def check_required_columns_duckdb(
     result = DQAConformanceResult("required_columns", table_name)
 
     try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        # Get columns from relation
         actual_columns = set(df.columns)
-        required_columns = set(schema.get('required_columns', []))
+        required_list = schema.get('required_columns', [])
 
-        missing = required_columns - actual_columns
+        missing = set(required_list) - actual_columns
 
-        result.metrics["total_required"] = len(required_columns)
-        result.metrics["total_present"] = len(required_columns - missing)
+        result.metrics["total_required"] = len(required_list)
+        result.metrics["total_present"] = len(required_list) - len(missing)
         result.metrics["total_missing"] = len(missing)
 
-        if missing:
-            result.add_error(
-                f"Missing {len(missing)} required columns: {sorted(missing)}",
-                {"missing_columns": sorted(missing)}
-            )
-        else:
-            result.add_info("All required columns present")
-
-        extra = actual_columns - set(col['name'] for col in schema.get('columns', []))
-
-        if extra:
-            result.add_warning(
-                f"Found {len(extra)} extra columns not in schema",
-                {"extra_columns": sorted(extra)}
-            )
-
-        con.close()
+        for col_name in required_list:
+            if col_name in missing:
+                result.add_error(
+                    f"Column '{col_name}': missing from data",
+                    {"column": col_name}
+                )
+            else:
+                result.add_info(
+                    f"Column '{col_name}': present",
+                    {"column": col_name}
+                )
 
     except Exception as e:
         _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
@@ -550,6 +602,8 @@ def check_column_dtypes_polars(
         result.metrics["dtype_errors"] = len(dtype_errors)
         result.metrics["dtype_warnings"] = len(dtype_warnings)
 
+        issue_cols = {err['column'] for err in dtype_errors} | {warn['column'] for warn in dtype_warnings}
+
         for err in dtype_errors:
             result.add_error(
                 f"Column '{err['column']}' has type {err['actual']}, cannot cast to {err['expected']}",
@@ -562,8 +616,21 @@ def check_column_dtypes_polars(
                 warn
             )
 
-        if not dtype_errors and not dtype_warnings:
-            result.add_info("All column data types match schema")
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            expected_type = col_spec.get('data_type')
+            if not expected_type:
+                continue
+            if col_name not in schema_dict.names():
+                result.add_info(
+                    f"Column '{col_name}': not present in data (dtype check skipped)",
+                    {"column": col_name, "expected": expected_type}
+                )
+            elif col_name not in issue_cols:
+                result.add_info(
+                    f"Column '{col_name}': dtype matches schema ({expected_type})",
+                    {"column": col_name, "expected": expected_type}
+                )
 
     except Exception as e:
         _logger.error("Check 'column_dtypes' failed for table '%s': %s", table_name, e)
@@ -670,6 +737,8 @@ def check_column_dtypes_duckdb(
         result.metrics["dtype_errors"] = len(dtype_errors)
         result.metrics["dtype_warnings"] = len(dtype_warnings)
 
+        issue_cols = {err['column'] for err in dtype_errors} | {warn['column'] for warn in dtype_warnings}
+
         for err in dtype_errors:
             result.add_error(
                 f"Column '{err['column']}' has type {err['actual']}, cannot cast to {err['expected']}",
@@ -682,8 +751,21 @@ def check_column_dtypes_duckdb(
                 warn
             )
 
-        if not dtype_errors and not dtype_warnings:
-            result.add_info("All column data types match schema")
+        for col_spec in schema.get('columns', []):
+            col_name = col_spec['name']
+            expected_type = col_spec.get('data_type')
+            if not expected_type:
+                continue
+            if col_name not in actual_types:
+                result.add_info(
+                    f"Column '{col_name}': not present in data (dtype check skipped)",
+                    {"column": col_name, "expected": expected_type}
+                )
+            elif col_name not in issue_cols:
+                result.add_info(
+                    f"Column '{col_name}': dtype matches schema ({expected_type})",
+                    {"column": col_name, "expected": expected_type}
+                )
 
         con.close()
 
@@ -752,14 +834,24 @@ def check_datetime_format_polars(
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         schema_dict = lf.collect_schema()
 
-        datetime_columns = [
+        all_datetime_columns = [
             col['name'] for col in schema.get('columns', [])
-            if col.get('data_type') == 'DATETIME' and col['name'] in schema_dict.names()
+            if col.get('data_type') in ('DATETIME', 'DATE')
         ]
+        data_col_names = set(schema_dict.names())
 
-        result.metrics["datetime_columns_checked"] = len(datetime_columns)
+        result.metrics["datetime_columns_checked"] = len(all_datetime_columns)
+        columns_with_messages = set()
 
-        for col in datetime_columns:
+        for col in all_datetime_columns:
+            if col not in data_col_names:
+                result.add_info(
+                    f"Column '{col}': not present in data (datetime check skipped)",
+                    {"column": col}
+                )
+                columns_with_messages.add(col)
+                continue
+
             col_dtype = schema_dict[col]
             dtype_str = str(col_dtype)
 
@@ -768,6 +860,7 @@ def check_datetime_format_polars(
                     f"Column '{col}' should be DATETIME but is {col_dtype}",
                     {"column": col, "actual_type": str(col_dtype)}
                 )
+                columns_with_messages.add(col)
                 continue
 
             if expected_tz and 'Datetime' in dtype_str:
@@ -776,9 +869,14 @@ def check_datetime_format_polars(
                         f"Column '{col}' may be timezone-naive, expected {expected_tz}",
                         {"column": col, "expected_tz": expected_tz}
                     )
+                    columns_with_messages.add(col)
 
-        if not result.errors and not result.warnings:
-            result.add_info("All datetime columns are properly formatted")
+        for col in all_datetime_columns:
+            if col not in columns_with_messages:
+                result.add_info(
+                    f"Column '{col}': datetime format valid",
+                    {"column": col}
+                )
 
     except Exception as e:
         _logger.error("Check 'datetime_format' failed for table '%s': %s", table_name, e)
@@ -803,14 +901,23 @@ def check_datetime_format_duckdb(
         describe_result = con.execute("DESCRIBE df").fetchall()
         actual_types = {row[0]: row[1].upper() for row in describe_result}
 
-        datetime_columns = [
+        all_datetime_columns = [
             col['name'] for col in schema.get('columns', [])
-            if col.get('data_type') == 'DATETIME' and col['name'] in actual_types
+            if col.get('data_type') in ('DATETIME', 'DATE')
         ]
 
-        result.metrics["datetime_columns_checked"] = len(datetime_columns)
+        result.metrics["datetime_columns_checked"] = len(all_datetime_columns)
+        columns_with_messages = set()
 
-        for col in datetime_columns:
+        for col in all_datetime_columns:
+            if col not in actual_types:
+                result.add_info(
+                    f"Column '{col}': not present in data (datetime check skipped)",
+                    {"column": col}
+                )
+                columns_with_messages.add(col)
+                continue
+
             col_dtype = actual_types[col]
 
             if 'TIMESTAMP' not in col_dtype and 'DATE' not in col_dtype:
@@ -818,9 +925,14 @@ def check_datetime_format_duckdb(
                     f"Column '{col}' should be DATETIME but is {col_dtype}",
                     {"column": col, "actual_type": col_dtype}
                 )
+                columns_with_messages.add(col)
 
-        if not result.errors and not result.warnings:
-            result.add_info("All datetime columns are properly formatted")
+        for col in all_datetime_columns:
+            if col not in columns_with_messages:
+                result.add_info(
+                    f"Column '{col}': datetime format valid",
+                    {"column": col}
+                )
 
         con.close()
 
@@ -877,49 +989,53 @@ def check_lab_reference_units_polars(
             .collect(streaming=True)
         )
 
-        invalid_units = []
-        valid_count = 0
+        # Build lookup: lab_category -> list of (reference_unit, count)
+        actual_units: Dict[str, list] = {}
         total_count = 0
-
         for row in unit_counts.iter_rows(named=True):
             lab_cat = row['lab_category']
             ref_unit = row['reference_unit']
             count = row['count']
             total_count += count
-
-            expected_units = lab_units.get(lab_cat, [])
-            if expected_units:
-                ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
-                expected_lower = [str(u).lower().strip() for u in expected_units]
-
-                # Accept null/empty for "(no units)" categories
-                no_units = '(no units)' in expected_lower
-                if no_units and not ref_unit_lower:
-                    valid_count += count
-                elif ref_unit_lower not in expected_lower and ref_unit not in expected_units:
-                    invalid_units.append({
-                        "lab_category": lab_cat,
-                        "reference_unit": ref_unit,
-                        "expected_units": expected_units,
-                        "count": count
-                    })
-                else:
-                    valid_count += count
+            actual_units.setdefault(lab_cat, []).append((ref_unit, count))
 
         result.metrics["total_records"] = total_count
-        result.metrics["valid_units"] = valid_count
-        result.metrics["invalid_unit_categories"] = len(invalid_units)
+        invalid_count = 0
 
-        if invalid_units:
-            invalid_units.sort(key=lambda x: x['count'], reverse=True)
-            top_invalid = invalid_units[:20]
+        # Emit one message per lab_reference_units entry
+        for lab_cat, expected_units in lab_units.items():
+            pairs = actual_units.get(lab_cat)
+            if pairs is None:
+                result.add_info(
+                    f"Lab category '{lab_cat}': not present in data",
+                    {"column": lab_cat}
+                )
+                continue
 
-            result.add_warning(
-                f"Found {len(invalid_units)} lab categories with non-standard units",
-                {"top_invalid_units": top_invalid}
-            )
-        else:
-            result.add_info("All lab reference units match schema definitions")
+            expected_lower = [str(u).lower().strip() for u in expected_units]
+            no_units = '(no units)' in expected_lower
+            bad = []
+            for ref_unit, count in pairs:
+                ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
+                if no_units and not ref_unit_lower:
+                    continue
+                if ref_unit_lower not in expected_lower and ref_unit not in expected_units:
+                    bad.append({"reference_unit": ref_unit, "expected_units": expected_units, "count": count})
+
+            if bad:
+                invalid_count += 1
+                bad.sort(key=lambda x: x['count'], reverse=True)
+                result.add_warning(
+                    f"Lab category '{lab_cat}': non-standard units found",
+                    {"column": lab_cat, "top_invalid_units": bad[:10]}
+                )
+            else:
+                result.add_info(
+                    f"Lab category '{lab_cat}': reference units match schema",
+                    {"column": lab_cat}
+                )
+
+        result.metrics["invalid_unit_categories"] = invalid_count
         gc.collect()
 
     except Exception as e:
@@ -957,48 +1073,51 @@ def check_lab_reference_units_duckdb(
             GROUP BY lab_category, reference_unit
         """).fetchall()
 
-        invalid_units = []
-        valid_count = 0
+        # Build lookup: lab_category -> list of (reference_unit, count)
+        actual_units: Dict[str, list] = {}
         total_count = 0
-
         for row in unit_counts:
             lab_cat, ref_unit, count = row
-            total_count += count
+            total_count += int(count)
+            actual_units.setdefault(lab_cat, []).append((ref_unit, int(count)))
 
-            expected_units = lab_units.get(lab_cat, [])
-            if expected_units:
+        result.metrics["total_records"] = total_count
+        invalid_count = 0
+
+        # Emit one message per lab_reference_units entry
+        for lab_cat, expected_units in lab_units.items():
+            pairs = actual_units.get(lab_cat)
+            if pairs is None:
+                result.add_info(
+                    f"Lab category '{lab_cat}': not present in data",
+                    {"column": lab_cat}
+                )
+                continue
+
+            expected_lower = [str(u).lower().strip() for u in expected_units]
+            no_units = '(no units)' in expected_lower
+            bad = []
+            for ref_unit, count in pairs:
                 ref_unit_lower = str(ref_unit).lower().strip() if ref_unit else ''
-                expected_lower = [str(u).lower().strip() for u in expected_units]
-
-                # Accept null/empty for "(no units)" categories
-                no_units = '(no units)' in expected_lower
                 if no_units and not ref_unit_lower:
-                    valid_count += count
-                elif ref_unit_lower not in expected_lower and ref_unit not in expected_units:
-                    invalid_units.append({
-                        "lab_category": lab_cat,
-                        "reference_unit": ref_unit,
-                        "expected_units": expected_units,
-                        "count": int(count)
-                    })
-                else:
-                    valid_count += count
+                    continue
+                if ref_unit_lower not in expected_lower and ref_unit not in expected_units:
+                    bad.append({"reference_unit": ref_unit, "expected_units": expected_units, "count": count})
 
-        result.metrics["total_records"] = int(total_count)
-        result.metrics["valid_units"] = int(valid_count)
-        result.metrics["invalid_unit_categories"] = len(invalid_units)
+            if bad:
+                invalid_count += 1
+                bad.sort(key=lambda x: x['count'], reverse=True)
+                result.add_warning(
+                    f"Lab category '{lab_cat}': non-standard units found",
+                    {"column": lab_cat, "top_invalid_units": bad[:10]}
+                )
+            else:
+                result.add_info(
+                    f"Lab category '{lab_cat}': reference units match schema",
+                    {"column": lab_cat}
+                )
 
-        if invalid_units:
-            invalid_units.sort(key=lambda x: x['count'], reverse=True)
-            top_invalid = invalid_units[:20]
-
-            result.add_warning(
-                f"Found {len(invalid_units)} lab categories with non-standard units",
-                {"top_invalid_units": top_invalid}
-            )
-        else:
-            result.add_info("All lab reference units match schema definitions")
-
+        result.metrics["invalid_unit_categories"] = invalid_count
         con.close()
         gc.collect()
 
@@ -1041,15 +1160,23 @@ def check_categorical_values_polars(
 
         category_columns = schema.get('category_columns') or []
         invalid_values_by_col = {}
+        columns_checked = []
+        columns_missing = set()
 
         for col_spec in schema.get('columns', []):
             col_name = col_spec['name']
             permissible = col_spec.get('permissible_values', [])
 
-            if not permissible or col_name not in col_names:
+            if not permissible:
                 continue
 
             if col_name not in category_columns:
+                continue
+
+            columns_checked.append(col_name)
+
+            if col_name not in col_names:
+                columns_missing.add(col_name)
                 continue
 
             unique_vals = (
@@ -1083,21 +1210,30 @@ def check_categorical_values_polars(
                     "permissible_values": permissible
                 }
 
-        result.metrics["category_columns_checked"] = len(category_columns)
+        result.metrics["category_columns_checked"] = len(columns_checked)
         result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
 
-        for col_name, details in invalid_values_by_col.items():
-            result.add_warning(
-                f"{details['total_invalid_unique']} invalid categorical values",
-                {
-                    "column": col_name,
-                    "top_invalid": details['invalid_values'][:10],
-                    "permissible_values": details['permissible_values']
-                }
-            )
-
-        if not invalid_values_by_col:
-            result.add_info("All categorical values match mCIDE permissible values")
+        for col_name in columns_checked:
+            if col_name in columns_missing:
+                result.add_info(
+                    f"Column '{col_name}': not present in data (categorical check skipped)",
+                    {"column": col_name}
+                )
+            elif col_name in invalid_values_by_col:
+                details = invalid_values_by_col[col_name]
+                result.add_warning(
+                    f"{details['total_invalid_unique']} invalid categorical values",
+                    {
+                        "column": col_name,
+                        "top_invalid": details['invalid_values'][:10],
+                        "permissible_values": details['permissible_values']
+                    }
+                )
+            else:
+                result.add_info(
+                    f"Column '{col_name}': all values match mCIDE permissible values",
+                    {"column": col_name}
+                )
 
         gc.collect()
 
@@ -1122,15 +1258,23 @@ def check_categorical_values_duckdb(
 
         category_columns = schema.get('category_columns') or []
         invalid_values_by_col = {}
+        columns_checked = []
+        columns_missing = set()
 
         for col_spec in schema.get('columns', []):
             col_name = col_spec['name']
             permissible = col_spec.get('permissible_values', [])
 
-            if not permissible or col_name not in df.columns:
+            if not permissible:
                 continue
 
             if col_name not in category_columns:
+                continue
+
+            columns_checked.append(col_name)
+
+            if col_name not in df.columns:
+                columns_missing.add(col_name)
                 continue
 
             unique_vals = con.execute(f"""
@@ -1162,21 +1306,30 @@ def check_categorical_values_duckdb(
                     "permissible_values": permissible
                 }
 
-        result.metrics["category_columns_checked"] = len(category_columns)
+        result.metrics["category_columns_checked"] = len(columns_checked)
         result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
 
-        for col_name, details in invalid_values_by_col.items():
-            result.add_warning(
-                f"{details['total_invalid_unique']} invalid categorical values",
-                {
-                    "column": col_name,
-                    "top_invalid": details['invalid_values'][:10],
-                    "permissible_values": details['permissible_values']
-                }
-            )
-
-        if not invalid_values_by_col:
-            result.add_info("All categorical values match mCIDE permissible values")
+        for col_name in columns_checked:
+            if col_name in columns_missing:
+                result.add_info(
+                    f"Column '{col_name}': not present in data (categorical check skipped)",
+                    {"column": col_name}
+                )
+            elif col_name in invalid_values_by_col:
+                details = invalid_values_by_col[col_name]
+                result.add_warning(
+                    f"{details['total_invalid_unique']} invalid categorical values",
+                    {
+                        "column": col_name,
+                        "top_invalid": details['invalid_values'][:10],
+                        "permissible_values": details['permissible_values']
+                    }
+                )
+            else:
+                result.add_info(
+                    f"Column '{col_name}': all values match mCIDE permissible values",
+                    {"column": col_name}
+                )
 
         con.close()
 
@@ -1234,9 +1387,12 @@ def check_category_group_mapping_polars(
             group_col = category_col.replace('_category', '_group')
 
             if category_col not in col_names or group_col not in col_names:
-                result.add_info(
-                    f"Skipping mapping '{mapping_key}': columns '{category_col}' and/or '{group_col}' not in DataFrame"
-                )
+                # Emit one info per mapping entry so the count stays deterministic
+                for cat_val in mapping:
+                    result.add_info(
+                        f"Category '{cat_val}': columns not in data (mapping check skipped)",
+                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
+                    )
                 continue
 
             # Group by (category_col, group_col) where both non-null
@@ -1248,49 +1404,50 @@ def check_category_group_mapping_polars(
                 .collect(streaming=True)
             )
 
-            mismatched = []
-            valid_count = 0
+            # Build lookup: category_val -> list of (group_val, count)
+            actual_groups: Dict[str, list] = {}
             total_count = 0
-
             for row in pair_counts.iter_rows(named=True):
                 cat_val = row[category_col]
                 grp_val = row[group_col]
                 count = row['count']
                 total_count += count
-
-                expected_group = mapping.get(cat_val)
-                if expected_group is None:
-                    # Category not in mapping — not a mismatch, just unmapped
-                    valid_count += count
-                    continue
-
-                cat_lower = str(grp_val).lower().strip() if grp_val else ''
-                expected_lower = str(expected_group).lower().strip()
-
-                if cat_lower == expected_lower or grp_val == expected_group:
-                    valid_count += count
-                else:
-                    mismatched.append({
-                        "category": cat_val,
-                        "actual_group": grp_val,
-                        "expected_group": expected_group,
-                        "count": count
-                    })
+                actual_groups.setdefault(cat_val, []).append((grp_val, count))
 
             result.metrics[f"{mapping_key}_total_records"] = total_count
-            result.metrics[f"{mapping_key}_valid_count"] = valid_count
-            result.metrics[f"{mapping_key}_mismatch_count"] = len(mismatched)
+            mismatch_count = 0
 
-            if mismatched:
-                mismatched.sort(key=lambda x: x['count'], reverse=True)
-                result.add_warning(
-                    f"Found {len(mismatched)} mismatched category-group pairs",
-                    {"mismatched_pairs": mismatched[:20],
-                     "category_column": category_col,
-                     "group_column": group_col}
-                )
-            else:
-                result.add_info(f"All category-group pairs match for '{mapping_key}'")
+            # Emit one message per mapping entry
+            for cat_val, expected_group in mapping.items():
+                pairs = actual_groups.get(cat_val)
+                if pairs is None:
+                    result.add_info(
+                        f"Category '{cat_val}': not present in data",
+                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
+                    )
+                    continue
+
+                bad = []
+                for grp_val, count in pairs:
+                    grp_lower = str(grp_val).lower().strip() if grp_val else ''
+                    exp_lower = str(expected_group).lower().strip()
+                    if grp_lower != exp_lower and grp_val != expected_group:
+                        bad.append({"actual_group": grp_val, "expected_group": expected_group, "count": count})
+
+                if bad:
+                    mismatch_count += 1
+                    result.add_warning(
+                        f"Category '{cat_val}': group mismatch (expected '{expected_group}')",
+                        {"column": cat_val, "category_column": category_col,
+                         "group_column": group_col, "mismatched_pairs": bad}
+                    )
+                else:
+                    result.add_info(
+                        f"Category '{cat_val}': group mapping correct",
+                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
+                    )
+
+            result.metrics[f"{mapping_key}_mismatch_count"] = mismatch_count
 
         gc.collect()
 
@@ -1330,9 +1487,11 @@ def check_category_group_mapping_duckdb(
             group_col = category_col.replace('_category', '_group')
 
             if category_col not in col_names or group_col not in col_names:
-                result.add_info(
-                    f"Skipping mapping '{mapping_key}': columns '{category_col}' and/or '{group_col}' not in DataFrame"
-                )
+                for cat_val in mapping:
+                    result.add_info(
+                        f"Category '{cat_val}': columns not in data (mapping check skipped)",
+                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
+                    )
                 continue
 
             # Group by (category_col, group_col) where both non-null
@@ -1343,47 +1502,48 @@ def check_category_group_mapping_duckdb(
                 GROUP BY "{category_col}", "{group_col}"
             """).fetchall()
 
-            mismatched = []
-            valid_count = 0
+            # Build lookup: category_val -> list of (group_val, count)
+            actual_groups: Dict[str, list] = {}
             total_count = 0
-
             for row in pair_counts:
                 cat_val, grp_val, count = row
-                total_count += count
+                total_count += int(count)
+                actual_groups.setdefault(cat_val, []).append((grp_val, int(count)))
 
-                expected_group = mapping.get(cat_val)
-                if expected_group is None:
-                    # Category not in mapping — not a mismatch, just unmapped
-                    valid_count += count
+            result.metrics[f"{mapping_key}_total_records"] = total_count
+            mismatch_count = 0
+
+            # Emit one message per mapping entry
+            for cat_val, expected_group in mapping.items():
+                pairs = actual_groups.get(cat_val)
+                if pairs is None:
+                    result.add_info(
+                        f"Category '{cat_val}': not present in data",
+                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
+                    )
                     continue
 
-                cat_lower = str(grp_val).lower().strip() if grp_val else ''
-                expected_lower = str(expected_group).lower().strip()
+                bad = []
+                for grp_val, count in pairs:
+                    grp_lower = str(grp_val).lower().strip() if grp_val else ''
+                    exp_lower = str(expected_group).lower().strip()
+                    if grp_lower != exp_lower and grp_val != expected_group:
+                        bad.append({"actual_group": grp_val, "expected_group": expected_group, "count": count})
 
-                if cat_lower == expected_lower or grp_val == expected_group:
-                    valid_count += count
+                if bad:
+                    mismatch_count += 1
+                    result.add_warning(
+                        f"Category '{cat_val}': group mismatch (expected '{expected_group}')",
+                        {"column": cat_val, "category_column": category_col,
+                         "group_column": group_col, "mismatched_pairs": bad}
+                    )
                 else:
-                    mismatched.append({
-                        "category": cat_val,
-                        "actual_group": grp_val,
-                        "expected_group": expected_group,
-                        "count": int(count)
-                    })
+                    result.add_info(
+                        f"Category '{cat_val}': group mapping correct",
+                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
+                    )
 
-            result.metrics[f"{mapping_key}_total_records"] = int(total_count)
-            result.metrics[f"{mapping_key}_valid_count"] = int(valid_count)
-            result.metrics[f"{mapping_key}_mismatch_count"] = len(mismatched)
-
-            if mismatched:
-                mismatched.sort(key=lambda x: x['count'], reverse=True)
-                result.add_warning(
-                    f"Found {len(mismatched)} mismatched category-group pairs",
-                    {"mismatched_pairs": mismatched[:20],
-                     "category_column": category_col,
-                     "group_column": group_col}
-                )
-            else:
-                result.add_info(f"All category-group pairs match for '{mapping_key}'")
+            result.metrics[f"{mapping_key}_mismatch_count"] = mismatch_count
 
         con.close()
         gc.collect()
@@ -1430,6 +1590,7 @@ def check_missingness_polars(
         col_names = lf.collect_schema().names()
 
         required_columns = schema.get('required_columns', [])
+        required_not_in_df = [c for c in required_columns if c not in col_names]
         required_in_df = [c for c in required_columns if c in col_names]
 
         # Skip columns covered by conditional requirements (checked in K.2)
@@ -1498,6 +1659,8 @@ def check_missingness_polars(
         result.metrics["required_columns_checked"] = len(required_in_df)
         result.metrics["missingness_stats"] = missingness_stats
 
+        high_miss_cols = {item['column'] for item in high_missingness}
+
         for item in high_missingness:
             if item["severity"] == "error":
                 result.add_error(
@@ -1510,19 +1673,22 @@ def check_missingness_polars(
                     item
                 )
 
-        if not high_missingness:
-            col_summaries = ", ".join(
-                f"{s['column']}={s['percent_missing']}%"
-                for s in missingness_stats
-            )
-            result.add_info(
-                f"All required columns below thresholds "
-                f"(error\u2265{error_threshold}%, warn\u2265{warning_threshold}%): "
-                f"{col_summaries}",
-                {"error_threshold": error_threshold,
-                 "warning_threshold": warning_threshold,
-                 "missingness_stats": missingness_stats},
-            )
+        for stat in missingness_stats:
+            if stat['column'] not in high_miss_cols:
+                result.add_info(
+                    f"Column '{stat['column']}': {stat['percent_missing']}% missing (below thresholds)",
+                    {"column": stat['column'],
+                     "percent_missing": stat['percent_missing'],
+                     "error_threshold": error_threshold,
+                     "warning_threshold": warning_threshold},
+                )
+
+        for col in required_not_in_df:
+            if col not in conditional_cols:
+                result.add_info(
+                    f"Column '{col}': not present in data (missingness check skipped)",
+                    {"column": col},
+                )
 
         gc.collect()
 
@@ -1548,6 +1714,7 @@ def check_missingness_duckdb(
         con.register('df', df)
 
         required_columns = schema.get('required_columns', [])
+        required_not_in_df = [c for c in required_columns if c not in df.columns]
         required_in_df = [c for c in required_columns if c in df.columns]
 
         # Skip columns covered by conditional requirements (checked in K.2)
@@ -1618,6 +1785,8 @@ def check_missingness_duckdb(
         result.metrics["required_columns_checked"] = len(required_in_df)
         result.metrics["missingness_stats"] = missingness_stats
 
+        high_miss_cols = {item['column'] for item in high_missingness}
+
         for item in high_missingness:
             if item["severity"] == "error":
                 result.add_error(
@@ -1630,19 +1799,22 @@ def check_missingness_duckdb(
                     item
                 )
 
-        if not high_missingness:
-            col_summaries = ", ".join(
-                f"{s['column']}={s['percent_missing']}%"
-                for s in missingness_stats
-            )
-            result.add_info(
-                f"All required columns below thresholds "
-                f"(error\u2265{error_threshold}%, warn\u2265{warning_threshold}%): "
-                f"{col_summaries}",
-                {"error_threshold": error_threshold,
-                 "warning_threshold": warning_threshold,
-                 "missingness_stats": missingness_stats},
-            )
+        for stat in missingness_stats:
+            if stat['column'] not in high_miss_cols:
+                result.add_info(
+                    f"Column '{stat['column']}': {stat['percent_missing']}% missing (below thresholds)",
+                    {"column": stat['column'],
+                     "percent_missing": stat['percent_missing'],
+                     "error_threshold": error_threshold,
+                     "warning_threshold": warning_threshold},
+                )
+
+        for col in required_not_in_df:
+            if col not in conditional_cols:
+                result.add_info(
+                    f"Column '{col}': not present in data (missingness check skipped)",
+                    {"column": col},
+                )
 
         con.close()
         gc.collect()
@@ -1938,15 +2110,20 @@ def check_mcide_value_coverage_polars(
 
         category_columns = schema.get('category_columns') or []
         coverage_by_col = {}
+        columns_missing = set()
 
         for col_spec in schema.get('columns', []):
             col_name = col_spec['name']
             permissible = col_spec.get('permissible_values', [])
 
-            if not permissible or col_name not in col_names:
+            if not permissible:
                 continue
 
             if col_name not in category_columns:
+                continue
+
+            if col_name not in col_names:
+                columns_missing.add(col_name)
                 continue
 
             unique_vals = (
@@ -1973,7 +2150,7 @@ def check_mcide_value_coverage_polars(
                 "coverage_percent": round(coverage_pct, 2)
             }
 
-        result.metrics["category_columns_checked"] = len(coverage_by_col)
+        result.metrics["category_columns_checked"] = len(coverage_by_col) + len(columns_missing)
         result.metrics["coverage_by_column"] = coverage_by_col
 
         for col_name, details in coverage_by_col.items():
@@ -1986,6 +2163,21 @@ def check_mcide_value_coverage_polars(
                         "coverage_percent": details['coverage_percent']
                     }
                 )
+            else:
+                result.add_info(
+                    f"Column '{col_name}': all {details['expected_values']} mCIDE values present",
+                    {
+                        "column": col_name,
+                        "coverage_percent": details['coverage_percent'],
+                        "expected_values": details['expected_values']
+                    }
+                )
+
+        for col_name in columns_missing:
+            result.add_info(
+                f"Column '{col_name}': not present in data (coverage check skipped)",
+                {"column": col_name}
+            )
 
         gc.collect()
 
@@ -2010,15 +2202,20 @@ def check_mcide_value_coverage_duckdb(
 
         category_columns = schema.get('category_columns') or []
         coverage_by_col = {}
+        columns_missing = set()
 
         for col_spec in schema.get('columns', []):
             col_name = col_spec['name']
             permissible = col_spec.get('permissible_values', [])
 
-            if not permissible or col_name not in df.columns:
+            if not permissible:
                 continue
 
             if col_name not in category_columns:
+                continue
+
+            if col_name not in df.columns:
+                columns_missing.add(col_name)
                 continue
 
             unique_vals = con.execute(f"""
@@ -2041,7 +2238,7 @@ def check_mcide_value_coverage_duckdb(
                 "coverage_percent": round(coverage_pct, 2)
             }
 
-        result.metrics["category_columns_checked"] = len(coverage_by_col)
+        result.metrics["category_columns_checked"] = len(coverage_by_col) + len(columns_missing)
         result.metrics["coverage_by_column"] = coverage_by_col
 
         for col_name, details in coverage_by_col.items():
@@ -2054,6 +2251,21 @@ def check_mcide_value_coverage_duckdb(
                         "coverage_percent": details['coverage_percent']
                     }
                 )
+            else:
+                result.add_info(
+                    f"Column '{col_name}': all {details['expected_values']} mCIDE values present",
+                    {
+                        "column": col_name,
+                        "coverage_percent": details['coverage_percent'],
+                        "expected_values": details['expected_values']
+                    }
+                )
+
+        for col_name in columns_missing:
+            result.add_info(
+                f"Column '{col_name}': not present in data (coverage check skipped)",
+                {"column": col_name}
+            )
 
         con.close()
 
@@ -3635,12 +3847,14 @@ def check_cross_table_temporal_plausibility_polars(
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
+            else:
+                result.add_info(
+                    f"Column '{time_col}': all records within admission-to-discharge window",
+                    {"column": time_col, "total_joined": int(total)}
+                )
 
         result.metrics["time_columns_checked"] = list(violations_by_col.keys())
         result.metrics["violations_by_column"] = violations_by_col
-
-        if not result.errors and not result.warnings:
-            result.add_info("All records fall within admission-to-discharge window")
 
         gc.collect()
 
@@ -3719,12 +3933,14 @@ def check_cross_table_temporal_plausibility_duckdb(
                     {"column": time_col, "before_admission": int(before),
                      "after_discharge": int(after), "percent": round(pct, 2)}
                 )
+            else:
+                result.add_info(
+                    f"Column '{time_col}': all records within admission-to-discharge window",
+                    {"column": time_col, "total_joined": int(total)}
+                )
 
         result.metrics["time_columns_checked"] = list(violations_by_col.keys())
         result.metrics["violations_by_column"] = violations_by_col
-
-        if not result.errors and not result.warnings:
-            result.add_info("All records fall within admission-to-discharge window")
 
         con.close()
         gc.collect()
