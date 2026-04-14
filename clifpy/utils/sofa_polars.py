@@ -54,15 +54,9 @@ REQUIRED_RESP_SUPPORT_COLS = ['device_category', 'mode_category', 'fio2_set']
 
 # Device ranking for respiratory SOFA score (lower rank = worse)
 DEVICE_RANK_DICT = {
-    'IMV': 1,
-    'NIPPV': 2,
-    'CPAP': 3,
-    'High Flow NC': 4,
-    'Face Mask': 5,
-    'Trach Collar': 6,
-    'Nasal Cannula': 7,
-    'Other': 8,
-    'Room Air': 9
+    'imv': 1, 'nippv': 2, 'cpap': 3,
+    'high flow nc': 4, 'face mask': 5, 'trach collar': 6,
+    'nasal cannula': 7, 'other': 8, 'room air': 9
 }
 
 # Unit conversion patterns for medication doses
@@ -125,7 +119,7 @@ def _create_resp_support_episodes(
                 r"(?:assist control-volume control|simv|pressure control)"
             )
         )
-        .then(pl.lit('IMV'))
+        .then(pl.lit('imv'))
         .otherwise(pl.col('device_category'))
         .alias('device_category')
     ])
@@ -139,7 +133,7 @@ def _create_resp_support_episodes(
             pl.col('mode_category').str.to_lowercase().str.contains(r"pressure support") &
             ~pl.col('mode_category').str.to_lowercase().str.contains(r"cpap")
         )
-        .then(pl.lit('NIPPV'))
+        .then(pl.lit('nippv'))
         .otherwise(pl.col('device_category'))
         .alias('device_category')
     ])
@@ -155,6 +149,10 @@ def _create_resp_support_episodes(
         .alias('fio2_set')
     ])
 
+    resp_df = resp_df.with_columns(
+        pl.col('device_category').str.to_lowercase().str.strip_chars().alias('device_category')
+    )
+    
     logger.debug("Waterfall: FiO2 imputation from nasal cannula LPM...")
     # === HEURISTIC 4: FiO2 imputation from nasal cannula flow ===
     if 'lpm_set' in resp_df.columns:
@@ -518,14 +516,12 @@ def _load_respiratory_support(
     ]
 
     id_cols = [col for col in cohort_df.columns if col not in ['start_dttm', 'end_dttm']]
-    resp_pd = resp_pd[[*id_cols, 'recorded_dttm', 'device_category', 'mode_category',
-                       'fio2_set', 'start_dttm', 'end_dttm']]
-
-    # Also include lpm_set if available
+    keep_cols = [*id_cols, 'recorded_dttm', 'device_category', 'mode_category',
+             'fio2_set', 'start_dttm', 'end_dttm']
     if 'lpm_set' in resp_pd.columns:
-        resp_pd = resp_pd[[*id_cols, 'recorded_dttm', 'device_category', 'mode_category',
-                           'fio2_set', 'lpm_set', 'start_dttm', 'end_dttm']]
+        keep_cols.append('lpm_set')
 
+    resp_pd = resp_pd[keep_cols]
     resp = pl.from_pandas(resp_pd)
 
     if timezone:
@@ -860,7 +856,7 @@ def _compute_sofa_scores(extremal_df: pl.DataFrame, id_name: str) -> pl.DataFram
     if 'device_category' not in df.columns:
         rank_to_device = {v: k for k, v in DEVICE_RANK_DICT.items()}
         df = df.with_columns([
-            pl.col('device_rank').replace(rank_to_device, default='Other').alias('device_category')
+            pl.col('device_rank').replace(rank_to_device, default='other').alias('device_category')
         ])
 
     # Calculate SOFA scores
@@ -872,12 +868,12 @@ def _compute_sofa_scores(extremal_df: pl.DataFrame, id_name: str) -> pl.DataFram
             (pl.col('norepinephrine_mcg_kg_min') > 0.1)
         ).then(4)
         .when(
-            (pl.col('dopamine_mcg_kg_min') > 5) |
-            (pl.col('epinephrine_mcg_kg_min') <= 0.1) |
-            (pl.col('norepinephrine_mcg_kg_min') <= 0.1)
+            (pl.col('dopamine_mcg_kg_min') > 5) & (pl.col('dopamine_mcg_kg_min') <= 15) |
+            (pl.col('epinephrine_mcg_kg_min') > 0) & (pl.col('epinephrine_mcg_kg_min') <= 0.1) |
+            (pl.col('norepinephrine_mcg_kg_min') > 0) & (pl.col('norepinephrine_mcg_kg_min') <= 0.1)
         ).then(3)
         .when(
-            (pl.col('dopamine_mcg_kg_min') <= 5) |
+            (pl.col('dopamine_mcg_kg_min') > 0) & (pl.col('dopamine_mcg_kg_min') <= 5) |
             (pl.col('dobutamine_mcg_kg_min') > 0)
         ).then(2)
         .when(pl.col('map') < 70).then(1)
@@ -906,11 +902,11 @@ def _compute_sofa_scores(extremal_df: pl.DataFrame, id_name: str) -> pl.DataFram
         # Respiratory
         pl.when(
             (pl.col('p_f') < 100) &
-            pl.col('device_category').is_in(['IMV', 'NIPPV', 'CPAP'])
+            pl.col('device_category').is_in(['imv', 'nippv', 'cpap'])
         ).then(4)
         .when(
             (pl.col('p_f') >= 100) & (pl.col('p_f') < 200) &
-            pl.col('device_category').is_in(['IMV', 'NIPPV', 'CPAP'])
+            pl.col('device_category').is_in(['imv', 'nippv', 'cpap'])
         ).then(3)
         .when((pl.col('p_f') >= 200) & (pl.col('p_f') < 300)).then(2)
         .when((pl.col('p_f') >= 300) & (pl.col('p_f') < 400)).then(1)
@@ -1283,7 +1279,6 @@ def compute_sofa_polars(
     pf_agg = pf_agg.with_columns([
         pl.col('device_category').replace(DEVICE_RANK_DICT, default=9).alias('device_rank')
     ])
-
     # Merge P/F data with other aggregated values
     combined_df = combined_df.join(pf_agg, on=id_name, how='left')
 
