@@ -40,7 +40,7 @@ import duckdb
 
 from clifpy.utils.sofa2._kidney import _calculate_kidney_subscore, _calculate_uo_score
 from clifpy.utils.sofa2._utils import SOFA2Config
-from tests.utils.sofa2.conftest import load_expected, assert_columns_match
+from tests.utils.sofa2.conftest import load_csv_fixture, load_expected, assert_columns_match
 
 
 FIXTURES_DIR = Path(__file__).parent
@@ -59,6 +59,20 @@ KIDNEY_COLUMNS = [
     ('uo_rate_24hr', 'Float64'),
     ('has_uo_oliguria', 'Int64'),
     ('weight_at_uo', 'Float64'),
+]
+
+# Extended column spec for test_kidney_with_uo — includes lab intermediates
+# and creat_score that are already tested implicitly by creatinine_only cases
+# but worth asserting explicitly for the UO path where GREATEST(creat, uo) matters.
+KIDNEY_COLUMNS_WITH_LABS = KIDNEY_COLUMNS + [
+    ('potassium', 'Float64'),
+    ('potassium_dttm_offset', 'offset'),
+    ('ph', 'Float64'),
+    ('ph_type', 'str'),
+    ('ph_dttm_offset', 'offset'),
+    ('bicarbonate', 'Float64'),
+    ('bicarbonate_dttm_offset', 'offset'),
+    ('creat_score', 'Int64'),
 ]
 
 INTERMEDIATE_COLUMNS = [
@@ -83,49 +97,43 @@ LOOKBACK_CONFIGS = {
 
 @pytest.fixture
 def cohort_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_cohort.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
+    return load_csv_fixture(
+        FIXTURES_DIR / 'clif_cohort.csv', ['start_dttm', 'end_dttm'],
     )
 
 
 @pytest.fixture
 def labs_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_labs.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
+    return load_csv_fixture(
+        FIXTURES_DIR / 'clif_labs.csv', ['lab_collect_dttm'],
     )
 
 
 @pytest.fixture
 def crrt_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_crrt_therapy.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
+    return load_csv_fixture(
+        FIXTURES_DIR / 'clif_crrt_therapy.csv', ['recorded_dttm'],
     )
 
 
 @pytest.fixture
 def output_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_output.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
+    return load_csv_fixture(
+        FIXTURES_DIR / 'clif_output.csv', ['recorded_dttm'],
     )
 
 
 @pytest.fixture
 def input_rel():
-    return duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_input.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
+    return load_csv_fixture(
+        FIXTURES_DIR / 'clif_input.csv', ['recorded_dttm'],
     )
 
 
 @pytest.fixture
 def weight_rel():
-    vitals = duckdb.read_csv(
-        str(FIXTURES_DIR / 'clif_vitals.csv'),
-        dtype={'hospitalization_id': 'VARCHAR'},
+    vitals = load_csv_fixture(
+        FIXTURES_DIR / 'clif_vitals.csv', ['recorded_dttm'],
     )
     return duckdb.sql("""
         FROM vitals SELECT * WHERE vital_category = 'weight_kg' AND vital_value IS NOT NULL
@@ -133,20 +141,27 @@ def weight_rel():
 
 
 @pytest.fixture
-def expected_df():
-    return load_expected(FIXTURES_DIR, 'kidney_expected.csv', 'default')
+def creatinine_only_expected_df():
+    return load_expected(FIXTURES_DIR, 'kidney_expected.csv', 'creatinine_only')
 
 
 @pytest.fixture
-def result_df(cohort_rel, labs_rel, crrt_rel):
+def creatinine_only_result_df(cohort_rel, labs_rel, crrt_rel):
+    """Creatinine-only scoring (no UO data passed). Filtered to patients 201-218."""
     cfg = SOFA2Config()
     result = _calculate_kidney_subscore(cohort_rel, labs_rel, crrt_rel, cfg)
-    return result.df().sort_values(SORT_COLS).reset_index(drop=True)
+    creatinine_only_ids = [str(i) for i in range(201, 219)]
+    return (
+        result.df()
+        .query('hospitalization_id in @creatinine_only_ids')
+        .sort_values(SORT_COLS)
+        .reset_index(drop=True)
+    )
 
 
-def test_kidney_default(result_df, expected_df):
-    """Verify all output columns match expected for default case."""
-    assert_columns_match(result_df, expected_df, KIDNEY_COLUMNS)
+def test_kidney_creatinine_only(creatinine_only_result_df, creatinine_only_expected_df):
+    """Verify creatinine-only kidney scoring for patients 201-218 (no UO data)."""
+    assert_columns_match(creatinine_only_result_df, creatinine_only_expected_df, KIDNEY_COLUMNS)
 
 
 def test_kidney_intermediates(cohort_rel, labs_rel, crrt_rel):
@@ -241,15 +256,13 @@ def test_urine_output_rate_intermediate(
     assert_columns_match(actual, expected, INTERMEDIATE_COLUMNS)
 
 
-@pytest.mark.skip(reason="uo-case expected values blanked for re-derivation at weight=100 kg")
 def test_kidney_with_uo(cohort_rel, labs_rel, crrt_rel, output_rel, input_rel, weight_rel):
-    """Verify UO-based kidney scoring for patients 219-224 (irregular intervals).
+    """Verify UO-based kidney scoring for patients 219-227 (irregular intervals).
 
-    All patients have creatinine=1.0 (score 0), so kidney score = uo_score.
-    Tests GREATEST(creatinine_score, uo_score) integration:
-    - 219: UO score 1 — late drop, 12h rate barely >= 0.5
-    - 220: UO score 2 — sustained moderate oliguria
-    - 221: UO score 3 — very low output (24h rate < 0.3)
+    Tests GREATEST(creatinine_score, uo_score) integration including competition:
+    - 219: UO score 1 + creat=2.5 (score 2) → kidney=2 (CREATININE WINS)
+    - 220: UO score 2 + creat=1.0 (score 0) → kidney=2 (UO wins)
+    - 221: UO score 3 + creat=1.5 (score 1) → kidney=3 (UO WINS)
     - 222: UO score 3 — anuria after 15:00
     - 223: UO score 0 — sparse but healthy, validity gate
     - 224: UO score 3 — irrigation subtraction changes score
@@ -270,4 +283,4 @@ def test_kidney_with_uo(cohort_rel, labs_rel, crrt_rel, output_rel, input_rel, w
         .reset_index(drop=True)
     )
 
-    assert_columns_match(result_df, expected, KIDNEY_COLUMNS)
+    assert_columns_match(result_df, expected, KIDNEY_COLUMNS_WITH_LABS)
