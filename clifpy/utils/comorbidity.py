@@ -66,7 +66,9 @@ def calculate_elix(
         raise ValueError("hospital_diagnosis must be HospitalDiagnosis object, pandas DataFrame, or polars DataFrame")
 
     # Filter to only ICD10CM codes (discard other formats)
-    df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
+    # df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
+    df_filtered = df.filter(
+    pl.col("diagnosis_code_format").str.to_lowercase() == "icd10cm")
 
     # Preprocess diagnosis codes: remove decimals (e.g., "I21.45" -> "I2145") and uppercase
     df_processed = df_filtered.with_columns([
