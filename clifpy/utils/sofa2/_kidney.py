@@ -177,11 +177,18 @@ def _calculate_uo_score(
         SELECT
             {id_name}
             , recorded_dttm
-            , net_output
             , tm_since_last_uo_min: CASE
                 WHEN LAG(recorded_dttm) OVER w IS NULL
                     THEN {first_uo_expr}
                 ELSE DATEDIFF('minute', LAG(recorded_dttm) OVER w, recorded_dttm)
+            END
+            -- Zero volume for first measurement when tm = 0 (unknowable collection period).
+            -- The timestamp is preserved as a LAG predecessor for the next row.
+            -- When window_start gives tm > 0 (in-window first row), volume is kept.
+            , net_output: CASE
+                WHEN LAG(recorded_dttm) OVER w IS NULL AND {first_uo_expr} = 0
+                    THEN 0
+                ELSE net_output
             END
         WINDOW w AS (PARTITION BY {id_name} ORDER BY recorded_dttm)
     """)
@@ -483,10 +490,12 @@ def _calculate_kidney_subscore(
             , COALESCE(l.potassium_dttm_offset, p.potassium_dttm_offset) AS potassium_dttm_offset
             , COALESCE(l.ph, LEAST(p.ph_arterial_val, p.ph_venous_val)) AS ph
             , COALESCE(l.ph_type,
-                CASE WHEN p.ph_arterial_val <= p.ph_venous_val OR p.ph_venous_val IS NULL
+                CASE WHEN p.ph_arterial_val IS NULL AND p.ph_venous_val IS NULL THEN NULL
+                     WHEN p.ph_arterial_val <= p.ph_venous_val OR p.ph_venous_val IS NULL
                      THEN 'ph_arterial' ELSE 'ph_venous' END) AS ph_type
             , COALESCE(l.ph_dttm_offset,
-                CASE WHEN p.ph_arterial_val <= p.ph_venous_val OR p.ph_venous_val IS NULL
+                CASE WHEN p.ph_arterial_val IS NULL AND p.ph_venous_val IS NULL THEN NULL
+                     WHEN p.ph_arterial_val <= p.ph_venous_val OR p.ph_venous_val IS NULL
                      THEN p.ph_arterial_dttm_offset ELSE p.ph_venous_dttm_offset END) AS ph_dttm_offset
             , COALESCE(l.bicarbonate, p.bicarbonate_val) AS bicarbonate
             , COALESCE(l.bicarbonate_dttm_offset, p.bicarbonate_dttm_offset) AS bicarbonate_dttm_offset
@@ -605,14 +614,18 @@ def _calculate_kidney_subscore(
                          AND (l.potassium >= 6.0
                               OR (l.ph <= 7.20 AND l.bicarbonate <= 12.0))
                     THEN 1 ELSE 0 END
-                , sofa2_kidney: CASE
-                    WHEN r.has_rrt = 1 THEN 4
-                    WHEN rrt_criteria_met = 1 THEN 4
+                -- Creatinine-based score (same formula as UO path, for column parity)
+                , creat_score: CASE
                     WHEN l.creatinine > 3.50 THEN 3
                     WHEN l.creatinine > 2.0 THEN 2
                     WHEN l.creatinine > 1.20 THEN 1
                     WHEN l.creatinine <= 1.20 THEN 0
                     ELSE NULL
+                END
+                , sofa2_kidney: CASE
+                    WHEN r.has_rrt = 1 THEN 4
+                    WHEN rrt_criteria_met = 1 THEN 4
+                    ELSE creat_score
                 END
         """)
 

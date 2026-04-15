@@ -274,13 +274,21 @@ SQL window functions like `SUM(...) OVER (RANGE BETWEEN INTERVAL '6 hours' PRECE
 
 A rate is only computed when observation time meets the threshold (`uo_tm_6hr >= 6`, etc.) AND weight is positive. This prevents premature scoring early in the window and handles missing weight data.
 
-### First measurement baseline
+### First measurement baseline and volume handling
 
-Configurable via `SOFA2Config.uo_first_measurement_baseline`:
+The globally-first UO measurement per `id_name` (where `LAG IS NULL`) has no predecessor — its observation period is unknown. How we handle it depends on `SOFA2Config.uo_first_measurement_baseline`:
 
-- `'window_start'` (default): first measurement's `tm = recorded_dttm − start_dttm`. Credits unmonitored time from window start. Matches MIMIC convention (uses ICU admission time as baseline).
+**`'window_start'` (default)**: `tm = GREATEST(DATEDIFF('minute', earliest_cohort_start, recorded_dttm), 0)`.
 
-- `'first_measurement'`: first measurement's `tm = 0`. Conservative — only counts time from the second measurement onward.
+- If the first measurement is **in-window** (e.g., at 10:00, window starts 08:00): `tm = 120 min`. The volume represents 2h of collection since admission. Volume is **kept** — both volume and tm are meaningful.
+
+- If the first measurement is **pre-window** (e.g., at 22:00 prev day): DATEDIFF is negative → clamped to 0. Volume is **zeroed** — we don't know when collection started, so the volume is unknowable.
+
+**`'first_measurement'`**: `tm = 0` unconditionally. Volume is always **zeroed** — the conservative choice that assumes nothing about pre-measurement history.
+
+**Volume zeroing rule**: whenever the first row gets `tm = 0`, its `net_output` is also set to 0. The timestamp is preserved as a LAG predecessor for the next row, but its volume does not enter any trailing bucket. Without this, the volume would be "free" — inflating trailing sums without adding observation time, making rates look healthier and potentially masking oliguria.
+
+**Daily scoring**: for multi-day cohorts, this only affects the patient's very first measurement across all days. Day 1 → day 2 pre-window data has real LAG predecessors from day 1 and is unaffected.
 
 ### Between-window gap: deterioration that falls between 6h/12h/24h
 

@@ -49,9 +49,12 @@ class SOFA2Config:
         How to handle tm_since_last_uo for the patient's first-ever UO measurement.
         Under global LAG (one partition per patient), this applies to the single row
         where LAG is truly NULL — not once per scoring window.
-        'window_start' (default): tm = DATEDIFF('minute', earliest cohort start for patient, recorded_dttm),
-            clamped to 0 if negative (pre-cohort buffer rows).
-        'first_measurement': tm = 0 for the globally-first measurement.
+        'window_start' (default): tm = DATEDIFF('minute', earliest cohort start for patient,
+            recorded_dttm), clamped to 0 if negative. Volume is KEPT when tm > 0
+            (in-window first measurement with real observation period). Volume is ZEROED
+            when tm = 0 (pre-window or at-start — unknowable collection period).
+        'first_measurement': tm = 0 unconditionally, volume always ZEROED.
+        In both cases, the timestamp is preserved as a LAG predecessor for the next row.
     uo_prewindow_lookback_hours : float
         How much pre-cohort UO data to load per patient when computing global LAG.
         Must be > 24 to ensure the -24h boundary row has a real predecessor.
