@@ -43,7 +43,14 @@ def _cast_id_cols_to_utf8(df: Union[pl.DataFrame, pl.LazyFrame]) -> Union[pl.Dat
     if not id_cols:
         return df
 
-    cast_exprs = [pl.col(col).cast(pl.Utf8).alias(col) for col in id_cols]
+    cast_exprs = []
+    for col in id_cols:
+        dtype = schema[col]
+        if dtype in (pl.Float32, pl.Float64):
+            # Float IDs like 123456.0 → "123456" (cast through Int64 to strip .0)
+            cast_exprs.append(pl.col(col).cast(pl.Int64, strict=False).cast(pl.Utf8).alias(col))
+        else:
+            cast_exprs.append(pl.col(col).cast(pl.Utf8).alias(col))
     return df.with_columns(cast_exprs)
 
 

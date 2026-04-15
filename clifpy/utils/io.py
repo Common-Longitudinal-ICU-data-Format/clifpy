@@ -71,8 +71,12 @@ class LazyRelation:
 
 def _cast_id_cols_to_string(df):
     id_cols = [c for c in df.columns if c.endswith("_id")]
-    if id_cols:                                   # no-op if none found
-        df[id_cols] = df[id_cols].astype("string")
+    for col in id_cols:
+        if df[col].dtype in ('float64', 'float32', 'Float64'):
+            # Float IDs like 123456.0 → "123456" (cast through Int64 to strip .0)
+            df[col] = df[col].astype("Int64").astype("string")
+        else:
+            df[col] = df[col].astype("string")
     return df
 
 
