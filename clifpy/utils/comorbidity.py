@@ -65,14 +65,14 @@ def calculate_elix(
     else:
         raise ValueError("hospital_diagnosis must be HospitalDiagnosis object, pandas DataFrame, or polars DataFrame")
 
-    # Filter to only ICD10CM codes (discard other formats)
-    # df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
+    # Filter to only ICD10CM codes (case-insensitive; discard other formats)
     df_filtered = df.filter(
-    pl.col("diagnosis_code_format").str.to_lowercase() == "icd10cm")
+        pl.col("diagnosis_code_format").str.to_lowercase() == "icd10cm"
+    )
 
-    # Preprocess diagnosis codes: remove decimals (e.g., "I21.45" -> "I2145") and uppercase
+    # Preprocess diagnosis codes: lowercase and remove decimals (e.g., "I21.45" -> "i2145")
     df_processed = df_filtered.with_columns([
-        pl.col("diagnosis_code").str.to_uppercase().str.replace_all(".", "", literal=True).alias("diagnosis_code_clean")
+        pl.col("diagnosis_code").str.to_lowercase().str.replace_all(".", "", literal=True).alias("diagnosis_code_clean")
     ])
 
     # Map diagnosis codes to Elixhauser conditions
@@ -88,7 +88,7 @@ def calculate_elix(
         # Create a boolean expression for this condition
         condition_expr = pl.lit(False)
         for code in condition_codes:
-            condition_expr = condition_expr | pl.col("diagnosis_code_clean").str.starts_with(code)
+            condition_expr = condition_expr | pl.col("diagnosis_code_clean").str.starts_with(code.lower())
 
         condition_columns.append(condition_expr.alias(f"{condition_name}_present"))
 
@@ -186,12 +186,14 @@ def calculate_cci(
     else:
         raise ValueError("hospital_diagnosis must be HospitalDiagnosis object, pandas DataFrame, or polars DataFrame")
 
-    # Filter to only ICD10CM codes (discard other formats)
-    df_filtered = df.filter(pl.col("diagnosis_code_format") == "ICD10CM")
+    # Filter to only ICD10CM codes (case-insensitive; discard other formats)
+    df_filtered = df.filter(
+        pl.col("diagnosis_code_format").str.to_lowercase() == "icd10cm"
+    )
 
-    # Preprocess diagnosis codes: remove decimals (e.g., "I21.45" -> "I2145") and uppercase
+    # Preprocess diagnosis codes: lowercase and remove decimals (e.g., "I21.45" -> "i2145")
     df_processed = df_filtered.with_columns([
-        pl.col("diagnosis_code").str.to_uppercase().str.replace_all(".", "", literal=True).alias("diagnosis_code_clean")
+        pl.col("diagnosis_code").str.to_lowercase().str.replace_all(".", "", literal=True).alias("diagnosis_code_clean")
     ])
 
     # Map diagnosis codes to CCI conditions
@@ -207,7 +209,7 @@ def calculate_cci(
         # Create a boolean expression for this condition
         condition_expr = pl.lit(False)
         for code in condition_codes:
-            condition_expr = condition_expr | pl.col("diagnosis_code_clean").str.starts_with(code)
+            condition_expr = condition_expr | pl.col("diagnosis_code_clean").str.starts_with(code.lower())
 
         condition_columns.append(condition_expr.alias(f"{condition_name}_present"))
 
