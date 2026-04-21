@@ -5975,8 +5975,10 @@ def run_relational_integrity_checks_from_cache(
                     table_name, ref_table_name, fwd_coverage, rev_coverage,
                 )
 
-                result.atomic_total = 2
-                result.atomic_passed = 2 - len(result.errors)
+                # Atomic granularity: 1 per FK. Forward direction (source → reference)
+                # is the real integrity check; the reverse is informational only.
+                result.atomic_total = 1
+                result.atomic_passed = 1 if not result.errors else 0
             except Exception as e:
                 _logger.error(
                     "Cached relational check failed for '%s' <-> '%s': %s",
@@ -5984,7 +5986,7 @@ def run_relational_integrity_checks_from_cache(
                 )
                 result.add_error(f"Error checking relational integrity: {str(e)}")
                 if result.atomic_total is None:
-                    result.atomic_total = 2
+                    result.atomic_total = 1
                     result.atomic_passed = 0
 
             results.setdefault(table_name, {})[fk_column] = result
