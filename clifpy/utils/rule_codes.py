@@ -228,9 +228,41 @@ def enrich_issue(issue: Dict[str, Any], check_key: Optional[str] = None) -> Opti
     issue['rule_description'] = desc
     issue['column_field'] = extract_column_field(issue)
     issue['finding'] = build_finding(issue.get('message', ''), issue.get('details', {}))
+    issue['atomic_count'] = _extract_atomic_count(issue)
 
     # For relational checks, the check_key IS the FK column
     if check_type == 'relational_integrity' and check_key and issue['column_field'] == 'NA':
         issue['column_field'] = check_key
 
     return issue
+
+
+def _extract_atomic_count(issue: Dict[str, Any]) -> int:
+    """Infer how many atomic checks a single enriched issue row represents.
+
+    Priority:
+      1. Explicit ``details.atomic_count`` set by the check itself.
+      2. Length of a known list field in ``details`` whose items correspond
+         one-to-one with atoms (e.g. ``missing_columns``, ``mismatched_pairs``,
+         ``missing_categories`` for mCIDE coverage).
+      3. Fallback to 1 (one row, one atom).
+
+    The rule is intentionally conservative: when the details shape is
+    ambiguous we return 1 rather than guess, so the header/row math drifts
+    visibly instead of silently.
+    """
+    details = issue.get('details')
+    if not isinstance(details, dict):
+        return 1
+
+    explicit = details.get('atomic_count')
+    if isinstance(explicit, int) and explicit > 0:
+        return explicit
+
+    for key in ('missing_columns', 'mismatched_pairs', 'missing_categories',
+                'missing_values'):
+        seq = details.get(key)
+        if isinstance(seq, list) and seq:
+            return len(seq)
+
+    return 1
