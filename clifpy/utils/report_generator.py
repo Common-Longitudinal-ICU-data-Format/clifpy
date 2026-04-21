@@ -710,7 +710,7 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                 )
                 note_text = (
                     f"<i>P.6 Category temporal consistency — monthly breakdown available at: "
-                    f"clifpy/monthly_trends/ ({file_list})</i>"
+                    f"output/final/validation/monthly_trends/ ({file_list})</i>"
                 )
                 note_style = ParagraphStyle(
                     'NoteStyle', parent=styles['Normal'],
