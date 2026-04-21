@@ -161,19 +161,38 @@ def _reconcile_atomic_counts(
         return
 
     if remaining > 0:
+        # Gather distinct column_fields from existing err/warn rows so the
+        # synthesized "passed atoms" row points at the same subject columns
+        # (e.g. K.3 ADT: hospital_type, location_category, location_type).
+        cols_seen: List[str] = []
+        for r in rows:
+            c = r.get('column_field')
+            if not c or c == 'NA':
+                continue
+            for piece in c.split(', '):
+                p = piece.strip()
+                if p and p not in cols_seen:
+                    cols_seen.append(p)
+
         synth = {
             'category': category,
             'check_type': check_type,
             'severity': 'info',
             'message': '',
-            'details': {'count': remaining},
+            'details': {'count': remaining, 'columns_checked': cols_seen},
         }
         enriched = enrich_issue(synth, check_key=check_key)
         if enriched is not None:
             enriched['atomic_count'] = remaining
             enriched['finding'] = passing_finding(enriched.get('rule_code', ''))
             enriched['message'] = enriched['finding']
-            enriched['column_field'] = enriched.get('column_field') or 'NA'
+            if cols_seen:
+                joined = ', '.join(cols_seen)
+                if len(joined) > 200:
+                    joined = joined[:197] + '...'
+                enriched['column_field'] = joined
+            else:
+                enriched['column_field'] = enriched.get('column_field') or 'NA'
             rows.append(enriched)
 
 
