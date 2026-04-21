@@ -4,7 +4,7 @@ How many DQA validation checks does `clifpy` actually run when a CLIF site has a
 
 **Short answer:**
 - **255 check function invocations** — distinct `Result` objects produced by `run_full_dqa` across all beta tables.
-- **2,271 atomic checks** — individual things examined inside those results (per column, per rule, per permissible value, per range).
+- **2,270 atomic checks** — individual things examined inside those results (per column, per rule, per permissible value, per range).
 
 The atomic count is the more useful number: it scales with what's actually in the schemas and tells you how the validator's coverage grows when you add a column or an mCIDE value.
 
@@ -25,7 +25,7 @@ Excluded as concept (non-beta): `ecmo_mcs`, `microbiology_nonculture`.
 | View | What it counts | Total |
 |---|---|---:|
 | **Function invocations** | One `Result` object per (table × check function) returned by `run_full_dqa` + cross-table runners. | **255** |
-| **Atomic checks** | Per-column / per-rule / per-permissible-value / per-range subchecks recorded in `result.metrics`. | **2,271** |
+| **Atomic checks** | Per-column / per-rule / per-permissible-value / per-range subchecks recorded in `result.metrics`. | **2,270** |
 
 The function-invocation view gives the same total whether a table has 5 columns or 50. The atomic view captures the *work* the validator does and is what scales when schemas grow.
 
@@ -294,7 +294,7 @@ Each subsection shows:
 
 ---
 
-### patient_procedures — 19
+### patient_procedures — 18
 
 **Schema inputs:** 6 cols • 4 required • 1 datetime (`procedure_billed_dttm`) • `category_columns: [null]` (schema artifact — the null entry has no matching column, so C.5 contributes 0 at runtime) • FK `hospitalization_id` • composite key 3-col • no permissible_values defined • no numeric ranges
 
@@ -308,9 +308,9 @@ Each subsection shows:
 | K.1 | 4 | 4 required |
 | K.3 | 0 | no permissible_values on cat cols |
 | K.4 | 1 | `hospitalization_id` |
-| P.6 | 1 | `check_category_temporal_consistency` emits a "not applicable" info that still counts |
+| P.6 | 0 | no category columns present; `check_category_temporal_consistency` hits the "not applicable" early-return (0/0 since `d56bf12`) |
 | P.7 | 1 | composite key |
-| **Total** | **19** | |
+| **Total** | **18** | |
 
 ---
 
@@ -433,21 +433,45 @@ P.6 = 0 because there's no datetime column at all (no `_detect_time_column` cand
 | medication_admin_intermittent | 1 | 9 | 13 | 1 | 3 | 0 | 0 | 9 | 0 | 174 | 1 | 0 | 0 | 5 | 0 | 1 | 0 | 3 | 1 | 1 | **222** |
 | respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 15 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 2 | 1 | 1 | **116** |
 | position | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | **19** |
-| patient_procedures | 1 | 4 | 6 | 1 | 0 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | **19** |
+| patient_procedures | 1 | 4 | 6 | 1 | 0 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
 | code_status | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 10 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **25** |
 | crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 2 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 1 | 0 | 1 | **45** |
 | hospital_diagnosis | 1 | 5 | 5 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
 | microbiology_culture | 1 | 10 | 12 | 3 | 3 | 0 | 0 | 10 | 0 | 590 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 3 | 1 | 3 | **640** |
 | microbiology_susceptibility | 1 | 2 | 6 | 0 | 2 | 0 | 0 | 2 | 0 | 171 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **186** |
-| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **18** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **26** | **14** | **15** | **2,271** |
+| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **18** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **25** | **14** | **15** | **2,270** |
 
 K.5 (the cross-table `Expired → death_dttm` rule) attaches to its **target** table in the validator's output — `run_cross_table_completeness_checks` does `results.setdefault(target_table, {})[rule_key] = result`. The only current rule targets `patient`, so patient gets K.5 = 1 and every other table gets 0. Add a rule targeting another table and that table's K.5 column bumps.
+
+### Pillar totals per table
+
+Collapsed view of the matrix above, summed into the three DQA pillars (C = C.1–C.7, K = K.1–K.5, P = P.1–P.8). Useful for comparing against DQA report outputs that only report per-pillar counts.
+
+| Table | Conformance | Completeness | Plausibility | **Total** |
+|---|--:|--:|--:|--:|
+| patient | 25 | 66 | 1 | **92** |
+| hospitalization | 30 | 31 | 6 | **67** |
+| adt | 21 | 34 | 9 | **64** |
+| vitals | 13 | 14 | 12 | **39** |
+| labs | 80 | 67 | 60 | **207** |
+| patient_assessments | 88 | 95 | 70 | **253** |
+| medication_admin_continuous | 103 | 107 | 49 | **259** |
+| medication_admin_intermittent | 27 | 184 | 11 | **222** |
+| respiratory_support | 46 | 49 | 21 | **116** |
+| position | 10 | 6 | 3 | **19** |
+| patient_procedures | 12 | 5 | 1 | **18** |
+| code_status | 10 | 14 | 1 | **25** |
+| crrt_therapy | 22 | 16 | 7 | **45** |
+| hospital_diagnosis | 11 | 6 | 1 | **18** |
+| microbiology_culture | 29 | 602 | 9 | **640** |
+| microbiology_susceptibility | 11 | 174 | 1 | **186** |
+| **GRAND TOTAL** | **538** | **1,470** | **262** | **2,270** |
 
 ---
 
 ## 6. Where the count concentrates
 
-Two checks alone produce **1,524 of the 2,271 atomic checks (~67%)**:
+Two checks alone produce **1,524 of the 2,270 atomic checks (~67%)**:
 
 - **K.3 mcide_value_coverage (1,327)** — driven by enumerations with hundreds of values:
   - `microbiology_culture.organism_category`: 543
@@ -515,7 +539,7 @@ Counted as one `Result` per (table × check function), regardless of internal gr
 - Counts shift any time `validation_rules.yaml`, `outlier_config.yaml`, or any `*_schema.yaml` is edited. Re-run the script in §9 to refresh.
 - **Schema inconsistencies** worth knowing about:
   - `labs`, `respiratory_support`: more columns flagged `is_category_column: true` than appear in the table-level `category_columns` list. The validator uses the list, so the count reflects the list.
-  - `patient_procedures.category_columns: [null]` — a null entry that doesn't match any real column. `check_categorical_values` only counts columns that are both in `category_columns` **and** have `permissible_values`, so C.5 = 0 here; K.3 is also 0. P.6 still contributes 1 because `check_category_temporal_consistency` emits a "not applicable" info that isn't filtered out.
+  - `patient_procedures.category_columns: [null]` — a null entry that doesn't match any real column. `check_categorical_values` only counts columns that are both in `category_columns` **and** have `permissible_values`, so C.5 = 0 here; K.3 is also 0. P.6 is also 0 — `check_category_temporal_consistency` hits the "not applicable" early-return (0/0 since clifpy commit `d56bf12`).
   - `code_status` and `crrt_therapy` have no entry in `composite_keys`, so P.7 = 0 for them.
 - **K.3 excludes group-column permissible values** by design: 124 permissible values on `med_group`, `mar_action_group`, `organism_group` are not counted (the check only walks columns in `category_columns`, not `is_group_column`).
 - **P.6 requires a detectable time column** from `_detect_time_column`'s candidate list (`recorded_dttm`, `admin_dttm`, `admission_dttm`, `lab_result_dttm`, `in_dttm`, `procedure_billed_dttm`, `result_dttm`, `start_dttm`). `patient` (only has `birth_date`/`death_dttm`), `hospital_diagnosis` (no datetime at all), and `microbiology_susceptibility` (no datetime) all get 0.
@@ -592,7 +616,10 @@ for t in BETA:
     P3 = len(fp.get(t, []))
     P4 = 1 if t in ('medication_admin_continuous','medication_admin_intermittent') else 0
     P5 = 1 if t in op else 0
-    P6 = len(cat_cols(t)) if (cn & TIME_DETECT) else 0
+    # P.6 counts category cols that are actually present in the table (null
+    # entries in schemas like patient_procedures don't count — the "not
+    # applicable" early-return contributes 0/0 since clifpy commit d56bf12).
+    P6 = sum(1 for c in cat_cols(t) if c in cn) if (cn & TIME_DETECT) else 0
     P7 = 1 if t in ck else 0
     P8 = sum(1 for c in ct_time.get(t, []) if c in cn) if 'hospitalization_id' in cn else 0
     tot = C1+C2+C3+C4+C5+C6+C7+K1+K2+K3+K4+K5+P1+P2+P3+P4+P5+P6+P7+P8
@@ -602,7 +629,7 @@ for t in BETA:
 print(f'{"GRAND TOTAL":<32} {grand:>5}')
 ```
 
-Expected output: `GRAND TOTAL 2271`.
+Expected output: `GRAND TOTAL 2270`.
 
 ---
 
