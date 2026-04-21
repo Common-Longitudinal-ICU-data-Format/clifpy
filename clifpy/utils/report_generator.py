@@ -707,7 +707,11 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                     Paragraph(escape(issue.get('column_field', 'NA')), cell_style),
                     Paragraph(escape(severity_upper), cell_style),
                     finding_cell,
-                    Paragraph(str(issue.get('atomic_count', 1)), cell_style),
+                    Paragraph(
+                        '—' if issue.get('atomic_count', 1) == 0
+                        else str(issue.get('atomic_count', 1)),
+                        cell_style,
+                    ),
                 ]
                 if has_feedback:
                     if issue['severity'] == 'error':
@@ -895,6 +899,7 @@ def generate_text_report(validation_data: Dict[str, Any],
                 col_field = issue.get('column_field', 'NA')
                 finding = issue.get('finding', issue['message'])
                 checks = issue.get('atomic_count', 1)
+                checks_str = '—' if checks == 0 else f"{checks:d}"
 
                 # Truncate long fields for text display
                 if len(rule_desc) > w_desc - 2:
@@ -906,7 +911,7 @@ def generate_text_report(validation_data: Dict[str, Any],
                         f"{rule_desc:<{w_desc}}"
                         f"{col_field:<{w_col}}"
                         f"{severity_upper:<{w_sev}}"
-                        f"{checks:>{w_checks}d}  "
+                        f"{checks_str:>{w_checks}s}  "
                         f"{finding}")
                 lines.append(line)
     else:
