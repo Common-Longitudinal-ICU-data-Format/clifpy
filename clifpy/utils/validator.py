@@ -390,6 +390,10 @@ def build_absent_table_dqa_result(
         "warnings": [],
         "info": [],
         "metrics": {"row_count": 0, "column_count": 0},
+        # collect_dqa_issues requires atomic counts on every result. The
+        # table-presence atom ran and failed, so 0/1.
+        "atomic_total": 1,
+        "atomic_passed": 0,
     }
 
     return {
