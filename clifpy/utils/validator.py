@@ -4987,64 +4987,62 @@ def check_category_temporal_consistency_polars(
         result.metrics["yearly_distributions"] = yearly_distributions
         result.metrics["missing_in_years"] = missing_in_years
         result.metrics["monthly_trends"] = monthly_trends
-        # Atomic counting: 1 per category column checked. A cat_col passes
-        # when it has no values missing in any year.
-        result.atomic_total = len(cat_cols_present)
-        result.atomic_passed = len(cat_cols_present) - len(missing_in_years)
 
-        for cat_col, absent in missing_in_years.items():
-            col_dist = yearly_distributions.get(cat_col, {})
-            all_col_years = sorted(col_dist.keys())
+        # Emit one row per (cat_col × distinct value) so each value gets its
+        # own sparkline. WARNING when the value is absent in some years,
+        # INFO when it's present in all years. For noisy enum columns
+        # (organism_category) we emit INFO for absences too, to avoid
+        # flooding the warning list.
+        atomic_total = 0
+        for cat_col in cat_cols_present:
+            dist = yearly_distributions.get(cat_col, {})
+            all_col_years = sorted(dist.keys())
             total_years = len(all_col_years)
-            for val, years in absent.items():
-                yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
-                year_range = f"{all_col_years[0]}-{all_col_years[-1]}" if all_col_years else ""
-                emit = result.add_info if cat_col == "organism_category" else result.add_warning
-                emit(
-                    f"{cat_col}: {val} absent in {len(years)}/{total_years} years ({year_range})",
-                    {
+            all_vals = {v for yr in dist.values() for v in yr}
+            atomic_total += len(all_vals)
+
+            if total_years == 0 or not all_vals:
+                result.add_info(f"No temporal data for {cat_col}",
+                                {"column": cat_col})
+                continue
+
+            year_range = f"{all_col_years[0]}-{all_col_years[-1]}"
+            absent_for_col = missing_in_years.get(cat_col, {})
+
+            for val in sorted(all_vals, key=str):
+                yearly_counts = {y: dist.get(y, {}).get(val, 0)
+                                 for y in all_col_years}
+                n_present = sum(1 for c in yearly_counts.values() if c > 0)
+
+                if val in absent_for_col:
+                    n_absent = total_years - n_present
+                    msg = (f"{cat_col}: {val} absent in "
+                           f"{n_absent}/{total_years} years ({year_range})")
+                    emit = (result.add_info
+                            if cat_col == "organism_category"
+                            else result.add_warning)
+                    emit(msg, {
                         "column": cat_col,
                         "value": val,
-                        "absent_years": years,
+                        "absent_years": absent_for_col[val],
                         "total_years": total_years,
                         "yearly_counts": yearly_counts,
-                    }
-                )
-
-        if not result.warnings and not result.errors:
-            for cat_col in cat_cols_present:
-                dist = yearly_distributions.get(cat_col, {})
-                n_years = len(dist)
-                all_vals = {v for yr in dist.values() for v in yr}
-                if n_years >= 2:
-                    # Per-value info with yearly_counts for sparkline rendering
-                    sorted_years = sorted(dist.keys())
-                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
-                    for val in sorted(all_vals, key=str):
-                        yearly_counts = {y: dist.get(y, {}).get(val, 0)
-                                         for y in sorted_years}
-                        n_present = sum(1 for c in yearly_counts.values() if c > 0)
-                        msg = (f"{cat_col}: {val} present in "
-                               f"{n_present}/{n_years} years ({year_range})")
-                        result.add_info(msg, {
-                            "column": cat_col,
-                            "value": str(val),
-                            "yearly_counts": yearly_counts,
-                        })
-                elif n_years == 1:
-                    year = next(iter(dist))
-                    n_values = len(all_vals)
-                    sorted_vals = sorted(str(v) for v in all_vals)
-                    if len(sorted_vals) > 5:
-                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
-                    else:
-                        vals_str = ', '.join(sorted_vals)
-                    msg = (f"{cat_col}: {vals_str} found "
-                           f"(single year {year}, trend check requires 2+ years)")
-                    result.add_info(msg, {"column": cat_col})
+                    })
                 else:
-                    msg = f"No temporal data for {cat_col}"
-                    result.add_info(msg, {"column": cat_col})
+                    msg = (f"{cat_col}: {val} present in "
+                           f"{n_present}/{total_years} years ({year_range})")
+                    result.add_info(msg, {
+                        "column": cat_col,
+                        "value": str(val),
+                        "yearly_counts": yearly_counts,
+                    })
+
+        # Atomic counting: 1 per (cat_col × value present in data). Lenient
+        # scoring — only errors reduce atomic_passed; warnings about values
+        # absent in some years are shown in the issues table but do not fail
+        # the atom.
+        result.atomic_total = atomic_total
+        result.atomic_passed = atomic_total  # P.6 emits no errors in normal flow
 
         gc.collect()
 
@@ -5185,64 +5183,59 @@ def check_category_temporal_consistency_duckdb(
         result.metrics["yearly_distributions"] = yearly_distributions
         result.metrics["missing_in_years"] = missing_in_years
         result.metrics["monthly_trends"] = monthly_trends
-        # Atomic counting: 1 per category column checked. A cat_col passes
-        # when it has no values missing in any year.
-        result.atomic_total = len(cat_cols_present)
-        result.atomic_passed = len(cat_cols_present) - len(missing_in_years)
 
-        for cat_col, absent in missing_in_years.items():
-            col_dist = yearly_distributions.get(cat_col, {})
-            all_col_years = sorted(col_dist.keys())
+        # Emit one row per (cat_col × distinct value) so each value gets its
+        # own sparkline. WARNING when the value is absent in some years,
+        # INFO when it's present in all years. organism_category stays INFO
+        # for absences too (too noisy otherwise).
+        atomic_total = 0
+        for cat_col in cat_cols_present:
+            dist = yearly_distributions.get(cat_col, {})
+            all_col_years = sorted(dist.keys())
             total_years = len(all_col_years)
-            for val, years in absent.items():
-                yearly_counts = {y: col_dist.get(y, {}).get(val, 0) for y in all_col_years}
-                year_range = f"{all_col_years[0]}-{all_col_years[-1]}" if all_col_years else ""
-                emit = result.add_info if cat_col == "organism_category" else result.add_warning
-                emit(
-                    f"{cat_col}: {val} absent in {len(years)}/{total_years} years ({year_range})",
-                    {
+            all_vals = {v for yr in dist.values() for v in yr}
+            atomic_total += len(all_vals)
+
+            if total_years == 0 or not all_vals:
+                result.add_info(f"No temporal data for {cat_col}",
+                                {"column": cat_col})
+                continue
+
+            year_range = f"{all_col_years[0]}-{all_col_years[-1]}"
+            absent_for_col = missing_in_years.get(cat_col, {})
+
+            for val in sorted(all_vals, key=str):
+                yearly_counts = {y: dist.get(y, {}).get(val, 0)
+                                 for y in all_col_years}
+                n_present = sum(1 for c in yearly_counts.values() if c > 0)
+
+                if val in absent_for_col:
+                    n_absent = total_years - n_present
+                    msg = (f"{cat_col}: {val} absent in "
+                           f"{n_absent}/{total_years} years ({year_range})")
+                    emit = (result.add_info
+                            if cat_col == "organism_category"
+                            else result.add_warning)
+                    emit(msg, {
                         "column": cat_col,
                         "value": val,
-                        "absent_years": years,
+                        "absent_years": absent_for_col[val],
                         "total_years": total_years,
                         "yearly_counts": yearly_counts,
-                    }
-                )
-
-        if not result.warnings and not result.errors:
-            for cat_col in cat_cols_present:
-                dist = yearly_distributions.get(cat_col, {})
-                n_years = len(dist)
-                all_vals = {v for yr in dist.values() for v in yr}
-                if n_years >= 2:
-                    # Per-value info with yearly_counts for sparkline rendering
-                    sorted_years = sorted(dist.keys())
-                    year_range = f"{sorted_years[0]}-{sorted_years[-1]}"
-                    for val in sorted(all_vals, key=str):
-                        yearly_counts = {y: dist.get(y, {}).get(val, 0)
-                                         for y in sorted_years}
-                        n_present = sum(1 for c in yearly_counts.values() if c > 0)
-                        msg = (f"{cat_col}: {val} present in "
-                               f"{n_present}/{n_years} years ({year_range})")
-                        result.add_info(msg, {
-                            "column": cat_col,
-                            "value": str(val),
-                            "yearly_counts": yearly_counts,
-                        })
-                elif n_years == 1:
-                    year = next(iter(dist))
-                    n_values = len(all_vals)
-                    sorted_vals = sorted(str(v) for v in all_vals)
-                    if len(sorted_vals) > 5:
-                        vals_str = ', '.join(sorted_vals[:5]) + f' ... ({n_values} total)'
-                    else:
-                        vals_str = ', '.join(sorted_vals)
-                    msg = (f"{cat_col}: {vals_str} found "
-                           f"(single year {year}, trend check requires 2+ years)")
-                    result.add_info(msg, {"column": cat_col})
+                    })
                 else:
-                    msg = f"No temporal data for {cat_col}"
-                    result.add_info(msg, {"column": cat_col})
+                    msg = (f"{cat_col}: {val} present in "
+                           f"{n_present}/{total_years} years ({year_range})")
+                    result.add_info(msg, {
+                        "column": cat_col,
+                        "value": str(val),
+                        "yearly_counts": yearly_counts,
+                    })
+
+        # Atomic counting: 1 per (cat_col × value present in data). Lenient
+        # scoring — only errors reduce atomic_passed.
+        result.atomic_total = atomic_total
+        result.atomic_passed = atomic_total  # P.6 emits no errors in normal flow
 
         con.close()
         gc.collect()

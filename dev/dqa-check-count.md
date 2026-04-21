@@ -4,7 +4,7 @@ How many DQA validation checks does `clifpy` actually run when a CLIF site has a
 
 **Short answer:**
 - **255 check function invocations** — distinct `Result` objects produced by `run_full_dqa` across all beta tables.
-- **2,270 atomic checks** — individual things examined inside those results (per column, per rule, per permissible value, per range).
+- **3,343 atomic checks** — individual things examined inside those results (per column, per rule, per permissible value, per range).
 
 The atomic count is the more useful number: it scales with what's actually in the schemas and tells you how the validator's coverage grows when you add a column or an mCIDE value.
 
@@ -25,7 +25,7 @@ Excluded as concept (non-beta): `ecmo_mcs`, `microbiology_nonculture`.
 | View | What it counts | Total |
 |---|---|---:|
 | **Function invocations** | One `Result` object per (table × check function) returned by `run_full_dqa` + cross-table runners. | **255** |
-| **Atomic checks** | Per-column / per-rule / per-permissible-value / per-range subchecks recorded in `result.metrics`. | **2,270** |
+| **Atomic checks** | Per-column / per-rule / per-permissible-value / per-range subchecks recorded in `result.metrics`. | **3,343** |
 
 The function-invocation view gives the same total whether a table has 5 columns or 50. The atomic view captures the *work* the validator does and is what scales when schemas grow.
 
@@ -54,7 +54,7 @@ Sourced from `clifpy/utils/rule_codes.py`. The "atomic granularity" column says 
 | P.3 | `field_plausibility` | 1 per rule | `check_field_plausibility` |
 | P.4 | `medication_dose_unit_consistency` | 1 per medication table | `check_medication_dose_unit_consistency` |
 | P.5 | `overlapping_periods` | 1 per table with overlap rule | `check_overlapping_periods` |
-| P.6 | `category_temporal_consistency` | 1 per category column when table has a detectable time column | `check_category_temporal_consistency` |
+| P.6 | `category_temporal_consistency` | 1 per (category column × permissible value) when table has a detectable time column | `check_category_temporal_consistency` |
 | P.7 | `duplicate_composite_keys` | 1 per table with composite keys defined | `check_duplicate_composite_keys` |
 | P.8 | `cross_table_temporal` | 1 per (table × time column) for non-hosp tables with `hospitalization_id` | `check_cross_table_temporal_plausibility` |
 
@@ -86,7 +86,7 @@ Each subsection shows:
 
 ---
 
-### hospitalization — 67
+### hospitalization — 88
 
 **Schema inputs:** 18 columns • 7 required • 2 datetime (`admission_dttm`, `discharge_dttm`) • 2 category cols (`admission_type_category`=6, `discharge_category`=17) → 23 mCIDE values • FK `patient_id` → patient • composite key `[hospitalization_id]` • 1 numeric range (`age_at_admission`) • 1 temporal_ordering rule • 1 field_plausibility rule
 
@@ -103,13 +103,13 @@ Each subsection shows:
 | P.1 temporal_ordering | 1 | admission < discharge |
 | P.2 numeric_range_plausibility | 1 | `age_at_admission` 0–120 |
 | P.3 field_plausibility | 1 | discharge_dttm not-null ⇒ discharge_category ≠ Still Admitted |
-| P.6 category_temporal_consistency | 2 | 2 cat cols × `admission_dttm` available |
+| P.6 category_temporal_consistency | 23 | per (cat col × permissible value): admission_type=6 + discharge=17 |
 | P.7 | 1 | composite key |
-| **Total** | **67** | |
+| **Total** | **88** | |
 
 ---
 
-### adt — 64
+### adt — 86
 
 **Schema inputs:** 8 cols • 7 required • 2 datetime (`in_dttm`, `out_dttm`) • 3 cat cols (`hospital_type`=3, `location_category`=12, `location_type`=10) → 25 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, in_dttm]` • 1 conditional req rule • 1 temporal_ordering rule • 1 field_plausibility rule • overlap rule defined
 
@@ -127,14 +127,14 @@ Each subsection shows:
 | P.1 | 1 | in_dttm < out_dttm |
 | P.3 | 1 | non-ICU ⇒ no ICU location_type |
 | P.5 overlapping_periods | 1 | overlap config defined |
-| P.6 | 3 | 3 cat cols × time col present |
+| P.6 | 25 | per (cat col × permissible value): 3 + 12 + 10 |
 | P.7 | 1 | composite key |
 | P.8 cross_table_temporal | 2 | `in_dttm`, `out_dttm` × hospitalization_id present |
-| **Total** | **64** | |
+| **Total** | **86** | |
 
 ---
 
-### vitals — 39
+### vitals — 47
 
 **Schema inputs:** 6 cols • 4 required • 1 datetime (`recorded_dttm`) • 1 cat col (`vital_category`=9) → 9 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm, vital_category]` • 9 numeric ranges (one per vital_category)
 
@@ -149,14 +149,14 @@ Each subsection shows:
 | K.3 | 9 | 9 vital_category values |
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 9 | 9 (vital_category → vital_value) ranges in `outlier_config.yaml` |
-| P.6 | 1 | 1 cat col |
+| P.6 | 9 | per (cat col × permissible value): 9 vital_category values |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **39** | |
+| **Total** | **47** | |
 
 ---
 
-### labs — 207
+### labs — 263
 
 **Schema inputs:** 14 cols • 8 required • 3 datetime (`lab_order_dttm`, `lab_collect_dttm`, `lab_result_dttm`) • 2 cat cols in `category_columns` (`lab_order_category`=6, `lab_category`=52) → 58 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, lab_collect_dttm, lab_category]` • 52 numeric ranges (`lab_value_numeric` per lab_category) • 52 lab_reference_units entries • 2 temporal_ordering rules
 
@@ -173,14 +173,14 @@ Each subsection shows:
 | K.4 | 1 | `hospitalization_id` |
 | P.1 | 2 | order < collect, collect < result |
 | P.2 | 52 | 52 (lab_category → range) entries |
-| P.6 | 2 | 2 cat cols |
+| P.6 | 58 | per (cat col × permissible value): lab_order=6 + lab=52 |
 | P.7 | 1 | composite key |
 | P.8 | 3 | 3 time cols |
-| **Total** | **207** | |
+| **Total** | **263** | |
 
 ---
 
-### patient_assessments — 253
+### patient_assessments — 339
 
 **Schema inputs:** 8 cols • 6 required • 1 datetime (`recorded_dttm`) • 2 cat cols (`assessment_category`=70, `assessment_group`=18) → 88 mCIDE values • 70-entry `assessment_category_to_group_mapping` • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm, assessment_category]` • 66 numeric ranges (per assessment_category)
 
@@ -196,14 +196,14 @@ Each subsection shows:
 | K.3 | 88 | assessment_category=70 + assessment_group=18 |
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 66 | 66 (assessment_category → numerical_value) ranges |
-| P.6 | 2 | 2 cat cols |
+| P.6 | 88 | per (cat col × permissible value): 70 + 18 |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **253** | |
+| **Total** | **339** | |
 
 ---
 
-### medication_admin_continuous — 259
+### medication_admin_continuous — 352
 
 **Schema inputs:** 13 cols • 9 required • 1 datetime (`admin_dttm`) • 4 cat cols (`med_category`=75, `med_group`=13, `med_route_category`=3, `mar_action_category`=6) → 97 mCIDE values • 75-entry `med_category_to_group_mapping` • FK `hospitalization_id` • composite key 4-col • 42 numeric ranges (per med × dose unit) • P.4 applies
 
@@ -220,14 +220,14 @@ Each subsection shows:
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 42 | 16 meds × dose units (e.g., norepinephrine has 3 unit ranges) |
 | P.4 medication_dose_unit_consistency | 1 | continuous med dose units must be rate-based |
-| P.6 | 4 | 4 cat cols |
+| P.6 | 97 | per (cat col × permissible value): 75 + 13 + 3 + 6 |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `admin_dttm` |
-| **Total** | **259** | |
+| **Total** | **352** | |
 
 ---
 
-### medication_admin_intermittent — 222
+### medication_admin_intermittent — 393
 
 **Schema inputs:** 13 cols • 9 required • 1 datetime (`admin_dttm`) • 3 cat cols in `category_columns` (`med_category`=165, `med_route_category`=5, `mar_action_category`=4) → 174 mCIDE values • no `med_category_to_group_mapping` • FK `hospitalization_id` • composite key 4-col • 5 numeric ranges • P.4 applies
 
@@ -243,14 +243,14 @@ Each subsection shows:
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 5 | 5 (med, "mg"/"mcg") ranges (propofol, midazolam, fentanyl, hydromorphone, lorazepam) |
 | P.4 | 1 | intermittent med dose units must be discrete |
-| P.6 | 3 | 3 cat cols |
+| P.6 | 174 | per (cat col × permissible value): 165 + 5 + 4 |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `admin_dttm` |
-| **Total** | **222** | |
+| **Total** | **393** | |
 
 ---
 
-### respiratory_support — 116
+### respiratory_support — 131
 
 **Schema inputs:** 26 cols • 16 required • 1 datetime (`recorded_dttm`) • 2 cat cols in `category_columns` (`device_category`=9, `mode_category`=8) → 17 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm]` • 17 numeric ranges (one per setting/observation column) • **15 conditional requirement rules** (the busiest table for K.2)
 
@@ -266,14 +266,14 @@ Each subsection shows:
 | K.3 | 17 | device=9 + mode=8 |
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 17 | 17 numeric setting/observation columns (`fio2_set`, `lpm_set`, … `mean_airway_pressure_obs`) |
-| P.6 | 2 | 2 cat cols |
+| P.6 | 17 | per (cat col × permissible value): device=9 + mode=8 |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **116** | |
+| **Total** | **131** | |
 
 ---
 
-### position — 19
+### position — 20
 
 **Schema inputs:** 4 cols • 3 required • 1 datetime (`recorded_dttm`) • 1 cat col (`position_category`=2) • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm]` • no numeric ranges
 
@@ -287,10 +287,10 @@ Each subsection shows:
 | K.1 | 3 | 3 required |
 | K.3 | 2 | position_category=2 (prone, not_prone) |
 | K.4 | 1 | `hospitalization_id` |
-| P.6 | 1 | 1 cat col |
+| P.6 | 2 | per (cat col × permissible value): position_category=2 |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **19** | |
+| **Total** | **20** | |
 
 ---
 
@@ -314,7 +314,7 @@ Each subsection shows:
 
 ---
 
-### code_status — 25
+### code_status — 34
 
 **Schema inputs:** 4 cols • 3 required • 1 datetime (`start_dttm`) • 1 cat col (`code_status_category`=10) • FK `patient_id` • **no composite key** in `validation_rules.yaml`
 
@@ -328,14 +328,14 @@ Each subsection shows:
 | K.1 | 3 | 3 required |
 | K.3 | 10 | 10 code_status_category values |
 | K.4 | 1 | `patient_id` |
-| P.6 | 1 | 1 cat col × `start_dttm` |
-| **Total** | **25** | |
+| P.6 | 10 | per (cat col × permissible value): 10 code_status_category values |
+| **Total** | **34** | |
 
 P.7 is 0 because `validation_rules.yaml` does not declare composite keys for `code_status`. P.8 is 0 because `code_status` is not in `_CROSS_TABLE_TIME_COLUMNS`.
 
 ---
 
-### crrt_therapy — 45
+### crrt_therapy — 49
 
 **Schema inputs:** 11 cols • 8 required • 1 datetime (`recorded_dttm`) • 1 cat col (`crrt_mode_category`=5) • FK `hospitalization_id` • **no composite key** • 5 numeric ranges • 2 conditional requirement rules
 
@@ -351,9 +351,9 @@ P.7 is 0 because `validation_rules.yaml` does not declare composite keys for `co
 | K.3 | 5 | 5 crrt_mode_category values |
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 5 | blood_flow_rate, pre/post filter rates, dialysate, ultrafiltration |
-| P.6 | 1 | 1 cat col |
+| P.6 | 5 | per (cat col × permissible value): 5 crrt_mode_category values |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **45** | |
+| **Total** | **49** | |
 
 ---
 
@@ -375,7 +375,7 @@ The smallest contributor — no datetime, no categorical content, no numeric ran
 
 ---
 
-### microbiology_culture — 640
+### microbiology_culture — 1,227
 
 **Schema inputs:** 12 cols • 10 required • 3 datetime (`order_dttm`, `collect_dttm`, `result_dttm`) • 3 cat cols in `category_columns` (`fluid_category`=44, `method_category`=3, `organism_category`=543) → **590 mCIDE values** • FKs `hospitalization_id` and `patient_id` • composite key 4-col • 2 temporal_ordering rules
 
@@ -390,10 +390,10 @@ The smallest contributor — no datetime, no categorical content, no numeric ran
 | K.3 | 590 | fluid=44 + method=3 + organism=543 |
 | K.4 | 2 | `hospitalization_id`, `patient_id` |
 | P.1 | 2 | order < collect, collect < result |
-| P.6 | 3 | 3 cat cols × `result_dttm` available |
+| P.6 | 590 | per (cat col × permissible value): fluid=44 + method=3 + organism=543 |
 | P.7 | 1 | composite key |
 | P.8 | 3 | 3 time cols |
-| **Total** | **640** | |
+| **Total** | **1,227** | |
 
 The single largest contributor: `organism_category` alone has 543 permissible values.
 
@@ -424,22 +424,22 @@ P.6 = 0 because there's no datetime column at all (no `_detect_time_column` cand
 | Table | C.1 | C.2 | C.3 | C.4 | C.5 | C.6 | C.7 | K.1 | K.2 | K.3 | K.4 | K.5 | P.1 | P.2 | P.3 | P.4 | P.5 | P.6 | P.7 | P.8 | **Total** |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | patient | 1 | 7 | 11 | 2 | 4 | 0 | 0 | 7 | 0 | 58 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **92** |
-| hospitalization | 1 | 7 | 18 | 2 | 2 | 0 | 0 | 7 | 0 | 23 | 1 | 0 | 1 | 1 | 1 | 0 | 0 | 2 | 1 | 0 | **67** |
-| adt | 1 | 7 | 8 | 2 | 3 | 0 | 0 | 7 | 1 | 25 | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 3 | 1 | 2 | **64** |
-| vitals | 1 | 4 | 6 | 1 | 1 | 0 | 0 | 4 | 0 | 9 | 1 | 0 | 0 | 9 | 0 | 0 | 0 | 1 | 1 | 1 | **39** |
-| labs | 1 | 8 | 14 | 3 | 2 | 0 | 52 | 8 | 0 | 58 | 1 | 0 | 2 | 52 | 0 | 0 | 0 | 2 | 1 | 3 | **207** |
-| patient_assessments | 1 | 6 | 8 | 1 | 2 | 70 | 0 | 6 | 0 | 88 | 1 | 0 | 0 | 66 | 0 | 0 | 0 | 2 | 1 | 1 | **253** |
-| medication_admin_continuous | 1 | 9 | 13 | 1 | 4 | 75 | 0 | 9 | 0 | 97 | 1 | 0 | 0 | 42 | 0 | 1 | 0 | 4 | 1 | 1 | **259** |
-| medication_admin_intermittent | 1 | 9 | 13 | 1 | 3 | 0 | 0 | 9 | 0 | 174 | 1 | 0 | 0 | 5 | 0 | 1 | 0 | 3 | 1 | 1 | **222** |
-| respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 15 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 2 | 1 | 1 | **116** |
-| position | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | **19** |
+| hospitalization | 1 | 7 | 18 | 2 | 2 | 0 | 0 | 7 | 0 | 23 | 1 | 0 | 1 | 1 | 1 | 0 | 0 | 23 | 1 | 0 | **88** |
+| adt | 1 | 7 | 8 | 2 | 3 | 0 | 0 | 7 | 1 | 25 | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 25 | 1 | 2 | **86** |
+| vitals | 1 | 4 | 6 | 1 | 1 | 0 | 0 | 4 | 0 | 9 | 1 | 0 | 0 | 9 | 0 | 0 | 0 | 9 | 1 | 1 | **47** |
+| labs | 1 | 8 | 14 | 3 | 2 | 0 | 52 | 8 | 0 | 58 | 1 | 0 | 2 | 52 | 0 | 0 | 0 | 58 | 1 | 3 | **263** |
+| patient_assessments | 1 | 6 | 8 | 1 | 2 | 70 | 0 | 6 | 0 | 88 | 1 | 0 | 0 | 66 | 0 | 0 | 0 | 88 | 1 | 1 | **339** |
+| medication_admin_continuous | 1 | 9 | 13 | 1 | 4 | 75 | 0 | 9 | 0 | 97 | 1 | 0 | 0 | 42 | 0 | 1 | 0 | 97 | 1 | 1 | **352** |
+| medication_admin_intermittent | 1 | 9 | 13 | 1 | 3 | 0 | 0 | 9 | 0 | 174 | 1 | 0 | 0 | 5 | 0 | 1 | 0 | 174 | 1 | 1 | **393** |
+| respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 15 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 17 | 1 | 1 | **131** |
+| position | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 1 | 1 | **20** |
 | patient_procedures | 1 | 4 | 6 | 1 | 0 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
-| code_status | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 10 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **25** |
-| crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 2 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 1 | 0 | 1 | **45** |
+| code_status | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 10 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | **34** |
+| crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 2 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 5 | 0 | 1 | **49** |
 | hospital_diagnosis | 1 | 5 | 5 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
-| microbiology_culture | 1 | 10 | 12 | 3 | 3 | 0 | 0 | 10 | 0 | 590 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 3 | 1 | 3 | **640** |
+| microbiology_culture | 1 | 10 | 12 | 3 | 3 | 0 | 0 | 10 | 0 | 590 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 590 | 1 | 3 | **1,227** |
 | microbiology_susceptibility | 1 | 2 | 6 | 0 | 2 | 0 | 0 | 2 | 0 | 171 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **186** |
-| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **18** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **25** | **14** | **15** | **2,270** |
+| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **18** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **1,098** | **14** | **15** | **3,343** |
 
 K.5 (the cross-table `Expired → death_dttm` rule) attaches to its **target** table in the validator's output — `run_cross_table_completeness_checks` does `results.setdefault(target_table, {})[rule_key] = result`. The only current rule targets `patient`, so patient gets K.5 = 1 and every other table gets 0. Add a rule targeting another table and that table's K.5 column bumps.
 
@@ -450,28 +450,28 @@ Collapsed view of the matrix above, summed into the three DQA pillars (C = C.1�
 | Table | Conformance | Completeness | Plausibility | **Total** |
 |---|--:|--:|--:|--:|
 | patient | 25 | 66 | 1 | **92** |
-| hospitalization | 30 | 31 | 6 | **67** |
-| adt | 21 | 34 | 9 | **64** |
-| vitals | 13 | 14 | 12 | **39** |
-| labs | 80 | 67 | 60 | **207** |
-| patient_assessments | 88 | 95 | 70 | **253** |
-| medication_admin_continuous | 103 | 107 | 49 | **259** |
-| medication_admin_intermittent | 27 | 184 | 11 | **222** |
-| respiratory_support | 46 | 49 | 21 | **116** |
-| position | 10 | 6 | 3 | **19** |
+| hospitalization | 30 | 31 | 27 | **88** |
+| adt | 21 | 34 | 31 | **86** |
+| vitals | 13 | 14 | 20 | **47** |
+| labs | 80 | 67 | 116 | **263** |
+| patient_assessments | 88 | 95 | 156 | **339** |
+| medication_admin_continuous | 103 | 107 | 142 | **352** |
+| medication_admin_intermittent | 27 | 184 | 182 | **393** |
+| respiratory_support | 46 | 49 | 36 | **131** |
+| position | 10 | 6 | 4 | **20** |
 | patient_procedures | 12 | 5 | 1 | **18** |
-| code_status | 10 | 14 | 1 | **25** |
-| crrt_therapy | 22 | 16 | 7 | **45** |
+| code_status | 10 | 14 | 10 | **34** |
+| crrt_therapy | 22 | 16 | 11 | **49** |
 | hospital_diagnosis | 11 | 6 | 1 | **18** |
-| microbiology_culture | 29 | 602 | 9 | **640** |
+| microbiology_culture | 29 | 602 | 596 | **1,227** |
 | microbiology_susceptibility | 11 | 174 | 1 | **186** |
-| **GRAND TOTAL** | **538** | **1,470** | **262** | **2,270** |
+| **GRAND TOTAL** | **538** | **1,470** | **1,335** | **3,343** |
 
 ---
 
 ## 6. Where the count concentrates
 
-Two checks alone produce **1,524 of the 2,270 atomic checks (~67%)**:
+Two checks alone produce **2,425 of the 3,343 atomic checks (~73%)** — K.3 and P.6 share the same per-(category column × permissible value) granularity and dominate the count:
 
 - **K.3 mcide_value_coverage (1,327)** — driven by enumerations with hundreds of values:
   - `microbiology_culture.organism_category`: 543
@@ -484,6 +484,8 @@ Two checks alone produce **1,524 of the 2,270 atomic checks (~67%)**:
   - `microbiology_culture.fluid_category`: 44
   - everything else: ~166
 
+- **P.6 category_temporal_consistency (1,098)** — same per-value granularity as K.3 but only for tables with a detectable time column (patient, hospital_diagnosis, microbiology_susceptibility, patient_procedures all contribute 0). Value totals per table match K.3 minus the tables with no time column (so 1,098 = 1,327 − 45 − 171 − 0 − 0 − the 13 group-column values already excluded from both).
+
 - **P.2 numeric_range_plausibility (197)** — every leaf range in `outlier_config.yaml`:
   - `patient_assessments.numerical_value` × 66 assessment categories
   - `labs.lab_value_numeric` × 52 lab categories
@@ -494,9 +496,9 @@ Two checks alone produce **1,524 of the 2,270 atomic checks (~67%)**:
   - `medication_admin_intermittent.med_dose` × 5
   - `hospitalization.age_at_admission` × 1
 
-The third meaningful contributor is **C.6 category_group_mapping (145)** = 70 (patient_assessments) + 75 (medication_admin_continuous).
+The next meaningful contributor is **C.6 category_group_mapping (145)** = 70 (patient_assessments) + 75 (medication_admin_continuous).
 
-Add a column or a permissible value to a schema and the atomic count moves; add a whole new table and the structural checks (C.1–C.5, K.1, K.4, P.6, P.7, P.8) all bump.
+Add a column or a permissible value to a schema and the atomic count moves; add a whole new table and the structural checks (C.1–C.5, K.1, K.4, P.7, P.8) all bump.
 
 ---
 
@@ -616,10 +618,14 @@ for t in BETA:
     P3 = len(fp.get(t, []))
     P4 = 1 if t in ('medication_admin_continuous','medication_admin_intermittent') else 0
     P5 = 1 if t in op else 0
-    # P.6 counts category cols that are actually present in the table (null
-    # entries in schemas like patient_procedures don't count — the "not
-    # applicable" early-return contributes 0/0 since clifpy commit d56bf12).
-    P6 = sum(1 for c in cat_cols(t) if c in cn) if (cn & TIME_DETECT) else 0
+    # P.6 counts 1 per (cat col × permissible value) for tables with a
+    # detectable time column. Null-entry category_columns (patient_procedures)
+    # contribute 0.
+    P6 = sum(
+        len(c.get('permissible_values', []) or [])
+        for c in cols(t)
+        if c['name'] in cat_cols(t) and c['name'] in cn
+    ) if (cn & TIME_DETECT) else 0
     P7 = 1 if t in ck else 0
     P8 = sum(1 for c in ct_time.get(t, []) if c in cn) if 'hospitalization_id' in cn else 0
     tot = C1+C2+C3+C4+C5+C6+C7+K1+K2+K3+K4+K5+P1+P2+P3+P4+P5+P6+P7+P8
@@ -629,7 +635,7 @@ for t in BETA:
 print(f'{"GRAND TOTAL":<32} {grand:>5}')
 ```
 
-Expected output: `GRAND TOTAL 2270`.
+Expected output: `GRAND TOTAL 3343`.
 
 ---
 

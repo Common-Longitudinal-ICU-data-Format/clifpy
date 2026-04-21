@@ -84,59 +84,25 @@ def _make_error_id(issue: Dict[str, Any]) -> str:
 
 
 def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Collapse granular DQA rows sharing a key:
+    """Collapse INFO-severity rows sharing a rule_code into one row per group.
 
-    - INFO rows: grouped by ``rule_code``. Multiple silent-pass messages
-      for the same rule merge into one summary row.
-    - WARNING rows: grouped by ``(rule_code, column_field)``. Checks like
-      P.6 ``category_temporal_consistency`` emit one warning per
-      (column × absent_value × year) triple; without collapsing, 15
-      warning rows can appear for only 2 atomic units (the 2 columns),
-      and the row-level checks no longer sum to ``atomic_total``.
+    Non-INFO rows (error/warning) pass through unchanged, preserving order.
+    For each INFO group of size > 1, emit one merged row whose column_field
+    is the comma-joined, deduped list of the originals' column_field values.
+    Groups of size 1 pass through as-is.
 
-    ERROR rows pass through unchanged. The yearly_counts detail is
-    aggregated across merged warnings so the PDF sparkline still renders.
+    Warnings are NOT collapsed — per-value sparkline rows (e.g. P.6) need to
+    stay distinct so each value's yearly-presence pattern is visible.
     """
     info_groups: "OrderedDict[str, List[Dict[str, Any]]]" = OrderedDict()
-    warn_groups: "OrderedDict[tuple, List[Dict[str, Any]]]" = OrderedDict()
     out: List[Dict[str, Any]] = []
     for r in rows:
-        sev = r.get('severity')
-        if sev == 'info':
-            key = r.get('rule_code') or r.get('check_type') or ''
-            info_groups.setdefault(key, []).append(r)
-        elif sev == 'warning':
-            key = (r.get('rule_code') or '', r.get('column_field') or '')
-            warn_groups.setdefault(key, []).append(r)
-        else:
+        if r.get('severity') != 'info':
             out.append(r)
-
-    # Emit warning groups: one row per (rule_code, column_field)
-    for key, grp in warn_groups.items():
-        if len(grp) == 1:
-            out.append(grp[0])
             continue
-        merged = dict(grp[0])
-        # Aggregate yearly_counts across the group so the sparkline in the
-        # PDF shows the union of absences, not just the first row's.
-        all_years: Dict[Any, int] = {}
-        for r in grp:
-            yc = (r.get('details') or {}).get('yearly_counts') or {}
-            for y, cnt in yc.items():
-                all_years[y] = all_years.get(y, 0) + (cnt or 0)
-        merged_details = dict(merged.get('details') or {})
-        if all_years:
-            merged_details['yearly_counts'] = all_years
-        merged_details['merged_count'] = len(grp)
-        merged['details'] = merged_details
-        # Per-column → 1 atom per merged warning row. Sum across merged
-        # warning rows then matches the check's atomic_total - atomic_passed.
-        merged['atomic_count'] = 1
-        base = merged.get('finding') or merged.get('message') or ''
-        merged['finding'] = f"{base} (+{len(grp) - 1} more sub-findings)"
-        out.append(merged)
+        key = r.get('rule_code') or r.get('check_type') or ''
+        info_groups.setdefault(key, []).append(r)
 
-    # Emit info groups: one row per rule_code
     for key, grp in info_groups.items():
         if len(grp) == 1:
             out.append(grp[0])
