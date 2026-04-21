@@ -290,6 +290,16 @@ def get_schema_check_counts(
     for fk_col, rule in fk_rules.items():
         if fk_col in schema_col_names and rule.get('references_table') != table_name:
             comp += 1
+    # K.5 cross_table_conditional_completeness: 1 per rule whose target_table
+    # is this table. run_cross_table_completeness_checks attaches each result
+    # to its target via results.setdefault(target_table, ...)[rule_key] = ...,
+    # so K.5 contributes to the target table's completeness score, not the
+    # source's. K.5 does not populate atomic_total, so it falls back to
+    # message-count in the scorer (one message per invocation).
+    ct_cond_rules = _load_validation_rules().get('cross_table_conditional_requirements', []) or []
+    for rule in ct_cond_rules:
+        if rule.get('target_table') == table_name:
+            comp += 1
 
     # --- Plausibility ---
     plaus = 0
@@ -300,6 +310,11 @@ def get_schema_check_counts(
     plaus += _count_numeric_range_leaves(table_name)
     # P.3 field_plausibility: 1 per rule
     plaus += len(rules_yaml.get('field_plausibility_rules', {}).get(table_name, []))
+    # P.4 medication_dose_unit_consistency: 1 per medication admin table.
+    # Check does not populate atomic_total; each invocation emits exactly one
+    # message, which counts as 1 via the report-generator fallback path.
+    if table_name in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        plaus += 1
     # P.5 overlapping_periods: 1 if defined for table
     if rules_yaml.get('overlapping_periods', {}).get(table_name):
         plaus += 1
@@ -313,6 +328,13 @@ def get_schema_check_counts(
     ck = rules_yaml.get('composite_keys', {}).get(table_name)
     if ck and ck.get('keys'):
         plaus += 1
+    # P.8 cross_table_temporal: 1 per cross-table time column present in this
+    # table's schema, for non-hospitalization tables that carry hospitalization_id.
+    # Check emits one message per time column; no atomic_total populated.
+    if table_name != 'hospitalization' and 'hospitalization_id' in schema_col_names:
+        for time_col in _CROSS_TABLE_TIME_COLUMNS.get(table_name, []):
+            if time_col in schema_col_names:
+                plaus += 1
 
     return {"conformance": conf, "completeness": comp, "plausibility": plaus}
 
