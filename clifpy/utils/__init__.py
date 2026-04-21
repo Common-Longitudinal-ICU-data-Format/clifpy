@@ -49,6 +49,7 @@ from .report_generator import (
     generate_combined_report,
 )
 
+from .unit_variants import load_labs_schema_units, get_variants_for_category, normalize_unit
 from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
@@ -83,6 +84,10 @@ __all__ = [
       '_agg_extremal_values_by_id',
       # ase
       'compute_ase',
+      # unit variants
+      'load_labs_schema_units',
+      'get_variants_for_category',
+      'normalize_unit',
       # DQA functions
       '_ACTIVE_BACKEND',
       'DQAConformanceResult',

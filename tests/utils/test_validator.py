@@ -486,8 +486,10 @@ class TestCheckCategoricalValues:
     def test_invalid_value_polars(self, patient_schema):
         lf = pl.LazyFrame({"patient_id": ["p1"], "sex_category": ["Alien"], "age": [25]})
         result = check_categorical_values_polars(lf, patient_schema, "patient")
-        assert result.passed is False
-        assert len(result.errors) > 0
+        # mCIDE non-conformance is reported as a warning (non-blocking),
+        # so `passed` stays True and the finding lives in `warnings`.
+        assert len(result.warnings) > 0
+        assert result.warnings[0]['details']['column'] == 'sex_category'
 
     def test_all_valid_duckdb(self, patient_schema):
         df = pd.DataFrame({"patient_id": ["p1"], "sex_category": ["Female"], "age": [25]})
@@ -497,7 +499,8 @@ class TestCheckCategoricalValues:
     def test_invalid_value_duckdb(self, patient_schema):
         df = pd.DataFrame({"patient_id": ["p1"], "sex_category": ["Alien"], "age": [25]})
         result = check_categorical_values_duckdb(df, patient_schema, "patient")
-        assert result.passed is False
+        assert len(result.warnings) > 0
+        assert result.warnings[0]['details']['column'] == 'sex_category'
 
     def test_dispatcher(self, patient_schema):
         lf = pl.LazyFrame({"patient_id": ["p1"], "sex_category": ["Male"], "age": [25]})
