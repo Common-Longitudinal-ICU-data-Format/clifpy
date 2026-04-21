@@ -1282,8 +1282,8 @@ def check_lab_reference_units_polars(
     lab_units = schema.get('lab_reference_units', {})
     if not lab_units:
         result.add_info("No lab reference units defined in schema")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -1393,8 +1393,8 @@ def check_lab_reference_units_duckdb(
     lab_units = schema.get('lab_reference_units', {})
     if not lab_units:
         result.add_info("No lab reference units defined in schema")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -3229,8 +3229,8 @@ def check_chronological_order_polars(
 
     if not chronological_rules:
         result.add_info("No chronological order rules defined for this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -3326,8 +3326,8 @@ def check_chronological_order_duckdb(
 
     if not chronological_rules:
         result.add_info("No chronological order rules defined for this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -3932,8 +3932,8 @@ def check_field_plausibility_polars(
 
     if not rules:
         result.add_info("No field plausibility rules defined for this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -4070,8 +4070,8 @@ def check_field_plausibility_duckdb(
 
     if not rules:
         result.add_info("No field plausibility rules defined for this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -4224,8 +4224,8 @@ def check_medication_dose_unit_consistency_polars(
 
     if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
         result.add_info("Medication dose unit check not applicable to this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -4234,8 +4234,8 @@ def check_medication_dose_unit_consistency_polars(
 
         if 'med_dose_unit' not in col_names:
             result.add_info("Column 'med_dose_unit' not found in table")
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
@@ -4251,8 +4251,8 @@ def check_medication_dose_unit_consistency_polars(
 
         if total == 0:
             result.add_info("No non-null med_dose_unit values to check")
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         if expect == 'per_time':
@@ -4329,8 +4329,8 @@ def check_medication_dose_unit_consistency_duckdb(
 
     if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
         result.add_info("Medication dose unit check not applicable to this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -4340,8 +4340,8 @@ def check_medication_dose_unit_consistency_duckdb(
         if 'med_dose_unit' not in df.columns:
             result.add_info("Column 'med_dose_unit' not found in table")
             con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
@@ -4361,8 +4361,8 @@ def check_medication_dose_unit_consistency_duckdb(
         if total == 0:
             result.add_info("No non-null med_dose_unit values to check")
             con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         if expect == 'per_time':
@@ -4458,14 +4458,14 @@ def check_cross_table_temporal_plausibility_polars(
 
         if 'hospitalization_id' not in target_cols or 'hospitalization_id' not in hosp_cols:
             result.add_info("Missing hospitalization_id column; skipping cross-table check")
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         if 'admission_dttm' not in hosp_cols or 'discharge_dttm' not in hosp_cols:
             result.add_info("Missing admission/discharge columns in hospitalization table")
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         hosp_bounds = hosp_lf.select([
@@ -4559,15 +4559,15 @@ def check_cross_table_temporal_plausibility_duckdb(
         if 'hospitalization_id' not in target_df.columns or 'hospitalization_id' not in hospitalization_df.columns:
             result.add_info("Missing hospitalization_id column; skipping cross-table check")
             con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         if 'admission_dttm' not in hospitalization_df.columns or 'discharge_dttm' not in hospitalization_df.columns:
             result.add_info("Missing admission/discharge columns in hospitalization table")
             con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         violations_by_col = {}
@@ -4678,8 +4678,8 @@ def check_overlapping_periods_polars(
 
         if entity_col not in col_names or start_col not in col_names or end_col not in col_names:
             result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         # Filter to rows where both start and end are non-null, sort, then compare with previous
@@ -4753,8 +4753,8 @@ def check_overlapping_periods_duckdb(
         if entity_col not in df.columns or start_col not in df.columns or end_col not in df.columns:
             result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
             con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         stats = con.execute(f"""
@@ -5287,8 +5287,8 @@ def check_duplicate_composite_keys_polars(
 
     if not composite_keys:
         result.add_info("No composite keys defined for this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -5299,8 +5299,8 @@ def check_duplicate_composite_keys_polars(
         missing_keys = [k for k in composite_keys if k not in col_names]
         if missing_keys:
             result.add_info(f"Composite key columns missing: {missing_keys}")
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         total = lf.select(pl.len()).collect(streaming=True).item()
@@ -5366,8 +5366,8 @@ def check_duplicate_composite_keys_duckdb(
 
     if not composite_keys:
         result.add_info("No composite keys defined for this table")
-        result.atomic_total = 1
-        result.atomic_passed = 1
+        result.atomic_total = 0
+        result.atomic_passed = 0
         return result
 
     try:
@@ -5378,8 +5378,8 @@ def check_duplicate_composite_keys_duckdb(
         if missing_keys:
             result.add_info(f"Composite key columns missing: {missing_keys}")
             con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             return result
 
         key_cols_str = ', '.join([f'"{k}"' for k in composite_keys])
@@ -6049,8 +6049,8 @@ def run_cross_table_completeness_checks_from_cache(
             result.add_info(
                 "No cross-table conditional requirements applicable"
             )
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
@@ -6059,8 +6059,8 @@ def run_cross_table_completeness_checks_from_cache(
                 f"No {rule['source_column']} = {rule['source_value']} found in "
                 f"{source_table}; cross-table conditional check not triggered"
             )
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
@@ -6211,8 +6211,8 @@ def run_cross_table_completeness_checks(
                 f"No {rule['source_column']} = {rule['source_value']} found in "
                 f"{source_table}; cross-table conditional check not triggered"
             )
-            result.atomic_total = 1
-            result.atomic_passed = 1
+            result.atomic_total = 0
+            result.atomic_passed = 0
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
