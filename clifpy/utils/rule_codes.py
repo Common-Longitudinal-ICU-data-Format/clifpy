@@ -302,7 +302,10 @@ def _extract_atomic_count(issue: Dict[str, Any]) -> int:
         return 1
 
     explicit = details.get('atomic_count')
-    if isinstance(explicit, int) and explicit > 0:
+    # Accept explicit 0 as well — an "informational" row (e.g., the reverse
+    # direction of a K.4 relational check) wants to display but not
+    # contribute to the atomic sum.
+    if isinstance(explicit, int) and explicit >= 0:
         return explicit
 
     for key in ('missing_columns', 'mismatched_pairs', 'missing_categories',

@@ -2177,17 +2177,18 @@ def check_missingness_polars(
                     {"column": col},
                 )
 
-        # Atomic counting: 1 per required column in the schema (the doc's
-        # "one per required column" rule). Nullable and conditional-covered
-        # cols skip emission but still count toward the total since the
-        # check considered them. Passed = required cols that neither hit a
-        # warning/error threshold nor are absent from data outside of K.2
-        # coverage.
+        # Atomic counting: 1 per required column in the schema.
+        # Lenient scoring — only errors (columns that crossed error_threshold
+        # or are absent from data outside K.2 coverage) reduce atomic_passed.
+        # Warning-level missingness is flagged as a warning row but doesn't
+        # fail the atom.
         result.atomic_total = len(required_columns)
-        failed = len(high_missingness) + sum(
+        failed_errors = sum(
+            1 for item in high_missingness if item.get('severity') == 'error'
+        ) + sum(
             1 for c in required_not_in_df if c not in conditional_cols
         )
-        result.atomic_passed = result.atomic_total - failed
+        result.atomic_passed = result.atomic_total - failed_errors
 
         gc.collect()
 
@@ -2318,11 +2319,15 @@ def check_missingness_duckdb(
                     {"column": col},
                 )
 
+        # Lenient scoring — only errors (above error_threshold or absent)
+        # reduce atomic_passed; warning-level missingness is informational.
         result.atomic_total = len(required_columns)
-        failed = len(high_missingness) + sum(
+        failed_errors = sum(
+            1 for item in high_missingness if item.get('severity') == 'error'
+        ) + sum(
             1 for c in required_not_in_df if c not in conditional_cols
         )
-        result.atomic_passed = result.atomic_total - failed
+        result.atomic_passed = result.atomic_total - failed_errors
 
         con.close()
         gc.collect()
@@ -2424,7 +2429,7 @@ def check_conditional_requirements_polars(
         passed_rules = 0
 
         for cond in conditions:
-            warnings_before = len(result.warnings)
+            errors_before = len(result.errors)
             when_col = cond['when_column']
             when_values = cond['when_value']
             then_required = cond['then_required']
@@ -2495,7 +2500,9 @@ def check_conditional_requirements_polars(
                          "percent_present": 100.0}
                     )
 
-            if len(result.warnings) == warnings_before:
+            # Lenient: a rule passes unless it produced an error. Warnings
+            # about missing required values are informational.
+            if len(result.errors) == errors_before:
                 passed_rules += 1
 
         result.atomic_total = len(conditions)
@@ -2536,7 +2543,7 @@ def check_conditional_requirements_duckdb(
         passed_rules = 0
 
         for cond in conditions:
-            warnings_before = len(result.warnings)
+            errors_before = len(result.errors)
             when_col = cond['when_column']
             when_values = cond['when_value']
             then_required = cond['then_required']
@@ -2602,7 +2609,9 @@ def check_conditional_requirements_duckdb(
                          "percent_present": 100.0}
                     )
 
-            if len(result.warnings) == warnings_before:
+            # Lenient: a rule passes unless it produced an error. Warnings
+            # about missing required values are informational.
+            if len(result.errors) == errors_before:
                 passed_rules += 1
 
         result.atomic_total = len(conditions)
@@ -3057,11 +3066,16 @@ def check_relational_integrity(
         result.metrics["reverse_orphan_ids"] = rev.metrics.get("orphan_ids", 0)
         result.metrics["reverse_target_unique_ids"] = rev.metrics.get("source_unique_ids", 0)
 
-        # Propagate warnings/errors from both directions
+        # Propagate warnings/errors from both directions. The reverse
+        # direction is informational only (normal data often has reference
+        # rows with no children), so its warnings get atomic_count=0 to
+        # keep them visible without inflating the atomic sum.
         for w in fwd.warnings:
             result.add_warning(w['message'], w.get("details", {}))
         for w in rev.warnings:
-            result.add_warning(w['message'], w.get("details", {}))
+            rev_details = dict(w.get("details", {}) or {})
+            rev_details.setdefault('atomic_count', 0)
+            result.add_warning(w['message'], rev_details)
         for e in fwd.errors:
             result.add_error(e['message'], e.get("details", {}))
         for e in rev.errors:
@@ -3501,17 +3515,20 @@ def check_numeric_range_plausibility_polars(
                     "min": rmin, "max": rmax,
                 }
 
+                # Lenient: only errors fail the atom. Warnings (above
+                # warning_threshold but below error_threshold) still emit
+                # a warning row but count as a pass.
                 if pct > error_threshold:
                     result.add_error(
                         f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
                         {"column": col_name, "percent": round(pct, 2)}
                     )
-                elif pct > warning_threshold:
-                    result.add_warning(
-                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
-                        {"column": col_name, "percent": round(pct, 2)}
-                    )
                 else:
+                    if pct > warning_threshold:
+                        result.add_warning(
+                            f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
+                            {"column": col_name, "percent": round(pct, 2)}
+                        )
                     atomic_passed += 1
 
             elif isinstance(col_ranges, dict):
@@ -3567,17 +3584,18 @@ def check_numeric_range_plausibility_polars(
                         total_count += cat_total
                         total_oor += cat_oor
 
+                        # Lenient: only errors fail the atom.
                         if cat_oor > 0 and cat_pct > error_threshold:
                             result.add_error(
                                 f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
                                 {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
                             )
-                        elif cat_oor > 0 and cat_pct > warning_threshold:
-                            result.add_warning(
-                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                            )
                         else:
+                            if cat_oor > 0 and cat_pct > warning_threshold:
+                                result.add_warning(
+                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                                )
                             atomic_passed += 1
 
                     pct = (total_oor / total_count * 100) if total_count > 0 else 0
@@ -3623,17 +3641,18 @@ def check_numeric_range_plausibility_polars(
                         total_count += cat_total
                         total_oor += cat_oor
 
+                        # Lenient: only errors fail the atom.
                         if cat_oor > 0 and cat_pct > error_threshold:
                             result.add_error(
                                 f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
                                 {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
                             )
-                        elif cat_oor > 0 and cat_pct > warning_threshold:
-                            result.add_warning(
-                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
-                            )
                         else:
+                            if cat_oor > 0 and cat_pct > warning_threshold:
+                                result.add_warning(
+                                    f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
+                                )
                             atomic_passed += 1
 
                     pct = (total_oor / total_count * 100) if total_count > 0 else 0
@@ -3740,17 +3759,18 @@ def check_numeric_range_plausibility_duckdb(
                     "min": rmin, "max": rmax,
                 }
 
+                # Lenient: only errors fail the atom.
                 if pct > error_threshold:
                     result.add_error(
                         f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
                         {"column": col_name, "percent": round(pct, 2)}
                     )
-                elif pct > warning_threshold:
-                    result.add_warning(
-                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
-                        {"column": col_name, "percent": round(pct, 2)}
-                    )
                 else:
+                    if pct > warning_threshold:
+                        result.add_warning(
+                            f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
+                            {"column": col_name, "percent": round(pct, 2)}
+                        )
                     atomic_passed += 1
 
             elif isinstance(col_ranges, dict):
@@ -3804,17 +3824,18 @@ def check_numeric_range_plausibility_duckdb(
                         total_count += cat_total
                         total_oor += cat_oor
 
+                        # Lenient: only errors fail the atom.
                         if cat_oor > 0 and cat_pct > error_threshold:
                             result.add_error(
                                 f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
                                 {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
                             )
-                        elif cat_oor > 0 and cat_pct > warning_threshold:
-                            result.add_warning(
-                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                            )
                         else:
+                            if cat_oor > 0 and cat_pct > warning_threshold:
+                                result.add_warning(
+                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
+                                )
                             atomic_passed += 1
                 else:
                     # 1-level category-dependent — batched single query
@@ -3854,17 +3875,18 @@ def check_numeric_range_plausibility_duckdb(
                         total_count += cat_total
                         total_oor += cat_oor
 
+                        # Lenient: only errors fail the atom.
                         if cat_oor > 0 and cat_pct > error_threshold:
                             result.add_error(
                                 f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
                                 {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
                             )
-                        elif cat_oor > 0 and cat_pct > warning_threshold:
-                            result.add_warning(
-                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
-                            )
                         else:
+                            if cat_oor > 0 and cat_pct > warning_threshold:
+                                result.add_warning(
+                                    f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
+                                    {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
+                                )
                             atomic_passed += 1
 
                 pct = (total_oor / total_count * 100) if total_count > 0 else 0
@@ -5947,13 +5969,17 @@ def run_relational_integrity_checks_from_cache(
                          "coverage_percent": round(fwd_coverage, 2)}
                     )
 
-                # Reverse warnings/errors
+                # Reverse warnings/errors — informational only; the reverse
+                # direction (every reference row has a child) often "fails"
+                # on normal data (e.g., patients with no hospitalizations),
+                # so we surface it but don't count it as an atom.
                 if rev_orphans:
                     result.add_warning(
                         f"{rev_orphan_count}/{rev_total} {fk_column} values in {table_name} "
                         f"not found in {ref_table_name} ({round(rev_coverage, 1)}% coverage)",
                         {"orphan_count": rev_orphan_count,
-                         "coverage_percent": round(rev_coverage, 2)}
+                         "coverage_percent": round(rev_coverage, 2),
+                         "atomic_count": 0}
                     )
 
                 if not fwd_orphans and not rev_orphans:
