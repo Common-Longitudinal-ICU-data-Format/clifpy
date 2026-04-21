@@ -109,9 +109,70 @@ def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         merged = dict(grp[0])
         merged['column_field'] = ', '.join(columns) if columns else merged.get('column_field', '')
         merged['message'] = f"{len(grp)} checks passed"
+        merged['finding'] = merged['message']
         merged['details'] = {'count': len(grp), 'columns': columns}
+        merged['atomic_count'] = len(grp)
         out.append(merged)
     return out
+
+
+def _reconcile_atomic_counts(
+    rows: List[Dict[str, Any]],
+    atomic_total: int,
+    atomic_passed: int,
+    category: str,
+    check_type: str,
+    check_key: Optional[str] = None,
+) -> None:
+    """Align the per-row ``atomic_count`` values for one check so the section
+    summing invariant holds: ``sum(atomic_count) over rows ≈ atomic_total``.
+
+    Strategy:
+      * Leave error/warning row counts (set by ``enrich_issue`` heuristics)
+        alone — they represent failing/flagged atoms.
+      * Credit any remaining atoms (``atomic_total - sum of err/warn counts``)
+        to the (single, post-collapse) INFO row as its passing-atom count.
+      * If the remaining count is positive but no INFO row exists, synthesize
+        one "N checks passed" row so the passes are visible.
+
+    Mutates ``rows`` in place.
+    """
+    if atomic_total == 0:
+        return
+
+    err_warn_sum = sum(
+        r.get('atomic_count', 1) for r in rows
+        if r.get('severity') in ('error', 'warning')
+    )
+    remaining = max(0, atomic_total - err_warn_sum)
+
+    info_rows = [r for r in rows if r.get('severity') == 'info']
+    if info_rows:
+        info = info_rows[0]
+        prior = info.get('atomic_count', 1)
+        info['atomic_count'] = remaining
+        # If this is a _collapse_info_rows-generated "N checks passed" summary,
+        # resync the message so it agrees with the reconciled atomic_count.
+        if prior != remaining and info.get('message') == f"{prior} checks passed":
+            new_msg = f"{remaining} check{'s' if remaining != 1 else ''} passed"
+            info['message'] = new_msg
+            info['finding'] = new_msg
+        return
+
+    if remaining > 0:
+        synth = {
+            'category': category,
+            'check_type': check_type,
+            'severity': 'info',
+            'message': f"{remaining} check{'s' if remaining != 1 else ''} passed",
+            'details': {'count': remaining},
+        }
+        enriched = enrich_issue(synth, check_key=check_key)
+        if enriched is not None:
+            enriched['atomic_count'] = remaining
+            enriched['finding'] = enriched['message']
+            enriched['column_field'] = enriched.get('column_field') or 'NA'
+            rows.append(enriched)
 
 
 def collect_dqa_issues(validation_data: Dict[str, Any]):
@@ -192,7 +253,12 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
             cat_total += atomic_t
             cat_passed += atomic_p
 
-            all_issues.extend(_collapse_info_rows(check_enriched))
+            collapsed = _collapse_info_rows(check_enriched)
+            _reconcile_atomic_counts(
+                collapsed, atomic_t, atomic_p, category, d['check_type'],
+                check_key=check_name,
+            )
+            all_issues.extend(collapsed)
 
         if cat_total > 0:
             category_scores[category] = (cat_passed, cat_total)
@@ -530,15 +596,18 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
 
     if all_issues:
         story.append(PageBreak())
-        story.append(Paragraph(f"Issue Details ({len(all_issues)})", heading_style))
+        story.append(Paragraph("Details", heading_style))
 
-        # Column widths — add status column only when feedback exists
+        # Column order: rule, rule_description, column_field, severity, finding,
+        # checks, [status]. Metric is omitted because each sub-table is already
+        # a single category.
         if has_feedback:
-            detail_col_widths = [1.0 * inch, 0.5 * inch, 1.7 * inch,
-                                 1.1 * inch, 0.5 * inch, 2.2 * inch, 0.5 * inch]
+            detail_col_widths = [0.5 * inch, 1.7 * inch, 1.1 * inch,
+                                 0.5 * inch, 2.7 * inch, 0.5 * inch, 0.5 * inch]
         else:
-            detail_col_widths = [1.0 * inch, 0.5 * inch, 1.7 * inch,
-                                 1.1 * inch, 0.5 * inch, 2.7 * inch]
+            detail_col_widths = [0.5 * inch, 1.7 * inch, 1.1 * inch,
+                                 0.5 * inch, 3.2 * inch, 0.5 * inch]
+        checks_col_idx = 5
 
         for category in DQA_CATEGORIES:
             cat_issues = [i for i in all_issues if i['category'] == category]
@@ -551,12 +620,12 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
 
             # Header row
             header_row = [
-                Paragraph('<b>metric</b>', cell_bold_style),
                 Paragraph('<b>rule</b>', cell_bold_style),
                 Paragraph('<b>rule_description</b>', cell_bold_style),
                 Paragraph('<b>column_field</b>', cell_bold_style),
                 Paragraph('<b>severity</b>', cell_bold_style),
                 Paragraph('<b>finding</b>', cell_bold_style),
+                Paragraph('<b>checks</b>', cell_bold_style),
             ]
             if has_feedback:
                 header_row.append(Paragraph('<b>status</b>', cell_bold_style))
@@ -566,7 +635,7 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                 severity_upper = issue['severity'].upper()
                 finding_text = truncate_comment(issue.get('finding', issue['message']))
                 # Build finding cell: text + optional sparkline for temporal checks
-                spark_width = 2.0 * inch if has_feedback else 2.5 * inch
+                spark_width = 2.5 * inch if has_feedback else 3.0 * inch
                 yearly_counts = issue.get('details', {}).get('yearly_counts')
                 if yearly_counts:
                     finding_cell = [
@@ -577,12 +646,12 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                 else:
                     finding_cell = Paragraph(escape(finding_text), cell_style)
                 row = [
-                    Paragraph(escape(category), cell_style),
                     Paragraph(escape(issue.get('rule_code', '')), cell_style),
                     Paragraph(escape(issue.get('rule_description', '')), cell_style),
                     Paragraph(escape(issue.get('column_field', 'NA')), cell_style),
                     Paragraph(escape(severity_upper), cell_style),
                     finding_cell,
+                    Paragraph(str(issue.get('atomic_count', 1)), cell_style),
                 ]
                 if has_feedback:
                     if issue['severity'] == 'error':
@@ -609,6 +678,7 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
                 ('LEFTPADDING', (0, 0), (-1, -1), 4),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ALIGN', (checks_col_idx, 0), (checks_col_idx, -1), 'RIGHT'),
             ]
 
             # Color-code rows by severity, override with grey for rejected
@@ -735,11 +805,11 @@ def generate_text_report(validation_data: Dict[str, Any],
     # Issue details as tabular text
     if all_issues:
         lines.append("=" * 120)
-        lines.append(f"ISSUE DETAILS ({len(all_issues)})")
+        lines.append("DETAILS")
         lines.append("=" * 120)
 
         # Column widths for text alignment
-        w_metric, w_rule, w_desc, w_col, w_sev = 14, 6, 30, 18, 10
+        w_rule, w_desc, w_col, w_sev, w_checks = 6, 30, 18, 10, 7
 
         for category in DQA_CATEGORIES:
             cat_issues = [i for i in all_issues if i['category'] == category]
@@ -753,11 +823,11 @@ def generate_text_report(validation_data: Dict[str, Any],
             lines.append("")
 
             # Header
-            hdr = (f"  {'metric':<{w_metric}}"
-                   f"{'rule':<{w_rule}}"
+            hdr = (f"  {'rule':<{w_rule}}"
                    f"{'rule_description':<{w_desc}}"
                    f"{'column_field':<{w_col}}"
                    f"{'severity':<{w_sev}}"
+                   f"{'checks':>{w_checks}}  "
                    f"finding")
             lines.append(hdr)
             lines.append("  " + "-" * 116)
@@ -768,6 +838,7 @@ def generate_text_report(validation_data: Dict[str, Any],
                 rule_desc = issue.get('rule_description', '')
                 col_field = issue.get('column_field', 'NA')
                 finding = issue.get('finding', issue['message'])
+                checks = issue.get('atomic_count', 1)
 
                 # Truncate long fields for text display
                 if len(rule_desc) > w_desc - 2:
@@ -775,11 +846,11 @@ def generate_text_report(validation_data: Dict[str, Any],
                 if len(col_field) > w_col - 2:
                     col_field = col_field[:w_col - 4] + '..'
 
-                line = (f"  {category:<{w_metric}}"
-                        f"{rule_code:<{w_rule}}"
+                line = (f"  {rule_code:<{w_rule}}"
                         f"{rule_desc:<{w_desc}}"
                         f"{col_field:<{w_col}}"
                         f"{severity_upper:<{w_sev}}"
+                        f"{checks:>{w_checks}d}  "
                         f"{finding}")
                 lines.append(line)
     else:
@@ -1225,6 +1296,7 @@ def generate_consolidated_csv(
                 'severity': 'error',
                 'passed': False,
                 'message': msg,
+                'checks': 1,
                 'decision': '',
                 'reason': '',
             })
@@ -1243,6 +1315,7 @@ def generate_consolidated_csv(
                 'severity': 'info',
                 'passed': True,
                 'message': 'All DQA checks passed',
+                'checks': 0,
                 'decision': '',
                 'reason': '',
             })
@@ -1261,6 +1334,7 @@ def generate_consolidated_csv(
                 'severity': issue['severity'],
                 'passed': False,
                 'message': issue.get('finding', issue['message']),
+                'checks': issue.get('atomic_count', 1),
                 'decision': (decision_info.get('decision', '')
                              if issue['severity'] == 'error' else ''),
                 'reason': (decision_info.get('reason', '')
@@ -1270,7 +1344,7 @@ def generate_consolidated_csv(
     fieldnames = [
         'table_name', 'category', 'rule_code', 'rule_description',
         'check_type', 'column_field', 'severity', 'passed', 'message',
-        'decision', 'reason',
+        'checks', 'decision', 'reason',
     ]
     with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
