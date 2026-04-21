@@ -29,6 +29,38 @@ RULE_CODES: Dict[tuple, tuple] = {
     ('plausibility', 'cross_table_temporal'):       ('P.8', 'Cross-table temporal plausibility'),
 }
 
+# Human-readable finding text for INFO-severity "pass" rows.
+# Keyed by rule_code; the count itself lives in the Checks column,
+# so these descriptions focus on *what* passed, not how many.
+PASSING_FINDINGS: Dict[str, str] = {
+    'C.1': 'Table present and has data',
+    'C.2': 'All required columns present',
+    'C.3': 'All dtypes match schema',
+    'C.4': 'All datetime columns timezone-aware',
+    'C.5': 'All categorical values conform to mCIDE',
+    'C.6': 'All category-group mappings consistent',
+    'C.7': 'All lab reference units valid',
+    'K.1': 'Required columns below null thresholds',
+    'K.2': 'All conditional requirements met',
+    'K.3': 'All mCIDE values represented',
+    'K.4': 'All foreign keys resolvable',
+    'K.5': 'All cross-table conditions met',
+    'P.1': 'Chronological order constraints met',
+    'P.2': 'All values within numeric range',
+    'P.3': 'All field plausibility rules met',
+    'P.4': 'All medication dose-unit pairs consistent',
+    'P.5': 'No overlapping time periods',
+    'P.6': 'Category distributions stable over time',
+    'P.7': 'No duplicate composite keys',
+    'P.8': 'All events within hospitalization bounds',
+}
+
+
+def passing_finding(rule_code: str) -> str:
+    """Return a human-readable 'passed' finding for a given rule_code."""
+    return PASSING_FINDINGS.get(rule_code, 'Checks passed')
+
+
 # INFO messages that indicate a check was not applicable (never actually ran).
 # These are filtered out of issue tables to reduce noise.
 _NOT_APPLICABLE_PREFIXES = (

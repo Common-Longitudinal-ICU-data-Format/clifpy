@@ -16,7 +16,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
-from clifpy.utils.rule_codes import enrich_issue, truncate_comment
+from clifpy.utils.rule_codes import enrich_issue, truncate_comment, passing_finding
 
 
 class YearlySparkBar(Flowable):
@@ -108,8 +108,8 @@ def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         columns = [c for c in columns if c and c != 'NA']
         merged = dict(grp[0])
         merged['column_field'] = ', '.join(columns) if columns else merged.get('column_field', '')
-        merged['message'] = f"{len(grp)} checks passed"
-        merged['finding'] = merged['message']
+        merged['finding'] = passing_finding(merged.get('rule_code', ''))
+        merged['message'] = merged['finding']
         merged['details'] = {'count': len(grp), 'columns': columns}
         merged['atomic_count'] = len(grp)
         out.append(merged)
@@ -124,16 +124,19 @@ def _reconcile_atomic_counts(
     check_type: str,
     check_key: Optional[str] = None,
 ) -> None:
-    """Align the per-row ``atomic_count`` values for one check so the section
-    summing invariant holds: ``sum(atomic_count) over rows ≈ atomic_total``.
+    """Align per-row ``atomic_count`` with the check's ``atomic_total``.
 
     Strategy:
       * Leave error/warning row counts (set by ``enrich_issue`` heuristics)
         alone — they represent failing/flagged atoms.
-      * Credit any remaining atoms (``atomic_total - sum of err/warn counts``)
-        to the (single, post-collapse) INFO row as its passing-atom count.
-      * If the remaining count is positive but no INFO row exists, synthesize
-        one "N checks passed" row so the passes are visible.
+      * If an INFO row exists (silent-pass summary), set its ``atomic_count``
+        to the remaining atoms (``atomic_total - err/warn sum``).
+      * If the check produced *no* rows at all (fully silent pass), synthesize
+        one INFO row so the passes are visible.
+      * If the check already emitted error/warning rows and there are
+        "extra" passing atoms, do **not** synthesize a duplicate INFO row.
+        The passing count is implicit in the section header (e.g., 27/32);
+        adding a same-rule_code INFO row would visually duplicate the entry.
 
     Mutates ``rows`` in place.
     """
@@ -149,14 +152,12 @@ def _reconcile_atomic_counts(
     info_rows = [r for r in rows if r.get('severity') == 'info']
     if info_rows:
         info = info_rows[0]
-        prior = info.get('atomic_count', 1)
         info['atomic_count'] = remaining
-        # If this is a _collapse_info_rows-generated "N checks passed" summary,
-        # resync the message so it agrees with the reconciled atomic_count.
-        if prior != remaining and info.get('message') == f"{prior} checks passed":
-            new_msg = f"{remaining} check{'s' if remaining != 1 else ''} passed"
-            info['message'] = new_msg
-            info['finding'] = new_msg
+        return
+
+    # Don't synthesize a separate "passed" row when the check already has
+    # error/warning output — it would duplicate the rule_code visually.
+    if any(r.get('severity') in ('error', 'warning') for r in rows):
         return
 
     if remaining > 0:
@@ -164,13 +165,14 @@ def _reconcile_atomic_counts(
             'category': category,
             'check_type': check_type,
             'severity': 'info',
-            'message': f"{remaining} check{'s' if remaining != 1 else ''} passed",
+            'message': '',
             'details': {'count': remaining},
         }
         enriched = enrich_issue(synth, check_key=check_key)
         if enriched is not None:
             enriched['atomic_count'] = remaining
-            enriched['finding'] = enriched['message']
+            enriched['finding'] = passing_finding(enriched.get('rule_code', ''))
+            enriched['message'] = enriched['finding']
             enriched['column_field'] = enriched.get('column_field') or 'NA'
             rows.append(enriched)
 
