@@ -12,6 +12,7 @@ from .validator import (
     # Schema loader
     _load_schema,
     get_schema_check_counts,
+    build_absent_table_dqa_result,
     # Backend info
     _ACTIVE_BACKEND,
     # Conformance checks
@@ -88,6 +89,7 @@ __all__ = [
       'DQACompletenessResult',
       '_load_schema',
       'get_schema_check_counts',
+      'build_absent_table_dqa_result',
       'check_table_exists',
       'check_table_presence',
       'check_table_presence_polars',

@@ -88,6 +88,13 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
     Returns (category_scores, all_issues) where each issue is a dict with
     category, check_type, severity ('error'/'warning'/'info'), message, details,
     plus enriched fields: rule_code, rule_description, column_field.
+
+    Scoring prefers ``atomic_total``/``atomic_passed`` populated on a check's
+    result when present — this lets checks like ``mcide_value_coverage`` report
+    scores at per-permissible-value granularity while still emitting one
+    rolled-up message per column. Checks without atomic fields fall back to
+    counting enriched messages (the prior behavior), so unpopulated checks
+    score exactly as before.
     """
     category_scores = {}
     all_issues: List[Dict[str, Any]] = []
@@ -96,7 +103,13 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
         checks = validation_data.get(category, {})
         if not checks:
             continue
+
+        cat_passed = 0
+        cat_total = 0
+
         for check_name, d in checks.items():
+            # Enrich this check's messages
+            check_enriched: List[Dict[str, Any]] = []
             for err in d['errors']:
                 issue = {
                     'category': category,
@@ -107,7 +120,7 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
                 }
                 enriched = enrich_issue(issue, check_key=check_name)
                 if enriched is not None:
-                    all_issues.append(enriched)
+                    check_enriched.append(enriched)
             for warn in d['warnings']:
                 issue = {
                     'category': category,
@@ -118,7 +131,7 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
                 }
                 enriched = enrich_issue(issue, check_key=check_name)
                 if enriched is not None:
-                    all_issues.append(enriched)
+                    check_enriched.append(enriched)
             for info_msg in d.get('info', []):
                 issue = {
                     'category': category,
@@ -129,14 +142,24 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
                 }
                 enriched = enrich_issue(issue, check_key=check_name)
                 if enriched is not None:
-                    all_issues.append(enriched)
+                    check_enriched.append(enriched)
 
-    # Compute scores from enriched findings so summary matches detail counts
-    for category in DQA_CATEGORIES:
-        cat_issues = [i for i in all_issues if i['category'] == category]
-        if cat_issues:
-            cat_passed = sum(1 for i in cat_issues if i['severity'] in ('info', 'warning'))
-            category_scores[category] = (cat_passed, len(cat_issues))
+            all_issues.extend(check_enriched)
+
+            # Score this check: prefer atomic counts, fall back to messages
+            atomic_t = d.get('atomic_total')
+            atomic_p = d.get('atomic_passed')
+            if atomic_t is not None and atomic_p is not None:
+                cat_total += atomic_t
+                cat_passed += atomic_p
+            elif check_enriched:
+                cat_total += len(check_enriched)
+                cat_passed += sum(
+                    1 for i in check_enriched if i['severity'] in ('info', 'warning')
+                )
+
+        if cat_total > 0:
+            category_scores[category] = (cat_passed, cat_total)
 
     return category_scores, all_issues
 
@@ -850,7 +873,7 @@ def generate_combined_validation_pdf(
     str
         Path to the generated PDF.
     """
-    from clifpy.utils.validator import get_schema_check_counts
+    from clifpy.utils.validator import build_absent_table_dqa_result
 
     if feedback_map is None:
         feedback_map = {}
@@ -982,10 +1005,15 @@ def generate_combined_validation_pdf(
         label = display_names.get(
             table_name, table_name.replace('_', ' ').title())
 
-        if dqa_data is None:
-            # No data — use schema to provide expected denominators
-            expected = get_schema_check_counts(table_name)
-            conf_n = expected.get('conformance', 0)
+        if dqa_data is None or dqa_data.get('absent'):
+            # Table was not submitted. Use the canonical absent-result
+            # helper so denominators and messaging come from one place.
+            if dqa_data is None:
+                dqa_data = build_absent_table_dqa_result(table_name)
+            expected = dqa_data.get(
+                'expected_check_counts',
+                build_absent_table_dqa_result(table_name)['expected_check_counts'],
+            )
             row = [label]
             for cat in DQA_CATEGORIES:
                 n = expected.get(cat, 0)
@@ -1124,6 +1152,8 @@ def generate_consolidated_csv(
     str
         Path to the generated CSV.
     """
+    from clifpy.utils.validator import build_absent_table_dqa_result
+
     if feedback_map is None:
         feedback_map = {}
     if display_names is None:
@@ -1137,17 +1167,24 @@ def generate_consolidated_csv(
         fb = feedback_map.get(table_name)
         fb_decisions = fb.get('user_decisions', {}) if fb else {}
 
-        if dqa_data is None:
+        if dqa_data is None or dqa_data.get('absent'):
+            if dqa_data is None:
+                dqa_data = build_absent_table_dqa_result(table_name)
+            presence = dqa_data.get('conformance', {}).get('table_presence', {})
+            msg = (
+                presence.get('errors', [{}])[0].get('message')
+                or 'Table not present in dataset'
+            )
             rows.append({
                 'table_name': label,
-                'category': '',
-                'rule_code': '',
-                'rule_description': '',
+                'category': 'conformance',
+                'rule_code': 'C.1',
+                'rule_description': 'table_presence',
                 'check_type': 'Table Status',
                 'column_field': 'NA',
-                'severity': 'info',
-                'passed': True,
-                'message': 'Table not present in dataset',
+                'severity': 'error',
+                'passed': False,
+                'message': msg,
                 'decision': '',
                 'reason': '',
             })
