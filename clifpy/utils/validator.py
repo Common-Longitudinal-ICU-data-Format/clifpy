@@ -567,6 +567,8 @@ def check_table_exists(
             {"expected_path": str(expected_file)}
         )
 
+    result.atomic_total = 1
+    result.atomic_passed = 1 if not result.errors else 0
     return result
 
 
@@ -614,6 +616,8 @@ def check_table_presence_polars(
         _logger.error("Check 'table_presence' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking table presence: {str(e)}")
 
+    result.atomic_total = 1
+    result.atomic_passed = 1 if not result.errors else 0
     return result
 
 
@@ -658,6 +662,8 @@ def check_table_presence_duckdb(
         _logger.error("Check 'table_presence' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking table presence: {str(e)}")
 
+    result.atomic_total = 1
+    result.atomic_passed = 1 if not result.errors else 0
     return result
 
 
@@ -721,9 +727,14 @@ def check_required_columns_polars(
                     {"column": col_name}
                 )
 
+        result.atomic_total = len(required_list)
+        result.atomic_passed = len(required_list) - len(missing)
     except Exception as e:
         _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking columns: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -758,9 +769,14 @@ def check_required_columns_duckdb(
                     {"column": col_name}
                 )
 
+        result.atomic_total = len(required_list)
+        result.atomic_passed = len(required_list) - len(missing)
     except Exception as e:
         _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking columns: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -906,9 +922,14 @@ def check_column_dtypes_polars(
                     {"column": col_name, "expected": expected_type}
                 )
 
+        result.atomic_total = len(schema.get('columns', []))
+        result.atomic_passed = result.atomic_total - len(dtype_errors)
     except Exception as e:
         _logger.error("Check 'column_dtypes' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking dtypes: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -1043,9 +1064,14 @@ def check_column_dtypes_duckdb(
 
         con.close()
 
+        result.atomic_total = len(schema.get('columns', []))
+        result.atomic_passed = result.atomic_total - len(dtype_errors)
     except Exception as e:
         _logger.error("Check 'column_dtypes' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking dtypes: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -1152,9 +1178,14 @@ def check_datetime_format_polars(
                     {"column": col}
                 )
 
+        result.atomic_total = len(all_datetime_columns)
+        result.atomic_passed = len(all_datetime_columns) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'datetime_format' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking datetime format: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -1210,9 +1241,14 @@ def check_datetime_format_duckdb(
 
         con.close()
 
+        result.atomic_total = len(all_datetime_columns)
+        result.atomic_passed = len(all_datetime_columns) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'datetime_format' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking datetime format: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -1246,6 +1282,8 @@ def check_lab_reference_units_polars(
     lab_units = schema.get('lab_reference_units', {})
     if not lab_units:
         result.add_info("No lab reference units defined in schema")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -1257,6 +1295,8 @@ def check_lab_reference_units_polars(
 
         if 'lab_category' not in col_names or 'reference_unit' not in col_names:
             result.add_error("Missing required columns: lab_category and/or reference_unit")
+            result.atomic_total = 1
+            result.atomic_passed = 0
             return result
 
         orig_cat_col = f"{_ORIG_PREFIX}lab_category"
@@ -1330,9 +1370,14 @@ def check_lab_reference_units_polars(
         result.metrics["invalid_unit_categories"] = invalid_count
         gc.collect()
 
+        result.atomic_total = len(lab_units_normalized)
+        result.atomic_passed = len(lab_units_normalized) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'lab_reference_units' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking lab reference units: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -1348,6 +1393,8 @@ def check_lab_reference_units_duckdb(
     lab_units = schema.get('lab_reference_units', {})
     if not lab_units:
         result.add_info("No lab reference units defined in schema")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -1360,6 +1407,8 @@ def check_lab_reference_units_duckdb(
         if 'lab_category' not in df.columns or 'reference_unit' not in df.columns:
             result.add_error("Missing required columns: lab_category and/or reference_unit")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 0
             return result
 
         orig_cat_col = f"{_ORIG_PREFIX}lab_category"
@@ -1441,9 +1490,14 @@ def check_lab_reference_units_duckdb(
         con.close()
         gc.collect()
 
+        result.atomic_total = len(lab_units_normalized)
+        result.atomic_passed = len(lab_units_normalized) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'lab_reference_units' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking lab reference units: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -1577,9 +1631,14 @@ def check_categorical_values_polars(
 
         gc.collect()
 
+        result.atomic_total = len(columns_checked)
+        result.atomic_passed = len(columns_checked) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'categorical_values' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking categorical values: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -1691,9 +1750,14 @@ def check_categorical_values_duckdb(
 
         con.close()
 
+        result.atomic_total = len(columns_checked)
+        result.atomic_passed = len(columns_checked) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'categorical_values' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking categorical values: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 0
+            result.atomic_passed = 0
 
     return result
 
@@ -2820,9 +2884,14 @@ def check_relational_integrity_polars(
 
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'relational_integrity' failed for '%s' -> '%s': %s", source_table, reference_table, e)
         result.add_error(f"Error checking relational integrity: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2886,9 +2955,14 @@ def check_relational_integrity_duckdb(
         con.close()
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'relational_integrity' failed for '%s' -> '%s': %s", source_table, reference_table, e)
         result.add_error(f"Error checking relational integrity: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2984,12 +3058,17 @@ def check_relational_integrity(
             result.metrics["reverse_coverage_percent"],
         )
 
+        result.atomic_total = 2
+        result.atomic_passed = 2 - len(result.errors)
     except Exception as e:
         _logger.error(
             "Check 'relational_integrity' failed for '%s' <-> '%s': %s",
             target_table, reference_table, e,
         )
         result.add_error(f"Error checking relational integrity: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 2
+            result.atomic_passed = 0
 
     return result
 
@@ -3126,6 +3205,8 @@ def check_temporal_ordering_polars(
 
     if not temporal_rules:
         result.add_info("No temporal ordering rules defined for this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -3194,9 +3275,14 @@ def check_temporal_ordering_polars(
 
         gc.collect()
 
+        result.atomic_total = len(temporal_rules)
+        result.atomic_passed = len(temporal_rules) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'temporal_ordering' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking temporal ordering: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = len(temporal_rules) if temporal_rules else 1
+            result.atomic_passed = 0
 
     return result
 
@@ -3216,6 +3302,8 @@ def check_temporal_ordering_duckdb(
 
     if not temporal_rules:
         result.add_info("No temporal ordering rules defined for this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -3278,9 +3366,14 @@ def check_temporal_ordering_duckdb(
 
         con.close()
 
+        result.atomic_total = len(temporal_rules)
+        result.atomic_passed = len(temporal_rules) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'temporal_ordering' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking temporal ordering: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = len(temporal_rules) if temporal_rules else 1
+            result.atomic_passed = 0
 
     return result
 
@@ -3809,6 +3902,8 @@ def check_field_plausibility_polars(
 
     if not rules:
         result.add_info("No field plausibility rules defined for this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -3920,9 +4015,14 @@ def check_field_plausibility_polars(
 
         gc.collect()
 
+        result.atomic_total = len(rules)
+        result.atomic_passed = len(rules) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'field_plausibility' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking field plausibility: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = len(rules) if rules else 1
+            result.atomic_passed = 0
 
     return result
 
@@ -3940,6 +4040,8 @@ def check_field_plausibility_duckdb(
 
     if not rules:
         result.add_info("No field plausibility rules defined for this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -4049,9 +4151,14 @@ def check_field_plausibility_duckdb(
 
         con.close()
 
+        result.atomic_total = len(rules)
+        result.atomic_passed = len(rules) - len(result.errors)
     except Exception as e:
         _logger.error("Check 'field_plausibility' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking field plausibility: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = len(rules) if rules else 1
+            result.atomic_passed = 0
 
     return result
 
@@ -4087,6 +4194,8 @@ def check_medication_dose_unit_consistency_polars(
 
     if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
         result.add_info("Medication dose unit check not applicable to this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -4095,6 +4204,8 @@ def check_medication_dose_unit_consistency_polars(
 
         if 'med_dose_unit' not in col_names:
             result.add_info("Column 'med_dose_unit' not found in table")
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
@@ -4110,6 +4221,8 @@ def check_medication_dose_unit_consistency_polars(
 
         if total == 0:
             result.add_info("No non-null med_dose_unit values to check")
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         if expect == 'per_time':
@@ -4163,9 +4276,14 @@ def check_medication_dose_unit_consistency_polars(
 
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'medication_dose_unit_consistency' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking medication dose unit consistency: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -4181,6 +4299,8 @@ def check_medication_dose_unit_consistency_duckdb(
 
     if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
         result.add_info("Medication dose unit check not applicable to this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -4190,6 +4310,8 @@ def check_medication_dose_unit_consistency_duckdb(
         if 'med_dose_unit' not in df.columns:
             result.add_info("Column 'med_dose_unit' not found in table")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
@@ -4209,6 +4331,8 @@ def check_medication_dose_unit_consistency_duckdb(
         if total == 0:
             result.add_info("No non-null med_dose_unit values to check")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         if expect == 'per_time':
@@ -4247,9 +4371,14 @@ def check_medication_dose_unit_consistency_duckdb(
         con.close()
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'medication_dose_unit_consistency' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking medication dose unit consistency: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -4299,10 +4428,14 @@ def check_cross_table_temporal_plausibility_polars(
 
         if 'hospitalization_id' not in target_cols or 'hospitalization_id' not in hosp_cols:
             result.add_info("Missing hospitalization_id column; skipping cross-table check")
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         if 'admission_dttm' not in hosp_cols or 'discharge_dttm' not in hosp_cols:
             result.add_info("Missing admission/discharge columns in hospitalization table")
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         hosp_bounds = hosp_lf.select([
@@ -4365,9 +4498,14 @@ def check_cross_table_temporal_plausibility_polars(
 
         gc.collect()
 
+        result.atomic_total = max(1, len(violations_by_col))
+        result.atomic_passed = result.atomic_total - len(result.errors)
     except Exception as e:
         _logger.error("Check 'cross_table_temporal' failed for table '%s': %s", target_table, e)
         result.add_error(f"Error checking cross-table temporal plausibility: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -4391,11 +4529,15 @@ def check_cross_table_temporal_plausibility_duckdb(
         if 'hospitalization_id' not in target_df.columns or 'hospitalization_id' not in hospitalization_df.columns:
             result.add_info("Missing hospitalization_id column; skipping cross-table check")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         if 'admission_dttm' not in hospitalization_df.columns or 'discharge_dttm' not in hospitalization_df.columns:
             result.add_info("Missing admission/discharge columns in hospitalization table")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         violations_by_col = {}
@@ -4452,9 +4594,14 @@ def check_cross_table_temporal_plausibility_duckdb(
         con.close()
         gc.collect()
 
+        result.atomic_total = max(1, len(violations_by_col))
+        result.atomic_passed = result.atomic_total - len(result.errors)
     except Exception as e:
         _logger.error("Check 'cross_table_temporal' failed for table '%s': %s", target_table, e)
         result.add_error(f"Error checking cross-table temporal plausibility: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -4501,6 +4648,8 @@ def check_overlapping_periods_polars(
 
         if entity_col not in col_names or start_col not in col_names or end_col not in col_names:
             result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         # Filter to rows where both start and end are non-null, sort, then compare with previous
@@ -4545,9 +4694,14 @@ def check_overlapping_periods_polars(
 
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'overlapping_periods' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking overlapping periods: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -4569,6 +4723,8 @@ def check_overlapping_periods_duckdb(
         if entity_col not in df.columns or start_col not in df.columns or end_col not in df.columns:
             result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         stats = con.execute(f"""
@@ -4617,9 +4773,14 @@ def check_overlapping_periods_duckdb(
         con.close()
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'overlapping_periods' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking overlapping periods: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -5090,6 +5251,8 @@ def check_duplicate_composite_keys_polars(
 
     if not composite_keys:
         result.add_info("No composite keys defined for this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -5100,6 +5263,8 @@ def check_duplicate_composite_keys_polars(
         missing_keys = [k for k in composite_keys if k not in col_names]
         if missing_keys:
             result.add_info(f"Composite key columns missing: {missing_keys}")
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         total = lf.select(pl.len()).collect(streaming=True).item()
@@ -5137,9 +5302,14 @@ def check_duplicate_composite_keys_polars(
 
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'duplicate_composite_keys' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking duplicate composite keys: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -5160,6 +5330,8 @@ def check_duplicate_composite_keys_duckdb(
 
     if not composite_keys:
         result.add_info("No composite keys defined for this table")
+        result.atomic_total = 1
+        result.atomic_passed = 1
         return result
 
     try:
@@ -5170,6 +5342,8 @@ def check_duplicate_composite_keys_duckdb(
         if missing_keys:
             result.add_info(f"Composite key columns missing: {missing_keys}")
             con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 1
             return result
 
         key_cols_str = ', '.join([f'"{k}"' for k in composite_keys])
@@ -5208,9 +5382,14 @@ def check_duplicate_composite_keys_duckdb(
         con.close()
         gc.collect()
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
         _logger.error("Check 'duplicate_composite_keys' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking duplicate composite keys: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -5752,12 +5931,17 @@ def run_relational_integrity_checks_from_cache(
                     table_name, ref_table_name, fwd_coverage, rev_coverage,
                 )
 
+                result.atomic_total = 2
+                result.atomic_passed = 2 - len(result.errors)
             except Exception as e:
                 _logger.error(
                     "Cached relational check failed for '%s' <-> '%s': %s",
                     table_name, ref_table_name, e,
                 )
                 result.add_error(f"Error checking relational integrity: {str(e)}")
+                if result.atomic_total is None:
+                    result.atomic_total = 2
+                    result.atomic_passed = 0
 
             results.setdefault(table_name, {})[fk_column] = result
 
@@ -5829,6 +6013,8 @@ def run_cross_table_completeness_checks_from_cache(
             result.add_info(
                 "No cross-table conditional requirements applicable"
             )
+            result.atomic_total = 1
+            result.atomic_passed = 1
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
@@ -5837,6 +6023,8 @@ def run_cross_table_completeness_checks_from_cache(
                 f"No {rule['source_column']} = {rule['source_value']} found in "
                 f"{source_table}; cross-table conditional check not triggered"
             )
+            result.atomic_total = 1
+            result.atomic_passed = 1
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
@@ -5870,6 +6058,8 @@ def run_cross_table_completeness_checks_from_cache(
                 f"{source_table} have {rule['target_column']} in {target_table}"
             )
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
         results.setdefault(target_table, {})[rule_key] = result
         _logger.info(
             "K.5: %s->%s rule '%s': %d/%d missing (%.1f%%)",
@@ -5985,6 +6175,8 @@ def run_cross_table_completeness_checks(
                 f"No {rule['source_column']} = {rule['source_value']} found in "
                 f"{source_table}; cross-table conditional check not triggered"
             )
+            result.atomic_total = 1
+            result.atomic_passed = 1
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
@@ -6018,6 +6210,8 @@ def run_cross_table_completeness_checks(
                 f"{source_table} have {rule['target_column']} in {target_table}"
             )
 
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
         results.setdefault(target_table, {})[rule_key] = result
 
     checked = sum(len(v) for v in results.values())

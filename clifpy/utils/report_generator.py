@@ -121,12 +121,13 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
     category, check_type, severity ('error'/'warning'/'info'), message, details,
     plus enriched fields: rule_code, rule_description, column_field.
 
-    Scoring prefers ``atomic_total``/``atomic_passed`` populated on a check's
-    result when present — this lets checks like ``mcide_value_coverage`` report
-    scores at per-permissible-value granularity while still emitting one
-    rolled-up message per column. Checks without atomic fields fall back to
-    counting enriched messages (the prior behavior), so unpopulated checks
-    score exactly as before.
+    Scoring reads ``atomic_total``/``atomic_passed`` on each check's result.
+    Both fields are **required** on every DQAResult producer — the check's
+    "natural atomic unit" decides the granularity (per-column, per-rule,
+    per-permissible-value, or 1 for binary checks). If a check result is
+    missing atomic counts, this function raises ``ValueError`` rather than
+    silently approximating the score from message counts; populate the
+    fields in the check itself (see ``clifpy/utils/validator.py``).
     """
     category_scores = {}
     all_issues: List[Dict[str, Any]] = []
@@ -176,19 +177,20 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
                 if enriched is not None:
                     check_enriched.append(enriched)
 
-            # Score this check: prefer atomic counts, fall back to messages.
-            # Must run on the uncollapsed check_enriched so fallback counts
-            # are correct — collapse only the rows we emit to all_issues.
+            # Score this check: atomic counts are now mandatory on every
+            # DQAResult producer in validator.py. A check reaching this
+            # branch without atomic_total/atomic_passed is a bug in the
+            # check itself — don't silently absorb it.
             atomic_t = d.get('atomic_total')
             atomic_p = d.get('atomic_passed')
-            if atomic_t is not None and atomic_p is not None:
-                cat_total += atomic_t
-                cat_passed += atomic_p
-            elif check_enriched:
-                cat_total += len(check_enriched)
-                cat_passed += sum(
-                    1 for i in check_enriched if i['severity'] in ('info', 'warning')
+            if atomic_t is None or atomic_p is None:
+                raise ValueError(
+                    f"Check '{check_name}' in category '{category}' is missing "
+                    f"atomic_total/atomic_passed. Every DQA check must populate "
+                    f"these fields; see clifpy/utils/validator.py for the pattern."
                 )
+            cat_total += atomic_t
+            cat_passed += atomic_p
 
             all_issues.extend(_collapse_info_rows(check_enriched))
 
