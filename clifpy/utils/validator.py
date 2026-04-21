@@ -1903,6 +1903,9 @@ def check_category_group_mapping_polars(
     except Exception as e:
         _logger.error("Check 'category_group_mapping' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking category-group mapping: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2032,6 +2035,9 @@ def check_category_group_mapping_duckdb(
     except Exception as e:
         _logger.error("Check 'category_group_mapping' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking category-group mapping: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2188,6 +2194,9 @@ def check_missingness_polars(
     except Exception as e:
         _logger.error("Check 'missingness' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking missingness: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2321,6 +2330,9 @@ def check_missingness_duckdb(
     except Exception as e:
         _logger.error("Check 'missingness' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking missingness: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2493,6 +2505,9 @@ def check_conditional_requirements_polars(
     except Exception as e:
         _logger.error("Check 'conditional_requirements' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking conditional requirements: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2597,6 +2612,9 @@ def check_conditional_requirements_duckdb(
     except Exception as e:
         _logger.error("Check 'conditional_requirements' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking conditional requirements: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2717,6 +2735,9 @@ def check_mcide_value_coverage_polars(
     except Exception as e:
         _logger.error("Check 'mcide_value_coverage' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking mCIDE value coverage: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -2810,6 +2831,9 @@ def check_mcide_value_coverage_duckdb(
     except Exception as e:
         _logger.error("Check 'mcide_value_coverage' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking mCIDE value coverage: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -3635,6 +3659,9 @@ def check_numeric_range_plausibility_polars(
     except Exception as e:
         _logger.error("Check 'numeric_range_plausibility' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking numeric range plausibility: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -3859,6 +3886,9 @@ def check_numeric_range_plausibility_duckdb(
     except Exception as e:
         _logger.error("Check 'numeric_range_plausibility' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking numeric range plausibility: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -5013,6 +5043,9 @@ def check_category_temporal_consistency_polars(
     except Exception as e:
         _logger.error("Check 'category_temporal_consistency' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking category temporal consistency: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
@@ -5209,6 +5242,9 @@ def check_category_temporal_consistency_duckdb(
     except Exception as e:
         _logger.error("Check 'category_temporal_consistency' failed for table '%s': %s", table_name, e)
         result.add_error(f"Error checking category temporal consistency: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
 
     return result
 
