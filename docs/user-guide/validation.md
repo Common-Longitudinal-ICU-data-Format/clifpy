@@ -112,7 +112,7 @@ Each error/warning/info entry is a dict with `message` and optional `details` ke
 
 | Code | Check | Function | Purpose |
 |------|-------|----------|---------|
-| A.1 | Temporal Ordering | `check_temporal_ordering` | Start times precede end times |
+| A.1 | Chronological Order | `check_chronological_order` | Start times precede end times |
 | A.2 | Numeric Range | `check_numeric_range_plausibility` | Values within clinically plausible ranges |
 | A.3 | Field Plausibility | `check_field_plausibility` | Complex conditional field constraints |
 | A.4 | Med Dose Units | `check_medication_dose_unit_consistency` | Dose units match admin type (rate vs. discrete) |
@@ -200,7 +200,7 @@ Override the default thresholds for plausibility checks:
 
 ```python
 custom_thresholds = {
-    "temporal_ordering": {"error_threshold": 5.0, "warning_threshold": 1.0},
+    "chronological_order": {"error_threshold": 5.0, "warning_threshold": 1.0},
     "numeric_range_plausibility": {"error_threshold": 10.0, "warning_threshold": 2.0},
     "duplicate_composite_keys": {"error_threshold": 5.0, "warning_threshold": 0.0},
 }

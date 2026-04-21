@@ -61,9 +61,9 @@ from clifpy.utils.validator import (
     check_relational_integrity_polars,
     check_relational_integrity_duckdb,
     # Plausibility checks
-    check_temporal_ordering,
-    check_temporal_ordering_polars,
-    check_temporal_ordering_duckdb,
+    check_chronological_order,
+    check_chronological_order_polars,
+    check_chronological_order_duckdb,
     check_numeric_range_plausibility,
     check_numeric_range_plausibility_polars,
     check_numeric_range_plausibility_duckdb,

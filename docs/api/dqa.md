@@ -76,11 +76,11 @@ Completeness checks evaluate missing data, conditional requirements, and referen
 
 ## Plausibility Checks
 
-Plausibility checks validate logical consistency, temporal ordering, and clinical reasonableness.
+Plausibility checks validate logical consistency, chronological order, and clinical reasonableness.
 
-### A.1 — Temporal Ordering
+### A.1 — Chronological Order
 
-::: clifpy.utils.validator.check_temporal_ordering
+::: clifpy.utils.validator.check_chronological_order
 
 ### A.2 — Numeric Range Plausibility
 

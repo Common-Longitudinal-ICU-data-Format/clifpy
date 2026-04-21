@@ -61,7 +61,7 @@ _logger.info("DQA backend: %s", _ACTIVE_BACKEND)
 # - warning_threshold: percent above which a warning is raised
 # - error_threshold: percent above which an error is raised
 _DEFAULT_PLAUSIBILITY_THRESHOLDS: Dict[str, Dict[str, float]] = {
-    "temporal_ordering": {"error_threshold": 10.0, "warning_threshold": 0.0},
+    "chronological_order": {"error_threshold": 10.0, "warning_threshold": 0.0},
     "numeric_range_plausibility": {"error_threshold": 10.0, "warning_threshold": 0.0},
     "medication_dose_unit_consistency": {"error_threshold": 10.0, "warning_threshold": 0.0},
     "cross_table_temporal": {"error_threshold": 10.0, "warning_threshold": 0.0},
@@ -304,8 +304,8 @@ def get_schema_check_counts(
     # --- Plausibility ---
     plaus = 0
     rules_yaml = _load_validation_rules()
-    # P.1 temporal_ordering: 1 per rule
-    plaus += len(rules_yaml.get('temporal_ordering', {}).get(table_name, []))
+    # P.1 chronological_order: 1 per rule
+    plaus += len(rules_yaml.get('chronological_order', {}).get(table_name, []))
     # P.2 numeric_range_plausibility: 1 per leaf (col, [cat], [unit]) tuple
     plaus += _count_numeric_range_leaves(table_name)
     # P.3 field_plausibility: 1 per rule
@@ -3091,10 +3091,10 @@ def _load_outlier_config() -> Dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
-def _get_temporal_ordering_rules(table_name: str) -> List[Dict[str, str]]:
-    """Load temporal ordering rules for a table from validation_rules.yaml."""
+def _get_chronological_order_rules(table_name: str) -> List[Dict[str, str]]:
+    """Load chronological order rules for a table from validation_rules.yaml."""
     rules = _load_validation_rules()
-    return rules.get('temporal_ordering', {}).get(table_name, [])
+    return rules.get('chronological_order', {}).get(table_name, [])
 
 
 def _get_field_plausibility_rules(table_name: str) -> List[Dict[str, Any]]:
@@ -3187,24 +3187,24 @@ _TIME_DENOMINATOR_PATTERNS = ['/sec', '/min', '/hr', '/hour', '/day']
 
 
 # ---------------------------------------------------------------------------
-# A.1 Temporal ordering
+# A.1 Chronological order
 # ---------------------------------------------------------------------------
 
-def check_temporal_ordering_polars(
+def check_chronological_order_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
-    temporal_rules: Optional[List[Dict[str, str]]] = None,
+    chronological_rules: Optional[List[Dict[str, str]]] = None,
     warning_threshold: float = 0.0,
     error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
-    """Check that datetime pairs follow expected temporal ordering using Polars."""
-    result = DQAPlausibilityResult("temporal_ordering", table_name)
+    """Check that datetime pairs follow expected chronological order using Polars."""
+    result = DQAPlausibilityResult("chronological_order", table_name)
 
-    if temporal_rules is None:
-        temporal_rules = _get_temporal_ordering_rules(table_name)
+    if chronological_rules is None:
+        chronological_rules = _get_chronological_order_rules(table_name)
 
-    if not temporal_rules:
-        result.add_info("No temporal ordering rules defined for this table")
+    if not chronological_rules:
+        result.add_info("No chronological order rules defined for this table")
         result.atomic_total = 1
         result.atomic_passed = 1
         return result
@@ -3214,7 +3214,7 @@ def check_temporal_ordering_polars(
         col_names = lf.collect_schema().names()
         violations_by_pair = {}
 
-        for rule in temporal_rules:
+        for rule in chronological_rules:
             earlier = rule['earlier']
             later = rule['later']
             strict = rule.get('strict', False)
@@ -3250,20 +3250,20 @@ def check_temporal_ordering_polars(
 
             if pct > error_threshold:
                 result.add_error(
-                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             elif pct > warning_threshold:
                 result.add_warning(
-                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             else:
                 if total > 0:
                     result.add_info(
-                        f"Temporal ordering satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                        f"Chronological order satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
                         {"column": f"{earlier}, {later}",
                          "rows_checked": int(total),
                          "rows_valid": int(total),
@@ -3275,33 +3275,33 @@ def check_temporal_ordering_polars(
 
         gc.collect()
 
-        result.atomic_total = len(temporal_rules)
-        result.atomic_passed = len(temporal_rules) - len(result.errors)
+        result.atomic_total = len(chronological_rules)
+        result.atomic_passed = len(chronological_rules) - len(result.errors)
     except Exception as e:
-        _logger.error("Check 'temporal_ordering' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking temporal ordering: {str(e)}")
+        _logger.error("Check 'chronological_order' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking chronological order: {str(e)}")
         if result.atomic_total is None:
-            result.atomic_total = len(temporal_rules) if temporal_rules else 1
+            result.atomic_total = len(chronological_rules) if chronological_rules else 1
             result.atomic_passed = 0
 
     return result
 
 
-def check_temporal_ordering_duckdb(
+def check_chronological_order_duckdb(
     df: pd.DataFrame,
     table_name: str,
-    temporal_rules: Optional[List[Dict[str, str]]] = None,
+    chronological_rules: Optional[List[Dict[str, str]]] = None,
     warning_threshold: float = 0.0,
     error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
-    """Check that datetime pairs follow expected temporal ordering using DuckDB."""
-    result = DQAPlausibilityResult("temporal_ordering", table_name)
+    """Check that datetime pairs follow expected chronological order using DuckDB."""
+    result = DQAPlausibilityResult("chronological_order", table_name)
 
-    if temporal_rules is None:
-        temporal_rules = _get_temporal_ordering_rules(table_name)
+    if chronological_rules is None:
+        chronological_rules = _get_chronological_order_rules(table_name)
 
-    if not temporal_rules:
-        result.add_info("No temporal ordering rules defined for this table")
+    if not chronological_rules:
+        result.add_info("No chronological order rules defined for this table")
         result.atomic_total = 1
         result.atomic_passed = 1
         return result
@@ -3311,7 +3311,7 @@ def check_temporal_ordering_duckdb(
         con.register('df', df)
         violations_by_pair = {}
 
-        for rule in temporal_rules:
+        for rule in chronological_rules:
             earlier = rule['earlier']
             later = rule['later']
             strict = rule.get('strict', False)
@@ -3341,20 +3341,20 @@ def check_temporal_ordering_duckdb(
 
             if pct > error_threshold:
                 result.add_error(
-                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             elif pct > warning_threshold:
                 result.add_warning(
-                    f"Temporal ordering violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
+                    f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
                     {"pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             else:
                 if total > 0:
                     result.add_info(
-                        f"Temporal ordering satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
+                        f"Chronological order satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
                         {"column": f"{earlier}, {later}",
                          "rows_checked": int(total),
                          "rows_valid": int(total),
@@ -3366,36 +3366,36 @@ def check_temporal_ordering_duckdb(
 
         con.close()
 
-        result.atomic_total = len(temporal_rules)
-        result.atomic_passed = len(temporal_rules) - len(result.errors)
+        result.atomic_total = len(chronological_rules)
+        result.atomic_passed = len(chronological_rules) - len(result.errors)
     except Exception as e:
-        _logger.error("Check 'temporal_ordering' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking temporal ordering: {str(e)}")
+        _logger.error("Check 'chronological_order' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking chronological order: {str(e)}")
         if result.atomic_total is None:
-            result.atomic_total = len(temporal_rules) if temporal_rules else 1
+            result.atomic_total = len(chronological_rules) if chronological_rules else 1
             result.atomic_passed = 0
 
     return result
 
 
-def check_temporal_ordering(
+def check_chronological_order(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
-    temporal_rules: Optional[List[Dict[str, str]]] = None,
+    chronological_rules: Optional[List[Dict[str, str]]] = None,
     warning_threshold: float = 0.0,
     error_threshold: float = 10.0,
 ) -> DQAPlausibilityResult:
-    """Check that datetime pairs follow expected temporal ordering."""
-    _logger.debug("check_temporal_ordering: starting for table '%s'", table_name)
+    """Check that datetime pairs follow expected chronological order."""
+    _logger.debug("check_chronological_order: starting for table '%s'", table_name)
     if _ACTIVE_BACKEND == 'polars':
-        result = check_temporal_ordering_polars(df, table_name, temporal_rules,
+        result = check_chronological_order_polars(df, table_name, chronological_rules,
                                                 warning_threshold=warning_threshold,
                                                 error_threshold=error_threshold)
     else:
-        result = check_temporal_ordering_duckdb(df, table_name, temporal_rules,
+        result = check_chronological_order_duckdb(df, table_name, chronological_rules,
                                                 warning_threshold=warning_threshold,
                                                 error_threshold=error_threshold)
-    _logger.debug("check_temporal_ordering: table '%s' — pairs_checked=%s",
+    _logger.debug("check_chronological_order: table '%s' — pairs_checked=%s",
                   table_name, result.metrics.get("pairs_checked"))
     return result
 
@@ -6360,9 +6360,9 @@ def run_plausibility_checks(
 
     results = {}
 
-    # A.1 Temporal ordering
-    results['temporal_ordering'] = check_temporal_ordering(
-        df, table_name, **thresholds['temporal_ordering'])
+    # A.1 Chronological order
+    results['chronological_order'] = check_chronological_order(
+        df, table_name, **thresholds['chronological_order'])
     gc.collect()
 
     # A.2 Numeric range plausibility
@@ -6746,7 +6746,7 @@ def _format_check_type(check_name: str) -> str:
         'conditional_requirements': 'Conditional Requirement Violation',
         'mcide_value_coverage': 'mCIDE Coverage Gap',
         'relational_integrity': 'Relational Integrity',
-        'temporal_ordering': 'Temporal Ordering Violation',
+        'chronological_order': 'Chronological Order Violation',
         'numeric_range_plausibility': 'Numeric Range Implausibility',
         'field_plausibility': 'Field Plausibility Violation',
         'medication_dose_unit_consistency': 'Medication Dose Unit Inconsistency',
@@ -6941,7 +6941,7 @@ def classify_errors_by_status_impact(
                 is_informational = True
 
             # Plausibility warnings are informational; plausibility errors affect status
-            plausibility_keywords = ['temporal ordering', 'numeric range', 'field plausibility',
+            plausibility_keywords = ['chronological order', 'numeric range', 'field plausibility',
                                      'dose unit', 'overlapping', 'distribution shift',
                                      'duplicate composite', 'cross-table temporal']
             is_plausibility = any(p in error_type for p in plausibility_keywords)

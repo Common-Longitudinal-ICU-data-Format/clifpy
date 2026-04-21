@@ -19,7 +19,7 @@ RULE_CODES: Dict[tuple, tuple] = {
     ('completeness', 'relational_integrity'):       ('K.4', 'Foreign key referential coverage'),
     ('completeness', 'cross_table_conditional_completeness'): ('K.5', 'Cross-table conditional completeness'),
 
-    ('plausibility', 'temporal_ordering'):          ('P.1', 'Temporal ordering constraints'),
+    ('plausibility', 'chronological_order'):        ('P.1', 'Chronological order constraints'),
     ('plausibility', 'numeric_range_plausibility'): ('P.2', 'Numeric range plausibility'),
     ('plausibility', 'field_plausibility'):         ('P.3', 'Field-level plausibility rules'),
     ('plausibility', 'medication_dose_unit_consistency'): ('P.4', 'Medication dose-unit consistency'),
@@ -35,7 +35,7 @@ _NOT_APPLICABLE_PREFIXES = (
     "No lab reference units defined in schema",
     "No category-to-group mappings defined in schema",
     "No conditional requirements defined for this table",
-    "No temporal ordering rules defined for this table",
+    "No chronological order rules defined for this table",
     "No field plausibility rules defined for this table",
     "No numeric range configuration for this table",
     "Medication dose unit check not applicable",

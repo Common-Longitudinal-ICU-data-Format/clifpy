@@ -32,7 +32,7 @@ Comprehensive Data Quality Assessment framework with 30+ checks across three pil
 
 - **Conformance** — Schema validation, data types, categorical values, datetime formats
 - **Completeness** — Missingness analysis, conditional requirements, relational integrity
-- **Plausibility** — Temporal ordering, numeric ranges, duplicate detection, cross-table consistency
+- **Plausibility** — Chronological order, numeric ranges, duplicate detection, cross-table consistency
 - **Orchestration** — `run_full_dqa`, category-level runners, cache-based cross-table pipeline
 - **Report Generation** — PDF and text report output from DQA results
 
