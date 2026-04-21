@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import os
+from collections import OrderedDict
 from html import escape
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -82,6 +83,37 @@ def _make_error_id(issue: Dict[str, Any]) -> str:
     return f"{prefix}_{desc_hash}"
 
 
+def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Collapse INFO-severity rows sharing a rule_code into one row per group.
+
+    Non-INFO rows (error/warning) pass through unchanged, preserving order.
+    For each INFO group of size > 1, emit one merged row whose column_field
+    is the comma-joined list of the originals' column_field values and whose
+    message is a short count summary. Groups of size 1 pass through as-is.
+    """
+    info_groups: "OrderedDict[str, List[Dict[str, Any]]]" = OrderedDict()
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        if r.get('severity') != 'info':
+            out.append(r)
+            continue
+        key = r.get('rule_code') or r.get('check_type') or ''
+        info_groups.setdefault(key, []).append(r)
+
+    for key, grp in info_groups.items():
+        if len(grp) == 1:
+            out.append(grp[0])
+            continue
+        columns = [r.get('column_field', '') for r in grp]
+        columns = [c for c in columns if c and c != 'NA']
+        merged = dict(grp[0])
+        merged['column_field'] = ', '.join(columns) if columns else merged.get('column_field', '')
+        merged['message'] = f"{len(grp)} checks passed"
+        merged['details'] = {'count': len(grp), 'columns': columns}
+        out.append(merged)
+    return out
+
+
 def collect_dqa_issues(validation_data: Dict[str, Any]):
     """Collect errors, warnings, and info messages from run_full_dqa output.
 
@@ -144,9 +176,9 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
                 if enriched is not None:
                     check_enriched.append(enriched)
 
-            all_issues.extend(check_enriched)
-
-            # Score this check: prefer atomic counts, fall back to messages
+            # Score this check: prefer atomic counts, fall back to messages.
+            # Must run on the uncollapsed check_enriched so fallback counts
+            # are correct — collapse only the rows we emit to all_issues.
             atomic_t = d.get('atomic_total')
             atomic_p = d.get('atomic_passed')
             if atomic_t is not None and atomic_p is not None:
@@ -157,6 +189,8 @@ def collect_dqa_issues(validation_data: Dict[str, Any]):
                 cat_passed += sum(
                     1 for i in check_enriched if i['severity'] in ('info', 'warning')
                 )
+
+            all_issues.extend(_collapse_info_rows(check_enriched))
 
         if cat_total > 0:
             category_scores[category] = (cat_passed, cat_total)
@@ -509,7 +543,9 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
             if not cat_issues:
                 continue
 
-            story.append(Paragraph(f"{category.title()} ({len(cat_issues)})", heading_style))
+            cs = category_scores.get(category)
+            header_tail = f"({cs[0]}/{cs[1]})" if cs else f"({len(cat_issues)})"
+            story.append(Paragraph(f"{category.title()} {header_tail}", heading_style))
 
             # Header row
             header_row = [
@@ -709,7 +745,9 @@ def generate_text_report(validation_data: Dict[str, Any],
                 continue
 
             lines.append("")
-            lines.append(f"-- {category.title()} ({len(cat_issues)}) --")
+            cs = category_scores.get(category)
+            header_tail = f"({cs[0]}/{cs[1]})" if cs else f"({len(cat_issues)})"
+            lines.append(f"-- {category.title()} {header_tail} --")
             lines.append("")
 
             # Header
