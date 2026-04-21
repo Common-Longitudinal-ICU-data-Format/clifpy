@@ -104,13 +104,22 @@ def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if len(grp) == 1:
             out.append(grp[0])
             continue
-        columns = [r.get('column_field', '') for r in grp]
-        columns = [c for c in columns if c and c != 'NA']
+        # Dedupe column_field values (P.6 emits many INFO rows all tagged with
+        # the same category column; without dedupe the merged row becomes
+        # "organism_category, organism_category, ..." and overflows a PDF cell).
+        seen: List[str] = []
+        for r in grp:
+            c = r.get('column_field', '')
+            if c and c != 'NA' and c not in seen:
+                seen.append(c)
         merged = dict(grp[0])
-        merged['column_field'] = ', '.join(columns) if columns else merged.get('column_field', '')
+        joined = ', '.join(seen)
+        if len(joined) > 200:
+            joined = joined[:197] + '...'
+        merged['column_field'] = joined if joined else merged.get('column_field', '')
         merged['finding'] = passing_finding(merged.get('rule_code', ''))
         merged['message'] = merged['finding']
-        merged['details'] = {'count': len(grp), 'columns': columns}
+        merged['details'] = {'count': len(grp), 'columns': seen}
         merged['atomic_count'] = len(grp)
         out.append(merged)
     return out

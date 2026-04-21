@@ -3487,10 +3487,11 @@ def check_numeric_range_plausibility_polars(
                     (pl.col(col_name) > rmax).sum().alias('above'),
                 ]).collect(streaming=True)
 
-                total = stats[0, 'total']
-                oor = stats[0, 'oor']
-                below = stats[0, 'below']
-                above = stats[0, 'above']
+                # Polars sum() over an all-null column returns None — coerce to 0.
+                total = stats[0, 'total'] or 0
+                oor = stats[0, 'oor'] or 0
+                below = stats[0, 'below'] or 0
+                above = stats[0, 'above'] or 0
                 pct = (oor / total * 100) if total > 0 else 0
 
                 oor_summary[col_name] = {
@@ -3560,8 +3561,8 @@ def check_numeric_range_plausibility_polars(
                     total_oor = 0
                     total_count = 0
                     for idx, (cat_val, unit_val, rmin, rmax) in enumerate(combo_keys):
-                        cat_total = int(stats_row[0, f'_t{idx}'])
-                        cat_oor = int(stats_row[0, f'_o{idx}'])
+                        cat_total = int(stats_row[0, f'_t{idx}'] or 0)
+                        cat_oor = int(stats_row[0, f'_o{idx}'] or 0)
                         cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
                         total_count += cat_total
                         total_oor += cat_oor
@@ -3616,8 +3617,8 @@ def check_numeric_range_plausibility_polars(
                     total_oor = 0
                     total_count = 0
                     for idx, (cat_val, rmin, rmax) in enumerate(combo_keys):
-                        cat_total = int(stats_row[0, f'_t{idx}'])
-                        cat_oor = int(stats_row[0, f'_o{idx}'])
+                        cat_total = int(stats_row[0, f'_t{idx}'] or 0)
+                        cat_oor = int(stats_row[0, f'_o{idx}'] or 0)
                         cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
                         total_count += cat_total
                         total_oor += cat_oor
@@ -3725,6 +3726,11 @@ def check_numeric_range_plausibility_duckdb(
                 """).fetchone()
 
                 total, oor, below, above = stats
+                # DuckDB SUM(...) returns NULL when no rows match — coerce to 0.
+                total = total or 0
+                oor = oor or 0
+                below = below or 0
+                above = above or 0
                 pct = (oor / total * 100) if total > 0 else 0
 
                 oor_summary[col_name] = {
