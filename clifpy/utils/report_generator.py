@@ -131,12 +131,8 @@ def _reconcile_atomic_counts(
         alone — they represent failing/flagged atoms.
       * If an INFO row exists (silent-pass summary), set its ``atomic_count``
         to the remaining atoms (``atomic_total - err/warn sum``).
-      * If the check produced *no* rows at all (fully silent pass), synthesize
-        one INFO row so the passes are visible.
-      * If the check already emitted error/warning rows and there are
-        "extra" passing atoms, do **not** synthesize a duplicate INFO row.
-        The passing count is implicit in the section header (e.g., 27/32);
-        adding a same-rule_code INFO row would visually duplicate the entry.
+      * Otherwise synthesize one INFO row so the passing atoms are visible
+        and the per-row counts sum to ``atomic_total``.
 
     Mutates ``rows`` in place.
     """
@@ -153,11 +149,6 @@ def _reconcile_atomic_counts(
     if info_rows:
         info = info_rows[0]
         info['atomic_count'] = remaining
-        return
-
-    # Don't synthesize a separate "passed" row when the check already has
-    # error/warning output — it would duplicate the rule_code visually.
-    if any(r.get('severity') in ('error', 'warning') for r in rows):
         return
 
     if remaining > 0:
@@ -381,13 +372,13 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
 
     total_passed = sum(p for p, _ in category_scores.values())
     total_checks = sum(t for _, t in category_scores.values())
-    error_count = sum(1 for i in all_issues if i['severity'] == 'error')
-    warning_count = sum(1 for i in all_issues if i['severity'] == 'warning')
+    error_count = sum(i.get('atomic_count', 1) for i in all_issues if i['severity'] == 'error')
+    warning_count = sum(i.get('atomic_count', 1) for i in all_issues if i['severity'] == 'warning')
 
     # Adjust counts: rejected errors no longer count as errors
     if rejected_ids:
         rejected_error_count = sum(
-            1 for i in all_issues
+            i.get('atomic_count', 1) for i in all_issues
             if i['severity'] == 'error' and _make_error_id(i) in rejected_ids
         )
         error_count -= rejected_error_count
@@ -495,12 +486,12 @@ def generate_validation_pdf(validation_data: Dict[str, Any],
             continue
         passed, total = category_scores[category]
         cat_issues = [i for i in all_issues if i['category'] == category]
-        cat_errors = sum(1 for i in cat_issues if i['severity'] == 'error')
-        cat_warnings = sum(1 for i in cat_issues if i['severity'] == 'warning')
+        cat_errors = sum(i.get('atomic_count', 1) for i in cat_issues if i['severity'] == 'error')
+        cat_warnings = sum(i.get('atomic_count', 1) for i in cat_issues if i['severity'] == 'warning')
         # Adjust for rejected errors in this category
         if rejected_ids:
             cat_rejected = sum(
-                1 for i in cat_issues
+                i.get('atomic_count', 1) for i in cat_issues
                 if i['severity'] == 'error' and _make_error_id(i) in rejected_ids
             )
             cat_errors -= cat_rejected
@@ -737,8 +728,8 @@ def generate_text_report(validation_data: Dict[str, Any],
     category_scores, all_issues = collect_dqa_issues(validation_data)
     total_passed = sum(p for p, _ in category_scores.values())
     total_checks = sum(t for _, t in category_scores.values())
-    error_count = sum(1 for i in all_issues if i['severity'] == 'error')
-    warning_count = sum(1 for i in all_issues if i['severity'] == 'warning')
+    error_count = sum(i.get('atomic_count', 1) for i in all_issues if i['severity'] == 'error')
+    warning_count = sum(i.get('atomic_count', 1) for i in all_issues if i['severity'] == 'warning')
 
     lines = []
     lines.append("=" * 120)
@@ -762,8 +753,8 @@ def generate_text_report(validation_data: Dict[str, Any],
             continue
         passed, total = category_scores[category]
         cat_issues = [i for i in all_issues if i['category'] == category]
-        cat_errors = sum(1 for i in cat_issues if i['severity'] == 'error')
-        cat_warnings = sum(1 for i in cat_issues if i['severity'] == 'warning')
+        cat_errors = sum(i.get('atomic_count', 1) for i in cat_issues if i['severity'] == 'error')
+        cat_warnings = sum(i.get('atomic_count', 1) for i in cat_issues if i['severity'] == 'warning')
         lines.append(f"  {category.title():20s}  {passed:>6d}  {total:>5d}  {cat_errors:>6d}  {cat_warnings:>8d}")
     lines.append(f"  {'Overall':20s}  {total_passed:>6d}  {total_checks:>5d}  {error_count:>6d}  {warning_count:>8d}")
     lines.append("")
@@ -1150,7 +1141,7 @@ def generate_combined_validation_pdf(
         if rejected_ids:
             for cat in list(scores.keys()):
                 cat_rejected = sum(
-                    1 for i in all_issues
+                    i.get('atomic_count', 1) for i in all_issues
                     if i['category'] == cat and i['severity'] == 'error'
                     and _make_error_id(i) in rejected_ids
                 )
