@@ -120,12 +120,36 @@ def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if len(joined) > 200:
             joined = joined[:197] + '...'
         merged['column_field'] = joined if joined else merged.get('column_field', '')
-        merged['finding'] = passing_finding(merged.get('rule_code', ''))
+        finding = passing_finding(merged.get('rule_code', ''))
+        # Surface thresholds when the check carries them in details
+        # (e.g., K.1 missingness, P.2 numeric_range_plausibility).
+        thresh_suffix = _threshold_suffix(grp)
+        if thresh_suffix:
+            finding = f"{finding} {thresh_suffix}"
+        merged['finding'] = finding
         merged['message'] = merged['finding']
         merged['details'] = {'count': len(grp), 'columns': seen}
         merged['atomic_count'] = len(grp)
         out.append(merged)
     return out
+
+
+def _threshold_suffix(rows: List[Dict[str, Any]]) -> str:
+    """Return a "(err >X%, warn >Y%)" suffix when the check's rows carry
+    error_threshold/warning_threshold in their details. Returns '' when
+    no thresholds are recorded.
+    """
+    for r in rows:
+        d = r.get('details') or {}
+        err = d.get('error_threshold')
+        warn = d.get('warning_threshold')
+        if err is not None and warn is not None:
+            return f"(err >{err}%, warn >{warn}%)"
+        if err is not None:
+            return f"(err >{err}%)"
+        if warn is not None:
+            return f"(warn >{warn}%)"
+    return ''
 
 
 def _reconcile_atomic_counts(
