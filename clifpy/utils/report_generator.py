@@ -174,6 +174,12 @@ def _reconcile_atomic_counts(
                 if p and p not in cols_seen:
                     cols_seen.append(p)
 
+        # Partial-pass context: some atoms in this check already errored or
+        # warned. The synth INFO row represents only the *remaining* passing
+        # atoms, not every atom — so the finding says "Remaining X" rather
+        # than "All X" to avoid contradicting the failing rows above it.
+        partial = any(r.get('severity') in ('error', 'warning') for r in rows)
+
         synth = {
             'category': category,
             'check_type': check_type,
@@ -184,7 +190,9 @@ def _reconcile_atomic_counts(
         enriched = enrich_issue(synth, check_key=check_key)
         if enriched is not None:
             enriched['atomic_count'] = remaining
-            enriched['finding'] = passing_finding(enriched.get('rule_code', ''))
+            enriched['finding'] = passing_finding(
+                enriched.get('rule_code', ''), partial=partial,
+            )
             enriched['message'] = enriched['finding']
             if cols_seen:
                 joined = ', '.join(cols_seen)

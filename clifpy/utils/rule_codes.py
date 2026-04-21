@@ -56,9 +56,23 @@ PASSING_FINDINGS: Dict[str, str] = {
 }
 
 
-def passing_finding(rule_code: str) -> str:
-    """Return a human-readable 'passed' finding for a given rule_code."""
-    return PASSING_FINDINGS.get(rule_code, 'Checks passed')
+def passing_finding(rule_code: str, partial: bool = False) -> str:
+    """Return a human-readable 'passed' finding for a given rule_code.
+
+    Parameters
+    ----------
+    rule_code : str
+        The DQA rule code (e.g. 'K.3').
+    partial : bool, default False
+        When True, the check has *also* emitted error/warning rows, so the
+        INFO row represents the remaining silent-pass atoms — not every
+        atom in the check. Rewrites "All X" → "Remaining X" so the row
+        doesn't contradict the failing rows above it.
+    """
+    text = PASSING_FINDINGS.get(rule_code, 'Checks passed')
+    if partial and text.startswith('All '):
+        return 'Remaining ' + text[4:]
+    return text
 
 
 # INFO messages that indicate a check was not applicable (never actually ran).
