@@ -189,6 +189,16 @@ def _reconcile_atomic_counts(
     if info_rows:
         info = info_rows[0]
         info['atomic_count'] = remaining
+        # Partial-pass rewrite: if error/warning rows exist for this same
+        # check, the pre-existing INFO row's "All X" finding contradicts
+        # them. Rewrite it to the "Remaining X" partial variant — same
+        # treatment the synthesis branch below applies.
+        partial = any(r.get('severity') in ('error', 'warning') for r in rows)
+        if partial:
+            rule_code = info.get('rule_code', '')
+            if rule_code:
+                info['finding'] = passing_finding(rule_code, partial=True)
+                info['message'] = info['finding']
         return
 
     if remaining > 0:

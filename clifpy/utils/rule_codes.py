@@ -55,6 +55,16 @@ PASSING_FINDINGS: Dict[str, str] = {
     'P.8': 'All events within hospitalization bounds',
 }
 
+# Explicit partial-pass phrasing for rules whose PASSING_FINDINGS text does
+# not start with "All " (so the generic "All X" → "Remaining X" rewrite
+# below doesn't produce a sensible string). Only add entries for rules
+# that can realistically emit INFO alongside error/warning rows.
+PARTIAL_FINDINGS: Dict[str, str] = {
+    'K.1': 'Remaining required columns below null thresholds',
+    'P.1': 'Remaining chronological order constraints met',
+    'P.6': 'Remaining category distributions stable over time',
+}
+
 
 def passing_finding(rule_code: str, partial: bool = False) -> str:
     """Return a human-readable 'passed' finding for a given rule_code.
@@ -66,9 +76,12 @@ def passing_finding(rule_code: str, partial: bool = False) -> str:
     partial : bool, default False
         When True, the check has *also* emitted error/warning rows, so the
         INFO row represents the remaining silent-pass atoms — not every
-        atom in the check. Rewrites "All X" → "Remaining X" so the row
-        doesn't contradict the failing rows above it.
+        atom in the check. Rewrites "All X" → "Remaining X" (or looks up
+        PARTIAL_FINDINGS) so the row doesn't contradict the failing rows
+        above it.
     """
+    if partial and rule_code in PARTIAL_FINDINGS:
+        return PARTIAL_FINDINGS[rule_code]
     text = PASSING_FINDINGS.get(rule_code, 'Checks passed')
     if partial and text.startswith('All '):
         return 'Remaining ' + text[4:]
