@@ -211,6 +211,31 @@ lab_reference_units:
   troponin_t: ng/l
   wbc: 10^3/ul
 
+# Per-category outlier bounds used for filtering implausible values before
+# downstream analysis. Labs-side parallel of vital_ranges in vitals_schema.yaml.
+# Values sourced from CLIF/outlier-handling/outlier_thresholds_labs.csv.
+lab_outlier_ranges:
+  basophils_percent: {min: 0, max: 100}
+  eosinophils_percent: {min: 0, max: 100}
+  lymphocytes_absolute: {min: 0, max: 50}
+  lymphocytes_percent: {min: 0, max: 100}
+  monocytes_percent: {min: 0, max: 100}
+  neutrophils_percent: {min: 0, max: 100}
+  pt: {min: 1, max: 200}
+
+# Per-category clinical reference (normal) ranges. New companion block so
+# downstream consumers can read both outlier and reference ranges from a
+# single source of truth. Values sourced from
+# CLIF/reference_ranges/lab_category.csv.
+lab_reference_ranges:
+  basophils_percent: {lower: 0, upper: 2}
+  eosinophils_percent: {lower: 0, upper: 4}
+  lymphocytes_absolute: {lower: 1, upper: 4}
+  lymphocytes_percent: {lower: 20, upper: 40}
+  monocytes_percent: {lower: 2, upper: 8}
+  neutrophils_percent: {lower: 50, upper: 70}
+  pt: {lower: 10, upper: 13}
+
 # Canonical unit keys mapped to all accepted variant spellings (all lowercase).
 # Used for case-insensitive, variant-tolerant unit matching.
 allowed_unit_variants:
