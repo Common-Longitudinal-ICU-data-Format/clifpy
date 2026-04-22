@@ -2438,19 +2438,25 @@ def check_conditional_requirements_polars(
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         col_names = lf.collect_schema().names()
 
-        # Atomic counting: 1 per rule in the conditions list the check actually
-        # iterates. A rule is "passed" if evaluating it produced no warnings.
-        passed_rules = 0
+        # Atomic counting: 1 per (rule × then_required column) — one row is
+        # emitted for each combo (warning when missing, info when satisfied),
+        # so the atomic unit matches what the user sees. Lenient: warnings
+        # don't fail an atom; only errors do.
+        atomic_total = 0
+        atomic_failed_by_errors = 0
 
         for cond in conditions:
-            errors_before = len(result.errors)
             when_col = cond['when_column']
             when_values = cond['when_value']
             then_required = cond['then_required']
             description = cond.get('description', '')
 
+            # Count all then_required cols present in the schema toward the
+            # atomic total, regardless of whether when_col is present — if
+            # the condition can't be evaluated we still counted the slots.
+            atomic_total += sum(1 for c in then_required if c in col_names)
+
             if when_col not in col_names:
-                passed_rules += 1
                 continue
 
             if not isinstance(when_values, list):
@@ -2467,7 +2473,6 @@ def check_conditional_requirements_polars(
             and_values = cond.get('and_value')
             if and_col and and_values is not None:
                 if and_col not in col_names:
-                    passed_rules += 1
                     continue
                 if not isinstance(and_values, list):
                     and_values = [and_values]
@@ -2514,13 +2519,10 @@ def check_conditional_requirements_polars(
                          "percent_present": 100.0}
                     )
 
-            # Lenient: a rule passes unless it produced an error. Warnings
-            # about missing required values are informational.
-            if len(result.errors) == errors_before:
-                passed_rules += 1
-
-        result.atomic_total = len(conditions)
-        result.atomic_passed = passed_rules
+        result.atomic_total = atomic_total
+        # Lenient: only errors fail atoms. K.2 currently never emits errors
+        # (only warnings / infos), so all atoms pass.
+        result.atomic_passed = atomic_total - atomic_failed_by_errors
         gc.collect()
 
     except Exception as e:
@@ -2554,17 +2556,21 @@ def check_conditional_requirements_duckdb(
         con = duckdb.connect(':memory:')
         con.register('df', df)
 
-        passed_rules = 0
+        # Atomic counting: 1 per (rule × then_required column) — matches
+        # the granularity of rows this check emits (warning per violated
+        # combo, info per satisfied combo).
+        atomic_total = 0
+        atomic_failed_by_errors = 0
 
         for cond in conditions:
-            errors_before = len(result.errors)
             when_col = cond['when_column']
             when_values = cond['when_value']
             then_required = cond['then_required']
             description = cond.get('description', '')
 
+            atomic_total += sum(1 for c in then_required if c in df.columns)
+
             if when_col not in df.columns:
-                passed_rules += 1
                 continue
 
             if not isinstance(when_values, list):
@@ -2576,7 +2582,6 @@ def check_conditional_requirements_duckdb(
             and_clause = ""
             if and_col and and_values is not None:
                 if and_col not in df.columns:
-                    passed_rules += 1
                     continue
                 if not isinstance(and_values, list):
                     and_values = [and_values]
@@ -2623,13 +2628,8 @@ def check_conditional_requirements_duckdb(
                          "percent_present": 100.0}
                     )
 
-            # Lenient: a rule passes unless it produced an error. Warnings
-            # about missing required values are informational.
-            if len(result.errors) == errors_before:
-                passed_rules += 1
-
-        result.atomic_total = len(conditions)
-        result.atomic_passed = passed_rules
+        result.atomic_total = atomic_total
+        result.atomic_passed = atomic_total - atomic_failed_by_errors
         con.close()
 
     except Exception as e:

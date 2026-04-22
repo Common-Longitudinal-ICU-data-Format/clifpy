@@ -4,7 +4,7 @@ How many DQA validation checks does `clifpy` actually run when a CLIF site has a
 
 **Short answer:**
 - **255 check function invocations** — distinct `Result` objects produced by `run_full_dqa` across all beta tables.
-- **3,343 atomic checks** — individual things examined inside those results (per column, per rule, per permissible value, per range).
+- **3,363 atomic checks** — individual things examined inside those results (per column, per rule, per permissible value, per range).
 
 The atomic count is the more useful number: it scales with what's actually in the schemas and tells you how the validator's coverage grows when you add a column or an mCIDE value.
 
@@ -25,7 +25,7 @@ Excluded as concept (non-beta): `ecmo_mcs`, `microbiology_nonculture`.
 | View | What it counts | Total |
 |---|---|---:|
 | **Function invocations** | One `Result` object per (table × check function) returned by `run_full_dqa` + cross-table runners. | **255** |
-| **Atomic checks** | Per-column / per-rule / per-permissible-value / per-range subchecks recorded in `result.metrics`. | **3,343** |
+| **Atomic checks** | Per-column / per-rule / per-permissible-value / per-range subchecks recorded in `result.metrics`. | **3,363** |
 
 The function-invocation view gives the same total whether a table has 5 columns or 50. The atomic view captures the *work* the validator does and is what scales when schemas grow.
 
@@ -45,7 +45,7 @@ Sourced from `clifpy/utils/rule_codes.py`. The "atomic granularity" column says 
 | C.6 | `category_group_mapping` | 1 per (category → expected_group) pair across all `*_category_to_group_mapping` keys | `check_category_group_mapping` |
 | C.7 | `lab_reference_units` | 1 per entry in `labs_schema.lab_reference_units` | `check_lab_reference_units` |
 | K.1 | `missingness` | 1 per required column | `check_missingness` |
-| K.2 | `conditional_requirements` | 1 per rule in `validation_rules.yaml` | `check_conditional_requirements` |
+| K.2 | `conditional_requirements` | 1 per (rule × `then_required` column) — matches the row granularity the check emits | `check_conditional_requirements` |
 | K.3 | `mcide_value_coverage` | 1 per permissible value across category columns | `check_mcide_value_coverage` |
 | K.4 | `relational_integrity` | 1 per (table × FK column) where ref ≠ self | `check_relational_integrity` |
 | K.5 | `cross_table_conditional_completeness` | 1 per cross-table rule, attached to the rule's **target** table | `run_cross_table_completeness_checks` |
@@ -252,7 +252,7 @@ Each subsection shows:
 
 ### respiratory_support — 131
 
-**Schema inputs:** 26 cols • 16 required • 1 datetime (`recorded_dttm`) • 2 cat cols in `category_columns` (`device_category`=9, `mode_category`=8) → 17 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm]` • 17 numeric ranges (one per setting/observation column) • **15 conditional requirement rules** (the busiest table for K.2)
+**Schema inputs:** 26 cols • 16 required • 1 datetime (`recorded_dttm`) • 2 cat cols in `category_columns` (`device_category`=9, `mode_category`=8) → 17 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm]` • 17 numeric ranges (one per setting/observation column) • **15 conditional requirement rules** (the busiest table for K.2) covering 34 (rule × `then_required` column) atomic combos
 
 | Code | Count | Derivation |
 |---|---:|---|
@@ -262,14 +262,14 @@ Each subsection shows:
 | C.4 | 1 | `recorded_dttm` |
 | C.5 | 2 | 2 cat cols |
 | K.1 | 16 | 16 required |
-| K.2 | 15 | IMV/NIPPV mode rules + 5 device-type rules |
+| K.2 | 34 | sum of `then_required` col counts across 15 rules (e.g. CPAP=4, NIPPV Volume Support=5, IMV Pressure Control=3) |
 | K.3 | 17 | device=9 + mode=8 |
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 17 | 17 numeric setting/observation columns (`fio2_set`, `lpm_set`, … `mean_airway_pressure_obs`) |
 | P.6 | 17 | per (cat col × permissible value): device=9 + mode=8 |
 | P.7 | 1 | composite key |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **131** | |
+| **Total** | **150** | |
 
 ---
 
@@ -335,7 +335,7 @@ P.7 is 0 because `validation_rules.yaml` does not declare composite keys for `co
 
 ---
 
-### crrt_therapy — 49
+### crrt_therapy — 50
 
 **Schema inputs:** 11 cols • 8 required • 1 datetime (`recorded_dttm`) • 1 cat col (`crrt_mode_category`=5) • FK `hospitalization_id` • **no composite key** • 5 numeric ranges • 2 conditional requirement rules
 
@@ -347,13 +347,13 @@ P.7 is 0 because `validation_rules.yaml` does not declare composite keys for `co
 | C.4 | 1 | `recorded_dttm` |
 | C.5 | 1 | `crrt_mode_category` |
 | K.1 | 8 | 8 required |
-| K.2 | 2 | CVVH/CVVHDF and CVVHD/CVVHDF rules |
+| K.2 | 3 | CVVH/CVVHDF (2 req cols) + CVVHD/CVVHDF (1 req col) = 3 combos |
 | K.3 | 5 | 5 crrt_mode_category values |
 | K.4 | 1 | `hospitalization_id` |
 | P.2 | 5 | blood_flow_rate, pre/post filter rates, dialysate, ultrafiltration |
 | P.6 | 5 | per (cat col × permissible value): 5 crrt_mode_category values |
 | P.8 | 1 | `recorded_dttm` |
-| **Total** | **49** | |
+| **Total** | **50** | |
 
 ---
 
@@ -431,15 +431,15 @@ P.6 = 0 because there's no datetime column at all (no `_detect_time_column` cand
 | patient_assessments | 1 | 6 | 8 | 1 | 2 | 70 | 0 | 6 | 0 | 88 | 1 | 0 | 0 | 66 | 0 | 0 | 0 | 88 | 1 | 1 | **339** |
 | medication_admin_continuous | 1 | 9 | 13 | 1 | 4 | 75 | 0 | 9 | 0 | 97 | 1 | 0 | 0 | 42 | 0 | 1 | 0 | 97 | 1 | 1 | **352** |
 | medication_admin_intermittent | 1 | 9 | 13 | 1 | 3 | 0 | 0 | 9 | 0 | 174 | 1 | 0 | 0 | 5 | 0 | 1 | 0 | 174 | 1 | 1 | **393** |
-| respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 15 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 17 | 1 | 1 | **131** |
+| respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 34 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 17 | 1 | 1 | **150** |
 | position | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 1 | 1 | **20** |
 | patient_procedures | 1 | 4 | 6 | 1 | 0 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
 | code_status | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 10 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | **34** |
-| crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 2 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 5 | 0 | 1 | **49** |
+| crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 3 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 5 | 0 | 1 | **50** |
 | hospital_diagnosis | 1 | 5 | 5 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
 | microbiology_culture | 1 | 10 | 12 | 3 | 3 | 0 | 0 | 10 | 0 | 590 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 590 | 1 | 3 | **1,227** |
 | microbiology_susceptibility | 1 | 2 | 6 | 0 | 2 | 0 | 0 | 2 | 0 | 171 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **186** |
-| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **18** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **1,098** | **14** | **15** | **3,343** |
+| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **38** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **1,098** | **14** | **15** | **3,363** |
 
 K.5 (the cross-table `Expired → death_dttm` rule) attaches to its **target** table in the validator's output — `run_cross_table_completeness_checks` does `results.setdefault(target_table, {})[rule_key] = result`. The only current rule targets `patient`, so patient gets K.5 = 1 and every other table gets 0. Add a rule targeting another table and that table's K.5 column bumps.
 
@@ -457,21 +457,21 @@ Collapsed view of the matrix above, summed into the three DQA pillars (C = C.1�
 | patient_assessments | 88 | 95 | 156 | **339** |
 | medication_admin_continuous | 103 | 107 | 142 | **352** |
 | medication_admin_intermittent | 27 | 184 | 182 | **393** |
-| respiratory_support | 46 | 49 | 36 | **131** |
+| respiratory_support | 46 | 68 | 36 | **150** |
 | position | 10 | 6 | 4 | **20** |
 | patient_procedures | 12 | 5 | 1 | **18** |
 | code_status | 10 | 14 | 10 | **34** |
-| crrt_therapy | 22 | 16 | 11 | **49** |
+| crrt_therapy | 22 | 17 | 11 | **50** |
 | hospital_diagnosis | 11 | 6 | 1 | **18** |
 | microbiology_culture | 29 | 602 | 596 | **1,227** |
 | microbiology_susceptibility | 11 | 174 | 1 | **186** |
-| **GRAND TOTAL** | **538** | **1,470** | **1,335** | **3,343** |
+| **GRAND TOTAL** | **538** | **1,490** | **1,335** | **3,363** |
 
 ---
 
 ## 6. Where the count concentrates
 
-Two checks alone produce **2,425 of the 3,343 atomic checks (~73%)** — K.3 and P.6 share the same per-(category column × permissible value) granularity and dominate the count:
+Two checks alone produce **2,425 of the 3,363 atomic checks (~73%)** — K.3 and P.6 share the same per-(category column × permissible value) granularity and dominate the count:
 
 - **K.3 mcide_value_coverage (1,327)** — driven by enumerations with hundreds of values:
   - `microbiology_culture.organism_category`: 543
@@ -607,7 +607,12 @@ for t in BETA:
              if k.endswith('_category_to_group_mapping') and isinstance(v, dict))
     C7 = len(s.get('lab_reference_units', {})) if t == 'labs' else 0
     K1 = len(req(t))
-    K2 = len(cond.get(t, []))
+    # K.2 counts 1 per (rule × then_required col) — matches the granularity
+    # the check emits a row for.
+    K2 = sum(
+        sum(1 for c in rule.get('then_required', []) if c in cn)
+        for rule in cond.get(t, [])
+    )
     K3 = sum(len(c.get('permissible_values', [])) for c in cols(t)
              if c['name'] in cat_cols(t) and c.get('permissible_values'))
     K4 = sum(1 for fc, r in fk.items()
@@ -635,7 +640,7 @@ for t in BETA:
 print(f'{"GRAND TOTAL":<32} {grand:>5}')
 ```
 
-Expected output: `GRAND TOTAL 3343`.
+Expected output: `GRAND TOTAL 3363`.
 
 ---
 
