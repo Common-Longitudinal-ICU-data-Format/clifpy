@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from clifpy.tables.patient_assessments import patient_assessments
+from clifpy.tables.patient_assessments import PatientAssessments as patient_assessments
 
 # --- Mock Schema ---
 @pytest.fixture
@@ -146,12 +146,13 @@ def test_assessments_init_without_data():
 
 def test_load_assessments_schema_file_not_found(monkeypatch, capsys):
     """Test _load_assessments_schema when JSON file is not found."""
+    original_join = os.path.join
     def mock_join_raise_fnf(*args):
         if 'Patient_assessmentsModel.json' in args[-1]:
             raise FileNotFoundError("Mocked File Not Found")
-        return os.path.join(*args)
+        return original_join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
-    
+
     pa_obj = patient_assessments()
     assert pa_obj._assessment_score_ranges == {}
     captured = capsys.readouterr()
@@ -165,7 +166,12 @@ def test_load_assessments_schema_json_decode_error(monkeypatch, tmp_path, capsys
     with open(malformed_schema_path, 'w') as f:
         f.write("this is not json")
 
-    monkeypatch.setattr(os.path, 'join', lambda *args: str(malformed_schema_path) if 'Patient_assessmentsModel.json' in args[-1] else os.path.join(*args))
+    original_join = os.path.join
+    monkeypatch.setattr(
+        os.path,
+        'join',
+        lambda *args: str(malformed_schema_path) if 'Patient_assessmentsModel.json' in args[-1] else original_join(*args),
+    )
 
     pa_obj = patient_assessments()
     assert pa_obj._assessment_score_ranges == {}

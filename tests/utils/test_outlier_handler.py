@@ -22,7 +22,6 @@ from clifpy.utils.outlier_handler import (
     _process_category_dependent_column_pandas,
     _process_medication_column_pandas,
     _process_simple_range_column_pandas,
-    _analyze_column_outliers_pandas
 )
 
 
@@ -605,27 +604,9 @@ class TestProcessingFunctions:
             check_dtype=False
         )
     
-    def test_analyze_column_outliers(self):
-        """Test _analyze_column_outliers_pandas function."""
-        df = pd.DataFrame({'test_col': [1, 2, None, 4, 5]})
-        table_obj = MockTableObj(df, 'test_table')
-        column_config = {'min': 0, 'max': 10}
-        
-        result = _analyze_column_outliers_pandas(table_obj, 'test_col', column_config)
-        
-        assert result['total_non_null_values'] == 4
-        assert result['configuration_type'] == 'simple_range'
-    
-    def test_analyze_column_outliers_category_dependent(self):
-        """Test _analyze_column_outliers_pandas for category-dependent tables."""
-        df = pd.DataFrame({'vital_value': [1, 2, None, 4, 5]})
-        table_obj = MockTableObj(df, 'vitals')
-        column_config = {}
-        
-        result = _analyze_column_outliers_pandas(table_obj, 'vital_value', column_config)
-        
-        assert result['total_non_null_values'] == 4
-        assert result['configuration_type'] == 'category_dependent'
+    # The legacy `_analyze_column_outliers_pandas` helper was removed from
+    # outlier_handler.py during a prior refactor; its tests are dropped here
+    # since there is no current replacement with the same single-column API.
 
 
 if __name__ == '__main__':
