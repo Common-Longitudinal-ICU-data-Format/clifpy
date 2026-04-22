@@ -1892,7 +1892,12 @@ def check_category_group_mapping_polars(
                 for grp_val, grp_val_orig, count in pairs:
                     exp_lower = str(expected_group).lower().strip()
                     if grp_val != exp_lower:
-                        bad.append({"actual_group": grp_val_orig, "expected_group": expected_group, "count": count})
+                        bad.append({
+                            "category": cat_val_orig,
+                            "actual_group": grp_val_orig,
+                            "expected_group": expected_group,
+                            "count": count,
+                        })
 
                 if bad:
                     mismatch_count += 1
@@ -2023,7 +2028,12 @@ def check_category_group_mapping_duckdb(
                 for grp_val, grp_val_orig, count in pairs:
                     exp_lower = str(expected_group).lower().strip()
                     if grp_val != exp_lower:
-                        bad.append({"actual_group": grp_val_orig, "expected_group": expected_group, "count": count})
+                        bad.append({
+                            "category": cat_val_orig,
+                            "actual_group": grp_val_orig,
+                            "expected_group": expected_group,
+                            "count": count,
+                        })
 
                 if bad:
                     mismatch_count += 1
@@ -3557,7 +3567,9 @@ def check_numeric_range_plausibility_polars(
 
                 # Lenient: only errors fail the atom. Warnings (above
                 # warning_threshold but below error_threshold) still emit
-                # a warning row but count as a pass.
+                # a warning row but count as a pass. Silent passes get
+                # their own INFO row so the synth reconcile doesn't inherit
+                # 16 columns' worth of warnings into a 1-atom INFO.
                 if pct > error_threshold:
                     result.add_error(
                         f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
@@ -3568,6 +3580,13 @@ def check_numeric_range_plausibility_polars(
                         result.add_warning(
                             f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
                             {"column": col_name, "percent": round(pct, 2)}
+                        )
+                    else:
+                        result.add_info(
+                            f"Column '{col_name}': all {int(total):,} values within range [{rmin}, {rmax}]",
+                            {"column": col_name,
+                             "total": int(total),
+                             "atomic_count": 1}
                         )
                     atomic_passed += 1
 
@@ -3799,7 +3818,9 @@ def check_numeric_range_plausibility_duckdb(
                     "min": rmin, "max": rmax,
                 }
 
-                # Lenient: only errors fail the atom.
+                # Lenient: only errors fail the atom. Emit per-column INFO
+                # on silent-pass so the synth reconcile doesn't inherit many
+                # distinct column_fields into a 1-atom INFO.
                 if pct > error_threshold:
                     result.add_error(
                         f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
@@ -3810,6 +3831,13 @@ def check_numeric_range_plausibility_duckdb(
                         result.add_warning(
                             f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
                             {"column": col_name, "percent": round(pct, 2)}
+                        )
+                    else:
+                        result.add_info(
+                            f"Column '{col_name}': all {int(total):,} values within range [{rmin}, {rmax}]",
+                            {"column": col_name,
+                             "total": int(total),
+                             "atomic_count": 1}
                         )
                     atomic_passed += 1
 
