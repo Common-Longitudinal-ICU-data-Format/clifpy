@@ -100,7 +100,20 @@ def _normalize_columns_pandas(df: pd.DataFrame) -> pd.DataFrame:
     mutated.
     """
     out = df.rename(columns=lambda c: c.lower() if isinstance(c, str) else c).copy(deep=False)
-    string_cols = [c for c in out.columns if out[c].dtype == object and not c.startswith(_ORIG_PREFIX)]
+    # Detect both numpy object strings AND pyarrow-backed string extension
+    # dtypes (``string[pyarrow]``, ``string``). Without this, callers that
+    # build arrow-backed pandas frames (e.g. CLIF-TableOne's DuckDB loader
+    # via ``to_pandas(types_mapper=pd.ArrowDtype)``) skip normalization,
+    # which makes every case-insensitive check (C.5, C.6, K.3) emit false-
+    # positive mismatches.
+    string_cols = [
+        c for c in out.columns
+        if not c.startswith(_ORIG_PREFIX)
+        and (
+            out[c].dtype == object
+            or pd.api.types.is_string_dtype(out[c])
+        )
+    ]
     for c in string_cols:
         out[f"{_ORIG_PREFIX}{c}"] = out[c]
         out[c] = out[c].where(out[c].isna(), out[c].astype(str).str.lower().str.strip())
