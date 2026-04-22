@@ -334,127 +334,18 @@ class BaseTable:
                     self.errors.append(result)
 
     def _run_enhanced_validations(self):
+        """No-op shim.
+
+        Historically ran a chain of helpers (``check_for_duplicates``,
+        ``validate_datetime_timezone``, ``calculate_missing_stats``,
+        ``validate_units``, etc.) that no longer exist — those checks have
+        moved to the DQA pipeline (``run_full_dqa`` in ``utils.validator``).
+        The body here is intentionally empty; calling ``.validate()`` still
+        runs the ``validator.validate_dataframe`` compat shim which routes to
+        the DQA backend. Subclasses that need additional per-table checks
+        should override ``_run_table_specific_validations``.
         """
-        Run enhanced validation checks.
-        
-        This method integrates with the enhanced validator functions
-        to provide comprehensive data quality checks.
-        """
-        if not self.schema:
-            return
-        
-        try:
-            checks_to_run = ['_run_duplicate_check', '_run_*', ]
-            
-
-            # 1. Check for duplicates on composite keys
-            if 'composite_keys' in self.schema:
-                self.logger.info("Checking for duplicates on composite keys")
-                duplicate_result = validator.check_for_duplicates(
-                    self.df, 
-                    self.schema['composite_keys']
-                )
-                if duplicate_result.get('status') == 'warning':
-                    self.errors.append(duplicate_result)
-                    self.logger.warning(f"Found {duplicate_result['duplicate_rows']} duplicate rows")
-            
-            # 2. Validate datetime timezone
-            self._run_tz_validation()
-            
-            # 3. Calculate and save missing data statistics
-            self.logger.info("Calculating missing data statistics")
-            missing_stats = validator.calculate_missing_stats(self.df, format='long')
-            if not missing_stats.empty:
-                missing_file = os.path.join(
-                    self.output_directory,
-                    f'missing_data_stats_{self.table_name}.csv'
-                )
-                missing_stats.to_csv(missing_file, index=False)
-                self.logger.info(f"Saved missing data statistics to {missing_file}")
-            
-            # 4. Generate missing data summary
-            missing_summary = validator.report_missing_data_summary(self.df)
-            if missing_summary.get('total_missing_cells', 0) > 0:
-                self.logger.info(
-                    f"Missing data: {missing_summary['overall_missing_percent']:.2f}% "
-                    f"({missing_summary['total_missing_cells']} cells)"
-                )
-            
-            # 5. Validate categorical values
-            cat_errors = validator.validate_categorical_values(self.df, self.schema)
-            if cat_errors:
-                self.errors.extend(cat_errors)
-                self.logger.warning(f"Found {len(cat_errors)} categorical validation errors")
-            
-            # 6. Generate summary statistics for numeric columns
-            numeric_columns = [
-                col['name'] for col in self.schema.get('columns', [])
-                if col.get('data_type') in ['DOUBLE', 'FLOAT', 'INT', 'INTEGER'] 
-                and col['name'] in self.df.columns
-            ]
-            if numeric_columns:
-                self.logger.info(f"Generating summary statistics for numeric columns")
-                summary_stats = validator.generate_summary_statistics(
-                    self.df, 
-                    numeric_columns,
-                    self.output_directory,
-                    self.table_name
-                )
-                if not summary_stats.empty:
-                    self.logger.info("Generated summary statistics")
-            
-            # 7. Analyze skewed distributions
-            skew_analysis = validator.analyze_skewed_distributions(
-                self.df,
-                self.output_directory,
-                self.table_name
-            )
-            if not skew_analysis.empty:
-                self.logger.info("Analyzed skewed distributions")
-            
-            # 8. Validate units (for vitals and labs tables)
-            if self.table_name in ['vitals', 'labs']:
-                unit_mappings = self.schema.get(f'{self.table_name[:-1]}_units') or \
-                               self.schema.get('lab_reference_units', {})
-                if unit_mappings:
-                    self.logger.info("Validating units")
-                    unit_results = validator.validate_units(
-                        self.df, 
-                        unit_mappings, 
-                        self.table_name
-                    )
-                    for result in unit_results:
-                        if result.get('status') == 'warning':
-                            self.errors.append(result)
-            
-            # 9. Calculate cohort sizes
-            id_columns = ['patient_id', 'hospitalization_id']
-            existing_id_cols = [col for col in id_columns if col in self.df.columns]
-            if existing_id_cols:
-                cohort_sizes = validator.calculate_cohort_sizes(self.df, existing_id_cols)
-                self.logger.info(f"Cohort sizes: {cohort_sizes}")
-
-            # 10. Validate numeric ranges for outliers
-            if self.outlier_config:
-                self.logger.info("Validating numeric ranges for outliers")
-                outlier_results = validator.validate_numeric_ranges_from_config(
-                    self.df,
-                    self.table_name,
-                    self.schema,
-                    self.outlier_config
-                )
-                if outlier_results:
-                    self.errors.extend(outlier_results)
-                    self.logger.warning(f"Found {len(outlier_results)} outlier summaries")
-                else:
-                    self.logger.info("No outliers detected")
-
-        except Exception as e:
-            self.logger.error(f"Error in enhanced validations: {str(e)}")
-            self.errors.append({
-                "type": "enhanced_validation_error",
-                "message": str(e)
-            })
+        return
     
     def _run_table_specific_validations(self):
         """

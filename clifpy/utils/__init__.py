@@ -85,10 +85,6 @@ __all__ = [
       '_agg_extremal_values_by_id',
       # ase
       'compute_ase',
-      # unit variants
-      'load_labs_schema_units',
-      'get_variants_for_category',
-      'normalize_unit',
       # DQA functions
       '_ACTIVE_BACKEND',
       'DQAConformanceResult',
