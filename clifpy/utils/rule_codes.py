@@ -227,7 +227,11 @@ def build_finding(message: str, details: Dict[str, Any]) -> str:
                 cat = it.get('category', '?')
                 actual = it.get('actual_group', '?')
                 expected = it.get('expected_group', '?')
-                items.append(f"{cat}: found '{actual}', expected '{expected}'")
+                if isinstance(expected, list):
+                    expected_str = ' or '.join(f"'{g}'" for g in expected)
+                else:
+                    expected_str = f"'{expected}'"
+                items.append(f"{cat}: found '{actual}', expected {expected_str}")
             else:
                 items.append(str(it))
         suffix = f" ... ({len(mismatched)} total)" if len(mismatched) > 3 else ""

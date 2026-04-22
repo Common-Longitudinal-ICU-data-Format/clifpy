@@ -2050,11 +2050,18 @@ def check_category_group_mapping_polars(
             mismatch_count = 0
 
             # Normalize schema keys too (defense-in-depth) so the lookup is robust
-            # if the schema YAML happens to have mixed case.
-            mapping_normalized = {str(k).lower().strip(): (k, v) for k, v in mapping.items()}
+            # if the schema YAML happens to have mixed case. Values may be a
+            # single group name or a list of permissible groups (e.g.
+            # epoprostenol maps to both "pulmonary vasodilators (IV)" and
+            # "pulmonary vasodilators (inhaled)"); normalize to a list here
+            # and keep the original form for error reporting.
+            mapping_normalized = {
+                str(k).lower().strip(): (k, v if isinstance(v, list) else [v])
+                for k, v in mapping.items()
+            }
 
             # Emit one message per mapping entry
-            for cat_val_norm, (cat_val_orig, expected_group) in mapping_normalized.items():
+            for cat_val_norm, (cat_val_orig, expected_groups) in mapping_normalized.items():
                 pairs = actual_groups.get(cat_val_norm)
                 if pairs is None:
                     result.add_info(
@@ -2063,21 +2070,30 @@ def check_category_group_mapping_polars(
                     )
                     continue
 
+                allowed_lowers = {str(g).lower().strip() for g in expected_groups}
+                expected_display = (
+                    " or ".join(f"'{g}'" for g in expected_groups)
+                    if len(expected_groups) > 1
+                    else f"'{expected_groups[0]}'"
+                )
+
                 bad = []
                 for grp_val, grp_val_orig, count in pairs:
-                    exp_lower = str(expected_group).lower().strip()
-                    if grp_val != exp_lower:
+                    if grp_val not in allowed_lowers:
                         bad.append({
                             "category": cat_val_orig,
                             "actual_group": grp_val_orig,
-                            "expected_group": expected_group,
+                            "expected_group": (
+                                list(expected_groups) if len(expected_groups) > 1
+                                else expected_groups[0]
+                            ),
                             "count": count,
                         })
 
                 if bad:
                     mismatch_count += 1
                     result.add_warning(
-                        f"Category '{cat_val_orig}': group mismatch (expected '{expected_group}')",
+                        f"Category '{cat_val_orig}': group mismatch (expected {expected_display})",
                         {"column": cat_val_orig, "category_column": category_col,
                          "group_column": group_col, "mismatched_pairs": bad}
                     )
@@ -2186,11 +2202,16 @@ def check_category_group_mapping_duckdb(
             result.metrics[f"{mapping_key}_total_records"] = total_count
             mismatch_count = 0
 
-            # Normalize schema keys too (defense-in-depth).
-            mapping_normalized = {str(k).lower().strip(): (k, v) for k, v in mapping.items()}
+            # Normalize schema keys too (defense-in-depth). Values may be a
+            # single group name or a list of permissible groups — see the
+            # polars implementation above for the rationale.
+            mapping_normalized = {
+                str(k).lower().strip(): (k, v if isinstance(v, list) else [v])
+                for k, v in mapping.items()
+            }
 
             # Emit one message per mapping entry
-            for cat_val_norm, (cat_val_orig, expected_group) in mapping_normalized.items():
+            for cat_val_norm, (cat_val_orig, expected_groups) in mapping_normalized.items():
                 pairs = actual_groups.get(cat_val_norm)
                 if pairs is None:
                     result.add_info(
@@ -2199,21 +2220,30 @@ def check_category_group_mapping_duckdb(
                     )
                     continue
 
+                allowed_lowers = {str(g).lower().strip() for g in expected_groups}
+                expected_display = (
+                    " or ".join(f"'{g}'" for g in expected_groups)
+                    if len(expected_groups) > 1
+                    else f"'{expected_groups[0]}'"
+                )
+
                 bad = []
                 for grp_val, grp_val_orig, count in pairs:
-                    exp_lower = str(expected_group).lower().strip()
-                    if grp_val != exp_lower:
+                    if grp_val not in allowed_lowers:
                         bad.append({
                             "category": cat_val_orig,
                             "actual_group": grp_val_orig,
-                            "expected_group": expected_group,
+                            "expected_group": (
+                                list(expected_groups) if len(expected_groups) > 1
+                                else expected_groups[0]
+                            ),
                             "count": count,
                         })
 
                 if bad:
                     mismatch_count += 1
                     result.add_warning(
-                        f"Category '{cat_val_orig}': group mismatch (expected '{expected_group}')",
+                        f"Category '{cat_val_orig}': group mismatch (expected {expected_display})",
                         {"column": cat_val_orig, "category_column": category_col,
                          "group_column": group_col, "mismatched_pairs": bad}
                     )
