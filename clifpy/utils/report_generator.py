@@ -190,15 +190,22 @@ def _reconcile_atomic_counts(
         info = info_rows[0]
         info['atomic_count'] = remaining
         # Partial-pass rewrite: if error/warning rows exist for this same
-        # check, the pre-existing INFO row's "All X" finding contradicts
-        # them. Rewrite it to the "Remaining X" partial variant — same
-        # treatment the synthesis branch below applies.
+        # check, an "All X" rollup contradicts them and should become
+        # "Remaining X". But per-atom INFO rows that passed through
+        # collapse unchanged (e.g. K.4's "All patient_id values in labs
+        # exist in patient") carry specific detail — don't flatten those
+        # into the generic partial text. Heuristic: only rewrite when the
+        # current finding already matches passing_finding(rule_code),
+        # which identifies the collapsed-aggregate rollup emitted by
+        # _collapse_info_rows.
         partial = any(r.get('severity') in ('error', 'warning') for r in rows)
         if partial:
             rule_code = info.get('rule_code', '')
             if rule_code:
-                info['finding'] = passing_finding(rule_code, partial=True)
-                info['message'] = info['finding']
+                generic = passing_finding(rule_code, partial=False)
+                if info.get('finding') == generic:
+                    info['finding'] = passing_finding(rule_code, partial=True)
+                    info['message'] = info['finding']
         return
 
     if remaining > 0:
