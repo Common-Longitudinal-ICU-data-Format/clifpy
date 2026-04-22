@@ -3095,18 +3095,29 @@ def check_relational_integrity(
         result.metrics["reverse_orphan_ids"] = rev.metrics.get("orphan_ids", 0)
         result.metrics["reverse_target_unique_ids"] = rev.metrics.get("source_unique_ids", 0)
 
-        # Propagate warnings/errors from both directions. The reverse
-        # direction is informational only (normal data often has reference
-        # rows with no children), so its warnings get atomic_count=0 to
-        # keep them visible without inflating the atomic sum.
+        # `fwd` here = reverse-cardinality direction ("does every reference
+        # row have a child in the source?"). On inpatient data this commonly
+        # fails legitimately — surface as warning, atomic_count=0.
         for w in fwd.warnings:
-            result.add_warning(w['message'], w.get("details", {}))
-        for w in rev.warnings:
-            rev_details = dict(w.get("details", {}) or {})
-            rev_details.setdefault('atomic_count', 0)
-            result.add_warning(w['message'], rev_details)
+            fwd_details = dict(w.get("details", {}) or {})
+            fwd_details.setdefault('atomic_count', 0)
+            result.add_warning(w['message'], fwd_details)
         for e in fwd.errors:
+            # A code-level error on the reverse-cardinality direction still
+            # signals a real problem; propagate as-is.
             result.add_error(e['message'], e.get("details", {}))
+
+        # `rev` = FK integrity direction ("does every source FK value resolve
+        # in the reference?"). Apply thresholds: >10% orphans → ERROR,
+        # >1% → WARNING, else silent pass.
+        rev_coverage = result.metrics["reverse_coverage_percent"]
+        rev_orphan_pct = 100 - rev_coverage
+        for w in rev.warnings:
+            if rev_orphan_pct > 10.0:
+                result.add_error(w['message'], w.get("details", {}))
+            elif rev_orphan_pct > 1.0:
+                result.add_warning(w['message'], w.get("details", {}))
+            # else: silent pass (≤1% orphans is acceptable drift)
         for e in rev.errors:
             result.add_error(e['message'], e.get("details", {}))
 
@@ -3125,8 +3136,8 @@ def check_relational_integrity(
             result.metrics["reverse_coverage_percent"],
         )
 
-        # Atomic granularity: 1 per FK. Forward direction (source → reference)
-        # is the real integrity check; the reverse is informational only.
+        # Atomic granularity: 1 per FK. Only the FK integrity direction
+        # (`rev` in this dispatcher) contributes to the scored atom.
         result.atomic_total = 1
         result.atomic_passed = 1 if not result.errors else 0
     except Exception as e:
@@ -5989,27 +6000,37 @@ def run_relational_integrity_checks_from_cache(
                 result.metrics["reverse_orphan_ids"] = rev_orphan_count
                 result.metrics["reverse_target_unique_ids"] = rev_total
 
-                # Forward warnings/errors
+                # `fwd` here is the reverse-cardinality question
+                # ("does every reference row have a child in the source?"),
+                # which on normal inpatient data routinely fails (many
+                # hospitalizations don't have, e.g., CRRT / procedures /
+                # ECMO). Always surface it as a warning but mark atomic_count=0
+                # so it doesn't contribute to the FK's one-atom denominator.
                 if fwd_orphans:
                     result.add_warning(
                         f"{fwd_orphan_count}/{fwd_total} {fk_column} values in {ref_table_name} "
                         f"not found in {table_name} ({round(fwd_coverage, 1)}% coverage)",
                         {"orphan_count": fwd_orphan_count,
-                         "coverage_percent": round(fwd_coverage, 2)}
-                    )
-
-                # Reverse warnings/errors — informational only; the reverse
-                # direction (every reference row has a child) often "fails"
-                # on normal data (e.g., patients with no hospitalizations),
-                # so we surface it but don't count it as an atom.
-                if rev_orphans:
-                    result.add_warning(
-                        f"{rev_orphan_count}/{rev_total} {fk_column} values in {table_name} "
-                        f"not found in {ref_table_name} ({round(rev_coverage, 1)}% coverage)",
-                        {"orphan_count": rev_orphan_count,
-                         "coverage_percent": round(rev_coverage, 2),
+                         "coverage_percent": round(fwd_coverage, 2),
                          "atomic_count": 0}
                     )
+
+                # `rev` is the real FK integrity check ("does every source
+                # FK value resolve in the reference?"). Apply thresholds:
+                # >10% orphans → ERROR, >1% → WARNING, else silent pass.
+                if rev_orphans:
+                    orphan_pct = 100 - rev_coverage
+                    emit = (result.add_error if orphan_pct > 10.0
+                            else result.add_warning if orphan_pct > 1.0
+                            else None)
+                    if emit is not None:
+                        emit(
+                            f"{rev_orphan_count}/{rev_total} {fk_column} values in {table_name} "
+                            f"not found in {ref_table_name} ({round(rev_coverage, 1)}% coverage)",
+                            {"orphan_count": rev_orphan_count,
+                             "coverage_percent": round(rev_coverage, 2),
+                             "orphan_percent": round(orphan_pct, 2)}
+                        )
 
                 if not fwd_orphans and not rev_orphans:
                     result.add_info(

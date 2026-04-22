@@ -962,17 +962,22 @@ class TestCheckRelationalIntegrity:
         assert result.metrics["reverse_coverage_percent"] < 100.0
 
     def test_both_directions_partial(self):
-        """Orphans in both directions."""
+        """Orphans in both directions. The FK integrity direction (rev)
+        uses thresholds: >10% orphans → error, >1% → warning. Here labs
+        has 1 orphan of 2 (50%), which crosses the error threshold.
+        """
         hosp = pl.LazyFrame({"hospitalization_id": ["H1", "H2", "H3"]})
         labs = pl.LazyFrame({"hospitalization_id": ["H1", "H99"]})
         result = check_relational_integrity(
             labs, hosp, "labs", "hospitalization", "hospitalization_id"
         )
-        # Forward: H2, H3 not in labs
+        # Forward (reverse-cardinality): H2, H3 not in labs — informational.
         assert result.metrics["forward_orphan_ids"] == 2
-        # Reverse: H99 not in hosp
+        # Reverse (FK integrity): H99 not in hosp.
         assert result.metrics["reverse_orphan_ids"] == 1
-        assert result.passed is True  # warnings don't flip passed
+        # 50% orphans in the integrity direction > 10% threshold → error.
+        assert result.passed is False
+        assert len(result.errors) >= 1
 
     def test_patient_id_key(self):
         """Works with patient_id key (e.g., code_status table)."""
