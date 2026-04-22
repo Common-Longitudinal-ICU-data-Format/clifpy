@@ -129,7 +129,11 @@ def _collapse_info_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         merged['finding'] = finding
         merged['message'] = merged['finding']
         merged['details'] = {'count': len(grp), 'columns': seen}
-        merged['atomic_count'] = len(grp)
+        # Sum per-row atomic_count so checks like K.3 (where each column's
+        # INFO row carries its own atomic_count) keep the right total.
+        # For checks whose INFO rows are all atomic_count=1, this still
+        # equals len(grp) — behavior-preserving.
+        merged['atomic_count'] = sum(r.get('atomic_count', 1) for r in grp)
         out.append(merged)
     return out
 

@@ -378,21 +378,31 @@ def build_absent_table_dqa_result(
         dataset"`` error; other categories are empty dicts.
     """
     expected = get_schema_check_counts(table_name, schema_dir)
+    expected_conf = int(expected.get("conformance", 1) or 1)
 
+    # Represent an absent table as a single ERROR whose atomic footprint
+    # covers the full expected conformance count — every conformance atom
+    # that would have run is "failed" by the table's absence. This keeps
+    # per-site scoring comparable (a site that submitted the table scores
+    # N/N, a site that didn't scores 0/N with N errors).
     table_presence = {
         "check_type": "table_presence",
         "table_name": table_name,
         "passed": False,
         "errors": [{
-            "message": "Table not present in dataset",
-            "details": {},
+            "message": (
+                f"Table not present in dataset — {expected_conf} conformance "
+                "atoms could not be evaluated"
+            ),
+            "details": {
+                "atomic_count": expected_conf,
+                "reason": "table_absent",
+            },
         }],
         "warnings": [],
         "info": [],
         "metrics": {"row_count": 0, "column_count": 0},
-        # collect_dqa_issues requires atomic counts on every result. The
-        # table-presence atom ran and failed, so 0/1.
-        "atomic_total": 1,
+        "atomic_total": expected_conf,
         "atomic_passed": 0,
     }
 
@@ -2718,6 +2728,12 @@ def check_mcide_value_coverage_polars(
         result.atomic_passed = sum(c['found_values'] for c in coverage_by_col.values())
 
         for col_name, details in coverage_by_col.items():
+            # Emit an ERROR listing missing values (if any) AND always emit
+            # an INFO reflecting the per-column silent-pass atom count so
+            # each row's Checks cell matches its own narrative. Before this
+            # split, the single INFO row for a fully-clean column would get
+            # its atomic_count inflated by the reconciler with the silent-
+            # passes from other columns too ("all 3 present, checks=565").
             if details['missing_values']:
                 result.add_error(
                     f"Missing {len(details['missing_values'])} mCIDE values: {', '.join(str(v) for v in details['missing_values'])}",
@@ -2727,13 +2743,15 @@ def check_mcide_value_coverage_polars(
                         "coverage_percent": details['coverage_percent']
                     }
                 )
-            else:
+            if details['found_values'] > 0:
                 result.add_info(
-                    f"Column '{col_name}': all {details['expected_values']} mCIDE values present",
+                    f"Column '{col_name}': {details['found_values']}/{details['expected_values']} mCIDE values present",
                     {
                         "column": col_name,
+                        "found_values": details['found_values'],
+                        "expected_values": details['expected_values'],
                         "coverage_percent": details['coverage_percent'],
-                        "expected_values": details['expected_values']
+                        "atomic_count": details['found_values'],
                     }
                 )
 
@@ -2814,6 +2832,11 @@ def check_mcide_value_coverage_duckdb(
         result.atomic_passed = sum(c['found_values'] for c in coverage_by_col.values())
 
         for col_name, details in coverage_by_col.items():
+            # Emit ERROR for missing values AND INFO reflecting per-column
+            # silent-pass count — so the INFO row's Checks cell matches its
+            # own narrative (previously, one INFO for a fully-clean column
+            # got its atomic_count inflated by the reconciler to include
+            # silent passes from every other column).
             if details['missing_values']:
                 result.add_error(
                     f"Missing {len(details['missing_values'])} mCIDE values: {', '.join(str(v) for v in details['missing_values'])}",
@@ -2823,13 +2846,15 @@ def check_mcide_value_coverage_duckdb(
                         "coverage_percent": details['coverage_percent']
                     }
                 )
-            else:
+            if details['found_values'] > 0:
                 result.add_info(
-                    f"Column '{col_name}': all {details['expected_values']} mCIDE values present",
+                    f"Column '{col_name}': {details['found_values']}/{details['expected_values']} mCIDE values present",
                     {
                         "column": col_name,
+                        "found_values": details['found_values'],
+                        "expected_values": details['expected_values'],
                         "coverage_percent": details['coverage_percent'],
-                        "expected_values": details['expected_values']
+                        "atomic_count": details['found_values'],
                     }
                 )
 
