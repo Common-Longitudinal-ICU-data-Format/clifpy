@@ -250,7 +250,7 @@ Each subsection shows:
 
 ---
 
-### respiratory_support — 131
+### respiratory_support — 150
 
 **Schema inputs:** 26 cols • 16 required • 1 datetime (`recorded_dttm`) • 2 cat cols in `category_columns` (`device_category`=9, `mode_category`=8) → 17 mCIDE values • FK `hospitalization_id` • composite key `[hospitalization_id, recorded_dttm]` • 17 numeric ranges (one per setting/observation column) • **15 conditional requirement rules** (the busiest table for K.2) covering 34 (rule × `then_required` column) atomic combos
 
