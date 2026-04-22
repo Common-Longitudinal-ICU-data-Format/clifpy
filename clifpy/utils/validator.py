@@ -1311,6 +1311,165 @@ def check_datetime_format(
 
 
 # B.3. Lab reference units validation
+def _resolve_accepted_units(schema: Dict[str, Any], ref_unit_entry: Any) -> List[str]:
+    """Return the accepted reference-unit spellings (lowercased, stripped) for
+    one ``lab_reference_units`` entry, expanded against ``allowed_unit_variants``.
+
+    Supports two schema shapes:
+
+    * New canonical-key format — ``lab_reference_units`` maps each category to
+      a single canonical unit string, and ``allowed_unit_variants`` maps that
+      canonical key to every accepted spelling::
+
+          lab_reference_units:
+            albumin: g/dl
+          allowed_unit_variants:
+            g/dl: [g/dl, g per dl, gram/dl, ...]
+
+    * Legacy list format — ``lab_reference_units`` maps each category to a
+      pre-expanded list of accepted spellings.
+
+    The return is deduplicated and always includes the canonical key itself.
+    Returns an empty list for unrecognized (None / non-str, non-list) inputs.
+    """
+    if isinstance(ref_unit_entry, (list, tuple)):
+        return sorted({str(u).lower().strip() for u in ref_unit_entry if u is not None})
+    if not isinstance(ref_unit_entry, str):
+        return []
+    canonical = ref_unit_entry.lower().strip()
+    variants_map = schema.get('allowed_unit_variants') or {}
+    variants_map_norm = {str(k).lower().strip(): v for k, v in variants_map.items()}
+    variants = variants_map_norm.get(canonical)
+    if variants:
+        return sorted({str(u).lower().strip() for u in variants if u is not None} | {canonical})
+    return [canonical]
+
+
+def _log_lab_reference_units_schema_summary(
+    schema: Dict[str, Any],
+    table_name: str,
+) -> None:
+    """Emit one INFO line describing how the lab_reference_units check will
+    resolve accepted spellings for this schema — i.e. whether it has an
+    ``allowed_unit_variants`` map, and how many categories will benefit.
+    """
+    lab_units = schema.get('lab_reference_units') or {}
+    variants_map = schema.get('allowed_unit_variants') or {}
+    if not lab_units:
+        return
+
+    canonical_entries = sum(1 for v in lab_units.values() if isinstance(v, str))
+    list_entries = sum(1 for v in lab_units.values() if isinstance(v, (list, tuple)))
+
+    if not variants_map:
+        _logger.info(
+            "check_lab_reference_units[%s]: allowed_unit_variants NOT present — "
+            "accepting only the canonical spelling for each of %d categories "
+            "(%d canonical-string, %d legacy-list)",
+            table_name, len(lab_units), canonical_entries, list_entries,
+        )
+        return
+
+    total_variants = sum(
+        len(v) for v in variants_map.values() if isinstance(v, (list, tuple))
+    )
+    _logger.info(
+        "check_lab_reference_units[%s]: allowed_unit_variants present — "
+        "%d canonical keys defining %d total accepted spellings; schema has "
+        "%d categories (%d canonical-string, %d legacy-list)",
+        table_name, len(variants_map), total_variants,
+        len(lab_units), canonical_entries, list_entries,
+    )
+
+
+def _evaluate_lab_category_units(
+    schema: Dict[str, Any],
+    lab_cat_orig_key: str,
+    expected_units_entry: Any,
+    actual_pairs: list,
+) -> tuple:
+    """Evaluate one lab category's observed reference units against the
+    accepted-spelling set (canonical + variants).
+
+    Parameters
+    ----------
+    schema
+        Full schema dict (needed to look up ``allowed_unit_variants``).
+    lab_cat_orig_key
+        Original-case category key, for user-facing messages.
+    expected_units_entry
+        The schema's ``lab_reference_units`` value for this category — either
+        a canonical key string or a legacy list.
+    actual_pairs
+        List of ``(ref_unit, ref_unit_orig, lab_cat_orig, count)`` tuples
+        from the data, with ``ref_unit`` already lowercased+stripped.
+
+    Returns
+    -------
+    (details, is_valid, bad_list)
+        ``details`` is an enriched dict suitable for add_info/add_warning
+        that records canonical unit, how many accepted variants were checked
+        against, a small sample of them, and per-class match counts.
+        ``is_valid`` is True iff every observed unit matched.
+        ``bad_list`` is the sorted invalid-unit list, or empty.
+    """
+    accepted = _resolve_accepted_units(schema, expected_units_entry)
+    if isinstance(expected_units_entry, str):
+        canonical = expected_units_entry.lower().strip()
+    elif isinstance(expected_units_entry, (list, tuple)) and expected_units_entry:
+        canonical = str(expected_units_entry[0]).lower().strip()
+    else:
+        canonical = accepted[0] if accepted else ''
+
+    variants_map = schema.get('allowed_unit_variants') or {}
+    variant_lookup_used = bool(variants_map) and isinstance(expected_units_entry, str)
+    no_units = '(no units)' in accepted
+
+    matched_canonical = 0
+    matched_via_variant = 0
+    bad = []
+    for ref_unit, ref_unit_orig, _, count in actual_pairs:
+        if no_units and not ref_unit:
+            matched_canonical += count
+            continue
+        if ref_unit == canonical:
+            matched_canonical += count
+        elif ref_unit in accepted:
+            matched_via_variant += count
+        else:
+            bad.append({
+                "reference_unit": ref_unit_orig,
+                "expected_units": accepted,
+                "count": count,
+            })
+
+    bad.sort(key=lambda x: x['count'], reverse=True)
+    invalid_records = sum(x['count'] for x in bad)
+    sample = accepted[: min(5, len(accepted))]
+
+    details = {
+        "column": lab_cat_orig_key,
+        "canonical_unit": canonical,
+        "variant_lookup_used": variant_lookup_used,
+        "accepted_variant_count": len(accepted),
+        "accepted_variants_sample": sample,
+        "matched_canonical_records": matched_canonical,
+        "matched_via_variant_records": matched_via_variant,
+        "invalid_records": invalid_records,
+    }
+    if bad:
+        details["top_invalid_units"] = bad[:10]
+
+    _logger.debug(
+        "Lab '%s': canonical=%r, %d accepted spellings (variant_map_used=%s, "
+        "sample=%s) — data: canonical=%d, via_variant=%d, invalid=%d",
+        lab_cat_orig_key, canonical, len(accepted), variant_lookup_used,
+        sample, matched_canonical, matched_via_variant, invalid_records,
+    )
+
+    return details, not bool(bad), bad
+
+
 def check_lab_reference_units_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -1325,6 +1484,8 @@ def check_lab_reference_units_polars(
         result.atomic_total = 0
         result.atomic_passed = 0
         return result
+
+    _log_lab_reference_units_schema_summary(schema, table_name)
 
     try:
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
@@ -1385,26 +1546,19 @@ def check_lab_reference_units_polars(
                 )
                 continue
 
-            expected_lower = [str(u).lower().strip() for u in expected_units]
-            no_units = '(no units)' in expected_lower
-            bad = []
-            for ref_unit, ref_unit_orig, _, count in pairs:
-                if no_units and not ref_unit:
-                    continue
-                if ref_unit not in expected_lower:
-                    bad.append({"reference_unit": ref_unit_orig, "expected_units": expected_units, "count": count})
-
-            if bad:
-                invalid_count += 1
-                bad.sort(key=lambda x: x['count'], reverse=True)
-                result.add_warning(
-                    f"Lab category '{lab_cat_orig_key}': non-standard units found",
-                    {"column": lab_cat_orig_key, "top_invalid_units": bad[:10]}
-                )
-            else:
+            details, is_valid, _ = _evaluate_lab_category_units(
+                schema, lab_cat_orig_key, expected_units, pairs,
+            )
+            if is_valid:
                 result.add_info(
                     f"Lab category '{lab_cat_orig_key}': reference units match schema",
-                    {"column": lab_cat_orig_key}
+                    details,
+                )
+            else:
+                invalid_count += 1
+                result.add_warning(
+                    f"Lab category '{lab_cat_orig_key}': non-standard units found",
+                    details,
                 )
 
         result.metrics["invalid_unit_categories"] = invalid_count
@@ -1436,6 +1590,8 @@ def check_lab_reference_units_duckdb(
         result.atomic_total = 0
         result.atomic_passed = 0
         return result
+
+    _log_lab_reference_units_schema_summary(schema, table_name)
 
     try:
         con = duckdb.connect(':memory:')
@@ -1504,26 +1660,19 @@ def check_lab_reference_units_duckdb(
                 )
                 continue
 
-            expected_lower = [str(u).lower().strip() for u in expected_units]
-            no_units = '(no units)' in expected_lower
-            bad = []
-            for ref_unit, ref_unit_orig, _, count in pairs:
-                if no_units and not ref_unit:
-                    continue
-                if ref_unit not in expected_lower:
-                    bad.append({"reference_unit": ref_unit_orig, "expected_units": expected_units, "count": count})
-
-            if bad:
-                invalid_count += 1
-                bad.sort(key=lambda x: x['count'], reverse=True)
-                result.add_warning(
-                    f"Lab category '{lab_cat_orig_key}': non-standard units found",
-                    {"column": lab_cat_orig_key, "top_invalid_units": bad[:10]}
-                )
-            else:
+            details, is_valid, _ = _evaluate_lab_category_units(
+                schema, lab_cat_orig_key, expected_units, pairs,
+            )
+            if is_valid:
                 result.add_info(
                     f"Lab category '{lab_cat_orig_key}': reference units match schema",
-                    {"column": lab_cat_orig_key}
+                    details,
+                )
+            else:
+                invalid_count += 1
+                result.add_warning(
+                    f"Lab category '{lab_cat_orig_key}': non-standard units found",
+                    details,
                 )
 
         result.metrics["invalid_unit_categories"] = invalid_count

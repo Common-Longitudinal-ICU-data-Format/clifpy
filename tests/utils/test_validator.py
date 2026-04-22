@@ -9,6 +9,7 @@ import pytest
 import pandas as pd
 import polars as pl
 import os
+import logging
 from pathlib import Path
 
 from clifpy.utils.validator import (
@@ -140,6 +141,34 @@ def labs_schema():
         "lab_reference_units": {
             "albumin": ["g/dL"],
             "creatinine": ["mg/dL"],
+        },
+    }
+
+
+@pytest.fixture
+def labs_schema_canonical():
+    """Labs schema in the canonical-key + allowed_unit_variants format."""
+    return {
+        "table_name": "labs",
+        "required_columns": ["hospitalization_id", "lab_category", "reference_unit", "lab_value"],
+        "columns": [
+            {"name": "hospitalization_id", "data_type": "VARCHAR", "required": True},
+            {"name": "lab_category", "data_type": "VARCHAR", "required": True,
+             "is_category_column": True,
+             "permissible_values": ["albumin", "creatinine", "inr"]},
+            {"name": "reference_unit", "data_type": "VARCHAR", "required": True},
+            {"name": "lab_value", "data_type": "VARCHAR", "required": True},
+        ],
+        "category_columns": ["lab_category"],
+        "lab_reference_units": {
+            "albumin": "g/dl",
+            "creatinine": "mg/dl",
+            "inr": "(no units)",
+        },
+        "allowed_unit_variants": {
+            "g/dl": ["g/dl", "g per dl", "gram/dl", "gm/dl"],
+            "mg/dl": ["mg/dl", "mg per dl", "mg.dl"],
+            "(no units)": ["(no units)", "no units", "none", "unitless", "ratio"],
         },
     }
 
@@ -470,6 +499,119 @@ class TestCheckLabReferenceUnits:
         })
         result = check_lab_reference_units(lf, labs_schema, "labs")
         assert isinstance(result, DQAConformanceResult)
+
+    # --- canonical-key + allowed_unit_variants format ---
+
+    def test_canonical_exact_match_polars(self, labs_schema_canonical):
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1", "h2"],
+            "lab_category": ["albumin", "creatinine"],
+            "reference_unit": ["g/dL", "mg/dL"],
+            "lab_value": ["3.5", "1.1"],
+        })
+        result = check_lab_reference_units_polars(lf, labs_schema_canonical, "labs")
+        assert result.metrics["invalid_unit_categories"] == 0, result.warnings
+
+    def test_canonical_variant_match_polars(self, labs_schema_canonical):
+        # Data carries non-canonical but schema-accepted spellings.
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1", "h2", "h3"],
+            "lab_category": ["albumin", "albumin", "creatinine"],
+            "reference_unit": ["g per dL", "GRAM/DL", "mg.dl"],
+            "lab_value": ["3.5", "3.6", "1.1"],
+        })
+        result = check_lab_reference_units_polars(lf, labs_schema_canonical, "labs")
+        assert result.metrics["invalid_unit_categories"] == 0, result.warnings
+
+    def test_canonical_invalid_variant_polars(self, labs_schema_canonical):
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1"],
+            "lab_category": ["albumin"],
+            "reference_unit": ["mg/L"],  # not in albumin's variant set
+            "lab_value": ["3.5"],
+        })
+        result = check_lab_reference_units_polars(lf, labs_schema_canonical, "labs")
+        assert len(result.warnings) > 0
+        assert result.metrics["invalid_unit_categories"] == 1
+
+    def test_canonical_no_units_sentinel_polars(self, labs_schema_canonical):
+        # '(no units)' canonical accepts empty reference_unit values.
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1", "h2"],
+            "lab_category": ["inr", "inr"],
+            "reference_unit": ["", "ratio"],
+            "lab_value": ["1.0", "1.1"],
+        })
+        result = check_lab_reference_units_polars(lf, labs_schema_canonical, "labs")
+        assert result.metrics["invalid_unit_categories"] == 0, result.warnings
+
+    def test_canonical_variant_match_duckdb(self, labs_schema_canonical):
+        df = pd.DataFrame({
+            "hospitalization_id": ["h1", "h2"],
+            "lab_category": ["albumin", "creatinine"],
+            "reference_unit": ["g per dL", "mg.dl"],
+            "lab_value": ["3.5", "1.1"],
+        })
+        result = check_lab_reference_units_duckdb(df, labs_schema_canonical, "labs")
+        assert result.metrics["invalid_unit_categories"] == 0, result.warnings
+
+    def test_canonical_variant_logs_and_details_polars(self, labs_schema_canonical, caplog):
+        """Schema-summary INFO log + per-category details capture variant-lookup state."""
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1", "h2", "h3", "h4"],
+            "lab_category": ["albumin", "albumin", "creatinine", "albumin"],
+            "reference_unit": ["g/dL", "g per dL", "mg.dl", "mg/L"],  # 1 canonical, 2 via variant, 1 bad
+            "lab_value": ["3.5", "3.6", "1.1", "99"],
+        })
+        with caplog.at_level(logging.INFO, logger="clifpy.utils.validator"):
+            result = check_lab_reference_units_polars(lf, labs_schema_canonical, "labs")
+
+        # Summary INFO line fires and mentions the variants map.
+        summary_msgs = [r.getMessage() for r in caplog.records if "allowed_unit_variants present" in r.getMessage()]
+        assert summary_msgs, "expected INFO summary about allowed_unit_variants"
+
+        # albumin entry: mixed canonical + variant + invalid.
+        albumin_details = next(
+            (w['details'] for w in result.warnings if w['details'].get('column') == 'albumin'),
+            None,
+        )
+        assert albumin_details is not None, "albumin should be flagged (one invalid unit)"
+        assert albumin_details['canonical_unit'] == 'g/dl'
+        assert albumin_details['variant_lookup_used'] is True
+        assert albumin_details['accepted_variant_count'] >= 4
+        assert 'g/dl' in albumin_details['accepted_variants_sample']
+        assert albumin_details['matched_canonical_records'] == 1
+        assert albumin_details['matched_via_variant_records'] == 1
+        assert albumin_details['invalid_records'] == 1
+
+    def test_summary_log_when_no_variants_map(self, labs_schema, caplog):
+        """INFO log indicates when the schema has no allowed_unit_variants map."""
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1"],
+            "lab_category": ["albumin"],
+            "reference_unit": ["g/dL"],
+            "lab_value": ["3.5"],
+        })
+        with caplog.at_level(logging.INFO, logger="clifpy.utils.validator"):
+            check_lab_reference_units_polars(lf, labs_schema, "labs")
+        summary_msgs = [r.getMessage() for r in caplog.records if "allowed_unit_variants NOT present" in r.getMessage()]
+        assert summary_msgs, "expected INFO summary noting absence of variants map"
+
+    def test_canonical_fallback_without_variants_map_polars(self):
+        # Canonical key is a string but schema has no allowed_unit_variants;
+        # accepted set should collapse to the canonical key itself.
+        schema = {
+            "lab_reference_units": {"albumin": "g/dl"},
+        }
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1", "h2"],
+            "lab_category": ["albumin", "albumin"],
+            "reference_unit": ["g/dL", "g per dL"],
+            "lab_value": ["3.5", "3.6"],
+        })
+        result = check_lab_reference_units_polars(lf, schema, "labs")
+        # 'g/dL' matches canonical after lowercasing; 'g per dL' does not.
+        assert result.metrics["invalid_unit_categories"] == 1
 
 
 # ---------------------------------------------------------------------------

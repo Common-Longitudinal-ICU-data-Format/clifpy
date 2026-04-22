@@ -218,26 +218,34 @@ allowed_unit_variants:
     - 10^3/ul
     - "10^3/\xB5l"
     - "10^3/\u03BCl"
+    - "10^3/μl"
     - 10*3/ul
     - "10*3/\xB5l"
     - "10*3/\u03BCl"
+    - "10*3/μl"
     - x10^3/ul
     - "x10^3/\xB5l"
     - "x10^3/\u03BCl"
+    - "x10^3/μl"
     - x10e3/ul
     - "x10e3/\xB5l"
+    - "x10e3/μl"
     - 10e3/ul
     - "10e3/\xB5l"
+    - "10e3/μl"
     - k/ul
     - "k/\xB5l"
     - "k/\u03BCl"
+    - "k/μl"
     - k/mcl
     - thousand/ul
     - "thousand/\xB5l"
     - "thousand/\u03BCl"
+    - "thousand/μl"
     - thous/ul
     - "thous/\xB5l"
     - "thous/\u03BCl"
+    - "thous/μl"
     - k/cu mm
     - k/cumm
     - k/cu.mm
@@ -255,10 +263,12 @@ allowed_unit_variants:
     - cells/ul
     - "cells/\xB5l"
     - "cells/\u03BCl"
+    - "cells/μl"
     - cells per microliter
     - cell/ul
     - "cell/\xB5l"
     - "cell/\u03BCl"
+    - "cell/μl"
     - /cu mm
     - /cumm
     - /mm3
@@ -351,6 +361,7 @@ allowed_unit_variants:
     - ug/ml
     - "\xB5g/ml"
     - "\u03BCg/ml"
+    - "μg/ml"
     - ug per ml
     - ug.ml
     - ug_ml
@@ -363,6 +374,7 @@ allowed_unit_variants:
     - ug/dl
     - "\xB5g/dl"
     - "\u03BCg/dl"
+    - "μg/dl"
     - ug per dl
     - ug.dl
     - ug_dl
@@ -375,6 +387,7 @@ allowed_unit_variants:
     - ug/l
     - "\xB5g/l"
     - "\u03BCg/l"
+    - "μg/l"
     - ug per l
     - ug.l
     - ug_l
@@ -436,6 +449,7 @@ allowed_unit_variants:
     - umol/l
     - "\xB5mol/l"
     - "\u03BCmol/l"
+    - "μmol/l"
     - micromoles per liter
   nmol/l:
     - nmol/l
