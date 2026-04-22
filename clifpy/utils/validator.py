@@ -3546,13 +3546,15 @@ def check_chronological_order_polars(
             if pct > error_threshold:
                 result.add_error(
                     f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
-                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                    {"column": f"{earlier}, {later}",
+                     "pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             elif pct > warning_threshold:
                 result.add_warning(
                     f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
-                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                    {"column": f"{earlier}, {later}",
+                     "pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             else:
@@ -3637,13 +3639,15 @@ def check_chronological_order_duckdb(
             if pct > error_threshold:
                 result.add_error(
                     f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
-                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                    {"column": f"{earlier}, {later}",
+                     "pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             elif pct > warning_threshold:
                 result.add_warning(
                     f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
-                    {"pair": f"{earlier}->{later}", "violations": int(violation_count),
+                    {"column": f"{earlier}, {later}",
+                     "pair": f"{earlier}->{later}", "violations": int(violation_count),
                      "total": int(total), "percent": round(pct, 2)}
                 )
             else:
