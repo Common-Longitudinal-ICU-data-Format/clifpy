@@ -1202,8 +1202,17 @@ def generate_combined_validation_pdf(
             )
             row = [label]
             for cat in DQA_CATEGORIES:
-                n = expected.get(cat, 0)
-                row.append(f"0/{n}" if n > 0 else 'N/A')
+                # Absent tables only contribute conformance atoms — those
+                # checks (table_presence, required columns, dtypes …) are
+                # schema-derivable and legitimately fail when the table is
+                # missing. Completeness and plausibility need actual data
+                # to evaluate, so they render as N/A and do not inflate
+                # the denominators in the totals row below.
+                if cat == 'conformance':
+                    n = expected.get(cat, 0)
+                    row.append(f"0/{n}" if n > 0 else 'N/A')
+                else:
+                    row.append('N/A')
             row.append(_row_overall(row))
             if has_any_feedback:
                 row.append('')
