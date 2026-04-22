@@ -115,8 +115,21 @@ def _normalize_columns_pandas(df: pd.DataFrame) -> pd.DataFrame:
         )
     ]
     for c in string_cols:
-        out[f"{_ORIG_PREFIX}{c}"] = out[c]
-        out[c] = out[c].where(out[c].isna(), out[c].astype(str).str.lower().str.strip())
+        col = out[c]
+        out[f"{_ORIG_PREFIX}{c}"] = col
+        if col.dtype == object:
+            # Object-dtype columns can hold mixed-type cells (ints, bools, None,
+            # strings); coerce to str before lowering. `where(isna, …)` keeps
+            # NaN positions because `.astype(str)` would otherwise turn NaN into
+            # the literal string "nan".
+            out[c] = col.where(col.isna(), col.astype(str).str.lower().str.strip())
+        else:
+            # Typed string columns (pd.ArrowDtype(pa.string()), string[pyarrow],
+            # pandas StringDtype) route .str.lower()/.str.strip() through native
+            # compute kernels without per-cell Python materialization; skipping
+            # .astype(str) avoids a full Python-string copy of the column, which
+            # dominates runtime on large arrow-backed tables (e.g., labs).
+            out[c] = col.str.lower().str.strip()
     return out
 
 
@@ -5893,20 +5906,30 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
         join_col = rule['join_column']
 
         if tname == rule['source_table'] and join_col in actual_cols and rule['source_column'] in actual_cols:
-            # Extract join_column IDs where source_column matches source_value (case-insensitive)
+            # Extract join_column IDs where source_column matches source_value (case-insensitive).
+            # `df` has already passed through `_normalize_for_validation` above, so string
+            # columns are lowercased + stripped; skip the redundant per-row transformation
+            # when the column is already string-typed (the common case).
             match_values = [str(v).strip().lower() for v in rule['source_value']]
             if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
                 lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+                src_dtype = lf.collect_schema()[rule['source_column']]
+                if src_dtype == pl.Utf8 or src_dtype == pl.String:
+                    filter_expr = pl.col(rule['source_column']).is_in(match_values)
+                else:
+                    filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
                 matched = (
-                    lf.filter(
-                        pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
-                    )
+                    lf.filter(filter_expr)
                     .select(pl.col(join_col).drop_nulls().unique())
                     .collect(streaming=True)
                 )
                 conditional_source_ids[rule_key] = set(matched[join_col].to_list())
             else:
-                mask = df[rule['source_column']].astype(str).str.strip().str.lower().isin(match_values)
+                src_col = df[rule['source_column']]
+                if pd.api.types.is_string_dtype(src_col):
+                    mask = src_col.isin(match_values)
+                else:
+                    mask = src_col.astype(str).str.strip().str.lower().isin(match_values)
                 conditional_source_ids[rule_key] = set(df.loc[mask, join_col].dropna().unique().tolist())
 
         if tname == rule['target_table'] and join_col in actual_cols and rule['target_column'] in actual_cols:
@@ -6276,15 +6299,22 @@ def run_cross_table_completeness_checks(
         tgt_df = lookup[target_table]
         match_values = [str(v).strip().lower() for v in rule['source_value']]
 
-        # Get source IDs matching condition
+        # Get source IDs matching condition. `src_df` has already been passed
+        # through `_normalize_for_validation` at the top of this function, so
+        # string columns are lowercased + stripped — skip the redundant per-row
+        # transformation when the column is already string-typed (common case).
         if HAS_POLARS and isinstance(src_df, (pl.DataFrame, pl.LazyFrame)):
             lf = src_df if isinstance(src_df, pl.LazyFrame) else src_df.lazy()
-            if rule['source_column'] not in lf.collect_schema().names() or join_col not in lf.collect_schema().names():
+            schema = lf.collect_schema()
+            if rule['source_column'] not in schema.names() or join_col not in schema.names():
                 continue
+            src_dtype = schema[rule['source_column']]
+            if src_dtype == pl.Utf8 or src_dtype == pl.String:
+                filter_expr = pl.col(rule['source_column']).is_in(match_values)
+            else:
+                filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
             matched = (
-                lf.filter(
-                    pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
-                )
+                lf.filter(filter_expr)
                 .select(pl.col(join_col).drop_nulls().unique())
                 .collect(streaming=True)
             )
@@ -6292,7 +6322,11 @@ def run_cross_table_completeness_checks(
         else:
             if rule['source_column'] not in src_df.columns or join_col not in src_df.columns:
                 continue
-            mask = src_df[rule['source_column']].astype(str).str.strip().str.lower().isin(match_values)
+            src_col = src_df[rule['source_column']]
+            if pd.api.types.is_string_dtype(src_col):
+                mask = src_col.isin(match_values)
+            else:
+                mask = src_col.astype(str).str.strip().str.lower().isin(match_values)
             source_ids = set(src_df.loc[mask, join_col].dropna().unique().tolist())
 
         # Get target IDs with non-null target column (also exclude empty strings)
