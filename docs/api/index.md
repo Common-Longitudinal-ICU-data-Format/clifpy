@@ -25,18 +25,29 @@ Complete API documentation for all CLIF table implementations:
 - **PatientAssessments** - Clinical assessment scores
 - **Position** - Patient positioning data
 
+## DQA (Validation)
+
+### [DQA API Reference](dqa.md)
+Comprehensive Data Quality Assessment framework with 30+ checks across three pillars:
+
+- **Conformance** — Schema validation, data types, categorical values, datetime formats
+- **Completeness** — Missingness analysis, conditional requirements, relational integrity
+- **Plausibility** — Chronological order, numeric ranges, duplicate detection, cross-table consistency
+- **Orchestration** — `run_full_dqa`, category-level runners, cache-based cross-table pipeline
+- **Report Generation** — PDF and text report output from DQA results
+
 ## Utilities
 
 ### [Utility Functions](utilities.md)
-Helper functions for data processing, validation, and specialized operations:
+Helper functions for data processing and specialized operations:
 
-- **stitch_encounters** - Link related hospitalizations within time windows
-- **process_resp_support_waterfall** - Respiratory support waterfall algorithm
-- **io** - Data loading and sample creation utilities
-- **config** - Configuration management functions
-- **validator** - Data validation functions
-- **outlier_handler** - Outlier detection and handling
-- **wide_dataset** - Wide dataset creation utilities
+- **stitch_encounters** — Link related hospitalizations within time windows
+- **process_resp_support_waterfall** — Respiratory support waterfall algorithm
+- **compute_ase** — CDC Adult Sepsis Event surveillance calculation
+- **io** — Data loading and sample creation utilities
+- **config** — Configuration management functions
+- **outlier_handler** — Outlier detection and handling
+- **wide_dataset** — Wide dataset creation utilities
 
 ## Quick Links
 

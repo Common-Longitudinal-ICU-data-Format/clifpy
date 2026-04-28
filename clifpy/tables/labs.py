@@ -70,7 +70,8 @@ class Labs(BaseTable):
         
         # Initialize lab reference units
         self._lab_reference_units = None
-        
+        self._allowed_unit_variants = {}
+
         super().__init__(
             data_directory=data_directory,
             filetype=filetype,
@@ -78,7 +79,7 @@ class Labs(BaseTable):
             output_directory=output_directory,
             data=data
         )
-        
+
         # Load lab-specific schema data
         self._load_labs_schema_data()
 
@@ -86,6 +87,32 @@ class Labs(BaseTable):
         """Load lab reference units from the YAML schema."""
         if self.schema:
             self._lab_reference_units = self.schema.get('lab_reference_units', {})
+            # Normalize variant-map keys to lowercased+stripped for robust lookup.
+            variants_map = self.schema.get('allowed_unit_variants') or {}
+            self._allowed_unit_variants = {
+                str(k).lower().strip(): v for k, v in variants_map.items()
+            }
+
+    def _resolve_target_units(self, entry) -> tuple:
+        """Return ``(preferred_canonical, accepted_spellings)`` for one
+        ``lab_reference_units`` entry.
+
+        Handles both the canonical-key-string format and the legacy list
+        format. For canonical strings, the accepted list is expanded via
+        ``allowed_unit_variants`` (always with the canonical itself first).
+        """
+        if isinstance(entry, str):
+            canonical = entry
+            key = canonical.lower().strip()
+            variants = self._allowed_unit_variants.get(key)
+            if variants:
+                accepted = list(dict.fromkeys([canonical, *variants]))
+            else:
+                accepted = [canonical]
+            return canonical, accepted
+        if isinstance(entry, (list, tuple)) and entry:
+            return entry[0], list(entry)
+        return '', []
 
     def _validate_required_columns(self, required: set) -> set:
         """Check for required columns, return set of missing columns."""
@@ -239,7 +266,8 @@ class Labs(BaseTable):
     def _find_matching_target_unit(
         self,
         source_unit: str,
-        target_units: List[str]
+        target_units: List[str],
+        preferred: Optional[str] = None,
     ) -> Optional[str]:
         """
         Find the best matching target unit for a source unit using normalized comparison.
@@ -249,7 +277,10 @@ class Labs(BaseTable):
         source_unit : str
             The unit string from the data
         target_units : List[str]
-            List of acceptable target units from schema (first is preferred)
+            List of acceptable target units from schema.
+        preferred : str, optional
+            The canonical unit to emit on a normalized match. Defaults to the
+            first element of ``target_units`` (legacy behavior).
 
         Returns
         -------
@@ -258,6 +289,9 @@ class Labs(BaseTable):
         """
         if not source_unit or not target_units:
             return None
+
+        if preferred is None:
+            preferred = target_units[0]
 
         normalized_source = self._normalize_unit(source_unit)
 
@@ -268,8 +302,7 @@ class Labs(BaseTable):
         # Check normalized matches against all target units
         for target in target_units:
             if self._normalize_unit(target) == normalized_source:
-                # Return the preferred (first) target unit
-                return target_units[0]
+                return preferred
 
         return None
 
@@ -292,11 +325,14 @@ class Labs(BaseTable):
             if pd.isna(source_unit):
                 continue
 
-            target_units = self._lab_reference_units.get(lab_cat, [])
+            entry = self._lab_reference_units.get(lab_cat)
+            canonical, target_units = self._resolve_target_units(entry)
             if not target_units:
                 continue
 
-            matched_target = self._find_matching_target_unit(source_unit, target_units)
+            matched_target = self._find_matching_target_unit(
+                source_unit, target_units, preferred=canonical,
+            )
 
             if matched_target:
                 final_target = matched_target.lower() if lowercase else matched_target
@@ -319,7 +355,7 @@ class Labs(BaseTable):
                     if not is_silent:
                         loggable_mappings.append((source_unit, final_target, lab_cat))
 
-            elif source_unit not in target_units:
+            else:
                 unmatched_units.append({
                     'lab_category': lab_cat,
                     'source_unit': source_unit,

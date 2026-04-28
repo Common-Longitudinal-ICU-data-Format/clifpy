@@ -25,6 +25,7 @@ Welcome to the CLIFpy User Guide. CLIFpy makes working with CLIF (Common Longitu
 |-------|-------------|
 | [Medication Unit Conversion](med-unit-conversion.md) | Convert continuous medication doses to standardized units |
 | [SOFA Score Computation](sofa.md) | Compute Sequential Organ Failure Assessment scores for sepsis identification |
+| [CDC Adult Sepsis Event (ASE)](ase.md) | Identify Adult Sepsis Events using the CDC surveillance definition |
 | [Respiratory Support Waterfall](waterfall.md) | Visualize patient trajectories and treatment timelines with customizable plots |
 | [Comorbidity Index Computation](comorbidity-index.md) | Calculate Charlson and Elixhauser comorbidity indices from diagnosis data |
 | [MDRO Flag Calculation](mdro-flags.md) | Calculate MDR, XDR, PDR, and DTR flags for multi-drug resistant organisms from susceptibility data |

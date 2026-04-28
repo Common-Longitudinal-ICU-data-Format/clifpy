@@ -91,6 +91,12 @@ Apply sophisticated data cleaning and imputation to respiratory support data for
 
 ## Clinical Calculations
 
+### CDC Adult Sepsis Event (ASE)
+
+Compute CDC Adult Sepsis Events using the March 2018 CDC Sepsis Surveillance Toolkit definition.
+
+::: clifpy.utils.ase.compute_ase
+
 ### Comorbidity Indices
 
 Calculate Charlson and Elixhauser comorbidity indices from diagnosis data.
@@ -109,17 +115,11 @@ Detect and handle physiologically implausible values using configurable ranges.
 
 ### Data Validation
 
-Comprehensive validation functions for ensuring data quality and CLIF compliance.
+For the full DQA framework (30+ checks across conformance, completeness, and plausibility), see the dedicated [DQA API Reference](dqa.md).
+
+::: clifpy.utils.validator.run_full_dqa
 
 ::: clifpy.utils.validator.validate_dataframe
-
-::: clifpy.utils.validator.validate_table
-
-::: clifpy.utils.validator.check_required_columns
-
-::: clifpy.utils.validator.verify_column_dtypes
-
-::: clifpy.utils.validator.validate_categorical_values
 
 ## Configuration and I/O
 

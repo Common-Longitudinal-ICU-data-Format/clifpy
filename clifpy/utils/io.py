@@ -12,7 +12,64 @@ from .config import get_config_or_params
 # Initialize logger for this module
 logger = logging.getLogger('clifpy.utils.io')
 
-# conn = duckdb.connect(database=':memory:')
+
+class LazyRelation:
+    """
+    Wrapper around DuckDB relation that keeps the connection alive.
+
+    This class holds both the DuckDB relation and its connection, ensuring
+    the connection isn't garbage collected while you're still using the relation.
+
+    All DuckDB relation methods are proxied through, so you can use it
+    exactly like a regular DuckDB relation.
+
+    Examples
+    --------
+    rel = load_data('labs', path, 'parquet', lazy=True)
+
+    # Chain operations (lazy - nothing executed yet)
+    result = rel.filter("lab_category = 'sodium'").limit(100)
+
+    # Execute and fetch
+    df = result.fetchdf()
+
+    # Clean up when done
+    rel.close()
+    """
+
+    def __init__(self, relation: duckdb.DuckDBPyRelation, connection: duckdb.DuckDBPyConnection):
+        self._relation = relation
+        self._connection = connection
+
+    def __getattr__(self, name):
+        """Proxy all attribute access to the underlying relation."""
+        attr = getattr(self._relation, name)
+        if callable(attr):
+            def wrapper(*args, **kwargs):
+                result = attr(*args, **kwargs)
+                # If the result is a relation, wrap it to keep connection alive
+                if isinstance(result, duckdb.DuckDBPyRelation):
+                    return LazyRelation(result, self._connection)
+                return result
+            return wrapper
+        return attr
+
+    def close(self):
+        """Close the underlying connection.
+
+        Call this explicitly when you're done. Note: the connection is shared
+        between this LazyRelation and any children produced by chained calls
+        (e.g. ``rel.filter(...)``), so closing here invalidates all of them.
+        """
+        if self._connection:
+            try:
+                self._connection.close()
+            except Exception:
+                pass
+            self._connection = None
+
+    def __repr__(self):
+        return f"LazyRelation({self._relation})"
 
 def _cast_id_cols_to_string(df: pd.DataFrame) -> pd.DataFrame:
     """Cast all columns ending with '_id' to string dtype.
@@ -28,12 +85,90 @@ def _cast_id_cols_to_string(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with ID columns cast to string.
     """
     id_cols = [c for c in df.columns if c.endswith("_id")]
-    if id_cols:                                   # no-op if none found
-        df[id_cols] = df[id_cols].astype("string")
+    for col in id_cols:
+        if df[col].dtype in ('float64', 'float32', 'Float64'):
+            # Float IDs like 123456.0 → "123456" (cast through Int64 to strip .0)
+            df[col] = df[col].astype("Int64").astype("string")
+        else:
+            df[col] = df[col].astype("string")
+    return df
+
+
+def close_lazy_relation(rel: Union['LazyRelation', duckdb.DuckDBPyRelation]) -> None:
+    """
+    Close the connection associated with a lazy relation.
+
+    Call this when you're done with a lazy relation to free resources.
+
+    Parameters
+    ----------
+    rel : LazyRelation
+        A lazy relation returned from load_data(..., lazy=True)
+
+    Examples
+    --------
+    rel = load_data('labs', path, 'parquet', lazy=True)
+    df = rel.filter("lab_category = 'sodium'").fetchdf()
+    close_lazy_relation(rel)  # Or just: rel.close()
+    """
+    if hasattr(rel, 'close'):
+        rel.close()
+
+
+def fetch_lazy_result(
+    rel: Union['LazyRelation', duckdb.DuckDBPyRelation],
+    cast_ids: bool = True,
+    site_tz: str = None,
+    close_connection: bool = True,
+    verbose: bool = False
+) -> pd.DataFrame:
+    """
+    Fetch results from a lazy relation and apply standard post-processing.
+
+    This is a convenience function that fetches the DataFrame from a lazy
+    relation and applies the same post-processing as eager load_data().
+
+    Parameters
+    ----------
+    rel : LazyRelation
+        A lazy relation from load_data(..., lazy=True)
+    cast_ids : bool, optional
+        If True (default), cast ID columns to string type.
+    site_tz : str, optional
+        Timezone string for datetime conversion.
+    close_connection : bool, optional
+        If True (default), close the connection after fetching.
+    verbose : bool, optional
+        If True, show detailed messages.
+
+    Returns
+    -------
+    pd.DataFrame
+        The fetched and processed DataFrame.
+
+    Examples
+    --------
+    # Load lazily, filter, then fetch with post-processing
+    rel = load_data('labs', path, 'parquet', lazy=True)
+    filtered = rel.filter("lab_category = 'sodium'")
+    df = fetch_lazy_result(filtered, site_tz='America/New_York')
+    """
+    df = rel.fetchdf()
+
+    if cast_ids:
+        df = _cast_id_cols_to_string(df)
+
+    if site_tz:
+        df = convert_datetime_columns_to_site_tz(df, site_tz, verbose)
+
+    if close_connection:
+        close_lazy_relation(rel)
+
     return df
 
 
 def _build_tz_converted_select(
+    con: duckdb.DuckDBPyConnection,
     file_path: str,
     columns: Optional[List[str]],
     site_tz: Optional[str],
@@ -46,6 +181,8 @@ def _build_tz_converted_select(
 
     Parameters
     ----------
+    con : duckdb.DuckDBPyConnection
+        Active DuckDB connection used to introspect the file schema.
     file_path : str
         Path to the data file.
     columns : list of str, optional
@@ -66,7 +203,7 @@ def _build_tz_converted_select(
     else:  # csv
         schema_query = f"DESCRIBE SELECT * FROM read_csv_auto('{file_path}')"
 
-    schema_result = duckdb.execute(schema_query).fetchall()
+    schema_result = con.execute(schema_query).fetchall()
     all_columns = [row[0] for row in schema_result]
 
     # Filter to requested columns or use all
@@ -97,7 +234,8 @@ def load_parquet_with_tz(
     sample_size: Optional[int] = ...,
     site_tz: Optional[str] = ...,
     verbose: bool = ...,
-    return_rel: Literal[False] = ...
+    return_rel: Literal[False] = ...,
+    lazy: Literal[False] = ...
 ) -> pd.DataFrame: ...
 
 
@@ -109,8 +247,22 @@ def load_parquet_with_tz(
     sample_size: Optional[int] = ...,
     site_tz: Optional[str] = ...,
     verbose: bool = ...,
-    return_rel: Literal[True] = ...
+    return_rel: Literal[True] = ...,
+    lazy: Literal[False] = ...
 ) -> DuckDBPyRelation: ...
+
+
+@overload
+def load_parquet_with_tz(
+    file_path: str,
+    columns: Optional[List[str]] = ...,
+    filters: Optional[Dict[str, Union[str, List[str]]]] = ...,
+    sample_size: Optional[int] = ...,
+    site_tz: Optional[str] = ...,
+    verbose: bool = ...,
+    return_rel: Literal[False] = ...,
+    lazy: Literal[True] = ...
+) -> 'LazyRelation': ...
 
 
 def load_parquet_with_tz(
@@ -120,9 +272,17 @@ def load_parquet_with_tz(
     sample_size: Optional[int] = None,
     site_tz: Optional[str] = None,
     verbose: bool = False,
-    return_rel: bool = False
-) -> Union[pd.DataFrame, DuckDBPyRelation]:
+    return_rel: bool = False,
+    lazy: bool = False
+) -> Union[pd.DataFrame, DuckDBPyRelation, 'LazyRelation']:
     """Load a parquet file with optional timezone conversion for datetime columns.
+
+    Two distinct lazy modes are supported and are mutually exclusive:
+
+    - ``return_rel=True`` returns a bare ``DuckDBPyRelation`` from DuckDB's
+      process-wide default connection. No cleanup needed.
+    - ``lazy=True`` returns a ``LazyRelation`` wrapping a per-call connection
+      (isolated lifetime). Call ``rel.close()`` when done.
 
     Parameters
     ----------
@@ -136,36 +296,83 @@ def load_parquet_with_tz(
         Number of rows to load (LIMIT clause).
     site_tz : str, optional
         Target timezone for datetime columns (e.g., 'US/Eastern').
-        If provided, columns with 'dttm' in their name are converted from UTC.
+        Columns with 'dttm' in their name are converted from UTC at the SQL
+        level. Note: not applied when ``lazy=True`` (apply post-fetch via
+        ``fetch_lazy_result(rel, site_tz=...)``).
     verbose : bool, optional
         If True, show detailed loading messages.
     return_rel : bool, optional
-        If True, return a lazy DuckDBPyRelation instead of DataFrame.
-        Uses DuckDB's default connection (no cleanup needed). Default is False.
+        If True, return a lazy ``DuckDBPyRelation`` from DuckDB's default
+        connection. Default is False.
+    lazy : bool, optional
+        If True, return a ``LazyRelation`` wrapping a per-call connection.
+        Default is False.
 
     Returns
     -------
-    pd.DataFrame or DuckDBPyRelation
-        If return_rel=False: DataFrame with timezone-converted datetime columns.
-        If return_rel=True: DuckDBPyRelation for lazy evaluation.
+    pd.DataFrame, DuckDBPyRelation, or LazyRelation
+        - If ``return_rel=True``: bare ``DuckDBPyRelation`` (default-conn).
+        - If ``lazy=True``: ``LazyRelation`` (isolated-conn; call ``.close()``).
+        - Otherwise: DataFrame with timezone-converted datetime columns.
+
+    Raises
+    ------
+    ValueError
+        If both ``return_rel=True`` and ``lazy=True``.
     """
+    if return_rel and lazy:
+        raise ValueError(
+            "return_rel and lazy are mutually exclusive. "
+            "Use return_rel=True for a bare DuckDBPyRelation (default connection), "
+            "or lazy=True for a LazyRelation wrapping an isolated connection."
+        )
+
     filename = os.path.basename(file_path)
     if verbose:
-        logger.info(f"Loading {filename}")
+        suffix = " (lazy)" if lazy else (" (return_rel)" if return_rel else "")
+        logger.info(f"Loading {filename}{suffix}")
 
-    # Use DuckDB's default connection for simplicity (no connection management needed)
+    # ---- LazyRelation path: isolated per-call connection wrapped for lifetime safety ----
+    if lazy:
+        con = duckdb.connect()
+        con.execute("SET timezone = 'UTC';")          # read & return in UTC
+        con.execute("SET pandas_analyze_sample=0;")   # avoid sampling issues
+
+        # Build the relation lazily using DuckDB's Relational API
+        rel = con.read_parquet(file_path)
+
+        # Apply column selection (lazy)
+        if columns:
+            rel = rel.select(*columns)
+
+        # Apply filters (lazy)
+        if filters:
+            for col, val in filters.items():
+                if isinstance(val, list):
+                    vals = ", ".join([f"'{v}'" for v in val])
+                    rel = rel.filter(f"{col} IN ({vals})")
+                else:
+                    rel = rel.filter(f"{col} = '{val}'")
+
+        # Apply limit (lazy)
+        if sample_size:
+            rel = rel.limit(sample_size)
+
+        return LazyRelation(rel, con)
+
+    # ---- Default + return_rel path: SQL via process-wide default connection ----
     duckdb.execute("SET timezone = 'UTC';")          # read & return in UTC
     duckdb.execute("SET pandas_analyze_sample=0;")   # avoid sampling issues
 
     # Build SELECT clause with timezone conversion if site_tz is provided
     if site_tz:
-        sel = _build_tz_converted_select(file_path, columns, site_tz, source_type="parquet")
+        sel = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="parquet")
     else:
         sel = "*" if columns is None else ", ".join(columns)
 
     query = f"SELECT {sel} FROM parquet_scan('{file_path}')"
 
-    if filters:                                  # optional WHERE clause
+    if filters:
         clauses = []
         for col, val in filters.items():
             if isinstance(val, list):
@@ -180,10 +387,11 @@ def load_parquet_with_tz(
 
     if return_rel:
         return duckdb.sql(query)  # lazy relation, no connection management
-    else:
-        df = duckdb.sql(query).df()              # pandas DataFrame
-        df = _cast_id_cols_to_string(df)         # cast id columns to string
-        return df
+
+    df = duckdb.sql(query).df()              # pandas DataFrame
+    df = _cast_id_cols_to_string(df)         # cast id columns to string
+    return df
+
 
 @overload
 def load_data(
@@ -196,6 +404,7 @@ def load_data(
     site_tz: Optional[str] = ...,
     verbose: bool = ...,
     return_rel: Literal[False] = ...,
+    lazy: Literal[False] = ...,
     config_path: Optional[str] = ...
 ) -> pd.DataFrame: ...
 
@@ -211,8 +420,25 @@ def load_data(
     site_tz: Optional[str] = ...,
     verbose: bool = ...,
     return_rel: Literal[True] = ...,
+    lazy: Literal[False] = ...,
     config_path: Optional[str] = ...
 ) -> DuckDBPyRelation: ...
+
+
+@overload
+def load_data(
+    table_name: str,
+    table_path: Optional[str] = ...,
+    table_format_type: Optional[str] = ...,
+    sample_size: Optional[int] = ...,
+    columns: Optional[List[str]] = ...,
+    filters: Optional[Dict[str, Union[str, List[str]]]] = ...,
+    site_tz: Optional[str] = ...,
+    verbose: bool = ...,
+    return_rel: Literal[False] = ...,
+    lazy: Literal[True] = ...,
+    config_path: Optional[str] = ...
+) -> 'LazyRelation': ...
 
 
 def load_data(
@@ -225,12 +451,23 @@ def load_data(
     site_tz: Optional[str] = None,
     verbose: bool = False,
     return_rel: bool = False,
+    lazy: bool = False,
     config_path: Optional[str] = None
-) -> Union[pd.DataFrame, DuckDBPyRelation]:
+) -> Union[pd.DataFrame, DuckDBPyRelation, 'LazyRelation']:
     """Load data from a file with optional timezone conversion for datetime columns.
 
-    Parameters can be provided directly or loaded from a config file. If table_path
-    and table_format_type are not provided, they will be loaded from the config file.
+    Parameters can be provided directly or loaded from a config file. If
+    ``table_path`` and ``table_format_type`` are not provided, they will be
+    loaded from the config file.
+
+    Two distinct lazy modes are supported and are mutually exclusive:
+
+    - ``return_rel=True`` returns a bare ``DuckDBPyRelation`` from DuckDB's
+      process-wide default connection. Parquet only — CSV will warn and fall
+      back to a DataFrame.
+    - ``lazy=True`` returns a ``LazyRelation`` wrapping a per-call connection
+      (isolated lifetime). Supported for both parquet and CSV. Call
+      ``rel.close()`` when done.
 
     Parameters
     ----------
@@ -251,33 +488,60 @@ def load_data(
     site_tz : str, optional
         Target timezone for datetime columns (e.g., 'US/Eastern').
         If None, loaded from config file's 'timezone'.
-        Columns with 'dttm' in their name are converted from UTC.
+        Columns with 'dttm' in their name are converted from UTC at the SQL
+        level. Note: not applied when ``lazy=True`` (apply post-fetch via
+        ``fetch_lazy_result(rel, site_tz=...)``).
     verbose : bool, optional
         If True, show detailed loading messages. Default is False.
     return_rel : bool, optional
-        If True, return a lazy DuckDBPyRelation instead of DataFrame.
-        Only supported for parquet files. CSV files will ignore this and return DataFrame.
-        Uses DuckDB's default connection (no cleanup needed). Default is False.
+        If True, return a lazy ``DuckDBPyRelation`` from DuckDB's default
+        connection. Only supported for parquet files. CSV files will log a
+        warning and return a DataFrame instead. Default is False.
+    lazy : bool, optional
+        If True, return a ``LazyRelation`` wrapping a per-call connection
+        (isolated lifetime). Supported for both parquet and CSV. Call
+        ``rel.close()`` when done. Default is False.
     config_path : str, optional
-        Path to config file. If None, auto-detects config.json/yaml in current directory.
+        Path to config file. If None, auto-detects config.json/yaml in
+        current directory.
 
     Returns
     -------
-    pd.DataFrame or DuckDBPyRelation
-        If return_rel=False or CSV: DataFrame with timezone-converted datetime columns.
-        If return_rel=True and parquet: DuckDBPyRelation for lazy evaluation.
+    pd.DataFrame, DuckDBPyRelation, or LazyRelation
+        - If ``return_rel=True`` (parquet): ``DuckDBPyRelation`` for lazy
+          evaluation (default-conn).
+        - If ``lazy=True``: ``LazyRelation`` (isolated-conn; call ``.close()``).
+        - Otherwise: DataFrame with timezone-converted datetime columns.
+
+    Raises
+    ------
+    ValueError
+        If both ``return_rel=True`` and ``lazy=True``, or if filetype is
+        unsupported.
 
     Examples
     --------
     # Using config file (auto-detected in current directory)
     >>> df = load_data(table_name='vitals')
 
-    # Using config file with lazy evaluation
+    # Bare DuckDBPyRelation (lazy, default conn)
     >>> rel = load_data(table_name='vitals', return_rel=True)
+
+    # LazyRelation (lazy, isolated conn — remember to .close() when done)
+    >>> rel = load_data('vitals', lazy=True)
+    >>> df = rel.filter("vital_category = 'heart_rate'").limit(10).fetchdf()
+    >>> rel.close()
 
     # Explicit parameters (no config needed)
     >>> df = load_data('vitals', '/path/to/data', 'parquet', site_tz='US/Eastern')
     """
+    if return_rel and lazy:
+        raise ValueError(
+            "return_rel and lazy are mutually exclusive. "
+            "Use return_rel=True for a bare DuckDBPyRelation (default connection), "
+            "or lazy=True for a LazyRelation wrapping an isolated connection."
+        )
+
     # Load config if table_path or table_format_type not provided
     if table_path is None or table_format_type is None:
         config = get_config_or_params(
@@ -300,6 +564,35 @@ def load_data(
     if table_format_type == 'csv':
         if return_rel:
             logger.warning("return_rel=True is not supported for CSV files. Returning DataFrame instead.")
+            return_rel = False
+
+        # CSV lazy path: per-call isolated connection wrapped in LazyRelation
+        if lazy:
+            if verbose:
+                logger.info('Loading CSV file (lazy)')
+            con = duckdb.connect()
+            con.execute("SET timezone = 'UTC';")
+            con.execute("SET pandas_analyze_sample=0;")
+
+            rel = con.read_csv(file_path)
+
+            if columns:
+                rel = rel.select(*columns)
+
+            if filters:
+                for column, values in filters.items():
+                    if isinstance(values, list):
+                        values_list = ', '.join(["'" + str(v).replace("'", "''") + "'" for v in values])
+                        rel = rel.filter(f"{column} IN ({values_list})")
+                    else:
+                        value = str(values).replace("'", "''")
+                        rel = rel.filter(f"{column} = '{value}'")
+
+            if sample_size:
+                rel = rel.limit(sample_size)
+
+            return LazyRelation(rel, con)
+
         if verbose:
             logger.info('Loading CSV file')
         # For CSV, use DuckDB default connection with timezone conversion
@@ -308,7 +601,7 @@ def load_data(
 
         # Build SELECT clause with timezone conversion if site_tz is provided
         if site_tz:
-            select_clause = _build_tz_converted_select(file_path, columns, site_tz, source_type="csv")
+            select_clause = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="csv")
         else:
             select_clause = "*" if not columns else ", ".join(columns)
 
@@ -333,10 +626,13 @@ def load_data(
         df = duckdb.sql(query).df()
 
     elif table_format_type == 'parquet':
-        # Pass site_tz and return_rel to load_parquet_with_tz for DuckDB-level timezone conversion
-        result = load_parquet_with_tz(file_path, columns, filters, sample_size, site_tz, verbose, return_rel)
-        if return_rel:
-            return result  # DuckDBPyRelation - lazy evaluation
+        # Pass through both lazy flags to load_parquet_with_tz
+        result = load_parquet_with_tz(
+            file_path, columns, filters, sample_size, site_tz, verbose,
+            return_rel=return_rel, lazy=lazy,
+        )
+        if return_rel or lazy:
+            return result  # DuckDBPyRelation or LazyRelation - lazy evaluation
         df = result
 
     else:

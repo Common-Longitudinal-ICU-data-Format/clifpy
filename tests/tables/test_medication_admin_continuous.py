@@ -197,10 +197,11 @@ def test_init_without_data():
     assert mac_obj.med_category_to_group_mapping['Antibiotics'] == 'Antimicrobials'
 
 def test_load_medication_schema_file_not_found(monkeypatch, capsys):
+    original_join = os.path.join
     def mock_join_raise_fnf(*args):
         if 'Medication_admin_continuousModel.json' in args[-1]:
             raise FileNotFoundError("Mocked File Not Found")
-        return os.path.join(*args)
+        return original_join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
     
     mac_obj = MedicationAdminContinuous() # Init calls _load_medication_schema

@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import json
 from datetime import datetime
-from clifpy.tables.vitals import vitals
+from clifpy.tables.vitals import Vitals as vitals
 
 # --- Data Fixtures ---
 @pytest.fixture
@@ -181,10 +181,11 @@ def test_vitals_init_without_data():
 
 def test_load_vitals_schema_file_not_found(monkeypatch, capsys):
     """Test _load_vitals_schema when VitalsModel.json is not found."""
+    original_join = os.path.join
     def mock_join_raise_fnf(*args):
         if 'VitalsModel.json' in args[-1]:
             raise FileNotFoundError("Mocked File Not Found")
-        return os.path.join(*args)
+        return original_join(*args)
     monkeypatch.setattr(os.path, 'join', mock_join_raise_fnf)
     
     vital_obj = vitals() # Init will call _load_vitals_schema

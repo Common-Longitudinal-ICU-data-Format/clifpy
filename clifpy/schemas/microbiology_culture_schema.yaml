@@ -1,4 +1,5 @@
 table_name: microbiology_culture
+version: "2.1"
 
 columns:
 - name: patient_id
@@ -250,7 +251,6 @@ columns:
   - citrobacter_farmeri
   - citrobacter_freundii
   - citrobacter_koseri
-  - citrobacter_koserii
   - citrobacter_sp
   - cladosporium_sp
   - clostridioides_difficile

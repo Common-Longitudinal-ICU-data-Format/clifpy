@@ -1,4 +1,5 @@
 table_name: labs
+version: "2.1"
 
 columns:
   - name: hospitalization_id
@@ -154,56 +155,366 @@ category_columns:
 
 group_columns: []
 
+# Each lab category mapped to its canonical (lowercase) reference unit key.
+# Look up the canonical key in allowed_unit_variants below to find all accepted spellings.
 lab_reference_units:
-  albumin: [g/dL]
-  alkaline_phosphatase: [U/L, iU/L, '[iU]/L']
-  alt: [U/L, iU/L, '[iU]/L']
-  ast: [U/L, iU/L, '[iU]/L']
-  basophils_percent: ['%']
-  basophils_absolute: [10^3/uL, 10^3/μL]
-  bicarbonate: [mmol/L]
-  bilirubin_total: [mg/dL]
-  bilirubin_conjugated: [mg/dL]
-  bilirubin_unconjugated: [mg/dL]
-  bun: [mg/dL]
-  calcium_total: [mg/dL]
-  calcium_ionized: [mg/dL]
-  chloride: [mmol/L]
-  creatinine: [mg/dL]
-  crp: [mg/L]
-  eosinophils_percent: ['%']
-  eosinophils_absolute: [10^3/uL, 10^3/μL]
-  esr: [mm/hour]
-  ferritin: [ng/mL]
-  glucose_fingerstick: [mg/dL]
-  glucose_serum: [mg/dL]
-  hemoglobin: [g/dL]
-  phosphate: [mg/dL]
-  inr: [(no units)]
-  lactate: [mmol/L]
-  ldh: [U/L, iU/L, '[iU]/L']
-  lymphocytes_percent: ['%']
-  lymphocytes_absolute: [10^3/uL, 10^3/μL]
-  magnesium: [mg/dL]
-  monocytes_percent: ['%']
-  monocytes_absolute: [10^3/uL, 10^3/μL]
-  neutrophils_percent: ['%']
-  neutrophils_absolute: [10^3/uL, 10^3/μL]
-  pco2_arterial: [mmHg]
-  po2_arterial: [mmHg]
-  pco2_venous: [mmHg]
-  ph_arterial: [(no units)]
-  ph_venous: [(no units)]
-  platelet_count: [10^3/uL, 10^3/μL]
-  potassium: [mmol/L]
-  procalcitonin: [ng/mL]
-  pt: [sec]
-  ptt: [sec]
-  so2_arterial: ['%']
-  so2_mixed_venous: ['%']
-  so2_central_venous: ['%']
-  sodium: [mmol/L]
-  total_protein: [g/dL]
-  troponin_i: [ng/L]
-  troponin_t: [ng/L]
-  wbc: [10^3/uL, 10^3/μL]
+  albumin: g/dl
+  alkaline_phosphatase: u/l
+  alt: u/l
+  ast: u/l
+  basophils_percent: "%"
+  basophils_absolute: 10^3/ul
+  bicarbonate: mmol/l
+  bilirubin_total: mg/dl
+  bilirubin_conjugated: mg/dl
+  bilirubin_unconjugated: mg/dl
+  bun: mg/dl
+  calcium_total: mg/dl
+  calcium_ionized: mg/dl
+  chloride: mmol/l
+  creatinine: mg/dl
+  crp: mg/l
+  eosinophils_percent: "%"
+  eosinophils_absolute: 10^3/ul
+  esr: mm/hour
+  ferritin: ng/ml
+  glucose_fingerstick: mg/dl
+  glucose_serum: mg/dl
+  hemoglobin: g/dl
+  phosphate: mg/dl
+  inr: (no units)
+  lactate: mmol/l
+  ldh: u/l
+  lymphocytes_percent: "%"
+  lymphocytes_absolute: 10^3/ul
+  magnesium: mg/dl
+  monocytes_percent: "%"
+  monocytes_absolute: 10^3/ul
+  neutrophils_percent: "%"
+  neutrophils_absolute: 10^3/ul
+  pco2_arterial: mmhg
+  po2_arterial: mmhg
+  pco2_venous: mmhg
+  ph_arterial: (no units)
+  ph_venous: (no units)
+  platelet_count: 10^3/ul
+  potassium: mmol/l
+  procalcitonin: ng/ml
+  pt: sec
+  ptt: sec
+  so2_arterial: "%"
+  so2_mixed_venous: "%"
+  so2_central_venous: "%"
+  sodium: mmol/l
+  total_protein: g/dl
+  troponin_i: ng/l
+  troponin_t: ng/l
+  wbc: 10^3/ul
+
+# Per-category outlier bounds used for filtering implausible values before
+# downstream analysis. Labs-side parallel of vital_ranges in vitals_schema.yaml.
+# Values sourced from CLIF/outlier-handling/outlier_thresholds_labs.csv.
+lab_outlier_ranges:
+  basophils_percent: {min: 0, max: 100}
+  eosinophils_percent: {min: 0, max: 100}
+  lymphocytes_absolute: {min: 0, max: 50}
+  lymphocytes_percent: {min: 0, max: 100}
+  monocytes_percent: {min: 0, max: 100}
+  neutrophils_percent: {min: 0, max: 100}
+  pt: {min: 1, max: 200}
+
+# Per-category clinical reference (normal) ranges. New companion block so
+# downstream consumers can read both outlier and reference ranges from a
+# single source of truth. Values sourced from
+# CLIF/reference_ranges/lab_category.csv.
+lab_reference_ranges:
+  basophils_percent: {lower: 0, upper: 2}
+  eosinophils_percent: {lower: 0, upper: 4}
+  lymphocytes_absolute: {lower: 1, upper: 4}
+  lymphocytes_percent: {lower: 20, upper: 40}
+  monocytes_percent: {lower: 2, upper: 8}
+  neutrophils_percent: {lower: 50, upper: 70}
+  pt: {lower: 10, upper: 13}
+
+# Canonical unit keys mapped to all accepted variant spellings (all lowercase).
+# Used for case-insensitive, variant-tolerant unit matching.
+allowed_unit_variants:
+  10^3/ul:
+    - 10^3/ul
+    - "10^3/\xB5l"
+    - "10^3/\u03BCl"
+    - "10^3/μl"
+    - 10*3/ul
+    - "10*3/\xB5l"
+    - "10*3/\u03BCl"
+    - "10*3/μl"
+    - x10^3/ul
+    - "x10^3/\xB5l"
+    - "x10^3/\u03BCl"
+    - "x10^3/μl"
+    - x10e3/ul
+    - "x10e3/\xB5l"
+    - "x10e3/μl"
+    - 10e3/ul
+    - "10e3/\xB5l"
+    - "10e3/μl"
+    - k/ul
+    - "k/\xB5l"
+    - "k/\u03BCl"
+    - "k/μl"
+    - k/mcl
+    - thousand/ul
+    - "thousand/\xB5l"
+    - "thousand/\u03BCl"
+    - "thousand/μl"
+    - thous/ul
+    - "thous/\xB5l"
+    - "thous/\u03BCl"
+    - "thous/μl"
+    - k/cu mm
+    - k/cumm
+    - k/cu.mm
+    - k/mm3
+    - k/mm^3
+    - x10^3/mm3
+    - x10^3/mm^3
+    - 10^3/mm3
+    - 10^3/mm^3
+    - 10^9/l
+    - 10*9/l
+    - x10^9/l
+    - 10e9/l
+  cells/ul:
+    - cells/ul
+    - "cells/\xB5l"
+    - "cells/\u03BCl"
+    - "cells/μl"
+    - cells per microliter
+    - cell/ul
+    - "cell/\xB5l"
+    - "cell/\u03BCl"
+    - "cell/μl"
+    - /cu mm
+    - /cumm
+    - /mm3
+    - /mm^3
+    - per cu mm
+    - per cumm
+    - per mm3
+    - per mm^3
+  u/l:
+    - u/l
+    - u per l
+    - u.l
+    - u_l
+    - iu/l
+    - iu per l
+    - iu.l
+    - iu_l
+    - "[iu]/l"
+    - "[iu] per l"
+    - units/l
+    - unit/l
+    - units per liter
+    - units per litre
+    - unit per liter
+    - unit per litre
+  g/dl:
+    - g/dl
+    - g per dl
+    - g/dl.
+    - gram/dl
+    - grams/dl
+    - grams per deciliter
+    - g per decilitre
+    - g/deciliter
+    - gm/dl
+  g/100ml:
+    - g/100ml
+    - g per 100ml
+    - gram/100ml
+    - grams/100ml
+    - grams per 100ml
+    - gm/100ml
+    - gm per 100ml
+  g/l:
+    - g/l
+    - g per l
+    - gram/l
+    - grams/l
+    - grams per liter
+    - grams per litre
+    - g/liter
+    - g/litre
+    - gm/l
+    - gm per l
+  mg/dl:
+    - mg/dl
+    - mg per dl
+    - mg/dl.
+    - milligrams per deciliter
+    - milligrams per decilitre
+    - mg per deciliter
+    - mg per decilitre
+    - mg.dl
+    - mg_dl
+  mg/100ml:
+    - mg/100ml
+    - mg per 100ml
+  mg/l:
+    - mg/l
+    - mg per l
+    - mg per liter
+    - mg per litre
+    - milligrams per liter
+    - milligrams per litre
+    - milligram per liter
+    - milligram per litre
+    - mg/l.
+    - mg per l.
+    - mg per liter.
+    - mg per litre.
+    - mg.l
+    - mg.l.
+    - mg_l
+    - mg_l.
+    - mg l^-1
+    - mg l-1
+    - mg l^-1
+    - mg l-1
+  ug/ml:
+    - ug/ml
+    - "\xB5g/ml"
+    - "\u03BCg/ml"
+    - "μg/ml"
+    - ug per ml
+    - ug.ml
+    - ug_ml
+    - mcg/ml
+    - mcg per ml
+    - micrograms per milliliter
+    - micrograms per millilitre
+    - microgram per milliliter
+  ug/dl:
+    - ug/dl
+    - "\xB5g/dl"
+    - "\u03BCg/dl"
+    - "μg/dl"
+    - ug per dl
+    - ug.dl
+    - ug_dl
+    - mcg/dl
+    - mcg per dl
+    - micrograms per deciliter
+    - micrograms per decilitre
+    - microgram per deciliter
+  ug/l:
+    - ug/l
+    - "\xB5g/l"
+    - "\u03BCg/l"
+    - "μg/l"
+    - ug per l
+    - ug.l
+    - ug_l
+    - mcg/l
+    - mcg per l
+    - micrograms per liter
+    - micrograms per litre
+    - microgram per liter
+  ng/ml:
+    - ng/ml
+    - ng per ml
+    - ng/ml.
+    - nanograms per milliliter
+    - nanograms per millilitre
+    - ng per milliliter
+    - ng per millilitre
+    - ng.ml
+    - ng_ml
+  ng/l:
+    - ng/l
+    - ng per l
+    - nanograms per liter
+  ng/dl:
+    - ng/dl
+    - ng per dl
+    - nanograms per deciliter
+  pg/ml:
+    - pg/ml
+    - pg per ml
+    - picograms per milliliter
+  pg/l:
+    - pg/l
+    - picograms per liter
+  mmhg:
+    - mmhg
+    - mm hg
+    - mm.hg
+    - mm of hg
+    - millimeters of mercury
+    - millimetres of mercury
+  kpa:
+    - kpa
+    - kilopascal
+    - kilopascals
+  torr:
+    - torr
+  pa:
+    - pa
+    - pascal
+  mmol/l:
+    - mmol/l
+    - mmoles/l
+    - millimoles per liter
+    - millimoles per litre
+  meq/l:
+    - meq/l
+    - milliequivalents per liter
+  umol/l:
+    - umol/l
+    - "\xB5mol/l"
+    - "\u03BCmol/l"
+    - "μmol/l"
+    - micromoles per liter
+  nmol/l:
+    - nmol/l
+    - nanomoles per liter
+  pmol/l:
+    - pmol/l
+    - picomoles per liter
+  mol/l:
+    - mol/l
+    - moles per liter
+  "%":
+    - "%"
+    - percent
+    - pct
+    - pct.
+  fraction:
+    - decimal
+    - fraction
+  sec:
+    - sec
+    - secs
+    - s
+    - s.
+    - sec.
+    - second
+    - seconds
+    - second(s)
+    - second (s)
+  min:
+    - min
+    - mins
+    - minute
+    - minutes
+  mm/hour:
+    - mm/hour
+    - mm/hr
+    - mm/h
+  (no units):
+    - (no units)
+    - no units
+    - none
+    - unitless
+    - ratio

@@ -1,4 +1,5 @@
 table_name: hospitalization
+version: "2.1"
 composite_keys:
   - hospitalization_id
 
@@ -113,12 +114,22 @@ columns:
     required: false
     is_category_column: false
     is_group_column: false
+  - name: fips_version
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - "2000"
+      - "2010"
+      - "2020"
 
 required_columns:
   - patient_id
   - hospitalization_id
   - admission_dttm
   - discharge_dttm
+  - age_at_admission
   - admission_type_category
   - discharge_category
 

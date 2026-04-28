@@ -1,4 +1,5 @@
 table_name: code_status
+version: "2.1"
 
 columns:
 - name: patient_id
@@ -27,6 +28,7 @@ columns:
   - UDNR
   - DNR/DNI
   - DNAR/DNI
+  - DNI_only
   - AND
   - Full
   - Presume Full

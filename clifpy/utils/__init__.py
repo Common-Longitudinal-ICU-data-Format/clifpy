@@ -1,24 +1,68 @@
 from .config import load_config, get_config_or_params, create_example_config
-from .io import load_data, convert_datetime_columns_to_site_tz
+from .io import load_data, convert_datetime_columns_to_site_tz, LazyRelation, fetch_lazy_result, close_lazy_relation
 from .wide_dataset import create_wide_dataset, convert_wide_to_hourly
 from .outlier_handler import apply_outlier_handling, get_outlier_summary
 from .comorbidity import calculate_cci
 
+# DQA functions from validator module
 from .validator import (
-      validate_dataframe,
-      validate_table,
-      check_required_columns,
-      verify_column_dtypes
-  )
+    # Result containers
+    DQAConformanceResult,
+    DQACompletenessResult,
+    # Schema loader
+    _load_schema,
+    get_schema_check_counts,
+    build_absent_table_dqa_result,
+    # Backend info
+    _ACTIVE_BACKEND,
+    # Conformance checks
+    check_table_exists,
+    check_table_presence,
+    check_table_presence_polars,
+    check_table_presence_duckdb,
+    check_required_columns,
+    check_column_dtypes,
+    check_datetime_format,
+    check_lab_reference_units,
+    check_categorical_values,
+    # Completeness checks
+    check_missingness,
+    check_conditional_requirements,
+    check_mcide_value_coverage,
+    check_relational_integrity,
+    # Orchestration functions
+    run_conformance_checks,
+    run_completeness_checks,
+    run_relational_integrity_checks,
+    run_full_dqa,
+)
 
+from .report_generator import (
+    DQA_CATEGORIES,
+    TABLE_DISPLAY_NAMES,
+    collect_dqa_issues,
+    collect_table_results,
+    generate_validation_pdf,
+    generate_text_report,
+    generate_combined_validation_pdf,
+    generate_consolidated_csv,
+    generate_combined_report,
+)
+
+# TODO: re-enable when clifpy/utils/unit_variants.py is committed (WIP in stash@{0})
+# from .unit_variants import load_labs_schema_units, get_variants_for_category, normalize_unit
 from .waterfall import process_resp_support_waterfall
 from .stitching_encounters import stitch_encounters
 from .sofa import compute_sofa, _compute_sofa_from_extremal_values, _agg_extremal_values_by_id
+from .ase import compute_ase
 
 __all__ = [
       # io
       'load_data',
       'convert_datetime_columns_to_site_tz',
+      'LazyRelation',
+      'fetch_lazy_result',
+      'close_lazy_relation',
       # wide_dataset
       'create_wide_dataset',
       'convert_wide_to_hourly',
@@ -39,7 +83,40 @@ __all__ = [
       'compute_sofa',
       '_compute_sofa_from_extremal_values',
       '_agg_extremal_values_by_id',
-      # validator (add main functions)
-      'validate_dataframe',
-      'validate_table',
+      # ase
+      'compute_ase',
+      # DQA functions
+      '_ACTIVE_BACKEND',
+      'DQAConformanceResult',
+      'DQACompletenessResult',
+      '_load_schema',
+      'get_schema_check_counts',
+      'build_absent_table_dqa_result',
+      'check_table_exists',
+      'check_table_presence',
+      'check_table_presence_polars',
+      'check_table_presence_duckdb',
+      'check_required_columns',
+      'check_column_dtypes',
+      'check_datetime_format',
+      'check_lab_reference_units',
+      'check_categorical_values',
+      'check_missingness',
+      'check_conditional_requirements',
+      'check_mcide_value_coverage',
+      'check_relational_integrity',
+      'run_conformance_checks',
+      'run_completeness_checks',
+      'run_relational_integrity_checks',
+      'run_full_dqa',
+      # Report generation
+      'DQA_CATEGORIES',
+      'TABLE_DISPLAY_NAMES',
+      'collect_dqa_issues',
+      'collect_table_results',
+      'generate_validation_pdf',
+      'generate_text_report',
+      'generate_combined_validation_pdf',
+      'generate_consolidated_csv',
+      'generate_combined_report',
   ]

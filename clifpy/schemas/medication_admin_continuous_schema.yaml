@@ -1,4 +1,5 @@
 table_name: medication_admin_continuous
+version: "2.1"
 
 columns:
   - name: hospitalization_id
@@ -164,6 +165,7 @@ columns:
     - verify 
     - other
   - name: mar_action_group
+    data_type: VARCHAR
     required: true
     is_category_column: false
     is_group_column: true
@@ -193,7 +195,12 @@ category_columns:
 group_columns: 
   - mar_action_group
 
-#to fix multi mapping for epoprostenol and terbutaline
+# Values may be a single group name or a list of permissible groups —
+# the C.6 validator accepts either form (see check_category_group_mapping_*).
+# Multi-group entries exist for medications with multiple legitimate
+# administration routes (e.g. epoprostenol is an IV or inhaled pulmonary
+# vasodilator depending on formulation). terbutaline also has multi-route
+# use and should be reviewed.
 med_category_to_group_mapping:
   albumin: fluids_electrolytes
   albuterol: Inhaled
@@ -218,7 +225,9 @@ med_category_to_group_mapping:
   dobutamine: vasoactives
   dopamine: vasoactives
   epinephrine: vasoactives
-  epoprostenol: pulmonary vasodilators (IV)
+  epoprostenol:
+    - pulmonary vasodilators (IV)
+    - pulmonary vasodilators (inhaled)
   eptifibatide: anticoagulation
   esmolol: cardiac
   esomeprazole: gastrointestinal

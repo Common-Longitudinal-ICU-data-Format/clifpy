@@ -1,4 +1,5 @@
 table_name: patient
+version: "2.1"
 composite_keys:
   - patient_id
   
@@ -9,13 +10,14 @@ columns:
     is_category_column: false
     is_group_column: false
   - name: birth_date
-    data_type: DATETIME
+    data_type: DATE
     required: true
     is_category_column: false
     is_group_column: false
   - name: death_dttm
     data_type: DATETIME
     required: true
+    nullable: true
     is_category_column: false
     is_group_column: false
   - name: race_name

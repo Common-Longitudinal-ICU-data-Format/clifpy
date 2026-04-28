@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/">Documentation</a> | 
-  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/getting-started/quickstart/">Quick Start</a> | 
+  <a href="https://common-longitudinal-icu-data-format.github.io/clifpy/user-guide/quickstart/">Quick Start</a> | 
   <a href="https://clif-icu.com">CLIF Website</a>
 </p>
 
@@ -87,6 +87,18 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
    ```bash
    uv run pytest
    ```
+
+## Feature Contributors
+
+| Feature | Coder | Clinician | Status |
+|---------|-------|-----------|--------|
+| SOFA Score Computation | Kaveri Chhikara | Will Parker | Published |
+| Respiratory Support Waterfall | Kaveri Chhikara | Nick Ingraham | Published |
+| Presumed Infection and ASE | Vaishvik Chaudhari | Kevin Buell | Published |
+| Cumulative Dose Calculation | Zewei (Whiskey) Liao | | Future Feature |
+| Lab Conversion Units | Dema Therese | Cathy Gao | In Progress |
+| CRRT Waterfall | Kaveri Chhikara | Shan Guleria, Jay Koyner | Future Feature |
+| Medication Unit Conversion | Zewei (Whiskey) Liao | | Published |
 
 ## Links & Resources
 

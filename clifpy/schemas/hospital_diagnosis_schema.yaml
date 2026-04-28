@@ -1,4 +1,5 @@
 table_name: hospital_diagnosis
+version: "2.1"
 
 columns:
 - name: hospitalization_id

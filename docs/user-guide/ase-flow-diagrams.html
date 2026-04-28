@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASE Flow Diagrams - CLIFpy</title>
+
+    <!-- Mermaid for diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #2e3440 0%, #3b4252 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: #2e3440;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #d32f2f, #ef5350);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #5e6779;
+            font-size: 1.2em;
+            font-weight: 300;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 12px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .toc h3 {
+            color: #37474f;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .toc ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .toc a {
+            color: #d32f2f;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 8px 16px;
+            background: #fce4ec;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .toc a:hover {
+            background: #d32f2f;
+            color: white;
+        }
+
+        /* Sections */
+        .diagram-section {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            color: #37474f;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #eceff1;
+        }
+
+        .section-description {
+            color: #5e6779;
+            font-size: 1.1em;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .mermaid {
+            background: #fafafa;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow-x: auto;
+        }
+
+        .info-box {
+            background: rgba(239, 83, 80, 0.1);
+            border-left: 4px solid #ef5350;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .info-box strong {
+            color: #d32f2f;
+        }
+
+        .legend {
+            background: #f5f7fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .legend h3 {
+            color: #37474f;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .legend-item {
+            padding: 8px 0;
+            color: #5e6779;
+            line-height: 1.5;
+        }
+
+        .legend-item strong {
+            color: #37474f;
+        }
+
+        .decision-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 20px 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .decision-table th {
+            background: linear-gradient(135deg, #d32f2f, #ef5350);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .decision-table td {
+            padding: 15px;
+            border-bottom: 1px solid #eceff1;
+            background: white;
+        }
+
+        .decision-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .decision-table tr:hover td {
+            background: #f5f7fa;
+        }
+
+        /* Back to top button */
+        .back-to-top {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #eceff1;
+            color: #37474f;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .back-to-top:hover {
+            background: #d32f2f;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header id="top">
+            <h1>Adult Sepsis Event Identification in CLIF</h1>
+            <div class="subtitle">CDC ASE Algorithm Flow Diagrams</div>
+        </header>
+
+        <!-- Table of Contents -->
+        <nav class="toc">
+            <h3>Quick Navigation</h3>
+            <ul>
+                <li><a href="#overview">Overall Flow</a></li>
+                <li><a href="#component-a">Component A: Infection</a></li>
+                <li><a href="#component-b">Component B: Dysfunction</a></li>
+                <li><a href="#baseline">Type Classification</a></li>
+                <li><a href="#circular-dependency">Circular Dependency</a></li>
+                <li><a href="#rit">RIT Filtering</a></li>
+                <li><a href="#decisions">Decision Points</a></li>
+            </ul>
+        </nav>
+
+        <!-- Section 1: Overall ASE Algorithm Flow -->
+        <div class="diagram-section" id="overview">
+            <h2 class="section-title">1. Overall ASE Algorithm Flow</h2>
+            <p class="section-description">
+                The CDC Adult Sepsis Event (ASE) requires both presumed serious infection (Component A)
+                and acute organ dysfunction (Component B) to be present within ±2 calendar days of blood culture.
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    Start[Load Hospitalization IDs]
+    LoadData[Load CLIF Data Tables]
+    CompA[Component A: Presumed Infection]
+    CompB[Component B: Organ Dysfunction]
+    BC[Blood Culture Detection]
+    QAD[Calculate QAD]
+    Censor[Apply Censoring Rules]
+    LabDys[Lab-based Dysfunction]
+    ClinDys[Clinical Interventions]
+    AKI[AKI: Creatinine 2x baseline]
+    Bili[Hepatic: Bilirubin 2.0 AND 2x baseline]
+    Plat[Coagulation: Platelets low]
+    Lact[Lactate 2.0 mmol/L]
+    Vaso[New Vasopressor]
+    IMV[New IMV]
+    PICheck{Presumed Infection}
+    ODCheck{Any Organ Dysfunction}
+    CheckBoth{Both Components Present}
+    NoSepsis1[No Sepsis: No Presumed Infection]
+    NoSepsis2[No Sepsis: No Organ Dysfunction]
+    NoSepsis3[No Sepsis]
+    ASE[ASE Sepsis Event]
+    OnsetType{Onset Type}
+    Community[Community Onset]
+    Hospital[Hospital Onset]
+    RIT{Apply RIT}
+    Output[Output Results]
+    RITFilter[14-day RIT Filter]
+
+    Start --> LoadData
+    LoadData --> CompA
+    LoadData --> CompB
+    CompA --> BC
+    BC --> QAD
+    QAD --> Censor
+    CompB --> LabDys
+    CompB --> ClinDys
+    LabDys --> AKI
+    LabDys --> Bili
+    LabDys --> Plat
+    LabDys --> Lact
+    ClinDys --> Vaso
+    ClinDys --> IMV
+    Censor --> PICheck
+    AKI --> ODCheck
+    Bili --> ODCheck
+    Plat --> ODCheck
+    Lact --> ODCheck
+    Vaso --> ODCheck
+    IMV --> ODCheck
+    PICheck -->|Yes| CheckBoth
+    PICheck -->|No| NoSepsis1
+    ODCheck -->|Yes| CheckBoth
+    ODCheck -->|No| NoSepsis2
+    CheckBoth -->|Yes| ASE
+    CheckBoth -->|No| NoSepsis3
+    ASE --> OnsetType
+    OnsetType -->|Day 1-2| Community
+    OnsetType -->|Day 3+| Hospital
+    Hospital --> RIT
+    Community --> Output
+    RIT -->|Yes| RITFilter
+    RIT -->|No| Output
+    RITFilter --> Output
+            </pre>
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 2: Component A: Presumed Serious Infection -->
+        <div class="diagram-section" id="component-a">
+            <h2 class="section-title">2. Component A: Presumed Serious Infection</h2>
+            <p class="section-description">
+                Presumed infection requires a blood culture with ≥4 Qualifying Antimicrobial Days (QAD)
+                starting within ±2 calendar days, including at least one new IV/IM antimicrobial.
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    BCStart[Blood Cultures]
+    BCTime[Extract Culture Time]
+    BCWindow[Define 2 Day Window]
+    ABXStart[Antibiotics]
+    ABXFilter[Filter CMS Qualifying ABX]
+    ABXRoute[Identify IV/IM Routes]
+    ABXCourse[Define Courses]
+    ABXWindow{New ABX Course in Window}
+    NoQAD[No QAD: No new antimicrobial]
+    IVIM{Any New IV/IM in Window}
+    NoQAD2[No QAD: No parenteral]
+    QADCalc[Calculate QAD Days]
+    QADCheck{4+ QAD Days}
+    MeetsQAD[Meets QAD]
+    CensorCheck{Censoring Eligible}
+    CensorQAD[Meets QAD with Censoring]
+    FailQAD[Fails QAD]
+    PresInf[Presumed Infection = 1]
+    NoPresInf[Presumed Infection = 0]
+
+    BCStart --> BCTime
+    BCTime --> BCWindow
+    ABXStart --> ABXFilter
+    ABXFilter --> ABXRoute
+    ABXRoute --> ABXCourse
+    BCWindow --> ABXWindow
+    ABXCourse --> ABXWindow
+    ABXWindow -->|No| NoQAD
+    ABXWindow -->|Yes| IVIM
+    IVIM -->|No| NoQAD2
+    IVIM -->|Yes| QADCalc
+    QADCalc --> QADCheck
+    QADCheck -->|Yes| MeetsQAD
+    QADCheck -->|No| CensorCheck
+    CensorCheck -->|Death/Transfer/Hospice| CensorQAD
+    CensorCheck -->|No| FailQAD
+    MeetsQAD --> PresInf
+    CensorQAD --> PresInf
+    FailQAD --> NoPresInf
+    NoQAD --> NoPresInf
+    NoQAD2 --> NoPresInf
+            </pre>
+
+            <div class="legend">
+                <h3>📋 Key Implementation Details</h3>
+                <div class="legend-item">• <strong>Vancomycin Handling:</strong> IV and oral vancomycin treated as separate antimicrobials</div>
+                <div class="legend-item">• <strong>Course Gaps:</strong> &gt;2 calendar days between doses = new course</div>
+                <div class="legend-item">• <strong>QAD Gaps:</strong> 1-day gaps allowed in QAD calculation (q48h dosing)</div>
+                <div class="legend-item">• <strong>Censoring:</strong> Death, transfer to acute care, or hospice within 3 days allows &lt;4 QAD</div>
+                <div class="legend-item">• <strong>Blood Culture Time:</strong> Uses collect_dttm as primary timestamp</div>
+            </div>
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 3: Component B: Organ Dysfunction -->
+        <div class="diagram-section" id="component-b">
+            <h2 class="section-title">3. Component B: Organ Dysfunction</h2>
+            <p class="section-description">
+                At least one organ dysfunction must occur within ±2 calendar days of blood culture.
+                Dysfunction can be lab-based (AKI, hepatic, coagulation, metabolic) or clinical intervention-based (cardiovascular, respiratory).
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    ODStart[Organ Dysfunction]
+    BaselineType{BC Day 2 or less}
+    CommBase[Community Baseline]
+    HospBase[Hospital Baseline]
+    LabTests[Lab Tests in 2 Day Window]
+    Cr[Creatinine]
+    BiliTest[Bilirubin]
+    Plt[Platelets]
+    LactTest[Lactate]
+    CrCheck{Value 2x+ Baseline}
+    AKIDys[AKI Dysfunction]
+    NoAKI[No AKI]
+    BiliCheck{Value 2.0+ AND 2x+ Baseline}
+    BiliDys[Hepatic Dysfunction]
+    NoBili[No Hepatic]
+    PltCheck{Value below 100 AND 50% or less of Baseline}
+    PltDys[Coagulation Dysfunction]
+    NoPlt[No Coagulation]
+    LactCheck{Value 2.0+}
+    LactDys[Metabolic Dysfunction]
+    NoLact[No Metabolic]
+    ClinInt[Clinical Interventions]
+    VasoCheck{New Vasopressor in 2 days}
+    IMVCheck{New IMV in 2 days}
+    VasoDys[CV Dysfunction]
+    NoVaso[No CV]
+    IMVDys[Respiratory Dysfunction]
+    NoIMV[No Respiratory]
+    AnyDys{Any Dysfunction Present}
+    HasOD[Has Organ Dysfunction]
+    NoOD[No Organ Dysfunction]
+
+    ODStart --> BaselineType
+    BaselineType -->|Yes| CommBase
+    BaselineType -->|No| HospBase
+    CommBase --> LabTests
+    HospBase --> LabTests
+    LabTests --> Cr
+    LabTests --> BiliTest
+    LabTests --> Plt
+    LabTests --> LactTest
+    Cr --> CrCheck
+    CrCheck -->|Yes and Not ESRD| AKIDys
+    CrCheck -->|No or ESRD| NoAKI
+    BiliTest --> BiliCheck
+    BiliCheck -->|Yes| BiliDys
+    BiliCheck -->|No| NoBili
+    Plt --> PltCheck
+    PltCheck -->|Yes and Baseline 100+| PltDys
+    PltCheck -->|No or Invalid Baseline| NoPlt
+    LactTest --> LactCheck
+    LactCheck -->|Yes| LactDys
+    LactCheck -->|No| NoLact
+    ClinInt --> VasoCheck
+    ClinInt --> IMVCheck
+    VasoCheck -->|Yes| VasoDys
+    VasoCheck -->|No| NoVaso
+    IMVCheck -->|Yes| IMVDys
+    IMVCheck -->|No| NoIMV
+    AKIDys --> AnyDys
+    BiliDys --> AnyDys
+    PltDys --> AnyDys
+    LactDys --> AnyDys
+    VasoDys --> AnyDys
+    IMVDys --> AnyDys
+    AnyDys -->|Yes| HasOD
+    AnyDys -->|No| NoOD
+            </pre>
+
+            <div class="legend">
+                <h3>🔬 Lab Value Processing</h3>
+                <div class="legend-item">• <strong>Outlier Caps:</strong> Cr ≤20, Bili ≤80, Plt ≤2000, Lactate ≤30 mg/dL</div>
+                <div class="legend-item">• <strong>ESRD Exclusion:</strong> ICD codes N18.6, Z49.31, Z49.01, I12.0, I13.11, I13.2</div>
+                <div class="legend-item">• <strong>Platelet Baseline:</strong> Only valid if any baseline value ≥100</div>
+                <div class="legend-item">• <strong>Procedural Exclusion:</strong> Vasopressors in OR/procedural locations ignored</div>
+                <div class="legend-item">• <strong>New Initiation:</strong> &gt;1 day gap from previous dose = new initiation</div>
+            </div>
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 4: Type Classification Logic -->
+        <div class="diagram-section" id="baseline">
+            <h2 class="section-title">4. Type Classification: Baseline Selection vs Final Onset Type</h2>
+            <p class="section-description">
+                <strong>Important:</strong> There are TWO distinct type classifications in the ASE algorithm that serve different purposes.
+                The first determines baseline selection for labs, the second determines the final onset type for RIT filtering.
+            </p>
+
+            <h3 style="color: #d32f2f; margin: 20px 0 10px 0;">4A. Type for Baseline Selection (Based on Blood Culture Date)</h3>
+            <p class="section-description">
+                This classification determines which baseline values to use for lab-based organ dysfunction.
+                It is calculated EARLY in the pipeline based on when the <strong>blood culture</strong> was collected.
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    subgraph BaselineSelection[Type for Baseline Selection]
+        BCDate[Blood Culture Date]
+        AdmDate[Admission Date]
+        CalcDay1[Hospital Day = BC Date - Admission Date + 1]
+        Check1{Hospital Day <= 2}
+        CommBase[type_for_baseline = community]
+        HospBase[type_for_baseline = hospital]
+        UseAll[Use ENTIRE hospitalization for baseline]
+        UseWindow[Use 2 day window around BC for baseline]
+        
+        BCDate --> CalcDay1
+        AdmDate --> CalcDay1
+        CalcDay1 --> Check1
+        Check1 -->|Yes| CommBase
+        Check1 -->|No| HospBase
+        CommBase --> UseAll
+        HospBase --> UseWindow
+    end
+    
+    subgraph BaselineValues[Baseline Value Selection]
+        CrMin1[Creatinine: MIN of all values]
+        BiliMin1[Bilirubin: MIN of all values]
+        PltMax1[Platelets: MAX if any >= 100]
+        CrMin2[Creatinine: MIN in window]
+        BiliMin2[Bilirubin: MIN in window]
+        PltMax2[Platelets: MAX >= 100 in window]
+        
+        UseAll --> CrMin1
+        UseAll --> BiliMin1
+        UseAll --> PltMax1
+        UseWindow --> CrMin2
+        UseWindow --> BiliMin2
+        UseWindow --> PltMax2
+    end
+            </pre>
+
+            <div class="info-box">
+                <strong>Key Point:</strong> This type is used ONLY for selecting baseline lab values. 
+                It does NOT determine the final onset classification for RIT purposes.
+            </div>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">4B. Final Onset Type (Based on ASE Onset Datetime)</h3>
+            <p class="section-description">
+                This classification determines the FINAL onset type reported in results and used for RIT filtering.
+                It is calculated AFTER ASE determination based on when the <strong>ASE onset</strong> occurred 
+                (earliest time when both Component A and B are satisfied).
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    subgraph FinalOnsetType[Final Onset Type for RIT]
+        ASEOnset[ASE Onset Datetime]
+        AdmDate2[Admission Date]
+        CalcDay2[Onset Hospital Day = ASE Onset Date - Admission Date + 1]
+        Check2{Onset Hospital Day <= 2}
+        CommFinal[type = community]
+        HospFinal[type = hospital]
+        NoRIT[No RIT Applied]
+        ApplyRIT[Apply 14-day RIT Filter]
+        
+        ASEOnset --> CalcDay2
+        AdmDate2 --> CalcDay2
+        CalcDay2 --> Check2
+        Check2 -->|Yes| CommFinal
+        Check2 -->|No| HospFinal
+        CommFinal --> NoRIT
+        HospFinal --> ApplyRIT
+    end
+            </pre>
+
+            <div class="info-box">
+                <strong>Key Difference:</strong><br>
+                • <strong>type_for_baseline</strong> uses <code>blood_culture_dttm</code> — determines lab baseline window<br>
+                • <strong>type</strong> (final) uses <code>ase_onset_w_lactate_dttm</code> — determines RIT application
+            </div>
+
+            <div class="legend">
+                <h3>📊 Summary: Two Type Classifications</h3>
+                <table class="decision-table" style="margin-top: 15px;">
+                    <thead>
+                        <tr>
+                            <th>Aspect</th>
+                            <th>type_for_baseline</th>
+                            <th>type (final)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Based On</strong></td>
+                            <td>Blood Culture Date</td>
+                            <td>ASE Onset Datetime</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Purpose</strong></td>
+                            <td>Select baseline values for labs</td>
+                            <td>Classify event & apply RIT</td>
+                        </tr>
+                        <tr>
+                            <td><strong>When Calculated</strong></td>
+                            <td>Early (baseline selection step)</td>
+                            <td>Final (after ASE determination)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Can be NULL</strong></td>
+                            <td>No (always has BC)</td>
+                            <td>Yes (if no sepsis)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Output Column</strong></td>
+                            <td>Internal use only</td>
+                            <td>Reported in results</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 5: Circular Dependency Resolution -->
+        <div class="diagram-section" id="circular-dependency">
+            <h2 class="section-title">5. Resolving the Circular Dependency</h2>
+            <p class="section-description">
+                The CDC ASE definition contains an inherent circular dependency that must be resolved for computation.
+                This section explains the problem and how this implementation solves it.
+            </p>
+
+            <h3 style="color: #d32f2f; margin: 20px 0 10px 0;">The Problem</h3>
+            <div class="info-box" style="background: rgba(255, 193, 7, 0.15); border-left-color: #ffc107;">
+                <strong style="color: #856404;">🔄 Circular Dependency:</strong><br><br>
+                <code style="display: block; white-space: pre-line; font-size: 0.95em; line-height: 1.6;">
+To calculate <strong>ONSET DATE</strong>:
+    → Need organ dysfunction datetime
+    → To get dysfunction datetime, need to compare lab value to <strong>BASELINE</strong>
+    → To know which BASELINE to use, need to know if Community or Hospital onset
+    → To know onset type, need <strong>ONSET DATE</strong>
+    → 🔄 CIRCULAR!
+                </code>
+            </div>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">The CDC Specification</h3>
+            <p class="section-description">
+                From CDC Toolkit Page 22:
+            </p>
+            <blockquote style="background: #f5f7fa; padding: 15px 20px; border-left: 4px solid #78909c; margin: 15px 0; font-style: italic;">
+                "Baseline creatinine defined as:<br>
+                1) Community-onset: lowest value during hospitalization<br>
+                2) Hospital-onset: lowest value in ±2 days of blood culture"
+            </blockquote>
+            <p class="section-description">
+                <strong>Key insight:</strong> The hospital-onset baseline window is defined relative to the 
+                <strong>blood culture date</strong>, not the onset date. This provides a computational anchor.
+            </p>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">Our Solution: Calculate Both, Then Select</h3>
+            <p class="section-description">
+                The implementation breaks the circular dependency by computing organ dysfunction using 
+                <strong>both baselines simultaneously</strong>, then selecting based on blood culture timing.
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    subgraph Step1[STEP 1: Calculate BOTH Baselines]
+        BC[Blood Culture Event]
+        CommCalc[Community Baseline<br/>Entire hospitalization]
+        HospCalc[Hospital Baseline<br/>±2 days of BC]
+        
+        BC --> CommCalc
+        BC --> HospCalc
+        
+        CommCalc --> AKI_CO[aki_dttm_co]
+        CommCalc --> BILI_CO[hyperbili_dttm_co]
+        CommCalc --> PLT_CO[thrombo_dttm_co]
+        
+        HospCalc --> AKI_HO[aki_dttm_ho]
+        HospCalc --> BILI_HO[hyperbili_dttm_ho]
+        HospCalc --> PLT_HO[thrombo_dttm_ho]
+    end
+    
+    subgraph Step2[STEP 2: Select Based on BC Timing]
+        BCDay{Blood Culture<br/>Hospital Day}
+        
+        BCDay -->|Day 1-2| UseComm[type_for_baseline = community]
+        BCDay -->|Day 3+| UseHosp[type_for_baseline = hospital]
+        
+        UseComm --> SelectCO[Use: aki_dttm_co,<br/>hyperbili_dttm_co,<br/>thrombo_dttm_co]
+        UseHosp --> SelectHO[Use: aki_dttm_ho,<br/>hyperbili_dttm_ho,<br/>thrombo_dttm_ho]
+    end
+    
+    subgraph Step3[STEP 3: Calculate ASE Onset]
+        SelectCO --> OnsetCalc[ASE Onset = EARLIEST of:<br/>• Blood culture<br/>• First QAD<br/>• Vasopressor<br/>• IMV<br/>• Selected lab dysfunction]
+        SelectHO --> OnsetCalc
+    end
+    
+    subgraph Step4[STEP 4: Final Onset Type]
+        OnsetCalc --> FinalDay{ASE Onset<br/>Hospital Day}
+        FinalDay -->|Day 1-2| Community[type = community<br/>No RIT]
+        FinalDay -->|Day 3+| Hospital[type = hospital<br/>Apply RIT]
+    end
+            </pre>
+
+            <h3 style="color: #d32f2f; margin: 30px 0 10px 0;">Two "Types" Serve Different Purposes</h3>
+            <table class="decision-table">
+                <thead>
+                    <tr>
+                        <th>Variable</th>
+                        <th>Based On</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>type_for_baseline</code></td>
+                        <td>Blood culture date (Day 1-2 vs Day 3+)</td>
+                        <td>Selects which baseline calculation to use for labs</td>
+                    </tr>
+                    <tr>
+                        <td><code>type</code> (final)</td>
+                        <td>ASE onset datetime</td>
+                        <td>Reported in results; determines RIT application</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 6: RIT Logic -->
+        <div class="diagram-section" id="rit">
+            <h2 class="section-title">6. Repeat Infection Timeframe (RIT) Logic</h2>
+            <p class="section-description">
+                The 14-day RIT prevents counting repeat infections within a short timeframe.
+                Typically applied only to hospital-onset events to avoid overcounting.
+            </p>
+
+            <pre class="mermaid">
+flowchart TD
+    AllASE[All ASE Events]
+    TypeFilter{Onset Type}
+    NoRIT[No RIT Applied]
+    RITApply[Apply RIT]
+    Sort[Sort by Onset Date]
+    First[Keep First Event]
+    Next[Check Next Event]
+    TimeGap{Days Since Last Kept}
+    Skip[Skip Event]
+    Keep[Keep Event]
+    NextEvent[Next Event]
+    UpdateLast[Update Last Kept]
+    MoreEvents{More Events}
+    AssignID[Assign Episode IDs]
+    FinalOutput[Final ASE Results]
+
+    AllASE --> TypeFilter
+    TypeFilter -->|Community| NoRIT
+    TypeFilter -->|Hospital| RITApply
+    RITApply --> Sort
+    Sort --> First
+    First --> Next
+    Next --> TimeGap
+    TimeGap -->|14 days or less| Skip
+    TimeGap -->|Over 14 days| Keep
+    Skip --> NextEvent
+    Keep --> UpdateLast
+    UpdateLast --> NextEvent
+    NextEvent --> MoreEvents
+    MoreEvents -->|Yes| Next
+    MoreEvents -->|No| AssignID
+    NoRIT --> AssignID
+    AssignID --> FinalOutput
+            </pre>
+
+            <div class="legend">
+                <h3>🔄 RIT Implementation</h3>
+                <div class="legend-item">• <strong>Window:</strong> 14 calendar days from last kept event</div>
+                <div class="legend-item">• <strong>Application:</strong> Default only for hospital-onset (configurable)</div>
+                <div class="legend-item">• <strong>Episode IDs:</strong> Sequential numbering after RIT filtering</div>
+                <div class="legend-item">• <strong>Community Events:</strong> Always kept regardless of timing</div>
+            </div>
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+
+        <!-- Section 7: Decision Points Table -->
+        <div class="diagram-section" id="decisions">
+            <h2 class="section-title">7. Key Decision Points</h2>
+            <p class="section-description">
+                Critical decision points in the ASE algorithm and their implementation in the code.
+            </p>
+
+            <table class="decision-table">
+                <thead>
+                    <tr>
+                        <th>Decision</th>
+                        <th>Criteria</th>
+                        <th>Implementation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Blood Culture Time</strong></td>
+                        <td>Primary timestamp for all calculations</td>
+                        <td>Uses <code>collect_dttm</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Antimicrobial Course</strong></td>
+                        <td>When is an antimicrobial "new"?</td>
+                        <td>Gap &gt;2 calendar days from last dose = new course</td>
+                    </tr>
+                    <tr>
+                        <td><strong>QAD Calculation</strong></td>
+                        <td>How to count qualifying days</td>
+                        <td>Allow 1-day gaps (for q48h dosing), require ≥4 days total</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Censoring Events</strong></td>
+                        <td>When to allow &lt;4 QAD</td>
+                        <td><code>discharge_category</code> Expired, acute care hospital, or hospice within 3 days of QAD start</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ESRD Identification</strong></td>
+                        <td>How to exclude ESRD patients from AKI</td>
+                        <td><code>diagnosis_code</code>: N18.6, Z49.31, Z49.01, I12.0, I13.11, I13.2</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Vasopressor Location</strong></td>
+                        <td>Which locations to exclude</td>
+                        <td><code>location_category</code> procedural </td>
+                    </tr>
+                    <tr>
+                        <td><strong>IMV Definition</strong></td>
+                        <td>What counts as invasive mechanical ventilation</td>
+                        <td><code>device_category</code> IMV</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Onset Type</strong></td>
+                        <td>Community vs Hospital</td>
+                        <td>Blood culture on hospital days 1-2 from <code>admission_dttm</code>= Community, Day 3+ = Hospital</td>
+                    </tr>
+                    <tr>
+                        <td><strong>RIT Application</strong></td>
+                        <td>Which events get RIT filtering</td>
+                        <td>Default: Hospital-onset only (configurable)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Episode Assignment</strong></td>
+                        <td>How to number ASE episodes</td>
+                        <td>Sequential numbering after RIT filtering, reset per hospitalization</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <strong>📊 Validation Points:</strong>
+                The algorithm includes extensive validation at each step, including outlier capping,
+                data type checking, and logical consistency verification. All edge cases are logged
+                for transparency and debugging.
+            </div>
+            <a href="#top" class="back-to-top">↑ Back to Top</a>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                htmlLabels: true,
+                curve: 'linear'
+            }
+        });
+    </script>
+</body>
+</html>

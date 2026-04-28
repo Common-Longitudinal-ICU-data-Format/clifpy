@@ -81,7 +81,7 @@ nav:
         - Installation: user-guide/installation.md
         - Quickstart: user-guide/quickstart.md
       - Core Features:
-        - Data Validation: user-guide/validation.md
+        - Data Quality Assessment (DQA): user-guide/validation.md
         - Outlier Handling: user-guide/outlier-handling.md
         - Encounter Stitching: user-guide/encounter-stitching.md
         - Wide Dataset Creation: user-guide/wide-dataset.md
@@ -89,14 +89,19 @@ nav:
       - Advanced Features:
         - Medication Unit Conversion: user-guide/med-unit-conversion.md
         - SOFA Score Computation: user-guide/sofa.md
+        - CDC Adult Sepsis Event (ASE): user-guide/ase.md
         - Respiratory Support Waterfall: user-guide/waterfall.md
         - Comorbidity Index: user-guide/comorbidity-index.md
+        - MDRO Flags: user-guide/mdro-flags.md
   - API Reference:
       - Overview: api/index.md
       - Orchestrator: api/orchestrator.md
       - Base Table: api/base-table.md
       - Tables: api/tables.md
+      - DQA (Validation): api/dqa.md
       - Utilities: api/utilities.md
+  - Logging: logging.md
+  - Contributing: contributing.md
 
 extra:
   social:

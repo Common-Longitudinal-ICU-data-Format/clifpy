@@ -1,4 +1,5 @@
 table_name: microbiology_susceptibility
+version: "2.1"
 
 columns:
 - name: organism_id
@@ -202,7 +203,7 @@ columns:
   permissible_values:
   - susceptible
   - non_susceptible
-  - intermediate
+  - indeterminate
   - NA
 
 required_columns:

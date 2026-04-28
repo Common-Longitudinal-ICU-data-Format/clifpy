@@ -1,4 +1,5 @@
 table_name: microbiology_nonculture
+version: "2.1"
 
 columns:
 - name: patient_id
@@ -62,7 +63,7 @@ columns:
   - gallbladder_billary_pancreas
   - liver
   - spleen
-  - stomatch
+  - stomach
   - small_intestine
   - large_intestine
   - gastrointestinal_tract
@@ -114,7 +115,7 @@ columns:
   is_group_column: true
   permissible_values:
   - clostridium_difficile
-  - sars_cov2
+  - viral_other
   - respiratory_syncytial_virus
 - name: result_name
   data_type: VARCHAR
@@ -129,7 +130,7 @@ columns:
   permissible_values:
   - detected
   - not_detected
-  - indeterminant
+  - indeterminate
 
 required_columns:
   - patient_id

@@ -525,8 +525,6 @@ mdro_flags = calculate_mdro_flags(culture, susceptibility, 'pseudomonas_aerugino
 
 - [Microbiology Culture Table](../api/tables.md#microbiology-culture) - Culture table structure
 - [Microbiology Susceptibility Table](../api/tables.md#microbiology-susceptibility) - Susceptibility table structure
-- [Utilities API](../api/utilities.md#mdro-flags) - Technical API reference
-- [Configuration Guide](../../dev/developer-guide/mdro-flags.md) - Adding new organisms and customizing criteria
 - [Example Notebook](https://github.com/clif-consortium/CLIFpy/blob/main/examples/mdro_flags_demo.py) - Interactive Marimo demo
 
 ## References
