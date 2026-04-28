@@ -6,9 +6,10 @@ dev/readme.md
 dev/requirements.txt
 /archive
 *.csv
-!tests/fixtures/*/*.csv
+!tests/utils/sofa2/*/*.csv
 research_config.yaml
-
+dev/*/*.txt
+/.vscode/
 
 build/
 dist/
@@ -54,3 +55,6 @@ kilo.md
 
 
 clif_config.json
+clifpy/utils/sofa2/sofa2.md
+config/ucmc_config.yaml
+config/mimic_config.yaml
