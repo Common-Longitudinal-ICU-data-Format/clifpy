@@ -24,7 +24,7 @@ from clifpy.utils.unit_converter import (
 # --- Helper Fixtures for CSV Loading ---
 @pytest.fixture
 def load_fixture_csv():
-    """Load CSV fixture from tests/fixtures/unit_converter/.
+    """Load CSV fixture co-located in tests/utils/med_unit_converter/.
 
     Returns
     -------
@@ -32,7 +32,7 @@ def load_fixture_csv():
         Function that loads CSV files from the fixture directory.
     """
     def _load(filename) -> pd.DataFrame:
-        path = Path(__file__).parent.parent / 'fixtures' / 'unit_converter' / filename
+        path = Path(__file__).parent / filename
         # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
         df = pd.read_csv(path) # .replace(np.nan, '')
         return df
@@ -518,6 +518,8 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
     
     preferred_units = {
         'propofol': 'mcg/kg/min',
+        'propofol_lb': 'mcg/lb/min',
+        'propofol_unweighted': 'mcg/min',
         'midazolam': 'mg/hr',
         'fentanyl': 'mcg/hr',
         'insulin': 'u/hr',

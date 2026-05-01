@@ -166,7 +166,8 @@ class TestLoadData:
         # Verify calls
         mock_exists.assert_called_with("/path/to/dir/clif_test_table.parquet")
         mock_load_parquet.assert_called_with(
-            "/path/to/dir/clif_test_table.parquet", None, None, None, None, False, False
+            "/path/to/dir/clif_test_table.parquet", None, None, None, None, False,
+            return_rel=False, lazy=False,
         )
         
         # Verify result
