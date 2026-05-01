@@ -1,0 +1,5 @@
+hospitalization_id,recorded_dttm,vital_category,vital_value
+H001,2023-01-01 09:00,weight_kg,70.0
+H001,2023-01-01 10:30,weight_kg,71.0
+H002,2023-01-02 08:00,weight_kg,80.0
+H003,2023-01-03 07:00,weight_kg,60.0

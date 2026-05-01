@@ -1,0 +1,36 @@
+rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_weighted,weight_kg,_base_dose,_base_unit,_unit_class,note
+0,valid,fentanyl,6,MCG/KG/HR,mcg/kg/hr,1,70,0.1,mcg/kg/min,rate,test variation of the /hr unit - updated to retain weight
+1,valid,fentanyl,6,mcg / hr,mcg/hr,0,71,0.1,mcg/min,rate,test weight is not used if not required even when present
+2,valid,fentanyl,6,mcg/hr,mcg/hr,0,,0.1,mcg/min,rate,test weight missing is ok if not required
+3,valid,insulin,6,mu/min,mu/min,0,,0.006,u/min,rate,test weight missing is ok if not required
+4,valid,insulin,6,mu/kg/m,mu/kg/min,1,,0.006,u/kg/min,rate,test kg is now supported - updated
+5,valid,fentanyl,6,mcg/kg/m,mcg/kg/min,1,75,6,mcg/kg/min,rate,test variation of the /min unit - updated
+6,valid,insulin,6,U / kg / hour,u/kg/hr,1,76,0.1,u/kg/min,rate,test variation of the unit amount - updated
+7,valid,insulin,6,mU/kg/m,mu/kg/min,1,77,0.006,u/kg/min,rate,test variation of the unit amount - updated
+8,valid,dextrose,6,mL/kg/hr,ml/kg/hr,1,78,0.1,ml/kg/min,rate,test variation of the volume amount - updated
+9,valid,dextrose,6,L/kg/hr,l/kg/hr,1,79,100,ml/kg/min,rate,test variation of the volume amount - updated
+10,valid,fentanyl,6,ng/kg/m,ng/kg/min,1,80,0.006,mcg/kg/min,rate,test variation of the mass amount - updated
+11,valid,fentanyl,6,mg/kg/m,mg/kg/min,1,81,6000,mcg/kg/min,rate,test variation of the mass amount - updated
+12,valid,fentanyl,6,mcg/lb/hr,mcg/lb/hr,1,82,0.220462,mcg/kg/min,rate,test lb is acceptable - updated
+13,valid,dextrose,6,L / lb / hr,l/lb/hr,1,83,220.462,ml/kg/min,rate,test lb is acceptable - updated
+14,valid,fentanyl,6,gram/kg/minute,g/kg/min,1,84,6000000,mcg/kg/min,rate,test lb is acceptable - updated
+15,valid,propofol,6,mcg,mcg,0,85,6,mcg,amount,
+16,valid,dextrose,6,mL,ml,0,86,6,ml,amount,
+17,valid,dextrose,6,l,l,0,87,6000,ml,amount,
+18,valid,insulin,6,u,u,0,88,6,u,amount,
+19,valid,insulin,6,milli-unit,mu,0,89,0.006,u,amount,
+20,invalid,fentanyl,6,kg,kg,0,90,6,kg,unrecognized,kg is not recognized
+21,valid,fentanyl,6,gram,g,0,91,6000000,mcg,amount,
+22,invalid,propofol,6,mEq,meq,0,92,6,meq,unrecognized,mEq is not recognized
+23,invalid,propofol,6,%,%,0,93,6,%,unrecognized,% not supported
+24,invalid,propofol,6,IU,iu,0,94,6,iu,unrecognized,IU not supported
+25,invalid,propofol,6,,,0,95,6,,unrecognized,empty string not supported
+26,invalid,insulin,6,   ,,0,96,6,,unrecognized,spaces not supported
+27,,,,,,,97,0,,,
+28,,,,,,,98,0,,,
+29,,,,,,,99,0,,,
+30,,,,,,,100,0,,,
+31,,,,,,,101,0,,,
+32,,,,,,,102,0,,,
+33,,,,,,,103,0,,,
+34,,,,,,,104,0,,,
