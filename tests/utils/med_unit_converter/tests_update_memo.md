@@ -6,23 +6,64 @@
 
 ---
 
-## 1. What's changing in the code (in plain English)
+## 1. Pipeline contract (current state)
 
-The current pipeline always routes weighted units (`mcg/kg/hr`, `mcg/lb/min`, etc.) through an **unweighted base unit** (`mcg/min`). To do that it multiplies by `weight_kg` in stage 1 and divides by `weight_kg` in stage 2 — which (a) loses precision via float roundtrip and (b) fails when `weight_kg` is missing, even when both ends of the conversion share the same weight qualifier and weight isn't actually needed.
+Two-stage conversion, weight-aware, DuckDB-native end-to-end.
 
-The new pipeline:
+### Stage 1: `_clean_unit → _base_unit`
 
-- **Stage 1 (`clean → base`) preserves the weight qualifier.** `mcg/kg/hr` now goes to base `mcg/kg/min` (not `mcg/min`). Stage 1 only normalizes amount and time; it does not touch `weight_kg`.
+- Normalizes amount (`mass → mcg`, `volume → ml`, `unit → u`) and time (`/hr → /min`).
+- Collapses the weight qualifier `/lb` into the canonical `/kg` axis using a **constant** factor `KG_PER_LB = 2.20462`. Patient weight is never consulted here.
+- `_base_unit`'s weight qualifier is in `{'/kg', ''}` only — `/lb` does not appear.
+- Emits `_unit_class` (rate / amount / unrecognized).
+- Identity in factor: when source already matches the canonical form, all factors are 1, dose passes through unchanged.
 
-- **Stage 2 (`base → preferred`) handles the weight transition with a 9-case factor.** Same weight qualifier on both sides → factor 1, no weight needed. `kg ↔ lb` → constant factor 2.20462, no weight needed. Adding/removing a weight qualifier → multiply or divide by `weight_kg` (this is the only case where patient weight is required).
+### Stage 2: `_base_unit → _preferred_unit`
 
-- **`_needs_wt` column added.** Computed from `(_base_unit, _preferred_unit)`. It's 1 only when source and target differ in *presence* of a weight qualifier. The orchestrator uses this to do a lazy weight join — only `_needs_wt = 1` rows go through `find_most_recent_weight`.
+- Normalizes amount and time from canonical (mcg / ml / u, /min) to the preferred unit's form.
+- Applies the **weight transition factor** based on `(_base_wt, _pref_wt)`:
 
-- **`fallback_on_earliest: bool = False`** new parameter on `find_most_recent_weight` and `convert_dose_units_by_med_category`. When True, rows whose ASOF returns NULL (med admin precedes the first charted weight) fall back to the earliest weight for that hospitalization. New `_weight_source` column ('asof' / 'earliest_fallback' / NULL) for auditability.
+  | base_wt | pref_wt | factor                     | needs `weight_kg`? |
+  |---------|---------|----------------------------|---------------------|
+  | `/kg`   | `/kg`   | 1                          | no                  |
+  | `/kg`   | `/lb`   | 1 / `KG_PER_LB`            | no                  |
+  | `/kg`   | `''`    | `weight_kg`                | **yes**             |
+  | `''`    | `/kg`   | 1 / `weight_kg`            | **yes**             |
+  | `''`    | `/lb`   | 1 / (`weight_kg` × `KG_PER_LB`) | **yes**         |
+  | `''`    | `''`    | 1                          | no                  |
 
-- **User-prefilled `weight_kg` is honored exactly.** If `'weight_kg' in med_df.columns`, our internal lookup is skipped entirely. NULLs in user-supplied weight stay NULL (no second-guessing).
+- **`_needs_wt`**: 1 iff exactly one of `_base_wt` / `_pref_wt` is `''` (XOR). Drives the orchestrator's lazy weight join and the two failure-message split.
+- **Identity short-circuit**: when `_clean_unit = _preferred_unit` and conversion is successful, `med_dose_converted = med_dose` exactly (bit-equal) — no multiplication.
 
-- **End-to-end `DuckDBPyRelation`.** No mid-pipeline `.to_df()`. `set(...to_df()...)` validation calls become anti-join + `.fetchall()`. The `_needs_wt` gate uses `.fetchone()`. Final pandas materialization is gated by `return_rel`. Following `docs/duckdb_perf_guide.md`: replacement scans (no `.register()`), `CREATE TEMP TABLE` for the input cohort (boundary 2a) and any relation referenced more than once (boundary 2b), `UNION ALL BY NAME` for the lazy weight join, `SEMI JOIN` over `WHERE x IN (SELECT ...)`.
+### Schema-level columns emitted
+
+- **Always** (default-visible): `_clean_unit`, `_unit_class`, `_convert_status`, `med_dose_converted`, `med_dose_unit_converted`.
+- **Always** (default-hidden via `possible_cols_to_exclude`): `_base_unit`, `_base_dose`, `_preferred_unit`, `_unit_class_preferred`, `_unit_subclass`, `_unit_subclass_preferred`, `_base_wt`, `_pref_wt`, `_needs_wt`, `_weight_source`, `_weight_recorded_dttm`.
+- **Only with `show_intermediate=True`**: `_amount_multiplier`, `_time_multiplier`, `_weight_multiplier` (stage 1), `_amount_multiplier_preferred`, `_time_multiplier_preferred`, `_weight_multiplier_preferred` (stage 2).
+
+`_base_wt` and `_pref_wt` are guaranteed non-NULL (NULL inputs map to `''`).
+
+### Orchestrator behavior
+
+- **User-prefilled `weight_kg` is honored exactly**. If `'weight_kg' in med_df.columns`, the internal vitals lookup is skipped. NULLs in the supplied column stay NULL (rows that need weight will fail with the appropriate two-message status).
+- **Lazy weight join**: when `weight_kg` is not in `med_df`, the orchestrator pre-computes `_needs_wt`. If no row needs weight, the vitals join is skipped entirely (only adds NULL placeholder columns). Otherwise it filters to needs-weight rows, ASOF-joins, and `UNION ALL BY NAME`s the rest.
+- **`fallback_on_earliest: bool = False`**: when True, rows whose ASOF returns NULL (med admin precedes the first charted weight) fall back to the earliest charted weight for the same hospitalization. Surfaces in `_weight_source = 'earliest_fallback'`.
+- **End-to-end `DuckDBPyRelation`**. No mid-pipeline `.to_df()`. Validation uses ANTI JOIN + `.fetchall()`. The `_needs_wt` gate uses `.fetchone()`. Final pandas materialization is gated by `return_rel`. Boundary 2a temp table (`_med_unit_input`) is created for pandas inputs and dropped via the temp-table registry on exit (when `return_rel=False`).
+
+### Failure status messages
+
+`_convert_status` values, in order of precedence:
+
+- `'original unit is missing'`
+- `'original unit <unit> is not recognized'`
+- `'user-preferred unit <unit> is not recognized'`
+- `'cannot convert <class> to <class_preferred>'` (e.g., `rate` to `amount`)
+- `'cannot convert <subclass> to <subclass_preferred>'` (e.g., `mass` to `volume`)
+- `'cannot convert weighted to unweighted: weight_kg is missing'` (source has weight qualifier, target does not, weight unavailable)
+- `'cannot convert unweighted to weighted: weight_kg is missing'` (target has weight qualifier, source does not, weight unavailable)
+- `'success'`
+
+On any non-success, `med_dose_converted` falls back to `med_dose` (or `_base_dose` if `med_dose` not in scope) and `med_dose_unit_converted` falls back to `_clean_unit` (or `_base_unit`).
 
 ---
 
@@ -52,59 +93,55 @@ I can hand you a one-liner Python script to derive the new `_base_unit` / `_base
 
 ---
 
-## 3. Concrete examples — what changes in each row
+## 3. Concrete row-shape examples
 
 ### 3a. `_convert_clean_units_to_base_units_test_data.csv`
 
-Current rows (selected):
+Stage 1 normalizes amount, time, and the weight axis. The weight axis collapses `/lb` into the canonical `/kg` via the constant `KG_PER_LB = 2.20462` (no patient weight). `_base_unit`'s weight qualifier is in `{'/kg', ''}` only.
+
+Compute `_base_dose` as `med_dose × amount_factor × time_factor × weight_const_factor` where `weight_const_factor = KG_PER_LB` for `/lb` source, `1` otherwise.
+
+Representative rows for `med_dose = 6`:
 
 ```
 rn,case,med_dose,_clean_unit,weight_kg,_base_dose,_base_unit,note
-0,valid,6,mcg/kg/hr,70,7,mcg/min,test variation of the /hr unit
-4,valid,6,mcg/kg/min,74,444,mcg/min,test variation of the /min unit
-5,valid,6,u/kg/hr,75,7.5,u/min,test variation of the unit amount
-13,valid,6,mcg/lb/hr,83,18.298346,mcg/min,test lb is acceptable
+0,valid,6,mcg/kg/hr,70,0.1,mcg/kg/min,time only: 6 × 1/60
+4,valid,6,mcg/kg/min,74,6,mcg/kg/min,identity (factor 1)
+5,valid,6,u/kg/hr,75,0.1,u/kg/min,time only
+11,valid,6,ng/kg/min,81,0.006,mcg/kg/min,amount only: 6 × 1/1000
+12,valid,6,mg/kg/min,82,6000,mcg/kg/min,amount only: 6 × 1000
+13,valid,6,mcg/lb/hr,83,0.220462,mcg/kg/min,lb→kg via KG_PER_LB and hr→min
+14,valid,6,l/lb/hr,84,220.462,ml/kg/min,lb→kg + L→ml + hr→min
 ```
 
-After redesign:
-
-```
-rn,case,med_dose,_clean_unit,weight_kg,_base_dose,_base_unit,note
-0,valid,6,mcg/kg/hr,70,0.1,mcg/kg/min,test variation of the /hr unit
-4,valid,6,mcg/kg/min,74,6,mcg/kg/min,test variation of the /min unit
-5,valid,6,u/kg/hr,75,0.1,u/kg/hr → keeps /kg in base; only time normalized   (NOTE corrected expected: 6/60 = 0.1; _base_unit = u/kg/min)
-13,valid,6,mcg/lb/hr,83,0.1,mcg/lb/min,test lb is acceptable; weight is unused
-```
-
-(Re-do the math for every weighted row: `_base_dose = med_dose × amount_factor × time_factor`. No `weight_kg` factor.)
+`weight_kg` in the input is irrelevant to stage 1 — the test just asserts the column flows through.
 
 ### 3b. `test_unit_converter - standardize_dose_to_base_units.csv`
 
-Same transformation rule across all 971 rows. Notably one *changed semantic*: row `rn=4` (the previously-`invalid` `'cannot standardize a weighted_unit if weight is missing'` case) now becomes **valid** — base conversion no longer needs `weight_kg`. Update the `case` column for any such rows from `invalid` → `valid` and clear or update the `note`.
+Same stage-1 rule across all rows. A row whose `_clean_unit` matches `/kg/` or `/lb/` will have `_base_unit` end in `/kg/min` (rate) or stay an unweighted form (amount). Rows whose only "failure" reason was missing `weight_kg` for stage 1 now succeed — flip those `case` from `invalid` → `valid` and update `_base_dose` / `_base_unit` accordingly.
 
 ### 3c. `test_unit_converter - convert_dose_units_by_med_category.csv`
 
-Apply the stage-1 edits from above first. Then:
+Apply §3a rules first, then for stage 2 verify these invariants per row:
 
-- **`_convert_status` message split.** Replace
-  - `'cannot convert to a weighted unit if weight_kg is missing'`
+- **Joint consistency on success**: `med_dose_unit_converted = _preferred_unit`, and `med_dose_converted` is the dose value expressed in that unit. If the unit names a `/lb` form, the dose value must be the lb-form numerical result.
+- **Multi-target medications need distinct `med_category` values**: `preferred_units` is a `{med_category: target_unit}` dict, so any row whose expected `_preferred_unit` differs from other rows of the same medication needs a unique `med_category` (e.g., `propofol_lb`, `propofol_unweighted`). Update the test's preferred-units dict to mirror.
+- **Failure status precedence** (top to bottom): `'original unit is missing'` → `'original unit <u> is not recognized'` → `'user-preferred unit <u> is not recognized'` → `'cannot convert <class> to <class_preferred>'` → `'cannot convert <subclass> to <subclass_preferred>'` → `'cannot convert weighted to unweighted: weight_kg is missing'` → `'cannot convert unweighted to weighted: weight_kg is missing'` → `'success'`.
+- **Failure fallbacks**: on any non-success, `med_dose_converted = med_dose` (or `_base_dose` if `med_dose` not in scope) and `med_dose_unit_converted = _clean_unit` (or `_base_unit`).
+- **`_needs_wt` formula**: 1 iff exactly one of `_base_unit` / `_preferred_unit` contains `/kg/` or `/lb/` (XOR). 0 otherwise.
 
-  with one of the two more specific messages depending on direction:
-  - Source weighted, target unweighted: `'cannot convert weighted to unweighted: weight_kg is missing'`
-  - Source unweighted, target weighted: `'cannot convert unweighted to weighted: weight_kg is missing'`
+### 3d. `vitals_weights.csv`
 
-- **Add `_needs_wt` column** (1 / 0). The formula:
-  - `_needs_wt = 1` iff exactly one of `_base_unit` / `_preferred_unit` contains `/kg/` or `/lb/` (i.e., XOR of weight-qualifier presence).
-  - Otherwise `_needs_wt = 0`.
+Three rows today. Adding rows is needed for the `fallback_on_earliest` and `_weight_source` provenance tests in §6c:
 
-- **Same-class row review.** Look for rows where the previous `_convert_status` was a `'cannot convert ...'` flavor that's now successful. Example:
-  - `mcg/kg/hr → mcg/kg/min` with `weight_kg = NULL`: previously failed in stage 1, now succeeds with `med_dose_converted = med_dose / 60`, `_convert_status = 'success'`. Update both `med_dose_converted` and `_convert_status`.
+```
+hospitalization_id,recorded_dttm,vital_category,vital_value
+H_LAGGED,2024-01-01 09:30,weight_kg,72.0
+H_NORMAL,2024-01-01 08:00,weight_kg,70.0
+H_NORMAL,2024-01-01 10:00,weight_kg,71.5
+```
 
-- **Append new rows for the 14 scenarios in §4.**
-
-### 3d. `vitals_weights.csv` (optional fallback test)
-
-Currently 3 rows. To exercise `fallback_on_earliest=True`, add a hospitalization where the *earliest* weight is recorded **after** the first med admin time. The corresponding new row in `convert_dose_units_by_med_category.csv` should test that with `fallback_on_earliest=False` the conversion fails (no prior weight), and with `fallback_on_earliest=True` it succeeds and `_weight_source = 'earliest_fallback'`.
+`H_LAGGED`'s earliest weight is recorded *after* its first med admin (09:00), so an ASOF lookup returns NULL; `fallback_on_earliest=True` recovers the 09:30 value.
 
 ---
 
@@ -131,11 +168,15 @@ All rows below should round-trip correctly under the new design. Use unique `rn`
 
 **Notes:**
 
-- For #2, the cleaning step normalizes `mcg/kg/minute` → `mcg/kg/min`, which is identical to the preferred unit. The identity short-circuit in stage 2 returns `med_dose` exactly (bit-equal to input).
+- For #2, cleaning normalizes `mcg/kg/minute` → `mcg/kg/min`, identical to the preferred unit. The stage-2 identity short-circuit returns `med_dose` bit-exact.
 
-- For #6 and #7, the constant factor 2.20462 should be defined as a single literal in the code — make sure your expected values match the implementation's literal. If you want bit-exact tests, document the literal in the fixture's `note` column.
+- For #6 (`mcg/kg/min → mcg/lb/min`): the `1 / KG_PER_LB` factor is applied in **stage 2** (kg → lb is a forward transition, source already canonical).
 
-- For #10 and #12, `med_dose_converted` falls back to the **input dose**, NOT to `_base_dose`. Verify this matches the fallback fields chosen by the implementation (`_clean_unit` / `med_dose` if available, else `_base_unit` / `_base_dose`).
+- For #7 (`mcg/lb/min → mcg/kg/min`): the `KG_PER_LB` factor is applied in **stage 1** (lb is collapsed into kg before stage 2 sees the input). Stage 2 sees identity (`/kg → /kg`).
+
+- For #6 and #7, expected values use the same `KG_PER_LB = 2.20462` literal as the implementation. Add the literal to the fixture's `note` column if you want bit-exact equality assertions.
+
+- For #10 and #12, `med_dose_converted` falls back to the input `med_dose`, NOT `_base_dose`. `med_dose_unit_converted` falls back to `_clean_unit`.
 
 ---
 
@@ -176,14 +217,53 @@ def _load(filename) -> pd.DataFrame:
 - `test_convert_dose_units_by_med_category` — keep, will pass once File 5 is updated.
 - `test_convert_dose_units_by_med_category_return_rel` — keep, may need to assert `_needs_wt` in `result_df.columns`.
 
-### 6c. New tests to add
+### 6c. New tests to add (eleven-test plan)
 
-- `test__needs_wt_column_present_and_correct` — assert `_needs_wt` column exists and matches expected values from File 5.
-- `test_no_vitals_join_when_not_needed` — `med_df` without `weight_kg`, `vitals_df=None`, all conversions weight-compatible. Assert no error and correct results.
-- `test_partial_vitals_join` — half rows weight-compatible, half need weight. Assert ASOF only fires for the needing-weight subset.
-- `test_user_prefilled_weight_kg_honored` — pre-filled `weight_kg` (mix of values + NULLs), `vitals_df=None`. Assert lookup skipped, NULLs preserved.
-- `test_fallback_on_earliest_recovers_lagged_charting` — fixture where med admin precedes first weight chart time. With `fallback_on_earliest=False`, fails; with `True`, succeeds and `_weight_source = 'earliest_fallback'`.
-- `test_identity_short_circuit_bit_exact` — non-integer `weight_kg` (e.g., 73.4836), `mcg/kg/min → mcg/kg/min`, assert `med_dose_converted == med_dose` exactly (no float drift).
+Tiered by priority. **Critical** = no current pytest coverage. **Important** = smoke-only today (in `/tmp/smoke_test_unit_converter.py`), needs formal coverage. **Lower** = ergonomic / surface-area checks.
+
+#### Critical (3)
+
+1. **`test_fallback_on_earliest_recovers_lagged_charting`** — fixture where the earliest charted weight is `recorded_dttm > admin_dttm` for some hospitalization. Assert:
+   - With default `fallback_on_earliest=False`: `_convert_status` is the appropriate `weight_kg is missing` message; `_weight_source` is NULL.
+   - With `fallback_on_earliest=True`: `_convert_status='success'`; `_weight_source='earliest_fallback'`; `med_dose_converted` is computed using the lagged weight value.
+
+2. **`test_temp_table_cleanup_after_call`** — call `convert_dose_units_by_med_category(return_rel=False)`, then assert `duckdb.sql("SHOW TABLES").fetchall()` returns no `_med_unit_*` rows. Verifies the boundary-2a temp-table-registry cleanup contract.
+
+3. **`test_identity_short_circuit_bit_exact`** — non-integer `weight_kg=73.4836`, `mcg/kg/min → mcg/kg/min`; assert `med_dose_converted == med_dose` exactly (`==`, not `assert_close`).
+
+#### Important (7)
+
+4. **`test_needs_wt_full_matrix`** — every combination of input qualifier `{/kg, /lb, ''}` × preferred qualifier `{/kg, /lb, ''}` (9 rows). Assert `_needs_wt` matches the XOR truth table. Note: `/lb` source rows are normalized to `/kg` in stage 1, so `_base_wt` is in `{'/kg', ''}` only.
+
+5. **`test_kg_lb_constant_factor_no_weight`** — explicit kg↔lb conversion with `weight_kg=NULL`. Cover both directions: `mcg/kg/min → mcg/lb/min` (factor `1/KG_PER_LB`, applied in stage 2) and `mcg/lb/hr → mcg/kg/min` (factor `KG_PER_LB`, applied in stage 1).
+
+6. **`test_user_prefilled_weight_kg_honored`** — pre-filled `weight_kg` column with mixed values + NULLs, `vitals_df=None`. Assert lookup is skipped, NULLs preserved, only `_needs_wt=1 AND weight_kg IS NULL` rows fail.
+
+7. **`test_lazy_weight_join_skipped`** — preferred-units dict where every conversion is weight-compatible, no `weight_kg` in `med_df`, `vitals_df=None`. Assert no error, all rows succeed (verifies the orchestrator's `fetchone()` short-circuit).
+
+8. **`test_anti_join_validation_unacceptable_preferred`** — pass an unacceptable preferred unit (e.g., `iu/hr` for some med). Assert `ValueError` (default) and warning when `override=True`.
+
+9. **`test_anti_join_validation_extra_med_category`** — pass a `med_category` in `preferred_units` that is not in the `med_df`. Assert `ValueError` (default) and warning when `override=True`.
+
+10. **`test_weight_source_provenance`** — three scenarios in one fixture: ASOF hit (`_weight_source='asof'`), earliest fallback (`_weight_source='earliest_fallback'`), no weight available (`_weight_source IS NULL`). Verifies `find_most_recent_weight` provenance column.
+
+#### Lower priority (1)
+
+11. **`test_show_intermediate_surfaces_qa_columns`** — assert `show_intermediate=True` exposes `_amount_multiplier_preferred`, `_time_multiplier_preferred`, `_weight_multiplier_preferred`; default hides them along with `_needs_wt`, `_base_wt`, `_pref_wt`, etc.
+
+#### Required fixture additions
+
+For tests 1 and 10 (`fallback_on_earliest`, `_weight_source` provenance), append to `vitals_weights.csv`:
+
+```
+H_LAGGED,2024-01-01 09:30,weight_kg,72.0
+H_NORMAL,2024-01-01 08:00,weight_kg,70.0
+H_NORMAL,2024-01-01 10:00,weight_kg,71.5
+```
+
+And to `convert_dose_units_by_med_category.csv`: two rows for `H_LAGGED` with `admin_dttm = 2024-01-01 09:00` — one expected to fail without fallback, one expected to succeed with fallback.
+
+The remaining tests (3, 4, 5, 6, 7, 8, 9, 11) build their own minimal in-test fixtures (small `pd.DataFrame` literals) and do not depend on the colocated CSVs.
 
 ---
 

@@ -616,5 +616,445 @@ def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med
 # - [x] preferred_units not supported (not in the acceptable set)
 # - [x] cannot convert from rate to amount
 # - [x] cannot convert from mass (mcg) to volume (ml)
-# - [ ] med_category not in the dataset
-# - [ ] test the error message when no override
+# - [x] med_category not in the dataset (test_anti_join_validation_extra_med_category)
+# - [x] test the error message when no override (test_anti_join_validation_*)
+
+
+# ===========================================
+# Eleven-test plan: weight-aware redesign closeout
+# (mirrors §6c of tests_update_memo.md)
+# ===========================================
+
+# Each test below builds its own minimal in-test fixture (small pd.DataFrame
+# literals) so the existing CSV-based fixtures stay untouched. This is the
+# §6c-required coverage for behaviors that today are smoke-only or absent.
+
+KG_PER_LB_LITERAL = 2.20462  # mirrors clifpy.utils.unit_converter.KG_PER_LB
+
+
+# --- Critical (no current pytest coverage) ----------------------------------
+
+def test_fallback_on_earliest_recovers_lagged_charting():
+    """Test #1 of §6c: when the earliest charted weight is *after* med admin,
+    `fallback_on_earliest=True` recovers it; default leaves the row failing.
+
+    Verifies both the failure-path status string and the success-path
+    `_weight_source='earliest_fallback'` provenance value.
+    """
+    med_df = pd.DataFrame({
+        'rn': [0],
+        'hospitalization_id': ['H_LAGGED'],
+        'admin_dttm': [pd.Timestamp('2024-01-01 09:00')],
+        'med_category': ['propofol_unweighted'],
+        'med_dose': [10.0],
+        'med_dose_unit': ['mcg/kg/min'],
+    })
+    vitals_df = pd.DataFrame({
+        'hospitalization_id': ['H_LAGGED'],
+        'recorded_dttm': [pd.Timestamp('2024-01-01 09:30')],
+        'vital_category': ['weight_kg'],
+        'vital_value': [72.0],
+    })
+    preferred_units = {'propofol_unweighted': 'mcg/min'}
+
+    # --- default fallback_on_earliest=False -> should fail with weight-missing ---
+    result_no_fb, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        vitals_df=vitals_df,
+        preferred_units=preferred_units,
+        override=True,
+        show_intermediate=True,
+    )
+    assert result_no_fb['_convert_status'].iloc[0] == (
+        'cannot convert weighted to unweighted: weight_kg is missing'
+    )
+    assert pd.isna(result_no_fb['_weight_source'].iloc[0])
+
+    # --- fallback_on_earliest=True -> should succeed using the lagged 09:30 row ---
+    result_fb, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        vitals_df=vitals_df,
+        preferred_units=preferred_units,
+        override=True,
+        show_intermediate=True,
+        fallback_on_earliest=True,
+    )
+    assert result_fb['_convert_status'].iloc[0] == 'success'
+    assert result_fb['_weight_source'].iloc[0] == 'earliest_fallback'
+    # 10 mcg/kg/min × 72 kg = 720 mcg/min
+    assert result_fb['med_dose_converted'].iloc[0] == pytest.approx(720.0, rel=1e-6)
+    assert result_fb['med_dose_unit_converted'].iloc[0] == 'mcg/min'
+
+
+def test_temp_table_cleanup_after_call():
+    """Test #2 of §6c: pandas-input -> the orchestrator promotes med_df into a
+    `_med_unit_input` temp table (boundary 2a). When `return_rel=False`,
+    the `finally` block must drop every `_med_unit_*` table on exit.
+    """
+    # Sanity-check: drop any leftover _med_unit_* tables before the test.
+    for (tname,) in duckdb.sql("SHOW TABLES").fetchall():
+        if tname.startswith('_med_unit_'):
+            duckdb.execute(f"DROP TABLE IF EXISTS {tname}")
+
+    med_df = pd.DataFrame({
+        'rn': [0],
+        'med_category': ['propofol'],
+        'med_dose': [10.0],
+        'med_dose_unit': ['mcg/kg/min'],
+        'weight_kg': [70.0],
+    })
+
+    convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units={'propofol': 'mcg/kg/min'},
+        override=True,
+        return_rel=False,
+    )
+
+    leftover = [
+        t for (t,) in duckdb.sql("SHOW TABLES").fetchall()
+        if t.startswith('_med_unit_')
+    ]
+    assert leftover == [], f"Expected no _med_unit_* tables, found: {leftover}"
+
+
+def test_identity_short_circuit_bit_exact():
+    """Test #3 of §6c: with non-integer `weight_kg` and identical input/preferred
+    units, the identity short-circuit must return `med_dose_converted == med_dose`
+    exactly (no float drift from the 6-case factor multiplication).
+    """
+    weight = 73.4836
+    dose = 12.345678901234567
+    med_df = pd.DataFrame({
+        'rn': [0],
+        'med_category': ['propofol'],
+        'med_dose': [dose],
+        'med_dose_unit': ['mcg/kg/min'],
+        'weight_kg': [weight],
+    })
+
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units={'propofol': 'mcg/kg/min'},
+        override=True,
+    )
+    # Bit-exact equality, not approx — short-circuit means no multiplication.
+    assert result['med_dose_converted'].iloc[0] == dose
+    assert result['med_dose_unit_converted'].iloc[0] == 'mcg/kg/min'
+    assert result['_convert_status'].iloc[0] == 'success'
+
+
+# --- Important (smoke-only today) -------------------------------------------
+
+def test_needs_wt_full_matrix():
+    """Test #4 of §6c: every {/kg, /lb, ''} × {/kg, /lb, ''} input/preferred
+    combination, asserting `_needs_wt` matches the XOR truth table.
+
+    Note: `/lb` source rows are normalized to `/kg` in stage 1, so
+    `_base_wt` is always in {'/kg', ''}. The XOR is computed on `_base_wt`,
+    so a `/lb → /kg` row has `_needs_wt = 0` (both ends weighted-equivalent).
+    """
+    rows = [
+        # (med_category, input_unit, preferred_unit, expected_needs_wt)
+        ('m_kg_kg', 'mcg/kg/min', 'mcg/kg/min', 0),
+        ('m_kg_lb', 'mcg/kg/min', 'mcg/lb/min', 0),
+        ('m_kg_un', 'mcg/kg/min', 'mcg/min',    1),
+        ('m_lb_kg', 'mcg/lb/min', 'mcg/kg/min', 0),
+        ('m_lb_lb', 'mcg/lb/min', 'mcg/lb/min', 0),
+        ('m_lb_un', 'mcg/lb/min', 'mcg/min',    1),
+        ('m_un_kg', 'mcg/min',    'mcg/kg/min', 1),
+        ('m_un_lb', 'mcg/min',    'mcg/lb/min', 1),
+        ('m_un_un', 'mcg/min',    'mcg/min',    0),
+    ]
+    med_df = pd.DataFrame({
+        'rn': list(range(len(rows))),
+        'med_category': [r[0] for r in rows],
+        'med_dose': [10.0] * len(rows),
+        'med_dose_unit': [r[1] for r in rows],
+        'weight_kg': [70.0] * len(rows),  # plenty for needs-wt rows
+    })
+    preferred_units = {r[0]: r[2] for r in rows}
+
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units=preferred_units,
+        override=True,
+        show_intermediate=True,
+    )
+    result = result.sort_values('rn').reset_index(drop=True)
+    expected = pd.Series([r[3] for r in rows], name='_needs_wt')
+    pd.testing.assert_series_equal(
+        result['_needs_wt'].astype(int).reset_index(drop=True),
+        expected,
+        check_names=False,
+    )
+
+
+def test_kg_lb_constant_factor_no_weight():
+    """Test #5 of §6c: explicit kg<->lb conversion with `weight_kg=NULL`.
+
+    Both directions must succeed without consulting patient weight, using
+    the `KG_PER_LB` constant. Covers stage-1 application (lb->kg) and
+    stage-2 application (kg->lb).
+    """
+    med_df = pd.DataFrame({
+        'rn': [0, 1],
+        'med_category': ['kg_to_lb', 'lb_to_kg'],
+        'med_dose': [100.0, 100.0],
+        'med_dose_unit': ['mcg/kg/min', 'mcg/lb/hr'],
+        'weight_kg': [np.nan, np.nan],
+    })
+    preferred_units = {
+        'kg_to_lb': 'mcg/lb/min',  # factor 1/KG_PER_LB applied in stage 2
+        'lb_to_kg': 'mcg/kg/min',  # factor KG_PER_LB applied in stage 1; stage 2 sees identity
+    }
+
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units=preferred_units,
+        override=True,
+    )
+    result = result.sort_values('rn').reset_index(drop=True)
+    assert (result['_convert_status'] == 'success').all()
+
+    # kg->lb: 100 / 2.20462 mcg/lb/min
+    assert result.loc[0, 'med_dose_converted'] == pytest.approx(
+        100.0 / KG_PER_LB_LITERAL, rel=1e-9
+    )
+    assert result.loc[0, 'med_dose_unit_converted'] == 'mcg/lb/min'
+
+    # lb/hr -> kg/min: stage 1 collapses lb->kg via *KG_PER_LB and hr->min via /60.
+    # 100 mcg/lb/hr  ==  (100 * KG_PER_LB / 60) mcg/kg/min
+    assert result.loc[1, 'med_dose_converted'] == pytest.approx(
+        100.0 * KG_PER_LB_LITERAL / 60.0, rel=1e-9
+    )
+    assert result.loc[1, 'med_dose_unit_converted'] == 'mcg/kg/min'
+
+
+def test_user_prefilled_weight_kg_honored():
+    """Test #6 of §6c: when `weight_kg` is in `med_df`, the orchestrator must
+    skip the vitals lookup entirely. NULLs in the supplied column stay NULL,
+    and only `_needs_wt=1 AND weight_kg IS NULL` rows fail.
+    """
+    med_df = pd.DataFrame({
+        'rn': [0, 1, 2, 3],
+        'med_category': ['propofol_unweighted'] * 4,
+        'med_dose': [10.0, 10.0, 10.0, 10.0],
+        'med_dose_unit': ['mcg/kg/min', 'mcg/kg/min', 'mcg/kg/min', 'mcg/kg/min'],
+        'weight_kg': [70.0, np.nan, 80.0, np.nan],
+    })
+
+    # vitals_df=None must NOT trigger an error: user-prefilled weight wins.
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        vitals_df=None,
+        preferred_units={'propofol_unweighted': 'mcg/min'},
+        override=True,
+    )
+    result = result.sort_values('rn').reset_index(drop=True)
+
+    # Rows 0, 2: weight present -> success.
+    assert result.loc[0, '_convert_status'] == 'success'
+    assert result.loc[0, 'med_dose_converted'] == pytest.approx(700.0)
+    assert result.loc[2, '_convert_status'] == 'success'
+    assert result.loc[2, 'med_dose_converted'] == pytest.approx(800.0)
+
+    # Rows 1, 3: weight NULL -> weighted->unweighted failure (NULLs preserved).
+    assert result.loc[1, '_convert_status'] == (
+        'cannot convert weighted to unweighted: weight_kg is missing'
+    )
+    assert result.loc[3, '_convert_status'] == (
+        'cannot convert weighted to unweighted: weight_kg is missing'
+    )
+
+
+def test_lazy_weight_join_skipped():
+    """Test #7 of §6c: when no row needs weight, the `fetchone()` short-circuit
+    must skip the vitals join entirely (vitals_df=None must NOT raise).
+    """
+    med_df = pd.DataFrame({
+        'rn': [0, 1, 2],
+        'med_category': ['kg_kg', 'kg_lb', 'amount_id'],
+        'med_dose': [10.0, 10.0, 5.0],
+        'med_dose_unit': ['mcg/kg/min', 'mcg/kg/min', 'mg'],
+    })
+    preferred_units = {
+        'kg_kg': 'mcg/kg/min',
+        'kg_lb': 'mcg/lb/min',
+        'amount_id': 'mg',
+    }
+
+    # No 'weight_kg' column AND vitals_df=None -> must succeed because no row
+    # crosses the weighted/unweighted boundary.
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        vitals_df=None,
+        preferred_units=preferred_units,
+        override=True,
+    )
+    assert (result['_convert_status'] == 'success').all()
+
+
+def test_anti_join_validation_unacceptable_preferred():
+    """Test #8 of §6c: an unacceptable preferred unit must trigger ValueError
+    (default) or a warning (`override=True`) via the ANTI JOIN validator
+    inside `_convert_base_units_to_preferred_units`.
+    """
+    med_df = pd.DataFrame({
+        'rn': [0],
+        'med_category': ['zidovudine'],
+        'med_dose': [10.0],
+        'med_dose_unit': ['mg'],
+        'weight_kg': [70.0],
+    })
+    preferred_units = {'zidovudine': 'iu/hr'}  # 'iu' is unrecognized
+
+    with pytest.raises(ValueError):
+        convert_dose_units_by_med_category(
+            med_df=med_df,
+            preferred_units=preferred_units,
+            override=False,
+        )
+
+    # override=True -> warning, not raise. Still produces output.
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units=preferred_units,
+        override=True,
+    )
+    assert len(result) == 1
+
+
+def test_anti_join_validation_extra_med_category():
+    """Test #9 of §6c: a `med_category` in `preferred_units` that is not in
+    `med_df` must trigger ValueError (default) or warning (`override=True`)
+    via the ANTI JOIN validator at the orchestrator entry point.
+    """
+    med_df = pd.DataFrame({
+        'rn': [0],
+        'med_category': ['propofol'],
+        'med_dose': [10.0],
+        'med_dose_unit': ['mcg/kg/min'],
+        'weight_kg': [70.0],
+    })
+    preferred_units = {
+        'propofol': 'mcg/kg/min',
+        'no_such_med': 'mg/hr',  # not present in med_df
+    }
+
+    with pytest.raises(ValueError):
+        convert_dose_units_by_med_category(
+            med_df=med_df,
+            preferred_units=preferred_units,
+            override=False,
+        )
+
+    # override=True -> warning, not raise.
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units=preferred_units,
+        override=True,
+    )
+    assert len(result) == 1
+
+
+def test_weight_source_provenance():
+    """Test #10 of §6c: three scenarios in one fixture exercise every value
+    of `_weight_source`: 'asof', 'earliest_fallback', and NULL.
+    """
+    # Three hospitalizations:
+    # H_ASOF:     vitals before admin -> 'asof'
+    # H_LAGGED:   vitals after admin only -> 'earliest_fallback' (with fallback)
+    # H_NONE:     no vitals at all -> NULL
+    med_df = pd.DataFrame({
+        'rn': [0, 1, 2],
+        'hospitalization_id': ['H_ASOF', 'H_LAGGED', 'H_NONE'],
+        'admin_dttm': [
+            pd.Timestamp('2024-01-01 10:00'),
+            pd.Timestamp('2024-01-01 09:00'),
+            pd.Timestamp('2024-01-01 12:00'),
+        ],
+        'med_category': ['propofol_unweighted'] * 3,
+        'med_dose': [10.0, 10.0, 10.0],
+        'med_dose_unit': ['mcg/kg/min'] * 3,
+    })
+    vitals_df = pd.DataFrame({
+        'hospitalization_id': ['H_ASOF', 'H_LAGGED'],
+        'recorded_dttm': [
+            pd.Timestamp('2024-01-01 08:00'),  # before H_ASOF admin
+            pd.Timestamp('2024-01-01 09:30'),  # after H_LAGGED admin
+        ],
+        'vital_category': ['weight_kg', 'weight_kg'],
+        'vital_value': [70.0, 72.0],
+    })
+
+    result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        vitals_df=vitals_df,
+        preferred_units={'propofol_unweighted': 'mcg/min'},
+        override=True,
+        show_intermediate=True,
+        fallback_on_earliest=True,
+    )
+    # Index by hospitalization_id for stable lookups.
+    by_id = result.set_index('hospitalization_id')
+    assert by_id.loc['H_ASOF', '_weight_source'] == 'asof'
+    assert by_id.loc['H_LAGGED', '_weight_source'] == 'earliest_fallback'
+    assert pd.isna(by_id.loc['H_NONE', '_weight_source'])
+
+
+# --- Lower priority ---------------------------------------------------------
+
+def test_show_intermediate_surfaces_qa_columns():
+    """Test #11 of §6c: `show_intermediate=True` must expose stage-2 multiplier
+    columns (and the planning columns `_needs_wt`, `_base_wt`, `_pref_wt`).
+    Default mode hides all of them.
+    """
+    med_df = pd.DataFrame({
+        'rn': [0],
+        'med_category': ['propofol'],
+        'med_dose': [10.0],
+        'med_dose_unit': ['mcg/kg/min'],
+        'weight_kg': [70.0],
+    })
+    preferred_units = {'propofol': 'mcg/kg/hr'}
+
+    # Default (show_intermediate=False) -> QA columns must be absent.
+    default_result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units=preferred_units,
+        override=True,
+    )
+    hidden_cols = {
+        '_amount_multiplier_preferred',
+        '_time_multiplier_preferred',
+        '_weight_multiplier_preferred',
+        '_needs_wt',
+        '_base_wt',
+        '_pref_wt',
+        '_base_unit',
+        '_preferred_unit',
+        '_weight_source',
+    }
+    assert hidden_cols.isdisjoint(default_result.columns), (
+        f"Default mode leaked QA columns: "
+        f"{hidden_cols & set(default_result.columns)}"
+    )
+
+    # show_intermediate=True -> QA columns must be present.
+    qa_result, _ = convert_dose_units_by_med_category(
+        med_df=med_df,
+        preferred_units=preferred_units,
+        override=True,
+        show_intermediate=True,
+    )
+    expected_visible = {
+        '_amount_multiplier_preferred',
+        '_time_multiplier_preferred',
+        '_weight_multiplier_preferred',
+        '_needs_wt',
+        '_base_wt',
+        '_pref_wt',
+    }
+    missing = expected_visible - set(qa_result.columns)
+    assert not missing, f"show_intermediate=True missing QA columns: {missing}"
