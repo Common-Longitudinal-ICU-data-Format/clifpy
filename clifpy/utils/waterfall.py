@@ -143,6 +143,14 @@ def process_resp_support_waterfall(
     p("✦ Phase 0: initialise & create hourly scaffold")
     rs = resp_support.copy()
 
+    # Categoricals (esp. unordered ones returned by CLIF loaders for memory
+    # efficiency) break sort_values() and several pandas string operations
+    # downstream. Cast them once on input so the rest of the function can
+    # treat dtypes as plain object/numeric.
+    cat_cols = rs.select_dtypes(include='category').columns
+    if len(cat_cols):
+        rs[cat_cols] = rs[cat_cols].astype('object')
+
     # Lower-case categorical strings
     for c in ["device_category", "device_name", "mode_category", "mode_name"]:
         if c in rs.columns:
