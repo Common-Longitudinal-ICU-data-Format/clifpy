@@ -69,9 +69,13 @@ G_REGEX = f"^(g){AMOUNT_ENDER}"
 L_REGEX = f"^l{AMOUNT_ENDER}"
 
 # weight
-LB_REGEX = f"/lb/"
-KG_REGEX = f"/kg/"
-WEIGHT_REGEX = f"/(lb|kg)/"
+# NOTE: trailing alternation `(/|$)` matches both rates (where the weight
+# qualifier is followed by a time unit slash, e.g. `/kg/min`) and weighted
+# amounts (where the qualifier ends the string, e.g. `mcg/kg`). Without the
+# `$` branch, weighted amounts would be silently misclassified as unweighted.
+LB_REGEX = f"/lb(/|$)"
+KG_REGEX = f"/kg(/|$)"
+WEIGHT_REGEX = f"/(lb|kg)(/|$)"
 
 REGEX_TO_FACTOR_MAPPER = {
     # time -> /min
@@ -118,12 +122,53 @@ def _weight_qual_clause(col: str) -> str:
         f"ELSE '' END"
     )
 
-ACCEPTABLE_AMOUNT_UNITS = {
+# Base amount tokens (no weight qualifier). The amount-axis "vocabulary"
+# shared by both `_acceptable_amount_units` and `_acceptable_rate_units`.
+ACCEPTABLE_BASE_AMOUNT_UNITS = {
     "ml", "l", # volume
     "mu", "u", # unit
     "mcg", "mg", "ng", 'g' # mass
     # "dose" # dose
     }
+
+def _acceptable_amount_units() -> Set[str]:
+    """Generate all acceptable amount unit combinations (with optional weight qualifier).
+
+    Mirrors `_acceptable_rate_units` but without a time axis. Weight qualifiers
+    are `/kg`, `/lb`, or none — same axis as rate units.
+
+    Returns
+    -------
+    Set[str]
+        Set of all valid amount unit combinations.
+
+    Examples
+    --------
+    >>> amount_units = _acceptable_amount_units()
+    >>> 'mcg' in amount_units
+    True
+    >>> 'mcg/kg' in amount_units
+    True
+    >>> 'mcg/lb' in amount_units
+    True
+    >>> 'mcg/hr' in amount_units
+    False
+
+    Notes
+    -----
+    Amount units are combinations of:
+
+    - Amount units: ml, l, mu, u, mcg, mg, ng, g
+    - Weight qualifiers: /kg, /lb, or none
+
+    See Also
+    --------
+    _acceptable_rate_units : Same, plus a time axis.
+    """
+    acceptable_weight_units = {'/kg', '/lb', ''}
+    return {a + b for a in ACCEPTABLE_BASE_AMOUNT_UNITS for b in acceptable_weight_units}
+
+ACCEPTABLE_AMOUNT_UNITS = _acceptable_amount_units()
 
 def _acceptable_rate_units() -> Set[str]:
     """Generate all acceptable rate unit combinations.
@@ -153,11 +198,15 @@ def _acceptable_rate_units() -> Set[str]:
     - Amount units: ml, l, mu, u, mcg, mg, ng, g
     - Weight qualifiers: /kg, /lb, or none
     - Time units: /hr, /min
+
+    See Also
+    --------
+    _acceptable_amount_units : Same, minus the time axis.
     """
     acceptable_weight_units = {'/kg', '/lb', ''}
     acceptable_time_units = {'/hr', '/min'}
     # find the cartesian product of the three sets
-    return {a + b + c for a in ACCEPTABLE_AMOUNT_UNITS for b in acceptable_weight_units for c in acceptable_time_units}
+    return {a + b + c for a in ACCEPTABLE_BASE_AMOUNT_UNITS for b in acceptable_weight_units for c in acceptable_time_units}
 
 ACCEPTABLE_RATE_UNITS = _acceptable_rate_units()
 
@@ -580,9 +629,15 @@ def _convert_clean_units_to_base_units(
                     THEN 'ml' || ({base_weight_qual_expr}) || '/min'
                 WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{UNIT_REGEX}')
                     THEN 'u' || ({base_weight_qual_expr}) || '/min'
-                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg'
-                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml'
-                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u'
+                -- amount branches mirror rate branches: append the canonical
+                -- weight qualifier (`/kg` or `''`) so weighted amounts like
+                -- `mcg/kg`, `mg/kg`, `mcg/lb` round-trip through stage 1.
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}')
+                    THEN 'mcg' || ({base_weight_qual_expr})
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}')
+                    THEN 'ml' || ({base_weight_qual_expr})
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}')
+                    THEN 'u' || ({base_weight_qual_expr})
                 END
         FROM med_df
         """
@@ -613,9 +668,15 @@ def _convert_clean_units_to_base_units(
                     THEN 'ml' || ({base_weight_qual_expr}) || '/min'
                 WHEN _unit_class = 'rate' AND regexp_matches(_clean_unit, '{UNIT_REGEX}')
                     THEN 'u' || ({base_weight_qual_expr}) || '/min'
-                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}') THEN 'mcg'
-                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}') THEN 'ml'
-                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}') THEN 'u'
+                -- amount branches mirror rate branches: append the canonical
+                -- weight qualifier (`/kg` or `''`) so weighted amounts like
+                -- `mcg/kg`, `mg/kg`, `mcg/lb` round-trip through stage 1.
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{MASS_REGEX}')
+                    THEN 'mcg' || ({base_weight_qual_expr})
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{VOLUME_REGEX}')
+                    THEN 'ml' || ({base_weight_qual_expr})
+                WHEN _unit_class = 'amount' AND regexp_matches(_clean_unit, '{UNIT_REGEX}')
+                    THEN 'u' || ({base_weight_qual_expr})
                 END
         FROM classified
         """
@@ -866,14 +927,20 @@ def standardize_dose_to_base_units(
 
     Notes
     -----
-    Standard units for conversion:
+    Standard (base) units for conversion:
 
-    - Rate units: mcg/min, ml/min, u/min (all per minute)
-    - Amount units: mcg, ml, u (base units)
+    - Rate units (with optional weight qualifier): mcg/min, mcg/kg/min,
+      ml/min, ml/kg/min, u/min, u/kg/min — all per minute, `/lb` collapsed
+      into `/kg` via the constant `KG_PER_LB`.
+    - Amount units (with optional weight qualifier): mcg, mcg/kg, ml, ml/kg,
+      u, u/kg — `/lb` likewise collapsed into `/kg`.
 
     The function automatically handles:
 
-    - Weight-based dosing (/kg, /lb) using patient weights
+    - Weight-based dosing (/kg, /lb) using the constant `KG_PER_LB` to collapse
+      `/lb` into `/kg` in stage 1 (no patient weight needed). `weight_kg` is
+      consumed only in stage 2 (preferred-unit conversion) when source and
+      target differ in *presence* of a weight qualifier.
     - Time conversions (per hour to per minute)
     - Volume conversions (L to mL)
     - Mass conversions (mg, ng, g to mcg)

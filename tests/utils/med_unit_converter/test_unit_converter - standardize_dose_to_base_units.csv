@@ -15,18 +15,18 @@ rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_weighted,weight_kg,_bas
 13,valid,dextrose,6,L / lb / hr,l/lb/hr,1,83,220.462,ml/kg/min,rate,test lb is acceptable - updated
 14,valid,fentanyl,6,gram/kg/minute,g/kg/min,1,84,6000000,mcg/kg/min,rate,test lb is acceptable - updated
 15,valid,propofol,6,mcg,mcg,0,85,6,mcg,amount,
-16,valid,dextrose,6,mL,ml,0,86,6,ml,amount,
-17,valid,dextrose,6,l,l,0,87,6000,ml,amount,
-18,valid,insulin,6,u,u,0,88,6,u,amount,
-19,valid,insulin,6,milli-unit,mu,0,89,0.006,u,amount,
-20,invalid,fentanyl,6,kg,kg,0,90,6,kg,unrecognized,kg is not recognized
-21,valid,fentanyl,6,gram,g,0,91,6000000,mcg,amount,
-22,invalid,propofol,6,mEq,meq,0,92,6,meq,unrecognized,mEq is not recognized
-23,invalid,propofol,6,%,%,0,93,6,%,unrecognized,% not supported
-24,invalid,propofol,6,IU,iu,0,94,6,iu,unrecognized,IU not supported
-25,invalid,propofol,6,,,0,95,6,,unrecognized,empty string not supported
-26,invalid,insulin,6,   ,,0,96,6,,unrecognized,spaces not supported
-27,,,,,,,97,0,,,
+16,valid,propofol,6,mcg / KG,mcg/kg,0,86,6,mcg/kg,amount,
+17,valid,dextrose,6,mL,ml,0,87,6,ml,amount,
+18,valid,dextrose,6,l,l,0,88,6000,ml,amount,
+19,valid,insulin,6,u,u,0,89,6,u,amount,
+20,valid,insulin,6,milli-unit,mu,0,90,0.006,u,amount,
+21,invalid,fentanyl,6,kg,kg,0,91,6,kg,unrecognized,kg is not recognized
+22,valid,fentanyl,6,gram,g,0,92,6000000,mcg,amount,
+23,invalid,propofol,6,mEq,meq,0,93,6,meq,unrecognized,mEq is not recognized
+24,invalid,propofol,6,%,%,0,94,6,%,unrecognized,% not supported
+25,invalid,propofol,6,IU,iu,0,95,6,iu,unrecognized,IU not supported
+26,invalid,propofol,6,,,0,96,6,,unrecognized,empty string not supported
+27,invalid,insulin,6,   ,,0,97,6,,unrecognized,spaces not supported
 28,,,,,,,98,0,,,
 29,,,,,,,99,0,,,
 30,,,,,,,100,0,,,
@@ -34,3 +34,4 @@ rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_weighted,weight_kg,_bas
 32,,,,,,,102,0,,,
 33,,,,,,,103,0,,,
 34,,,,,,,104,0,,,
+35,,,,,,,105,0,,,

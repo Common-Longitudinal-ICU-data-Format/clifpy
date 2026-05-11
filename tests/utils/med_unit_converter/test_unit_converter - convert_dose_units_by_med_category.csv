@@ -31,3 +31,10 @@ rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_unit_class,_unit_subcla
 29,valid,oxytocin,4,units,u,amount,unit,4,u,,mu,amount,unit,0,4000,mu,success,u to mu,1
 30,valid,lactated_ringers_solution,0.001,L,l,amount,volume,1,ml,100,ml,amount,volume,0,1,ml,success,ml stays the same,1
 31,valid,lactated_ringers_solution,2,  mL,ml,amount,volume,2,ml,,ml,amount,volume,0,2,ml,success,ml stays the same,1
+32,valid,propofol_mcg_kg,100,mcg / Kg,mcg/kg,amount,mass,100,mcg/kg,,mcg/kg,amount,mass,0,100,mcg/kg,success,,
+33,valid,propofol_mcg_kg,100,mcG,mcg,amount,mass,100,mcg,100,mcg/kg,amount,mass,1,1,mcg/kg,success,,
+34,invalid,propofol_mcg_kg,100,mcG,mcg,amount,mass,100,mcg,,mcg/kg,amount,mass,1,100,mcg,cannot convert unweighted to weighted: weight_kg is missing,,
+35,valid,propofol_mcg,1,mg / Kg,mg/kg,amount,mass,1000,mcg/kg,100,mcg,amount,mass,1,100000,mcg,success,,
+36,invalid,propofol_mcg,1,mg / Kg,mg/kg,amount,mass,1000,mcg/kg,,mcg,amount,mass,1,1,mg/kg,cannot convert weighted to unweighted: weight_kg is missing,,
+37,,,,,,,,,,,,,,,,,,,
+38,,,,,,,,,,,,,,,,,,,

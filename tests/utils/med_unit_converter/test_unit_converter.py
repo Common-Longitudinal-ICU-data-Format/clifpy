@@ -520,6 +520,8 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
         'propofol': 'mcg/kg/min',
         'propofol_lb': 'mcg/lb/min',
         'propofol_unweighted': 'mcg/min',
+        'propofol_mcg': 'mcg',          # weighted amount → unweighted amount (rn=35, 36)
+        'propofol_mcg_kg': 'mcg/kg',    # unweighted amount → weighted amount (rn=34)
         'midazolam': 'mg/hr',
         'fentanyl': 'mcg/hr',
         'insulin': 'u/hr',
