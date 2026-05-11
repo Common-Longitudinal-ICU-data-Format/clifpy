@@ -24,3 +24,13 @@ rn,case,med_dose,_clean_unit,weight_kg,_base_dose,_base_unit,note
 22,invalid,6,milli-unit,92,,,
 23,invalid,6,kg,93,,,kg is not recognized
 24,valid,6,g,94,6000000,mcg,
+25,valid,6,mcg/kg,70,6,mcg/kg,weighted mass amount identity
+26,valid,6,mg/kg,75,6000,mcg/kg,weighted mass amount: 6 × 1000
+27,valid,6,ng/kg,80,0.006,mcg/kg,weighted mass amount: 6 / 1000
+28,valid,6,mcg/lb,82,13.22772,mcg/kg,weighted mass amount: lb→kg via KG_PER_LB (6 × 2.20462)
+29,valid,6,l/kg,84,6000,ml/kg,weighted volume amount: 6 × 1000
+30,valid,6,u/kg,85,6,u/kg,weighted unit amount identity
+31,valid,6,mu/kg,86,0.006,u/kg,weighted unit amount: 6 / 1000
+32,valid,6,mg/lb,88,13227.72,mcg/kg,weighted mass amount: 6 × 1000 × 2.20462
+33,valid,6,g/kg,89,6000000,mcg/kg,weighted mass amount: 6 × 1e6 (grams)
+34,valid,6,ml/kg,90,6,ml/kg,weighted volume amount identity (ml)
