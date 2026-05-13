@@ -32,6 +32,7 @@ from .utils.outlier_handler import apply_outlier_handling, get_outlier_summary
 from .utils.config import load_config
 from .utils.io import load_data
 from .utils.logging_config import setup_logging, get_logger
+from .utils.table_one import generate_table_one
 
 # Re-export Polars-based utilities at package root
 from .utils.sofa_polars import compute_sofa_polars
@@ -86,6 +87,7 @@ __all__ = [
     "load_data",
     "setup_logging",
     "get_logger",
+    "generate_table_one",
     # Polars-based utilities
     "compute_sofa_polars",
     "standardize_datetime_columns_polars",
