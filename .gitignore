@@ -6,6 +6,7 @@ dev/readme.md
 dev/requirements.txt
 /archive
 *.csv
+!tests/utils/med_unit_converter/*.csv
 !tests/utils/sofa2/*/*.csv
 research_config.yaml
 dev/*/*.txt
