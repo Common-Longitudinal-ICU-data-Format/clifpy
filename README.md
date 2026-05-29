@@ -24,7 +24,7 @@
 
 ## Standardized framework for critical care data analysis and research
 
-CLIFpy is the official Python implementation for working with CLIF (Common Longitudinal ICU data Format) data. Transform heterogeneous ICU data into standardized, analysis-ready datasets with built-in validation, clinical calculations, and powerful data manipulation tools.
+CLIFpy is the official Python implementation for working with CLIF (Common Longitudinal ICU data Format) data. Transform heterogeneous ICU data into standardized, analysis-ready datasets with built-in quality assurance.
 
 ## Key Features
 
@@ -35,6 +35,7 @@ CLIFpy is the official Python implementation for working with CLIF (Common Longi
 - ⚡ **High Performance**: Leverages DuckDB and Polars for efficient processing of large datasets
 - 🌍 **Timezone Aware**: Proper timestamp handling across different healthcare systems
 - 📈 **Wide Format Support**: Transform longitudinal data into hourly resolution for analysis
+- ✅ **Data Quality Assessment Framework**: Comprehensive assessment of conformance, completeness, and plausibility across all CLIF 2.1 Beta tables
 
 ## Installation
 
