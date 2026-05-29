@@ -101,6 +101,7 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
 | CRRT Waterfall | Kaveri Chhikara | Shan Guleria, Jay Koyner | Future Feature |
 | Medication Unit Conversion | Zewei (Whiskey) Liao | | Published |
 | Data Quality Assessment | Dema Therese | | Published |
+| Intubation Extubation | Vaishvik Chaudhari | | In Progress |
 
 ## Links & Resources
 
