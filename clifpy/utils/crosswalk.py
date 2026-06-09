@@ -196,15 +196,28 @@ def crosswalk_table_2_1_to_3_0(
         ``unresolved``), and ``is_complete`` (True iff nothing was flagged).
     """
     crosswalk = load_crosswalk(crosswalk_path)
-    renames_tbl = crosswalk.get("renames", {}).get(table_name, {})
-    unresolved_tbl = crosswalk.get("unresolved", {}).get(table_name, {})
-
     permissible_30 = _permissible_map(load_schema(table_name, "3.0"))
-    std_cols = _standardized_columns(table_name)
-    target_cols = [c for c in df.columns if c in std_cols]
+    target_cols = _target_cols(table_name, df.columns)
 
     out = df.copy()
-    report: Dict[str, Any] = {
+    report = _new_report(table_name)
+    for col in target_cols:
+        counts = out[col].value_counts(dropna=True).to_dict()
+        value_map, col_report = _plan_column(table_name, col, counts, crosswalk, permissible_30)
+        # Apply the unique-value map (NaN/None untouched: not in value_map).
+        out[col] = out[col].map(lambda v: value_map.get(v, v))
+        report["columns"][col] = col_report
+        if col_report["ambiguous"] or col_report["unresolved"]:
+            report["is_complete"] = False
+    return out, report
+
+
+# --------------------------------------------------------------------------- #
+# Shared planning helpers (used by the in-memory and file-based converters)
+# --------------------------------------------------------------------------- #
+
+def _new_report(table_name: str) -> Dict[str, Any]:
+    return {
         "table": table_name,
         "from_version": "2.1",
         "to_version": "3.0",
@@ -212,57 +225,218 @@ def crosswalk_table_2_1_to_3_0(
         "is_complete": True,
     }
 
-    for col in target_cols:
-        col_renames = renames_tbl.get(col, {})
-        col_unresolved = unresolved_tbl.get(col, {})
-        allowed_30 = set(permissible_30.get(col, []))
 
-        # Count occurrences of each unique non-null value once.
-        counts = out[col].value_counts(dropna=True)
-        value_map: Dict[Any, Any] = {}
-        ambiguous = []
-        unresolved = []
-        n_converted = 0
+def _target_cols(table_name: str, available_columns) -> list:
+    """Standardized columns (by name) that are present in ``available_columns``."""
+    std = _standardized_columns(table_name)
+    return [c for c in available_columns if c in std]
 
-        for raw_value, count in counts.items():
-            if raw_value in col_unresolved:
-                # 1->many: leave unchanged, report candidates/reason.
-                entry = col_unresolved[raw_value] or {}
-                value_map[raw_value] = raw_value
-                ambiguous.append({
-                    "original": raw_value,
-                    "candidates": entry.get("candidates", []),
-                    "reason": entry.get("reason", ""),
-                    "count": int(count),
-                })
-                continue
 
-            if raw_value in col_renames:
-                produced = col_renames[raw_value]
+def _plan_column(
+    table_name: str,
+    col: str,
+    counts: Dict[Any, int],
+    crosswalk: Dict[str, Any],
+    permissible_30: Dict[str, list],
+) -> Tuple[Dict[Any, Any], Dict[str, Any]]:
+    """Given per-value counts for one column, build the value map + column report.
+
+    This is the single source of truth for crosswalk semantics; every backend
+    (in-memory, chunked-pandas, DuckDB) feeds it a ``{value: count}`` dict.
+    """
+    col_renames = crosswalk.get("renames", {}).get(table_name, {}).get(col, {})
+    col_unresolved = crosswalk.get("unresolved", {}).get(table_name, {}).get(col, {})
+    allowed_30 = set(permissible_30.get(col, []))
+
+    value_map: Dict[Any, Any] = {}
+    ambiguous, unresolved = [], []
+    n_converted = 0
+
+    for raw_value, count in counts.items():
+        count = int(count)
+        if raw_value in col_unresolved:
+            entry = col_unresolved[raw_value] or {}
+            value_map[raw_value] = raw_value  # leave unchanged
+            ambiguous.append({
+                "original": raw_value,
+                "candidates": entry.get("candidates", []),
+                "reason": entry.get("reason", ""),
+                "count": count,
+            })
+            continue
+
+        produced = col_renames[raw_value] if raw_value in col_renames else normalize_category_value(raw_value)
+        value_map[raw_value] = produced
+        if produced != raw_value:
+            n_converted += count
+        if allowed_30 and produced not in allowed_30:
+            unresolved.append({"original": raw_value, "produced": produced, "count": count})
+
+    col_report = {"n_values_converted": n_converted, "ambiguous": ambiguous, "unresolved": unresolved}
+    return value_map, col_report
+
+
+# --------------------------------------------------------------------------- #
+# File-to-file converter for large / out-of-core data
+# --------------------------------------------------------------------------- #
+
+def crosswalk_file_2_1_to_3_0(
+    input_path: str,
+    output_path: str,
+    table_name: str,
+    *,
+    backend: str = "duckdb",
+    chunk_size: int = 1_000_000,
+    crosswalk_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Crosswalk a CLIF 2.1 table file to 3.0 **out-of-core**, writing the result.
+
+    For tables too large to hold in memory comfortably. Reads ``input_path``,
+    converts the standardized columns, and writes the converted table to
+    ``output_path`` (parquet or CSV, inferred from the extensions). Returns the
+    same change report shape as :func:`crosswalk_table_2_1_to_3_0` (aggregated
+    over the whole file).
+
+    Parameters
+    ----------
+    input_path, output_path : str
+        Source and destination files. ``.parquet``/``.pq`` or ``.csv``.
+    table_name : str
+        CLIF table name.
+    backend : {"duckdb", "pandas"}, default "duckdb"
+        - ``"duckdb"`` streams the whole transform in SQL (parquet/CSV ->
+          parquet/CSV), handling larger-than-RAM inputs. Robust on platforms
+          where Polars is finicky; uses clifpy's existing DuckDB dependency.
+        - ``"pandas"`` reads the file in ``chunk_size`` row batches, converts
+          each with the in-memory path, and appends to ``output_path`` — bounded
+          memory without DuckDB.
+    chunk_size : int
+        Row batch size for the pandas backend.
+    crosswalk_path : str, optional
+        Override path to the crosswalk resource.
+
+    Returns
+    -------
+    dict
+        Aggregated change report.
+    """
+    if backend == "duckdb":
+        return _crosswalk_file_duckdb(input_path, output_path, table_name, crosswalk_path)
+    if backend == "pandas":
+        return _crosswalk_file_pandas(input_path, output_path, table_name, chunk_size, crosswalk_path)
+    raise ValueError(f"Unknown backend {backend!r}; use 'duckdb' or 'pandas'.")
+
+
+def _is_csv(path: str) -> bool:
+    return str(path).lower().endswith(".csv")
+
+
+def _sql_str(value: str) -> str:
+    """Single-quote and escape a SQL string literal."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _crosswalk_file_duckdb(input_path, output_path, table_name, crosswalk_path):
+    import duckdb
+
+    crosswalk = load_crosswalk(crosswalk_path)
+    permissible_30 = _permissible_map(load_schema(table_name, "3.0"))
+
+    con = duckdb.connect()
+    try:
+        reader = (f"read_csv_auto({_sql_str(input_path)})" if _is_csv(input_path)
+                  else f"read_parquet({_sql_str(input_path)})")
+        cols = [r[0] for r in con.execute(f"DESCRIBE SELECT * FROM {reader}").fetchall()]
+        target_cols = _target_cols(table_name, cols)
+
+        report = _new_report(table_name)
+        case_exprs = {}
+        for col in target_cols:
+            counts = dict(con.execute(
+                f'SELECT "{col}" AS v, COUNT(*) AS n FROM {reader} '
+                f'WHERE "{col}" IS NOT NULL GROUP BY "{col}"'
+            ).fetchall())
+            value_map, col_report = _plan_column(table_name, col, counts, crosswalk, permissible_30)
+            report["columns"][col] = col_report
+            if col_report["ambiguous"] or col_report["unresolved"]:
+                report["is_complete"] = False
+            # Only emit a CASE for columns that actually change at least one value.
+            whens = [(o, n) for o, n in value_map.items() if o != n]
+            if whens:
+                branches = " ".join(f'WHEN "{col}" = {_sql_str(o)} THEN {_sql_str(n)}' for o, n in whens)
+                case_exprs[col] = f'CASE {branches} ELSE "{col}" END AS "{col}"'
+
+        if case_exprs:
+            exclude = ", ".join(f'"{c}"' for c in case_exprs)
+            select = f"* EXCLUDE ({exclude}), " + ", ".join(case_exprs.values())
+        else:
+            select = "*"  # nothing to change; passthrough copy
+
+        fmt = "FORMAT CSV, HEADER" if _is_csv(output_path) else "FORMAT PARQUET"
+        con.execute(f"COPY (SELECT {select} FROM {reader}) TO {_sql_str(output_path)} ({fmt})")
+        return report
+    finally:
+        con.close()
+
+
+def _crosswalk_file_pandas(input_path, output_path, table_name, chunk_size, crosswalk_path):
+    import pandas as pd
+
+    crosswalk = load_crosswalk(crosswalk_path)
+    permissible_30 = _permissible_map(load_schema(table_name, "3.0"))
+
+    # Stream input in row batches.
+    if _is_csv(input_path):
+        batches = pd.read_csv(input_path, chunksize=chunk_size)
+    else:
+        import pyarrow.parquet as pq
+        pf = pq.ParquetFile(input_path)
+        batches = (b.to_pandas() for b in pf.iter_batches(batch_size=chunk_size))
+
+    # Accumulate per-(col, value) counts across chunks, write converted rows as we go.
+    from collections import defaultdict
+    global_counts = defaultdict(lambda: defaultdict(int))
+    value_maps: Dict[str, Dict[Any, Any]] = {}
+    target_cols = None
+    csv_out = _is_csv(output_path)
+    pq_writer = None
+    first_csv = True
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq_w
+
+    try:
+        for chunk in batches:
+            if target_cols is None:
+                target_cols = _target_cols(table_name, chunk.columns)
+            for col in target_cols:
+                vc = chunk[col].value_counts(dropna=True)
+                vm = value_maps.setdefault(col, {})
+                for v, c in vc.items():
+                    global_counts[col][v] += int(c)
+                    if v not in vm:
+                        vm[v] = (crosswalk.get("renames", {}).get(table_name, {}).get(col, {}).get(v)
+                                 or normalize_category_value(v)) if v not in (
+                                 crosswalk.get("unresolved", {}).get(table_name, {}).get(col, {})) else v
+                chunk[col] = chunk[col].map(lambda x: vm.get(x, x))
+
+            if csv_out:
+                chunk.to_csv(output_path, mode="w" if first_csv else "a", header=first_csv, index=False)
+                first_csv = False
             else:
-                produced = normalize_category_value(raw_value)
+                table = pa.Table.from_pandas(chunk, preserve_index=False)
+                if pq_writer is None:
+                    pq_writer = pq_w.ParquetWriter(output_path, table.schema)
+                pq_writer.write_table(table)
+    finally:
+        if pq_writer is not None:
+            pq_writer.close()
 
-            value_map[raw_value] = produced
-            if produced != raw_value:
-                n_converted += int(count)
-
-            # Validate against 3.0 permissible set (only when one is defined).
-            if allowed_30 and produced not in allowed_30:
-                unresolved.append({
-                    "original": raw_value,
-                    "produced": produced,
-                    "count": int(count),
-                })
-
-        # Apply the unique-value map (NaN/None untouched: not in value_map).
-        out[col] = out[col].map(lambda v: value_map.get(v, v))
-
-        report["columns"][col] = {
-            "n_values_converted": n_converted,
-            "ambiguous": ambiguous,
-            "unresolved": unresolved,
-        }
-        if ambiguous or unresolved:
+    # Build the aggregated report from accumulated counts (exact, whole-file).
+    report = _new_report(table_name)
+    for col in (target_cols or []):
+        _, col_report = _plan_column(table_name, col, dict(global_counts[col]), crosswalk, permissible_30)
+        report["columns"][col] = col_report
+        if col_report["ambiguous"] or col_report["unresolved"]:
             report["is_complete"] = False
-
-    return out, report
+    return report
