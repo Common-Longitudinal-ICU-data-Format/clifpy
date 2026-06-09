@@ -18,7 +18,7 @@
         <link rel="prev" href="../quickstart/">
       
       
-        <link rel="next" href="../outlier-handling/">
+        <link rel="next" href="../clif-2-1-to-3-0/">
       
       
       <link rel="icon" href="../../images/clif_logo_red_no_text.png">
@@ -834,6 +834,29 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clif-2-1-to-3-0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLIF 2.1 → 3.0 Migration
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -1757,8 +1780,8 @@
 <tbody>
 <tr>
 <td>A.1</td>
-<td>Temporal Ordering</td>
-<td><code>check_temporal_ordering</code></td>
+<td>Chronological Order</td>
+<td><code>check_chronological_order</code></td>
 <td>Start times precede end times</td>
 </tr>
 <tr>
@@ -1864,7 +1887,7 @@
 <h3 id="plausibility-thresholds">Plausibility Thresholds<a class="headerlink" href="#plausibility-thresholds" title="Permanent link">&para;</a></h3>
 <p>Override the default thresholds for plausibility checks:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">custom_thresholds</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">&quot;temporal_ordering&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">&quot;chronological_order&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s2">&quot;numeric_range_plausibility&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">},</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="s2">&quot;duplicate_composite_keys&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;warning_threshold&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">},</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">}</span>

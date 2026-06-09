@@ -1,0 +1,1802 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python Client for Common Longitudinal ICU data Format">
+      
+      
+        <meta name="author" content="CLIF Consortium">
+      
+      
+        <link rel="canonical" href="https://common-longitudinal-icu-data-format.github.io/clifpy/user-guide/clif-2-1-to-3-0/">
+      
+      
+        <link rel="prev" href="../validation/">
+      
+      
+        <link rel="next" href="../outlier-handling/">
+      
+      
+      <link rel="icon" href="../../images/clif_logo_red_no_text.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
+    
+    
+      
+        <title>CLIF 2.1 → 3.0 Migration - CLIFpy Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.e53b48f4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="maroon" data-md-color-accent="red">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#clif-21-30-migration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="CLIFpy Documentation" class="md-header__button md-logo" aria-label="CLIFpy Documentation" data-md-component="logo">
+      
+  <img src="../../images/clif_logo_no_text_white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CLIFpy Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLIF 2.1 → 3.0 Migration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="maroon" data-md-color-accent="red"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="red"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Common-Longitudinal-ICU-data-Format/clifpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clifpy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../logging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Logging
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="CLIFpy Documentation" class="md-nav__button md-logo" aria-label="CLIFpy Documentation" data-md-component="logo">
+      
+  <img src="../../images/clif_logo_no_text_white.png" alt="logo">
+
+    </a>
+    CLIFpy Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Common-Longitudinal-ICU-data-Format/clifpy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clifpy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Features
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Core Features
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Data Quality Assessment (DQA)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    CLIF 2.1 → 3.0 Migration
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLIF 2.1 → 3.0 Migration
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      What changed
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migrate-a-table-in-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migrate a table in memory
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-the-change-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      Read the change report
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#values-that-arent-auto-converted" class="md-nav__link">
+    <span class="md-ellipsis">
+      Values that aren't auto-converted
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#large-out-of-core-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Large / out-of-core files
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convert-a-single-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      Convert a single value
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-validating-against-a-schema-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inspecting / validating against a schema version
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inspecting / validating against a schema version">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#looking-up-permissible-values-without-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Looking up permissible values without code
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validating-your-converted-data-against-clif-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validating your converted data against CLIF 3.0
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outlier-handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Outlier Handling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../encounter-stitching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Encounter Stitching
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../wide-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Wide Dataset Creation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timezones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Working with Timezones
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced Features
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced Features
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../med-unit-conversion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Medication Unit Conversion
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sofa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    SOFA Score Computation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CDC Adult Sepsis Event (ASE)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waterfall/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Respiratory Support Waterfall
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comorbidity-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Comorbidity Index
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mdro-flags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MDRO Flags
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/orchestrator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Orchestrator
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/base-table/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Base Table
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tables
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/dqa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DQA (Validation)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Utilities
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Logging
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      What changed
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migrate-a-table-in-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migrate a table in memory
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-the-change-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      Read the change report
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#values-that-arent-auto-converted" class="md-nav__link">
+    <span class="md-ellipsis">
+      Values that aren't auto-converted
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#large-out-of-core-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Large / out-of-core files
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convert-a-single-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      Convert a single value
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-validating-against-a-schema-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inspecting / validating against a schema version
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inspecting / validating against a schema version">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#looking-up-permissible-values-without-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Looking up permissible values without code
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validating-your-converted-data-against-clif-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validating your converted data against CLIF 3.0
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="clif-21-30-migration">CLIF 2.1 → 3.0 Migration<a class="headerlink" href="#clif-21-30-migration" title="Permanent link">&para;</a></h1>
+<p><code>clifpy</code> ships schemas for both <strong>CLIF 2.1</strong> (the current default) and <strong>CLIF 3.0</strong>. The
+most pervasive change in 3.0 is that the standardized column values — everything in
+<code>*_category</code>, <code>*_group</code>, and <code>*_type</code> columns — were <strong>lowercased and <code>snake_cased</code></strong>,
+and a handful were <strong>renamed</strong>. This guide shows how to migrate a site's CLIF 2.1 data to
+the 3.0 value conventions.</p>
+<h2 id="what-changed">What changed<a class="headerlink" href="#what-changed" title="Permanent link">&para;</a></h2>
+<p>The change applies to <strong>every</strong> value in <strong>every</strong> standardized column
+(<code>*_category</code> / <code>*_group</code> / <code>*_type</code>) across the 16 beta tables — that's hundreds of values
+(e.g. dozens of <code>lab_category</code> values, 500+ microbiology organisms, the medication
+vocabularies). The table below is just <strong>a few representative examples</strong> to show the kinds of
+transformations, not the full list:</p>
+<table>
+<thead>
+<tr>
+<th>CLIF 2.1 value</th>
+<th>CLIF 3.0 value</th>
+<th>kind</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IMV</code></td>
+<td><code>imv</code></td>
+<td>lowercase</td>
+</tr>
+<tr>
+<td><code>Non-Hispanic</code></td>
+<td><code>non_hispanic</code></td>
+<td>lowercase + <code>snake_case</code></td>
+</tr>
+<tr>
+<td><code>l&amp;d</code></td>
+<td><code>l_and_d</code></td>
+<td><code>&amp;</code> → <code>_and_</code></td>
+</tr>
+<tr>
+<td><code>DNR/DNI</code></td>
+<td><code>dnr_or_dni</code></td>
+<td><code>/</code> → <code>_or_</code></td>
+</tr>
+<tr>
+<td><code>High Flow NC</code></td>
+<td><code>hfnc</code></td>
+<td>curated rename (abbreviation)</td>
+</tr>
+<tr>
+<td><code>Assist Control-Volume Control</code></td>
+<td><code>acvc</code></td>
+<td>curated rename (abbreviation)</td>
+</tr>
+<tr>
+<td><code>Long Term Care Hospital (LTACH)</code></td>
+<td><code>ltach</code></td>
+<td>curated rename</td>
+</tr>
+<tr>
+<td><code>Psychiatric Hospital</code></td>
+<td><code>mental_health_hosp</code></td>
+<td>curated rename (semantic)</td>
+</tr>
+</tbody>
+</table>
+<p>Two mechanisms cover everything, and both run automatically — you don't configure either:</p>
+<ol>
+<li><strong>An automatic rule for most values</strong> — lowercase and <code>snake_case</code> (with <code>&amp;</code> → <code>_and_</code> and
+   <code>/</code> → <code>_or_</code>). For example <code>IMV</code> → <code>imv</code>, <code>Non-Hispanic</code> → <code>non_hispanic</code>, <code>l&amp;d</code> → <code>l_and_d</code>.</li>
+<li><strong>Built-in renames for the rest</strong> — a small set of values were shortened to abbreviations or
+   renamed outright (e.g. <code>High Flow NC</code> → <code>hfnc</code>, <code>Psychiatric Hospital</code> → <code>mental_health_hosp</code>),
+   so no rule could guess them. clifpy ships the official mapping for these and applies it for you.</li>
+</ol>
+<div class="admonition info">
+<p class="admonition-title">You don't need to enumerate the changes yourself</p>
+<p>The crosswalk applies both mechanisms to <strong>every</strong> value automatically, and <strong>flags
+anything it can't resolve</strong> in the report. To see the authoritative, complete 3.0 value
+list for any column, load its 3.0 schema (see <a href="#inspecting-validating-against-a-schema-version">Inspecting a schema version</a>)
+— the permissible values there are the source of truth.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Scope of the migration helpers</p>
+<p>The crosswalk covers the 16 CLIF <strong>beta tables</strong> (<code>clifpy.BETA_TABLES</code>) and transforms
+<strong>values only</strong> — column header names are left unchanged. It is <strong>non-mutating</strong>: it
+returns a converted <em>copy</em> plus a change report, and never edits your input in place.</p>
+</div>
+<h2 id="migrate-a-table-in-memory">Migrate a table in memory<a class="headerlink" href="#migrate-a-table-in-memory" title="Permanent link">&para;</a></h2>
+<p>Use <code>crosswalk_table_2_1_to_3_0(df, table_name)</code>. It accepts a <strong>pandas</strong> <em>or</em> an eager
+<strong>polars</strong> <code>DataFrame</code> and returns <code>(converted_df, report)</code> — where <code>converted_df</code> is the
+<strong>same type you passed in</strong> (pandas in → pandas out, polars in → polars out).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_demo_clif</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_table_2_1_to_3_0</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># The bundled demo data is in CLIF 2.1 format.</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">co</span> <span class="o">=</span> <span class="n">load_demo_clif</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">])</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">co</span><span class="o">.</span><span class="n">respiratory_support</span><span class="o">.</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># e.g. &#39;IMV&#39; -&gt; &#39;imv&#39;, &#39;High Flow NC&#39; -&gt; &#39;hfnc&#39;</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="nb">print</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;device_category&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">unique</span><span class="p">()))</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;is_complete:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;is_complete&quot;</span><span class="p">])</span>
+</code></pre></div>
+<p>The function expects a <strong>DataFrame</strong> (pandas or polars), not a table object — if you have a
+loaded table, pass its <code>.df</code> (as above). Already have a plain DataFrame? Pass it directly
+(a polars <code>DataFrame</code> works the same way and comes back as polars; for a polars <code>LazyFrame</code>
+or larger-than-memory data, use <a href="#large-out-of-core-files"><code>crosswalk_file_2_1_to_3_0</code></a>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;device_category&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;IMV&quot;</span><span class="p">,</span> <span class="s2">&quot;High Flow NC&quot;</span><span class="p">,</span> <span class="s2">&quot;Nasal Cannula&quot;</span><span class="p">]})</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;device_category&quot;</span><span class="p">]))</span>   <span class="c1"># [&#39;imv&#39;, &#39;hfnc&#39;, &#39;nasal_cannula&#39;]</span>
+</code></pre></div>
+<h2 id="read-the-change-report">Read the change report<a class="headerlink" href="#read-the-change-report" title="Permanent link">&para;</a></h2>
+<p>Every call returns a structured report so you can audit exactly what happened:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Home&quot;</span><span class="p">,</span> <span class="s2">&quot;Long Term Care Hospital (LTACH)&quot;</span><span class="p">,</span> <span class="s2">&quot;Psychiatric Hospital&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">]})</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;hospitalization&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">]))</span>   <span class="c1"># [&#39;home&#39;, &#39;ltach&#39;, &#39;mental_health_hosp&#39;]</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">col</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">][</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">]</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;values converted:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;n_values_converted&quot;</span><span class="p">])</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ambiguous:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">])</span>     <span class="c1"># left-unchanged 1-&gt;many values</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;unresolved:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;unresolved&quot;</span><span class="p">])</span>   <span class="c1"># produced a value not in the 3.0 list</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;overall complete:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;is_complete&quot;</span><span class="p">])</span>
+</code></pre></div>
+<p>Report shape:</p>
+<ul>
+<li><code>columns[&lt;col&gt;].n_values_converted</code> — count of values that changed.</li>
+<li><code>columns[&lt;col&gt;].ambiguous</code> — values <strong>left unchanged</strong> because they can't be auto-mapped
+  (see below), with the candidate 3.0 values and the reason.</li>
+<li><code>columns[&lt;col&gt;].unresolved</code> — values whose produced result isn't a valid 3.0 value.</li>
+<li><code>is_complete</code> — <code>True</code> only when nothing was flagged anywhere.</li>
+</ul>
+<h2 id="values-that-arent-auto-converted">Values that aren't auto-converted<a class="headerlink" href="#values-that-arent-auto-converted" title="Permanent link">&para;</a></h2>
+<p>The crosswalk never guesses. Two kinds of values are <strong>left unchanged</strong> and surfaced in the
+report instead:</p>
+<ol>
+<li><strong>1→many splits</strong> — e.g. CLIF 2.1 <code>albumin</code> maps to either <code>albumin_5</code> or <code>albumin_25</code>
+   in 3.0 depending on concentration, which can't be inferred from the category alone.</li>
+<li><strong>Values removed in 3.0</strong> — e.g. the <code>csf</code> lab specimen has no 3.0 equivalent.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">med</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;med_category&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;albumin&quot;</span><span class="p">,</span> <span class="s2">&quot;norepinephrine&quot;</span><span class="p">]})</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">med</span><span class="p">,</span> <span class="s2">&quot;medication_admin_continuous&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;med_category&quot;</span><span class="p">]))</span>   <span class="c1"># &#39;albumin&#39; is left unchanged</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">][</span><span class="s2">&quot;med_category&quot;</span><span class="p">][</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">])</span>
+</code></pre></div>
+<p>Review these entries and resolve them with your own domain knowledge (for <code>albumin</code>, choose
+<code>albumin_5</code>/<code>albumin_25</code> based on the product concentration).</p>
+<h2 id="large-out-of-core-files">Large / out-of-core files<a class="headerlink" href="#large-out-of-core-files" title="Permanent link">&para;</a></h2>
+<p>For tables too large to hold in memory, use <code>crosswalk_file_2_1_to_3_0</code>, which reads a file,
+converts it, and writes the result — without loading the whole table into Python.</p>
+<!-- skip: next -->
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_file_2_1_to_3_0</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># DuckDB backend (default): streams parquet/CSV -&gt; parquet/CSV, fully out-of-core.</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_file_2_1_to_3_0</span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="s2">&quot;respiratory_support.parquet&quot;</span><span class="p">,</span>        <span class="c1"># CLIF 2.1 input</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="s2">&quot;respiratory_support_3_0.parquet&quot;</span><span class="p">,</span>    <span class="c1"># converted output</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Or the chunked pandas backend (bounded memory, no DuckDB):</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_file_2_1_to_3_0</span><span class="p">(</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="s2">&quot;respiratory_support.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;respiratory_support_3_0.csv&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;pandas&quot;</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th><code>backend</code></th>
+<th>How it works</th>
+<th>Memory</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"duckdb"</code> (default)</td>
+<td>Streams the transform in SQL (parquet/CSV → parquet/CSV)</td>
+<td>minimal (runs in DuckDB's engine)</td>
+<td>very large / <strong>bigger-than-RAM</strong> files</td>
+</tr>
+<tr>
+<td><code>"pandas"</code></td>
+<td>Reads the file in <code>chunk_size</code> row batches</td>
+<td>bounded by <code>chunk_size</code></td>
+<td>environments without DuckDB</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">Which backend?</p>
+<p>The DuckDB backend is recommended for large data — it's genuinely out-of-core (a 20M-row
+table converts in well under a second) and avoids dependencies that can be fragile on some
+platforms. It reuses the DuckDB dependency clifpy already installs. Both backends produce
+identical output and the same report.</p>
+</div>
+<h2 id="convert-a-single-value">Convert a single value<a class="headerlink" href="#convert-a-single-value" title="Permanent link">&para;</a></h2>
+<p><code>normalize_category_value</code> is the deterministic transform the crosswalk applies to any value
+that isn't a curated rename. It's handy for one-off normalization or for understanding the rules:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_category_value</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;IMV&quot;</span><span class="p">,</span> <span class="s2">&quot;Non-Hispanic&quot;</span><span class="p">,</span> <span class="s2">&quot;l&amp;d&quot;</span><span class="p">,</span> <span class="s2">&quot;DNR/DNI&quot;</span><span class="p">,</span> <span class="s2">&quot;Mobility/Activity&quot;</span><span class="p">]:</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">!r:</span><span class="s2">22</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">normalize_category_value</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>which prints:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>&#39;IMV&#39;                  -&gt; &#39;imv&#39;
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>&#39;Non-Hispanic&#39;         -&gt; &#39;non_hispanic&#39;
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>&#39;l&amp;d&#39;                  -&gt; &#39;l_and_d&#39;
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>&#39;DNR/DNI&#39;              -&gt; &#39;dnr_or_dni&#39;
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>&#39;Mobility/Activity&#39;    -&gt; &#39;mobility_or_activity&#39;
+</code></pre></div>
+<h2 id="inspecting-validating-against-a-schema-version">Inspecting / validating against a schema version<a class="headerlink" href="#inspecting-validating-against-a-schema-version" title="Permanent link">&para;</a></h2>
+<p>clifpy can load either version's schema. To see the 3.0 permissible values for a column:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_schema</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">load_schema</span><span class="p">(</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">device</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;device_category&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">device</span><span class="p">[</span><span class="s2">&quot;permissible_values&quot;</span><span class="p">])</span>
+</code></pre></div>
+<h3 id="looking-up-permissible-values-without-code">Looking up permissible values without code<a class="headerlink" href="#looking-up-permissible-values-without-code" title="Permanent link">&para;</a></h3>
+<p>Prefer to browse the controlled vocabularies directly instead of loading a schema?</p>
+<ul>
+<li><strong>CLIF 3.0 mCIDE</strong> (authoritative for permissible values) — one CSV per category column, on
+  the repository's <code>3.0</code> branch. clifpy's 3.0 schemas are built directly from these, so they
+  match <code>load_schema(..., "3.0")</code>:
+  <a href="https://github.com/Common-Longitudinal-ICU-data-Format/CLIF/tree/3.0/mCIDE">github.com/.../CLIF/tree/3.0/mCIDE</a>.</li>
+<li><strong>CLIF 3.0 data dictionary</strong> — human-readable table and column definitions for 3.0 (marked
+  "Concept"): <a href="https://clif-icu.com/data-dictionary/data-dictionary-3.0.0">clif-icu.com/data-dictionary/data-dictionary-3.0.0</a>.</li>
+</ul>
+<h3 id="validating-your-converted-data-against-clif-30">Validating your converted data against CLIF 3.0<a class="headerlink" href="#validating-your-converted-data-against-clif-30" title="Permanent link">&para;</a></h3>
+<p><code>.validate()</code> is a method on a <strong>table object</strong>, not on a DataFrame — so to validate the
+DataFrame the crosswalk returns, wrap it in a table object created at <code>clif_version="3.0"</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">,</span> <span class="n">RespiratorySupport</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_demo_clif</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">rs_2_1</span> <span class="o">=</span> <span class="n">load_demo_clif</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">respiratory_support</span><span class="o">.</span><span class="n">df</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">rs_2_1</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Wrap the converted DataFrame in a 3.0 table object, then validate</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">rs</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">timezone</span><span class="o">=</span><span class="s2">&quot;US/Eastern&quot;</span><span class="p">,</span> <span class="n">clif_version</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="n">rs</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;valid:&quot;</span><span class="p">,</span> <span class="n">rs</span><span class="o">.</span><span class="n">isvalid</span><span class="p">(),</span> <span class="s2">&quot;| issues:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">rs</span><span class="o">.</span><span class="n">errors</span><span class="p">))</span>
+</code></pre></div>
+<p><code>validate()</code> checks the data against the <strong>3.0</strong> schema — required columns, data types, and that
+categorical values fall within the 3.0 permissible lists, plus completeness/plausibility — stores
+findings in <code>rs.errors</code>, and returns <code>None</code> (read <code>rs.errors</code> / <code>rs.isvalid()</code>). Because it
+validates against 3.0, raw 2.1 values (e.g. <code>device_category = "IMV"</code>) would be flagged — which
+is the point of converting first.</p>
+<p>Prefer not to build a table object? Validate the DataFrame directly against a version's schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">validator</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_schema</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">errors</span> <span class="o">=</span> <span class="n">validator</span><span class="o">.</span><span class="n">validate_dataframe</span><span class="p">(</span><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">load_schema</span><span class="p">(</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="s2">&quot;3.0&quot;</span><span class="p">))</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">),</span> <span class="s2">&quot;issue(s)&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>And if your data is already on disk in 3.0 form, load it at 3.0 directly with
+<code>&lt;TableClass&gt;.from_file(..., clif_version="3.0")</code> and call <code>.validate()</code>.</p>
+<p>A typical migration is therefore: <strong>crosswalk your 2.1 data to 3.0 → wrap/load it at
+<code>clif_version="3.0"</code> → <code>validate()</code>.</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Common-Longitudinal-ICU-data-Format/CLIFpy" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../../js/dark-mode-default.js"></script>
+      
+    
+  </body>
+</html>
