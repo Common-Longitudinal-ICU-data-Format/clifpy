@@ -1,0 +1,90 @@
+table_name: output
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: output_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: output_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - biliary_drain
+      - blood_loss
+      - chest_tube_durable
+      - chest_tube_temporary
+      - colostomy
+      - emesis
+      - external_urinary_catheter
+      - gastrojejunostomy
+      - gastrostomy
+      - gi_output_other
+      - ileostomy
+      - indwelling_urinary_catheter
+      - jejunostomy
+      - nephrostomy
+      - orogastric_nasogastric_tube
+      - orogjejunal_nasojejunal_tube
+      - other
+      - other_procedure
+      - ostomy_gi_other
+      - paracentesis
+      - pericardial_drain
+      - peritoneal_drain
+      - procedural_drain_other
+      - rectal_tube
+      - respiratory
+      - stool
+      - suprapubic_catheter
+      - thoracentesis
+      - ultrafiltration
+      - urethral
+      - urostomy
+      - urinary_other
+      - wound_drain
+  - name: output_group
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - blood_loss
+      - drains
+      - gi
+      - other
+      - procedure
+      - respiratory
+      - ultrafiltration
+      - urine
+  - name: output_volume
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - output_category
+  - output_group
+  - output_volume
+
+category_columns:
+  - output_category
+
+group_columns:
+  - output_group

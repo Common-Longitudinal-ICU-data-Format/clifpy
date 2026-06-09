@@ -1,0 +1,68 @@
+table_name: clinical_trial
+version: "3.0"
+
+columns:
+  - name: participant_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: trial_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: trial_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: arm_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: consent_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: enrollment_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: randomized_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: withdrawal_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - participant_id
+  - patient_id
+  - hospitalization_id
+  - trial_id
+  - arm_id
+  - consent_dttm
+  - enrollment_dttm
+  - randomized_dttm
+
+category_columns: []
+
+group_columns: []

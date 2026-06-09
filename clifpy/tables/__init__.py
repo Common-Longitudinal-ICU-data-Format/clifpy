@@ -17,6 +17,32 @@ from .ecmo_mcs import EcmoMcs
 from .microbiology_nonculture import MicrobiologyNonculture
 from .code_status import CodeStatus
 
+# CLIF 3.0 tables (new in 3.0; mcs replaces ecmo_mcs)
+from .mcs import Mcs
+from .intermittent_dialysis import IntermittentDialysis
+from .input import Input
+from .output import Output
+from .invasive_hemodynamics import InvasiveHemodynamics
+from .key_icu_orders import KeyIcuOrders
+from .medication_orders import MedicationOrders
+from .patient_diagnosis import PatientDiagnosis
+from .place_based_index import PlaceBasedIndex
+from .provider import Provider
+from .therapy_details import TherapyDetails
+from .transfusion import Transfusion
+from .clinical_trial import ClinicalTrial
+from .clinical_notes_facts import ClinicalNotesFacts
+from .clinical_notes_text import ClinicalNotesText
+from .validated_diagnosis import ValidatedDiagnosis
+from .model_registry import ModelRegistry
+from .scores import Scores
+from .radiology import Radiology
+from .line import Line
+from .drain import Drain
+from .airway import Airway
+from .patient_attributes import PatientAttributes
+from .ed_encounter import EdEncounter
+
 
 __all__ = [
       'Patient',
@@ -37,5 +63,30 @@ __all__ = [
       'EcmoMcs',
       'MicrobiologyNonculture',
       'CodeStatus',
+      # CLIF 3.0 tables
+      'Mcs',
+      'IntermittentDialysis',
+      'Input',
+      'Output',
+      'InvasiveHemodynamics',
+      'KeyIcuOrders',
+      'MedicationOrders',
+      'PatientDiagnosis',
+      'PlaceBasedIndex',
+      'Provider',
+      'TherapyDetails',
+      'Transfusion',
+      'ClinicalTrial',
+      'ClinicalNotesFacts',
+      'ClinicalNotesText',
+      'ValidatedDiagnosis',
+      'ModelRegistry',
+      'Scores',
+      'Radiology',
+      'Line',
+      'Drain',
+      'Airway',
+      'PatientAttributes',
+      'EdEncounter',
   ]
 

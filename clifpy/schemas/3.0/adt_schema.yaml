@@ -1,0 +1,101 @@
+table_name: adt
+version: "3.0"
+composite_keys:
+  - hospitalization_id
+  - in_dttm
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospital_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospital_type
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - academic
+      - community
+      - ltach
+  - name: in_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: out_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: location_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: location_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ed
+      - ward
+      - stepdown
+      - icu
+      - procedural
+      - l_and_d
+      - hospice
+      - psych
+      - rehab
+      - radiology
+      - dialysis
+      - other
+  - name: location_type
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - general_icu
+      - cardiac_icu
+      - cardiothoracic_surgical_icu
+      - mixed_cardiothoracic_icu
+      - surgical_icu
+      - burn_icu
+      - neuro_icu
+      - neurosurgical_icu
+      - mixed_neuro_icu
+      - medical_icu
+  - name: room_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: bed_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - hospital_id
+  - hospital_type
+  - in_dttm
+  - out_dttm
+  - location_category
+  - location_type
+
+category_columns:
+  - hospital_type
+  - location_category
+  - location_type
+
+group_columns: []

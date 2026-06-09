@@ -1,0 +1,307 @@
+table_name: medication_admin_continuous
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: med_order_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: ordering_provider_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: administering_provider_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: admin_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: med_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: med_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - albumin_5
+      - albumin_25
+      - albuterol
+      - alprostadil
+      - aminocaproic_acid
+      - aminophylline
+      - amiodarone
+      - angiotensin
+      - argatroban
+      - baclofen
+      - bivalirudin
+      - bumetanide
+      - bupivacaine
+      - cangrelor
+      - cisatracurium
+      - clevidipine
+      - dexmedetomidine
+      - dextrose_10_water
+      - dextrose_5_water
+      - dextrose_other
+      - diltiazem
+      - dobutamine
+      - dopamine
+      - epinephrine
+      - epoprostenol
+      - eptifibatide
+      - esmolol
+      - esomeprazole
+      - fentanyl
+      - furosemide
+      - heparin
+      - hydromorphone
+      - insulin
+      - ipratropium
+      - isoproterenol
+      - ketamine
+      - labetalol
+      - lactated_ringers_solution
+      - levothyroxine
+      - lidocaine
+      - liothyronine
+      - lorazepam
+      - magnesium_sulfate
+      - midazolam
+      - milrinone
+      - morphine
+      - naloxone
+      - nicardipine
+      - nitric_oxide
+      - nitroglycerin
+      - nitroprusside
+      - norepinephrine
+      - octreotide
+      - oxytocin
+      - pantoprazole
+      - papaverine
+      - pentobarbital
+      - phentolamine
+      - phenylephrine
+      - pitocin
+      - plasma_lyte
+      - procainamide
+      - propofol
+      - remifentanil
+      - rocuronium
+      - ropivacaine
+      - sodium_bicarbonate
+      - sodium_chloride
+      - tacrolimus
+      - terbutaline
+      - torsemide
+      - tpn
+      - treprostinil
+      - vasopressin
+      - vecuronium
+      - zidovudine
+  - name: med_group
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - vasoactives
+      - sedation
+      - diuretics
+      - anticoagulation
+      - cardiac
+      - paralytics
+      - pulmonary_vasodilators_iv
+      - pulmonary_vasodilators_inhaled
+      - gastrointestinal
+      - inhaled
+      - endocrine
+      - fluids_electrolytes
+      - others
+  - name: med_route_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: med_route_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - im
+      - inhaled
+      - iv
+  - name: med_dose
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: med_dose_unit
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: rx_norm_code
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: volume_infusion_rate
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: volume_infusion_rate_unit
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mar_action_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: mar_action_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - dose_change
+      - going
+      - start
+      - stop
+      - verify
+      - other
+  - name: mar_action_group
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - administered
+      - not_administered
+      - other
+
+required_columns:
+  - hospitalization_id
+  - admin_dttm
+  - med_category
+  - med_group
+  - med_route_category
+  - med_dose
+  - med_dose_unit
+  - mar_action_category
+  - mar_action_group
+
+category_columns:
+  - med_category
+  - med_route_category
+  - mar_action_category
+
+group_columns:
+  - med_group
+  - mar_action_group
+
+# Values may be a single group name or a list of permissible groups —
+# the C.6 validator accepts either form (see check_category_group_mapping_*).
+# Multi-group entries exist for medications with multiple legitimate
+# administration routes/formulations (e.g. epoprostenol is an IV or inhaled
+# pulmonary vasodilator; terbutaline is inhaled bronchodilator or IV tocolytic).
+med_category_to_group_mapping:
+  albumin_5: fluids_electrolytes
+  albumin_25: fluids_electrolytes
+  albuterol: inhaled
+  alprostadil: pulmonary_vasodilators_iv
+  aminocaproic_acid: others
+  aminophylline: others
+  amiodarone: cardiac
+  angiotensin: vasoactives
+  argatroban: anticoagulation
+  baclofen: others
+  bivalirudin: anticoagulation
+  bumetanide: diuretics
+  bupivacaine: others
+  cangrelor: anticoagulation
+  cisatracurium: paralytics
+  clevidipine: cardiac
+  dexmedetomidine: sedation
+  dextrose_10_water: fluids_electrolytes
+  dextrose_5_water: fluids_electrolytes
+  dextrose_other: others
+  diltiazem: cardiac
+  dobutamine: vasoactives
+  dopamine: vasoactives
+  epinephrine: vasoactives
+  epoprostenol:
+    - pulmonary_vasodilators_iv
+    - pulmonary_vasodilators_inhaled
+  eptifibatide: anticoagulation
+  esmolol: cardiac
+  esomeprazole: gastrointestinal
+  fentanyl: sedation
+  furosemide: diuretics
+  heparin: anticoagulation
+  hydromorphone: sedation
+  insulin: endocrine
+  ipratropium: inhaled
+  isoproterenol: vasoactives
+  ketamine: sedation
+  labetalol: cardiac
+  lactated_ringers_solution: fluids_electrolytes
+  levothyroxine: endocrine
+  lidocaine: cardiac
+  liothyronine: endocrine
+  lorazepam: sedation
+  magnesium_sulfate: others
+  midazolam: sedation
+  milrinone: vasoactives
+  morphine: sedation
+  naloxone: others
+  nicardipine: cardiac
+  nitric_oxide: pulmonary_vasodilators_inhaled
+  nitroglycerin: cardiac
+  nitroprusside: cardiac
+  norepinephrine: vasoactives
+  octreotide: gastrointestinal
+  oxytocin: endocrine
+  pantoprazole: gastrointestinal
+  papaverine: cardiac
+  pentobarbital: sedation
+  phentolamine: others
+  phenylephrine: vasoactives
+  pitocin: others
+  plasma_lyte: fluids_electrolytes
+  procainamide: cardiac
+  propofol: sedation
+  remifentanil: sedation
+  rocuronium: paralytics
+  ropivacaine: others
+  sodium_bicarbonate: fluids_electrolytes
+  sodium_chloride: fluids_electrolytes
+  tacrolimus: others
+  terbutaline:
+    - inhaled
+    - others
+  torsemide: diuretics
+  tpn: fluids_electrolytes
+  treprostinil: pulmonary_vasodilators_iv
+  vasopressin: vasoactives
+  vecuronium: paralytics
+  zidovudine: others

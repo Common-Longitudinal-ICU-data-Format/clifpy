@@ -1,0 +1,61 @@
+table_name: drain
+version: "3.0"
+
+composite_keys:
+  - hospitalization_id
+  - drain_id
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: drain_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: placed_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: removed_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: drain_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - chest_tube
+      - foley
+      - jp_drain
+      - eud
+      - evd
+      - pigtail
+      - ng_tube
+      - og_tube
+      - peg_tube
+      - dobhoff
+  - name: anatomical_location
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - drain_id
+  - placed_dttm
+  - drain_category
+  - anatomical_location
+
+category_columns:
+  - drain_category
+
+group_columns: []

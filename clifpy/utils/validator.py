@@ -28,8 +28,10 @@ from typing import List, Dict, Any, Optional, Union
 import pandas as pd
 import logging
 import duckdb
-from pathlib import Path 
+from pathlib import Path
 import gc
+
+from ..schemas import DEFAULT_CLIF_VERSION, load_schema
 
 # Logger for this module
 _logger = logging.getLogger(__name__)
@@ -69,19 +71,27 @@ _DEFAULT_PLAUSIBILITY_THRESHOLDS: Dict[str, Dict[str, float]] = {
 }
 
 
-def _load_schema(table_name: str, schema_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Load YAML schema for a table."""
-    if schema_dir is None:
-        schema_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'schemas')
+def _load_schema(
+    table_name: str,
+    schema_dir: Optional[str] = None,
+    clif_version: str = DEFAULT_CLIF_VERSION,
+) -> Optional[Dict[str, Any]]:
+    """Load YAML schema for a table at the given CLIF version.
 
-    schema_file = os.path.join(schema_dir, f'{table_name}_schema.yaml')
-    _logger.debug("Loading schema for '%s' from %s", table_name, schema_file)
-    if not os.path.exists(schema_file):
-        _logger.warning("Schema file not found: %s", schema_file)
-        return None
+    If ``schema_dir`` is provided, it is treated as an explicit directory of
+    flat ``{table}_schema.yaml`` files (legacy / override behavior). Otherwise
+    the version-aware schema registry is used.
+    """
+    if schema_dir is not None:
+        schema_file = os.path.join(schema_dir, f'{table_name}_schema.yaml')
+        _logger.debug("Loading schema for '%s' from %s", table_name, schema_file)
+        if not os.path.exists(schema_file):
+            _logger.warning("Schema file not found: %s", schema_file)
+            return None
+        with open(schema_file, 'r') as f:
+            return yaml.safe_load(f)
 
-    with open(schema_file, 'r') as f:
-        return yaml.safe_load(f)
+    return load_schema(table_name, clif_version)
 
 
 # Sidecar column prefix used to preserve the pre-normalization (original-case)
@@ -6864,6 +6874,7 @@ def run_full_dqa(
     warning_threshold: float = 10.0,
     hosp_years: Optional[set] = None,
     plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
+    clif_version: str = DEFAULT_CLIF_VERSION,
 ) -> Dict[str, Any]:
     """Run the complete DQA suite on a single table.
 
@@ -6894,6 +6905,10 @@ def run_full_dqa(
         extract years.
     plausibility_thresholds : dict, optional
         Override default plausibility thresholds per check.
+    clif_version : str, optional
+        CLIF schema version to auto-load when *schema* is None
+        (e.g. "2.1", "3.0"). Ignored when *schema* is passed explicitly.
+        Defaults to the package default (2.1).
 
     Returns
     -------
@@ -6904,11 +6919,11 @@ def run_full_dqa(
     if not table_name:
         raise ValueError("table_name is required")
     if schema is None:
-        schema = _load_schema(table_name)
+        schema = _load_schema(table_name, clif_version=clif_version)
         if schema is None:
             raise FileNotFoundError(
-                f"No built-in schema found for table '{table_name}'. "
-                "Pass a schema dict explicitly."
+                f"No built-in schema found for table '{table_name}' "
+                f"(CLIF {clif_version}). Pass a schema dict explicitly."
             )
     _logger.info("Starting full DQA for table: %s", table_name)
 

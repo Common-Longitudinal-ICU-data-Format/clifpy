@@ -50,8 +50,9 @@ include = ["clifpy*"]
 
 [tool.setuptools.package-data]
 clifpy = [
-    "data/clif_demo/*.parquet", 
+    "data/clif_demo/*.parquet",
     "schemas/*.yaml",
+    "schemas/*/*.yaml",
     "data/comorbidity/*.yaml",
     "data/mdro.yaml"
 ]

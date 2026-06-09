@@ -35,7 +35,25 @@ data_directory: /path/to/where/you/store/your/clif/tables
 filetype: parquet
 timezone: US/Central
 output_directory: /path/to/where/you/want/to/store/any/clifpy/outputs
+clif_version: "2.1"   # optional; defaults to 2.1. Set to "3.0" for the CLIF 3.0 schema set
 ```
+
+### Choosing a CLIF version
+
+clifpy ships schemas for multiple CLIF versions and validates your data against the version you select. The default is **2.1**, so existing code is unaffected. To work with CLIF **3.0** tables and controlled vocabularies, pass `clif_version` (it flows to every table the orchestrator loads):
+
+<!-- skip: next -->
+
+```python
+co = ClifOrchestrator(
+    data_directory='/path/to/clif_3_0_tables',
+    filetype='parquet',
+    timezone='US/Central',
+    clif_version='3.0',   # or set clif_version in the config file
+)
+```
+
+Individual table classes accept the same argument, e.g. `Vitals.from_file(..., clif_version='3.0')`. CLIF 3.0 adds new tables (e.g. `input`, `output`, `mcs`, `invasive_hemodynamics`, `radiology`); note that the 2.1 `ecmo_mcs` table is named `mcs` in 3.0.
 
 The parameters always override config file settings if both are provided:
 

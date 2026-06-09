@@ -1,0 +1,176 @@
+table_name: ed_encounter
+version: "3.0"
+
+composite_keys:
+  - hospitalization_id
+  - ed_encounter_id
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: ed_encounter_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: ed_arrival_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: ed_departure_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: arrival_mode_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: arrival_mode_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ems_air
+      - ems_ground
+      - law_enforcement
+      - other
+      - private_vehicle
+      - transfer_ambulance
+      - transfer_private_vehicle
+      - unknown
+      - walk_in
+  - name: triage_system_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: triage_system_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ctas
+      - esi
+      - other
+      - other_5_level
+      - unknown
+  - name: triage_acuity_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: triage_acuity_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - level_1
+      - level_2
+      - level_3
+      - level_4
+      - level_5
+      - other
+      - unknown
+  - name: triage_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: chief_complaint_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: ed_disposition_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: ed_disposition_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - admit
+      - ama
+      - discharge
+      - expired
+      - lwbs
+      - observation
+      - other
+      - transfer
+  - name: ed_disposition_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: ed_destination_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: ed_destination_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - acute_care_hosp
+      - acute_ip_rehab
+      - ama
+      - assisted_living
+      - chemical_dependency
+      - expired
+      - group_home
+      - home
+      - hospice
+      - jail
+      - ltach
+      - lwbs
+      - mental_health_hosp
+      - missing
+      - other
+      - shelter
+      - snf
+      - still_admitted
+  - name: ed_observation_status
+    data_type: INT
+    required: true
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - 0
+      - 1
+
+required_columns:
+  - hospitalization_id
+  - ed_encounter_id
+  - ed_arrival_dttm
+  - ed_departure_dttm
+  - arrival_mode_category
+  - triage_system_category
+  - triage_acuity_category
+  - triage_dttm
+  - ed_disposition_category
+  - ed_disposition_dttm
+  - ed_destination_category
+  - ed_observation_status
+
+category_columns:
+  - arrival_mode_category
+  - triage_system_category
+  - triage_acuity_category
+  - ed_disposition_category
+  - ed_destination_category
+
+group_columns: []

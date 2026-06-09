@@ -29,9 +29,35 @@ from .tables.microbiology_susceptibility import MicrobiologySusceptibility
 from .tables.ecmo_mcs import EcmoMcs
 from .tables.microbiology_nonculture import MicrobiologyNonculture
 from .tables.code_status import CodeStatus
+# CLIF 3.0 tables (new in 3.0; mcs replaces ecmo_mcs)
+from .tables.mcs import Mcs
+from .tables.intermittent_dialysis import IntermittentDialysis
+from .tables.input import Input
+from .tables.output import Output
+from .tables.invasive_hemodynamics import InvasiveHemodynamics
+from .tables.key_icu_orders import KeyIcuOrders
+from .tables.medication_orders import MedicationOrders
+from .tables.patient_diagnosis import PatientDiagnosis
+from .tables.place_based_index import PlaceBasedIndex
+from .tables.provider import Provider
+from .tables.therapy_details import TherapyDetails
+from .tables.transfusion import Transfusion
+from .tables.clinical_trial import ClinicalTrial
+from .tables.clinical_notes_facts import ClinicalNotesFacts
+from .tables.clinical_notes_text import ClinicalNotesText
+from .tables.validated_diagnosis import ValidatedDiagnosis
+from .tables.model_registry import ModelRegistry
+from .tables.scores import Scores
+from .tables.radiology import Radiology
+from .tables.line import Line
+from .tables.drain import Drain
+from .tables.airway import Airway
+from .tables.patient_attributes import PatientAttributes
+from .tables.ed_encounter import EdEncounter
 from .utils.config import get_config_or_params
 from .utils.stitching_encounters import stitch_encounters
 from .utils.logging_config import setup_logging
+from .schemas import DEFAULT_CLIF_VERSION
 
 
 TABLE_CLASSES = {
@@ -52,7 +78,32 @@ TABLE_CLASSES = {
     'microbiology_susceptibility': MicrobiologySusceptibility,
     'ecmo_mcs': EcmoMcs,
     'microbiology_nonculture': MicrobiologyNonculture,
-    'code_status': CodeStatus
+    'code_status': CodeStatus,
+    # CLIF 3.0 tables (mcs replaces ecmo_mcs)
+    'mcs': Mcs,
+    'intermittent_dialysis': IntermittentDialysis,
+    'input': Input,
+    'output': Output,
+    'invasive_hemodynamics': InvasiveHemodynamics,
+    'key_icu_orders': KeyIcuOrders,
+    'medication_orders': MedicationOrders,
+    'patient_diagnosis': PatientDiagnosis,
+    'place_based_index': PlaceBasedIndex,
+    'provider': Provider,
+    'therapy_details': TherapyDetails,
+    'transfusion': Transfusion,
+    'clinical_trial': ClinicalTrial,
+    'clinical_notes_facts': ClinicalNotesFacts,
+    'clinical_notes_text': ClinicalNotesText,
+    'validated_diagnosis': ValidatedDiagnosis,
+    'model_registry': ModelRegistry,
+    'scores': Scores,
+    'radiology': Radiology,
+    'line': Line,
+    'drain': Drain,
+    'airway': Airway,
+    'patient_attributes': PatientAttributes,
+    'ed_encounter': EdEncounter,
 }
 
 
@@ -129,11 +180,12 @@ class ClifOrchestrator:
         timezone: Optional[str] = None,
         output_directory: Optional[str] = None,
         stitch_encounter: bool = False,
-        stitch_time_interval: int = 6
+        stitch_time_interval: int = 6,
+        clif_version: Optional[str] = None
     ):
         """
         Initialize the ClifOrchestrator.
-        
+
         Parameters
         ----------
         config_path : str, optional
@@ -150,8 +202,12 @@ class ClifOrchestrator:
         stitch_encounter : bool, optional
             Whether to stitch encounters within time interval. Default False.
         stitch_time_interval : int, optional
-            Hours between discharge and next admission to consider 
+            Hours between discharge and next admission to consider
             encounters linked. Default 6 hours.
+        clif_version : str, optional
+            CLIF schema version for all loaded tables (e.g. "2.1", "3.0").
+            Overrides any ``clif_version`` in the config file. If neither is
+            set, the package default (2.1) is used.
                 
         Notes
         -----
@@ -174,7 +230,10 @@ class ClifOrchestrator:
         self.data_directory = config['data_directory']
         self.filetype = config['filetype']
         self.timezone = config['timezone']
-        
+
+        # Resolve CLIF version: explicit param > config file > package default
+        self.clif_version = clif_version or config.get('clif_version', DEFAULT_CLIF_VERSION)
+
         # Set output directory
         self.output_directory = config.get('output_directory')
         if self.output_directory is None:
@@ -211,6 +270,31 @@ class ClifOrchestrator:
         self.ecmo_mcs: EcmoMcs = None
         self.microbiology_nonculture: MicrobiologyNonculture = None
         self.code_status: CodeStatus = None
+        # CLIF 3.0 tables (mcs replaces ecmo_mcs)
+        self.mcs: Mcs = None
+        self.intermittent_dialysis: IntermittentDialysis = None
+        self.input: Input = None
+        self.output: Output = None
+        self.invasive_hemodynamics: InvasiveHemodynamics = None
+        self.key_icu_orders: KeyIcuOrders = None
+        self.medication_orders: MedicationOrders = None
+        self.patient_diagnosis: PatientDiagnosis = None
+        self.place_based_index: PlaceBasedIndex = None
+        self.provider: Provider = None
+        self.therapy_details: TherapyDetails = None
+        self.transfusion: Transfusion = None
+        self.clinical_trial: ClinicalTrial = None
+        self.clinical_notes_facts: ClinicalNotesFacts = None
+        self.clinical_notes_text: ClinicalNotesText = None
+        self.validated_diagnosis: ValidatedDiagnosis = None
+        self.model_registry: ModelRegistry = None
+        self.scores: Scores = None
+        self.radiology: Radiology = None
+        self.line: Line = None
+        self.drain: Drain = None
+        self.airway: Airway = None
+        self.patient_attributes: PatientAttributes = None
+        self.ed_encounter: EdEncounter = None
 
         # Initialize wide dataset property
         self.wide_df: Optional[pd.DataFrame] = None
@@ -271,7 +355,8 @@ class ClifOrchestrator:
             output_directory=self.output_directory,
             sample_size=sample_size,
             columns=columns,
-            filters=filters
+            filters=filters,
+            clif_version=self.clif_version
         )
         setattr(self, table_name, table_object)
         return table_object
@@ -460,7 +545,7 @@ class ClifOrchestrator:
 
             **Category Values:**
             For complete lists of acceptable category values, see:
-            - Table schemas: clifpy/schemas/*_schema.yaml
+            - Table schemas: clifpy/schemas/<clif_version>/*_schema.yaml
             - Use `co.vitals.df['vital_category'].unique()` to see available values in your data
         sample : bool, default=False
             If True, randomly sample 20 hospitalizations for testing purposes.
