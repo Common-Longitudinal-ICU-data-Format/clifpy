@@ -82,6 +82,7 @@ nav:
         - Quickstart: user-guide/quickstart.md
       - Core Features:
         - Data Quality Assessment (DQA): user-guide/validation.md
+        - CLIF 2.1 → 3.0 Migration: user-guide/clif-2-1-to-3-0.md
         - Outlier Handling: user-guide/outlier-handling.md
         - Encounter Stitching: user-guide/encounter-stitching.md
         - Wide Dataset Creation: user-guide/wide-dataset.md

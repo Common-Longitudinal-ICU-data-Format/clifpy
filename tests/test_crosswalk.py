@@ -12,6 +12,7 @@ import textwrap
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from clifpy.schemas import load_schema
@@ -405,3 +406,38 @@ def test_file_backend_unknown_raises(tmp_path, rs_2_1_frame):
     with pytest.raises(ValueError, match="Unknown backend"):
         crosswalk_file_2_1_to_3_0(str(src), str(tmp_path / "o.parquet"),
                                   "respiratory_support", backend="polars")
+
+
+# --------------------------------------------------------------------------- #
+# pandas / polars input parity (type-mirrored output)
+# --------------------------------------------------------------------------- #
+
+_RS_DATA = {
+    "hospitalization_id": ["a", "b", "c", "d"],
+    "device_category": ["IMV", "High Flow NC", "Nasal Cannula", None],
+    "mode_category": ["Assist Control-Volume Control", "Pressure Support/CPAP", "SIMV", "Other"],
+}
+
+
+def test_pandas_and_polars_inputs_match_and_mirror_type():
+    po, prep = crosswalk_table_2_1_to_3_0(pd.DataFrame(_RS_DATA), "respiratory_support")
+    lo, lrep = crosswalk_table_2_1_to_3_0(pl.DataFrame(_RS_DATA), "respiratory_support")
+
+    assert isinstance(po, pd.DataFrame)        # pandas in -> pandas out
+    assert isinstance(lo, pl.DataFrame)        # polars in -> polars out
+    assert list(po["device_category"]) == ["imv", "hfnc", "nasal_cannula", None]
+    assert lo["device_category"].to_list() == ["imv", "hfnc", "nasal_cannula", None]
+    assert lo["mode_category"].to_list() == list(po["mode_category"])
+    assert prep == lrep                        # identical report regardless of input type
+
+
+def test_polars_input_not_mutated():
+    src = pl.DataFrame({"device_category": ["IMV", "CPAP"]})
+    snapshot = src.clone()
+    crosswalk_table_2_1_to_3_0(src, "respiratory_support")
+    assert src.equals(snapshot)
+
+
+def test_polars_lazyframe_raises():
+    with pytest.raises(TypeError, match="LazyFrame"):
+        crosswalk_table_2_1_to_3_0(pl.LazyFrame({"device_category": ["IMV"]}), "respiratory_support")

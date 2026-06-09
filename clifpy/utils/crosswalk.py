@@ -164,10 +164,10 @@ def _standardized_columns(table_name: str) -> set:
 
 
 def crosswalk_table_2_1_to_3_0(
-    df: pd.DataFrame,
+    df,
     table_name: str,
     crosswalk_path: Optional[str] = None,
-) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+) -> Tuple[Any, Dict[str, Any]]:
     """Convert a table's standardized column values from CLIF 2.1 to 3.0.
 
     Transforms values in ``*_category``/``*_group``/``*_type`` columns to their
@@ -176,11 +176,16 @@ def crosswalk_table_2_1_to_3_0(
     ``unresolved`` (e.g. ``albumin``) are left unchanged, as are values that do
     not resolve to a valid 3.0 permissible value — all such cases are reported.
 
-    Column header names are NOT changed, and the input ``df`` is never mutated.
+    Column header names are NOT changed, and the input is never mutated.
+
+    Accepts a **pandas** or an eager **polars** ``DataFrame`` and returns a
+    converted copy of the **same type** (pandas in -> pandas out, polars in ->
+    polars out). For polars ``LazyFrame`` or larger-than-memory data, use
+    :func:`crosswalk_file_2_1_to_3_0` instead.
 
     Parameters
     ----------
-    df : pd.DataFrame
+    df : pandas.DataFrame or polars.DataFrame
         A site's table data in CLIF 2.1 format.
     table_name : str
         CLIF table name (e.g. ``"respiratory_support"``).
@@ -189,16 +194,20 @@ def crosswalk_table_2_1_to_3_0(
 
     Returns
     -------
-    (converted_df, report) : Tuple[pd.DataFrame, dict]
-        ``converted_df`` is a copy of ``df`` with values converted.
-        ``report`` has keys: ``table``, ``from_version``, ``to_version``,
-        ``columns`` (per-column ``n_values_converted`` / ``ambiguous`` /
-        ``unresolved``), and ``is_complete`` (True iff nothing was flagged).
+    (converted_df, report) : tuple
+        ``converted_df`` is a copy of ``df`` (same type as the input) with values
+        converted. ``report`` has keys: ``table``, ``from_version``,
+        ``to_version``, ``columns`` (per-column ``n_values_converted`` /
+        ``ambiguous`` / ``unresolved``), and ``is_complete``.
     """
     crosswalk = load_crosswalk(crosswalk_path)
     permissible_30 = _permissible_map(load_schema(table_name, "3.0"))
-    target_cols = _target_cols(table_name, df.columns)
 
+    if _is_polars_frame(df):
+        return _crosswalk_polars(df, table_name, crosswalk, permissible_30)
+
+    # pandas path (default)
+    target_cols = _target_cols(table_name, df.columns)
     out = df.copy()
     report = _new_report(table_name)
     for col in target_cols:
@@ -206,6 +215,43 @@ def crosswalk_table_2_1_to_3_0(
         value_map, col_report = _plan_column(table_name, col, counts, crosswalk, permissible_30)
         # Apply the unique-value map (NaN/None untouched: not in value_map).
         out[col] = out[col].map(lambda v: value_map.get(v, v))
+        report["columns"][col] = col_report
+        if col_report["ambiguous"] or col_report["unresolved"]:
+            report["is_complete"] = False
+    return out, report
+
+
+def _is_polars_frame(df) -> bool:
+    """True for a polars DataFrame/LazyFrame (without importing polars to check)."""
+    return type(df).__module__.split(".", 1)[0] == "polars"
+
+
+def _crosswalk_polars(df, table_name, crosswalk, permissible_30):
+    """Polars implementation of the crosswalk; returns a polars DataFrame."""
+    import polars as pl
+
+    if isinstance(df, pl.LazyFrame):
+        raise TypeError(
+            "crosswalk_table_2_1_to_3_0 accepts an eager polars DataFrame, not a LazyFrame. "
+            "Collect it first (df.collect()), or use crosswalk_file_2_1_to_3_0 for large data."
+        )
+
+    target_cols = _target_cols(table_name, df.columns)
+    out = df.clone()
+    report = _new_report(table_name)
+    for col in target_cols:
+        # value_counts() -> 2-col frame [<value>, count]; read positionally for
+        # version-robustness, skipping nulls.
+        counts = {}
+        for row in out[col].value_counts().iter_rows():
+            value, count = row[0], row[1]
+            if value is not None:
+                counts[value] = int(count)
+        value_map, col_report = _plan_column(table_name, col, counts, crosswalk, permissible_30)
+        changed = {old: new for old, new in value_map.items() if old != new}
+        if changed:
+            # replace() leaves unmapped values (incl. nulls) untouched.
+            out = out.with_columns(pl.col(col).replace(changed).alias(col))
         report["columns"][col] = col_report
         if col_report["ambiguous"] or col_report["unresolved"]:
             report["is_complete"] = False
