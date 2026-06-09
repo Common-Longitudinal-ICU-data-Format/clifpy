@@ -205,22 +205,42 @@ Prefer to browse the controlled vocabularies directly instead of loading a schem
 - **CLIF 3.0 data dictionary** — human-readable table and column definitions for 3.0 (marked
   "Concept"): [clif-icu.com/data-dictionary/data-dictionary-3.0.0](https://clif-icu.com/data-dictionary/data-dictionary-3.0.0).
 
-When loading a table, pass `clif_version` to validate against a specific version (defaults to
-`"2.1"`):
+### Validating your converted data against CLIF 3.0
 
-<!-- skip: next -->
+`.validate()` is a method on a **table object**, not on a DataFrame — so to validate the
+DataFrame the crosswalk returns, wrap it in a table object created at `clif_version="3.0"`:
+
 ```python
-from clifpy import RespiratorySupport
+from clifpy import crosswalk_table_2_1_to_3_0, RespiratorySupport
+from clifpy.data import load_demo_clif
 
-# Validate already-3.0 data against the CLIF 3.0 schema
-rs = RespiratorySupport.from_file(
-    data_directory="/path/to/clif_3_0_tables",
-    filetype="parquet",
-    timezone="US/Central",
-    clif_version="3.0",
-)
+rs_2_1 = load_demo_clif(tables=["respiratory_support"]).respiratory_support.df
+rs_3_0, _ = crosswalk_table_2_1_to_3_0(rs_2_1, "respiratory_support")
+
+# Wrap the converted DataFrame in a 3.0 table object, then validate
+rs = RespiratorySupport(data=rs_3_0, timezone="US/Eastern", clif_version="3.0")
 rs.validate()
+print("valid:", rs.isvalid(), "| issues:", len(rs.errors))
 ```
 
-A typical migration is therefore: **crosswalk your 2.1 files to 3.0 values → load the result
-with `clif_version="3.0"` → validate.**
+`validate()` checks the data against the **3.0** schema — required columns, data types, and that
+categorical values fall within the 3.0 permissible lists, plus completeness/plausibility — stores
+findings in `rs.errors`, and returns `None` (read `rs.errors` / `rs.isvalid()`). Because it
+validates against 3.0, raw 2.1 values (e.g. `device_category = "IMV"`) would be flagged — which
+is the point of converting first.
+
+Prefer not to build a table object? Validate the DataFrame directly against a version's schema:
+
+```python
+from clifpy.utils import validator
+from clifpy.schemas import load_schema
+
+errors = validator.validate_dataframe(rs_3_0, load_schema("respiratory_support", "3.0"))
+print(len(errors), "issue(s)")
+```
+
+And if your data is already on disk in 3.0 form, load it at 3.0 directly with
+`<TableClass>.from_file(..., clif_version="3.0")` and call `.validate()`.
+
+A typical migration is therefore: **crosswalk your 2.1 data to 3.0 → wrap/load it at
+`clif_version="3.0"` → `validate()`.**
