@@ -1,0 +1,118 @@
+table_name: mcs
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: support_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: support_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ecmo
+      - lvad
+      - rvad
+  - name: device_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: device_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - cardiohelp
+      - rotaflow
+      - centrimag
+      - tandemheart
+      - impella
+      - durable
+  - name: config_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: config_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - v_v
+      - v_a
+      - v_av
+      - vv_a
+      - v_pa_single
+      - v_pa_dual
+      - hybrid
+      - cp
+      - "2_5"
+      - 2_5_or_cp
+      - "5"
+      - "5_5"
+      - rp
+      - rp_flex
+      - heartware
+      - heartmate2
+      - heartmate3
+      - central
+  - name: setting_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: setting_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - rpm
+      - flow
+      - sweep
+      - fdo2
+      - p_ven
+      - p_art
+      - delta_pressure
+      - frequency
+      - power
+      - pulsatility_index
+      - performance
+  - name: setting_value
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - support_category
+  - device_category
+  - config_category
+  - setting_category
+  - setting_value
+
+category_columns:
+  - support_category
+  - device_category
+  - config_category
+  - setting_category
+
+group_columns: []

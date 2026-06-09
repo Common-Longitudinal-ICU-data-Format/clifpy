@@ -134,7 +134,7 @@ def create_wide_dataset(
         - Example: {'vitals': ['heart_rate', 'sbp', 'spo2'],
                     'labs': ['hemoglobin', 'sodium', 'creatinine']}
         - Acceptable values come from the category column's permissible values
-          defined in each table's schema file (clifpy/schemas/*_schema.yaml)
+          defined in each table's schema file (clifpy/schemas/<clif_version>/*_schema.yaml)
 
         **WIDE TABLES** (already in wide format):
         - Values are **column names** to keep from the table
@@ -146,7 +146,7 @@ def create_wide_dataset(
 
         Table presence in this dict determines if it will be loaded.
         For complete lists of acceptable category values, see:
-        - Table schemas: clifpy/schemas/*_schema.yaml
+        - Table schemas: clifpy/schemas/<clif_version>/*_schema.yaml
         - Wide dataset config: clifpy/schemas/wide_tables_config.yaml
     sample : bool, default=False
         if True, randomly select 20 hospitalizations

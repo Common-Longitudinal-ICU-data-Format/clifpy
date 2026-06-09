@@ -1,0 +1,45 @@
+table_name: code_status
+version: "3.0"
+
+columns:
+- name: patient_id
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: start_dttm
+  data_type: DATETIME
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: code_status_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: code_status_category
+  data_type: VARCHAR
+  required: true
+  is_category_column: true
+  is_group_column: false
+  permissible_values:
+  - dnr
+  - dnar
+  - udnr
+  - dnr_or_dni
+  - dnar_or_dni
+  - dni_only
+  - and
+  - full
+  - presume_full
+  - other
+
+required_columns:
+  - patient_id
+  - start_dttm
+  - code_status_category
+
+category_columns:
+  - code_status_category
+
+group_columns: []

@@ -32,6 +32,7 @@ from .utils.outlier_handler import apply_outlier_handling, get_outlier_summary
 from .utils.config import load_config
 from .utils.io import load_data
 from .utils.logging_config import setup_logging, get_logger
+from .utils.crosswalk import crosswalk_table_2_1_to_3_0, normalize_category_value, BETA_TABLES
 
 # Re-export Polars-based utilities at package root
 from .utils.sofa_polars import compute_sofa_polars
@@ -86,6 +87,9 @@ __all__ = [
     "load_data",
     "setup_logging",
     "get_logger",
+    "crosswalk_table_2_1_to_3_0",
+    "normalize_category_value",
+    "BETA_TABLES",
     # Polars-based utilities
     "compute_sofa_polars",
     "standardize_datetime_columns_polars",

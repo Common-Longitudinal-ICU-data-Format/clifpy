@@ -1,0 +1,674 @@
+table_name: labs
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: lab_order_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: lab_collect_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: lab_result_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: lab_order_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: lab_order_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - aki_biomarkers
+      - bal_panel
+      - blood_gas
+      - bmp
+      - cardiac
+      - cbc
+      - coags
+      - inflammatory
+      - lft
+      - misc
+      - mixed_venous_blood_gas
+      - peritoneal_fluid_panel
+      - pleural_fluid_panel
+      - poc
+      - tft
+      - urine_chemistry
+      - urine_toxicology
+  - name: lab_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: lab_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ada
+      - albumin
+      - albumin_to_creatinine_ratio
+      - alkaline_phosphatase
+      - alt
+      - amphetamine
+      - amylase
+      - ast
+      - barbiturate
+      - basophils_absolute
+      - basophils_percent
+      - benzodiazepine
+      - bicarbonate
+      - bilirubin
+      - bilirubin_conjugated
+      - bilirubin_total
+      - bilirubin_unconjugated
+      - bnp
+      - bun
+      - calcium_ionized
+      - calcium_total
+      - chloride
+      - cholesterol
+      - ckmb
+      - co2
+      - cocaine
+      - creatinine
+      - crp
+      - cystatin_c
+      - d_dimer
+      - eosinophils_absolute
+      - eosinophils_percent
+      - esr
+      - ethanol
+      - fentanyl
+      - ferritin
+      - fibrinogen
+      - free_t3
+      - free_t4
+      - glucose
+      - glucose_serum
+      - hematocrit
+      - hematocrit_percent
+      - hemoglobin
+      - igfbp7
+      - inr
+      - interleukin_01
+      - interleukin_02
+      - interleukin_02_receptor_soluble
+      - interleukin_05
+      - interleukin_06
+      - interleukin_08
+      - interleukin_10
+      - interleukin_13
+      - interleukin_18
+      - kim_1
+      - lactate
+      - ldh
+      - lipase
+      - lymphocytes_absolute
+      - lymphocytes_percent
+      - macrophages_percent
+      - magnesium
+      - mesothelial
+      - methadone
+      - monocytes_absolute
+      - monocytes_percent
+      - nag
+      - neutrophils_absolute
+      - neutrophils_percent
+      - ngal
+      - nt_pro_bnp
+      - opiate
+      - other_absolute
+      - oxycodone
+      - pco2_arterial
+      - pco2_venous
+      - pcp
+      - ph_arterial
+      - ph_venous
+      - phosphate
+      - plasma_absolute
+      - platelet_count
+      - po2_arterial
+      - po2_mixed_venous
+      - potassium
+      - probnp
+      - procalcitonin
+      - protein
+      - protein_to_creatinine_ratio
+      - pt
+      - ptt
+      - rbc
+      - rbc_absolute
+      - so2_arterial
+      - so2_central_venous
+      - so2_mixed_venous
+      - sodium
+      - timp_2
+      - timp_2_igfbp7
+      - total_protein
+      - toxic_granulation
+      - triglycerides
+      - troponin_i
+      - troponin_t
+      - tsh
+      - wbc
+      - wbc_absolute
+  - name: lab_value
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: lab_value_numeric
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: reference_unit
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: lab_specimen_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: lab_specimen_category
+    data_type: VARCHAR
+    required: false
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - plasma_blood
+      - pleural
+      - peritoneal
+      - urine
+      - bal
+  - name: lab_loinc_code
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: loinc_version
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - lab_order_dttm
+  - lab_collect_dttm
+  - lab_result_dttm
+  - lab_order_category
+  - lab_category
+  - lab_value
+  - reference_unit
+
+category_columns:
+  - lab_order_category
+  - lab_category
+  - lab_specimen_category
+
+group_columns: []
+
+# Each lab category mapped to its canonical (lowercase) reference unit key.
+# Rebuilt from /tmp/mCIDE/labs/clif_lab_categories.csv 'reference_unit' column
+# (first reference_unit listed per lab_category). Look up the canonical key in
+# allowed_unit_variants below to find all accepted spellings.
+lab_reference_units:
+  ada: u/l
+  albumin: g/dl
+  albumin_to_creatinine_ratio: mg/g
+  alkaline_phosphatase: u/l
+  alt: u/l
+  amphetamine: (no units)
+  amylase: u/l
+  ast: u/l
+  barbiturate: (no units)
+  basophils_absolute: 10^3/ul
+  basophils_percent: "%"
+  benzodiazepine: (no units)
+  bicarbonate: mmol/l
+  bilirubin: mg/dl
+  bilirubin_conjugated: mg/dl
+  bilirubin_total: mg/dl
+  bilirubin_unconjugated: mg/dl
+  bnp: pg/ml
+  bun: mg/dl
+  calcium_ionized: mg/dl
+  calcium_total: mg/dl
+  chloride: mmol/l
+  cholesterol: mg/dl
+  ckmb: ng/ml
+  co2: mmol/l
+  cocaine: (no units)
+  creatinine: mg/dl
+  crp: mg/l
+  cystatin_c: mg/l
+  d_dimer: ug/ml
+  eosinophils_absolute: 10^3/ul
+  eosinophils_percent: "%"
+  esr: mm/hour
+  ethanol: (no units)
+  fentanyl: (no units)
+  ferritin: ng/ml
+  fibrinogen: mg/dl
+  free_t3: pg/ml
+  free_t4: ng/dl
+  glucose: mg/dl
+  glucose_serum: mg/dl
+  hematocrit: "%"
+  hematocrit_percent: "%"
+  hemoglobin: g/dl
+  igfbp7: ng/ml
+  inr: (no units)
+  interleukin_01: pg/ml
+  interleukin_02: pg/ml
+  interleukin_02_receptor_soluble: u/ml
+  interleukin_05: pg/ml
+  interleukin_06: pg/ml
+  interleukin_08: pg/ml
+  interleukin_10: pg/ml
+  interleukin_13: pg/ml
+  interleukin_18: pg/ml
+  kim_1: ng/ml
+  lactate: mmol/l
+  ldh: u/l
+  lipase: u/l
+  lymphocytes_absolute: 10^3/ul
+  lymphocytes_percent: "%"
+  macrophages_percent: "%"
+  magnesium: mg/dl
+  mesothelial: "%"
+  methadone: (no units)
+  monocytes_absolute: 10^3/ul
+  monocytes_percent: "%"
+  nag: u/l
+  neutrophils_absolute: 10^3/ul
+  neutrophils_percent: "%"
+  ngal: ng/ml
+  nt_pro_bnp: pg/ml
+  opiate: (no units)
+  other_absolute: cells/ul
+  oxycodone: (no units)
+  pco2_arterial: mmhg
+  pco2_venous: mmhg
+  pcp: (no units)
+  ph_arterial: (no units)
+  ph_venous: (no units)
+  phosphate: mg/dl
+  plasma_absolute: cells/ul
+  platelet_count: 10^3/ul
+  po2_arterial: mmhg
+  po2_mixed_venous: mmhg
+  potassium: mmol/l
+  probnp: pg/ml
+  procalcitonin: ng/ml
+  protein: g/dl
+  protein_to_creatinine_ratio: mg/g
+  pt: sec
+  ptt: sec
+  rbc: cells/ul
+  rbc_absolute: cells/ul
+  so2_arterial: "%"
+  so2_central_venous: "%"
+  so2_mixed_venous: "%"
+  sodium: mmol/l
+  timp_2: ng/ml
+  timp_2_igfbp7: (ng/ml)^2/1000
+  total_protein: g/dl
+  toxic_granulation: (no units)
+  triglycerides: mg/dl
+  troponin_i: ng/l
+  troponin_t: ng/l
+  tsh: miu/l
+  wbc: 10^3/ul
+  wbc_absolute: cells/ul
+
+# Per-category outlier bounds used for filtering implausible values before
+# downstream analysis. Labs-side parallel of vital_ranges in vitals_schema.yaml.
+# Carried over from the 2.1 template for lab_category values that still exist
+# in 3.0.
+lab_outlier_ranges:
+  basophils_percent: {min: 0, max: 100}
+  eosinophils_percent: {min: 0, max: 100}
+  lymphocytes_absolute: {min: 0, max: 50}
+  lymphocytes_percent: {min: 0, max: 100}
+  monocytes_percent: {min: 0, max: 100}
+  neutrophils_percent: {min: 0, max: 100}
+  pt: {min: 1, max: 200}
+
+# Per-category clinical reference (normal) ranges. Carried over from the 2.1
+# template for lab_category values that still exist in 3.0.
+lab_reference_ranges:
+  basophils_percent: {lower: 0, upper: 2}
+  eosinophils_percent: {lower: 0, upper: 4}
+  lymphocytes_absolute: {lower: 1, upper: 4}
+  lymphocytes_percent: {lower: 20, upper: 40}
+  monocytes_percent: {lower: 2, upper: 8}
+  neutrophils_percent: {lower: 50, upper: 70}
+  pt: {lower: 10, upper: 13}
+
+# Canonical unit keys mapped to all accepted variant spellings (all lowercase).
+# Used for case-insensitive, variant-tolerant unit matching.
+allowed_unit_variants:
+  10^3/ul:
+    - 10^3/ul
+    - "10^3/\xB5l"
+    - "10^3/μl"
+    - "10^3/μl"
+    - 10*3/ul
+    - "10*3/\xB5l"
+    - "10*3/μl"
+    - "10*3/μl"
+    - x10^3/ul
+    - "x10^3/\xB5l"
+    - "x10^3/μl"
+    - "x10^3/μl"
+    - x10e3/ul
+    - "x10e3/\xB5l"
+    - "x10e3/μl"
+    - 10e3/ul
+    - "10e3/\xB5l"
+    - "10e3/μl"
+    - k/ul
+    - "k/\xB5l"
+    - "k/μl"
+    - "k/μl"
+    - k/mcl
+    - thousand/ul
+    - "thousand/\xB5l"
+    - "thousand/μl"
+    - "thousand/μl"
+    - thous/ul
+    - "thous/\xB5l"
+    - "thous/μl"
+    - "thous/μl"
+    - k/cu mm
+    - k/cumm
+    - k/cu.mm
+    - k/mm3
+    - k/mm^3
+    - x10^3/mm3
+    - x10^3/mm^3
+    - 10^3/mm3
+    - 10^3/mm^3
+    - 10^9/l
+    - 10*9/l
+    - x10^9/l
+    - 10e9/l
+  cells/ul:
+    - cells/ul
+    - "cells/\xB5l"
+    - "cells/μl"
+    - "cells/μl"
+    - cells per microliter
+    - cell/ul
+    - "cell/\xB5l"
+    - "cell/μl"
+    - "cell/μl"
+    - /cu mm
+    - /cumm
+    - /mm3
+    - /mm^3
+    - per cu mm
+    - per cumm
+    - per mm3
+    - per mm^3
+  u/l:
+    - u/l
+    - u per l
+    - u.l
+    - u_l
+    - iu/l
+    - iu per l
+    - iu.l
+    - iu_l
+    - "[iu]/l"
+    - "[iu] per l"
+    - units/l
+    - unit/l
+    - units per liter
+    - units per litre
+    - unit per liter
+    - unit per litre
+  u/ml:
+    - u/ml
+    - u per ml
+    - iu/ml
+    - iu per ml
+    - units/ml
+    - unit/ml
+    - units per milliliter
+    - units per millilitre
+  g/dl:
+    - g/dl
+    - g per dl
+    - g/dl.
+    - gram/dl
+    - grams/dl
+    - grams per deciliter
+    - g per decilitre
+    - g/deciliter
+    - gm/dl
+  g/100ml:
+    - g/100ml
+    - g per 100ml
+    - gram/100ml
+    - grams/100ml
+    - grams per 100ml
+    - gm/100ml
+    - gm per 100ml
+  g/l:
+    - g/l
+    - g per l
+    - gram/l
+    - grams/l
+    - grams per liter
+    - grams per litre
+    - g/liter
+    - g/litre
+    - gm/l
+    - gm per l
+  mg/dl:
+    - mg/dl
+    - mg per dl
+    - mg/dl.
+    - milligrams per deciliter
+    - milligrams per decilitre
+    - mg per deciliter
+    - mg per decilitre
+    - mg.dl
+    - mg_dl
+  mg/100ml:
+    - mg/100ml
+    - mg per 100ml
+  mg/l:
+    - mg/l
+    - mg per l
+    - mg per liter
+    - mg per litre
+    - milligrams per liter
+    - milligrams per litre
+    - milligram per liter
+    - milligram per litre
+    - mg/l.
+    - mg per l.
+    - mg per liter.
+    - mg per litre.
+    - mg.l
+    - mg.l.
+    - mg_l
+    - mg_l.
+    - mg l^-1
+    - mg l-1
+    - mg l^-1
+    - mg l-1
+  mg/g:
+    - mg/g
+    - mg per g
+    - mg/gram
+    - mg per gram
+    - mg/g creat
+    - mg/g creatinine
+  ug/ml:
+    - ug/ml
+    - "\xB5g/ml"
+    - "μg/ml"
+    - "μg/ml"
+    - ug per ml
+    - ug.ml
+    - ug_ml
+    - mcg/ml
+    - mcg per ml
+    - micrograms per milliliter
+    - micrograms per millilitre
+    - microgram per milliliter
+  ug/dl:
+    - ug/dl
+    - "\xB5g/dl"
+    - "μg/dl"
+    - "μg/dl"
+    - ug per dl
+    - ug.dl
+    - ug_dl
+    - mcg/dl
+    - mcg per dl
+    - micrograms per deciliter
+    - micrograms per decilitre
+    - microgram per deciliter
+  ug/l:
+    - ug/l
+    - "\xB5g/l"
+    - "μg/l"
+    - "μg/l"
+    - ug per l
+    - ug.l
+    - ug_l
+    - mcg/l
+    - mcg per l
+    - micrograms per liter
+    - micrograms per litre
+    - microgram per liter
+  ng/ml:
+    - ng/ml
+    - ng per ml
+    - ng/ml.
+    - nanograms per milliliter
+    - nanograms per millilitre
+    - ng per milliliter
+    - ng per millilitre
+    - ng.ml
+    - ng_ml
+  ng/l:
+    - ng/l
+    - ng per l
+    - nanograms per liter
+  ng/dl:
+    - ng/dl
+    - ng per dl
+    - nanograms per deciliter
+  pg/ml:
+    - pg/ml
+    - pg per ml
+    - picograms per milliliter
+  pg/l:
+    - pg/l
+    - picograms per liter
+  mmhg:
+    - mmhg
+    - mm hg
+    - mm.hg
+    - mm of hg
+    - millimeters of mercury
+    - millimetres of mercury
+  kpa:
+    - kpa
+    - kilopascal
+    - kilopascals
+  torr:
+    - torr
+  pa:
+    - pa
+    - pascal
+  mmol/l:
+    - mmol/l
+    - mmoles/l
+    - millimoles per liter
+    - millimoles per litre
+  meq/l:
+    - meq/l
+    - milliequivalents per liter
+  umol/l:
+    - umol/l
+    - "\xB5mol/l"
+    - "μmol/l"
+    - "μmol/l"
+    - micromoles per liter
+  nmol/l:
+    - nmol/l
+    - nanomoles per liter
+  pmol/l:
+    - pmol/l
+    - picomoles per liter
+  mol/l:
+    - mol/l
+    - moles per liter
+  miu/l:
+    - miu/l
+    - miu per l
+    - milli-iu/l
+    - milliunits per liter
+    - milliunits per litre
+    - "μiu/ml"
+    - uiu/ml
+  "%":
+    - "%"
+    - percent
+    - pct
+    - pct.
+  fraction:
+    - decimal
+    - fraction
+  sec:
+    - sec
+    - secs
+    - s
+    - s.
+    - sec.
+    - second
+    - seconds
+    - second(s)
+    - second (s)
+  min:
+    - min
+    - mins
+    - minute
+    - minutes
+  mm/hour:
+    - mm/hour
+    - mm/hr
+    - mm/h
+  (no units):
+    - (no units)
+    - no units
+    - none
+    - unitless
+    - ratio

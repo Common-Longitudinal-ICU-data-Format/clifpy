@@ -12,6 +12,8 @@ import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
 
+from ..schemas import DEFAULT_CLIF_VERSION
+
 # Initialize logger for this module
 logger = logging.getLogger('clifpy.utils.config')
 
@@ -295,7 +297,8 @@ def create_example_config(
             "tables_path": data_directory,
             "filetype": filetype,
             "timezone": timezone,
-            "output_directory": output_directory
+            "output_directory": output_directory,
+            "clif_version": DEFAULT_CLIF_VERSION
         }
 
         with open(config_path, 'w') as f:
@@ -306,7 +309,8 @@ def create_example_config(
             "data_directory": data_directory,
             "filetype": filetype,
             "timezone": timezone,
-            "output_directory": output_directory
+            "output_directory": output_directory,
+            "clif_version": DEFAULT_CLIF_VERSION
         }
 
         with open(config_path, 'w') as f:

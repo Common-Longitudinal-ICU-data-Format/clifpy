@@ -17,7 +17,8 @@ class MedicationAdminIntermittent(BaseTable):
         filetype: str = None,
         timezone: str = "UTC",
         output_directory: Optional[str] = None,
-        data: Optional[pd.DataFrame] = None
+        data: Optional[pd.DataFrame] = None,
+        clif_version: Optional[str] = None
     ):
         """
         Initialize the MedicationAdminIntermittent table.
@@ -66,7 +67,8 @@ class MedicationAdminIntermittent(BaseTable):
             filetype=filetype,
             timezone=timezone,
             output_directory=output_directory,
-            data=data
+            data=data,
+            clif_version=clif_version
         )
 
         # Load medication-specific schema data

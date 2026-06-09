@@ -1,0 +1,56 @@
+table_name: patient_diagnosis
+version: "3.0"
+
+columns:
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_code
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_code_format
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - ICD10CM
+  - name: source_type
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - problem_list
+      - medical_history
+      - encounter_dx
+  - name: start_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: end_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - patient_id
+  - hospitalization_id
+  - diagnosis_code
+  - diagnosis_code_format
+  - start_dttm
+
+category_columns: []
+
+group_columns: []

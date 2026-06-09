@@ -1,0 +1,67 @@
+table_name: invasive_hemodynamics
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: measurement_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: measurement_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - cvp
+      - rv_systolic
+      - rv_diastolic
+      - pa_systolic
+      - pa_diastolic
+      - pa_mean
+      - pcwp
+      - cco
+      - cardiac_output_thermodilution
+      - cardiac_index
+      - cardiac_output_fick
+      - stroke_volume
+      - ppv
+      - svv
+      - svi
+      - svr
+      - svri
+      - evlw
+      - evlwi
+      - ef
+      - itbi
+      - gedv
+      - lvswi
+      - tfcd0
+      - tfc
+      - do2
+  - name: measurement_value
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - measurement_category
+  - measurement_value
+
+category_columns:
+  - measurement_category
+
+group_columns: []
