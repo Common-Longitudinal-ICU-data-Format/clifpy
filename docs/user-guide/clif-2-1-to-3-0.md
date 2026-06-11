@@ -244,3 +244,120 @@ And if your data is already on disk in 3.0 form, load it at 3.0 directly with
 
 A typical migration is therefore: **crosswalk your 2.1 data to 3.0 → wrap/load it at
 `clif_version="3.0"` → `validate()`.**
+
+## Migrating a whole site folder at once
+
+The functions above convert a single table or file. To migrate an **entire site
+data folder** in one command — applying that same crosswalk to every beta table,
+with per‑table verification and a written log — use the directory runner:
+`CrosswalkMigrationRunner` (in `clifpy.utils.migrate_versions_2_1_to_3`) and its
+command‑line entry point, `run_crosswalk.py`.
+
+It is the same conversion described above — values only, non‑mutating — just
+applied across a folder, plus checks that confirm nothing but the sanctioned
+values changed.
+
+### Quick start
+
+```bash
+python run_crosswalk.py                                 # default config
+python run_crosswalk.py --config config/your_site.yaml  # a specific site
+python run_crosswalk.py --config config/your_site.yaml --dry-run  # audit only
+```
+
+The runner reads `data_directory` and `output_directory` from the config, writes
+the converted 3.0 files to the output directory, and saves a timestamped log to
+`<output_directory>/logs/`. Always `--dry-run` first to preview the audit without
+writing anything.
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--config` | `config/demo_data_config.yaml` | CLIF config YAML (supplies the data/output dirs). |
+| `--data-dir` / `--output-dir` | — | Use explicit folders instead of a config. |
+| `--log-dir` | `<output_dir>/logs` | Folder for the run log. |
+| `--filetype` | `parquet` | Data file type. |
+| `--dry-run` | off | Audit and report only; write nothing. |
+
+### What it processes
+
+Matched by name, stripping a `clif_` prefix (`clif_labs.parquet` → `labs`):
+
+- **Beta tables** (`clifpy.BETA_TABLES`) present in the folder → crosswalked and
+  written.
+- **Everything else** → logged once and left alone (never read or written). Since
+  non‑beta files are never written, PHI variants like `hospitalization_with_MRN`
+  and scratch files are excluded automatically.
+- **Beta tables with no file** → reported as missing.
+
+### Verifying the conversion
+
+For each table the runner compares input vs. output using parquet metadata only
+(no full data load) and prints one aligned row:
+
+```
+table                          check      values             rows  tz         ids
+------------------------------ ---------- -------- ---------------- --------- --------------------
+adt                            OK         REVIEW          3,399     UTC        hosp=1,482
+patient                        OK         complete          668     UTC        pt=668
+```
+
+The two status columns answer different questions:
+
+- **`check`** — data integrity: `OK` (row count, columns, and distinct
+  `patient_id` / `hospitalization_id` all match), `MISMATCH` (one of them
+  changed — shown as `before->after`; the run exits non‑zero), or `TZ-WARN`
+  (integrity fine, but a datetime column's timezone changed unexpectedly).
+- **`values`** — mapping coverage, i.e. `report["is_complete"]`: `complete` when
+  every standardized value mapped, or `REVIEW` when some were left unmapped.
+
+`REVIEW` is the same `is_complete=False` described in
+[Read the change report](#read-the-change-report) — **not** data loss and **not**
+an integrity failure. A row can be `OK` **and** `REVIEW`: intact data with a few
+values that still need a human to map. At the end of the run the runner lists
+those values per table; resolve them as described in
+[Values that aren't auto-converted](#values-that-arent-auto-converted).
+
+!!! note "Timezones"
+    With the default DuckDB backend, tz‑aware timestamp columns are commonly
+    **relabeled to UTC** on write — the instants are preserved, only the label
+    changes — so a `US/Eastern → UTC` difference is expected and is **not** flagged.
+    Only a real zone shift, or a tz‑aware column becoming naive, raises `TZ-WARN`.
+
+### Output and log location
+
+- **Converted 3.0 files** → the config's `output_directory`, same filenames as the
+  inputs (`clif_labs.parquet`, …).
+- **Run log** → `<output_directory>/logs/crosswalk_2.1_to_3.0_<timestamp>.log`
+  (console output is identical); override with `--log-dir`.
+
+The summary line records the paths and tally:
+
+```
+DONE.  converted=14  skipped=4  failed=0  mismatch=0  needs-review=5
+```
+
+### Using it programmatically
+
+```python
+from clifpy.utils.migrate_versions_2_1_to_3 import CrosswalkMigrationRunner
+
+ok = CrosswalkMigrationRunner(config_path="config/your_site.yaml").run()
+
+# explicit folders instead of a config:
+ok = CrosswalkMigrationRunner(
+    data_dir="/path/to/clif_2_1",
+    output_dir="/path/to/clif_3_0",
+).run(dry_run=True)
+```
+
+`run()` returns `True` on success. `REVIEW` (`is_complete=False`) does **not**
+make it return `False` — only a conversion failure or an integrity mismatch does.
+
+### Good to know
+
+- **Rerun‑safe.** A table whose output already exists is skipped; delete that file
+  to re‑convert it. A table that fails mid‑conversion has its partial output
+  removed so the next run retries it cleanly.
+- **One bad table doesn't stop the run** — each is wrapped in its own error
+  handling, logged with a traceback, and the run continues.
+- **Parquet assumed** (the verification reads parquet metadata).
