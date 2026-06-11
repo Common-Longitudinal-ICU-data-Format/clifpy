@@ -834,15 +834,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#using-it-programmatically" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using it programmatically
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#good-to-know" class="md-nav__link">
     <span class="md-ellipsis">
       Good to know
@@ -1569,15 +1560,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#using-it-programmatically" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using it programmatically
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#good-to-know" class="md-nav__link">
     <span class="md-ellipsis">
       Good to know
@@ -1629,14 +1611,9 @@ the 3.0 value conventions.</p>
 </thead>
 <tbody>
 <tr>
-<td><strong>A whole site folder</strong> from the command line</td>
-<td><code>python run_crosswalk.py</code></td>
-<td><a href="#quick-start">Quick start</a></td>
-</tr>
-<tr>
-<td><strong>A whole site folder</strong> from Python</td>
+<td><strong>A whole site folder</strong> (every beta table at once)</td>
 <td><code>CrosswalkMigrationRunner</code></td>
-<td><a href="#using-it-programmatically">Using it programmatically</a></td>
+<td><a href="#quick-start">Quick start</a></td>
 </tr>
 <tr>
 <td><strong>One table</strong> already loaded in memory (pandas/polars)</td>
@@ -1656,20 +1633,16 @@ the 3.0 value conventions.</p>
 </tbody>
 </table>
 <p>Migrating an entire site is the common case — start there:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Audit first (writes nothing), then run for real:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>run_crosswalk.py<span class="w"> </span>--config<span class="w"> </span>config/your_site.yaml<span class="w"> </span>--dry-run
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>python<span class="w"> </span>run_crosswalk.py<span class="w"> </span>--config<span class="w"> </span>config/your_site.yaml
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.migrate_versions_2_1_to_3</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrosswalkMigrationRunner</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># From a site config:</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">ok</span> <span class="o">=</span> <span class="n">CrosswalkMigrationRunner</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s2">&quot;config/your_site.yaml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># …or point at explicit folders instead of a config (dry-run shown):</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">ok</span> <span class="o">=</span> <span class="n">CrosswalkMigrationRunner</span><span class="p">(</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">data_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_2_1&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_3_0&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dry_run</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.migrate_versions_2_1_to_3</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrosswalkMigrationRunner</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Audit first (writes nothing), then run for real by dropping dry_run.</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">CrosswalkMigrationRunner</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s2">&quot;your_site.yaml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dry_run</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># …or point at explicit folders instead of a config:</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">CrosswalkMigrationRunner</span><span class="p">(</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">data_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_2_1&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_3_0&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dry_run</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 <p>After converting, validate against 3.0 — see
 <a href="#validating-your-converted-data-against-clif-30">Validating your converted data against CLIF 3.0</a>.</p>
@@ -1755,44 +1728,44 @@ returns a converted <em>copy</em> plus a change report, and never edits your inp
 <p>Use <code>crosswalk_table_2_1_to_3_0(df, table_name)</code>. It accepts a <strong>pandas</strong> <em>or</em> an eager
 <strong>polars</strong> <code>DataFrame</code> and returns <code>(converted_df, report)</code> — where <code>converted_df</code> is the
 <strong>same type you passed in</strong> (pandas in → pandas out, polars in → polars out).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_demo_clif</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_table_2_1_to_3_0</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># The bundled demo data is in CLIF 2.1 format.</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">co</span> <span class="o">=</span> <span class="n">load_demo_clif</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">])</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">co</span><span class="o">.</span><span class="n">respiratory_support</span><span class="o">.</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">)</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># e.g. &#39;IMV&#39; -&gt; &#39;imv&#39;, &#39;High Flow NC&#39; -&gt; &#39;hfnc&#39;</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="nb">print</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;device_category&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">unique</span><span class="p">()))</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;is_complete:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;is_complete&quot;</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_demo_clif</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_table_2_1_to_3_0</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># The bundled demo data is in CLIF 2.1 format.</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">co</span> <span class="o">=</span> <span class="n">load_demo_clif</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">])</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">co</span><span class="o">.</span><span class="n">respiratory_support</span><span class="o">.</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># e.g. &#39;IMV&#39; -&gt; &#39;imv&#39;, &#39;High Flow NC&#39; -&gt; &#39;hfnc&#39;</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">print</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;device_category&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">unique</span><span class="p">()))</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;is_complete:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;is_complete&quot;</span><span class="p">])</span>
 </code></pre></div>
 <p>The function expects a <strong>DataFrame</strong> (pandas or polars), not a table object — if you have a
 loaded table, pass its <code>.df</code> (as above). Already have a plain DataFrame? Pass it directly
 (a polars <code>DataFrame</code> works the same way and comes back as polars; for a polars <code>LazyFrame</code>
 or larger-than-memory data, use <a href="#large-out-of-core-files"><code>crosswalk_file_2_1_to_3_0</code></a>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;device_category&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;IMV&quot;</span><span class="p">,</span> <span class="s2">&quot;High Flow NC&quot;</span><span class="p">,</span> <span class="s2">&quot;Nasal Cannula&quot;</span><span class="p">]})</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;device_category&quot;</span><span class="p">]))</span>   <span class="c1"># [&#39;imv&#39;, &#39;hfnc&#39;, &#39;nasal_cannula&#39;]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;device_category&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;IMV&quot;</span><span class="p">,</span> <span class="s2">&quot;High Flow NC&quot;</span><span class="p">,</span> <span class="s2">&quot;Nasal Cannula&quot;</span><span class="p">]})</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;device_category&quot;</span><span class="p">]))</span>   <span class="c1"># [&#39;imv&#39;, &#39;hfnc&#39;, &#39;nasal_cannula&#39;]</span>
 </code></pre></div>
 <h2 id="read-the-change-report">Read the change report<a class="headerlink" href="#read-the-change-report" title="Permanent link">&para;</a></h2>
 <p>Every call returns a structured report so you can audit exactly what happened:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">:</span> <span class="p">[</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="s2">&quot;Home&quot;</span><span class="p">,</span> <span class="s2">&quot;Long Term Care Hospital (LTACH)&quot;</span><span class="p">,</span> <span class="s2">&quot;Psychiatric Hospital&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">]})</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;hospitalization&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">]))</span>   <span class="c1"># [&#39;home&#39;, &#39;ltach&#39;, &#39;mental_health_hosp&#39;]</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">col</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">][</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">]</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;values converted:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;n_values_converted&quot;</span><span class="p">])</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ambiguous:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">])</span>     <span class="c1"># left-unchanged 1-&gt;many values</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;unresolved:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;unresolved&quot;</span><span class="p">])</span>   <span class="c1"># produced a value not in the 3.0 list</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;overall complete:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;is_complete&quot;</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="s2">&quot;Home&quot;</span><span class="p">,</span> <span class="s2">&quot;Long Term Care Hospital (LTACH)&quot;</span><span class="p">,</span> <span class="s2">&quot;Psychiatric Hospital&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">]})</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;hospitalization&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">]))</span>   <span class="c1"># [&#39;home&#39;, &#39;ltach&#39;, &#39;mental_health_hosp&#39;]</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">col</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">][</span><span class="s2">&quot;discharge_category&quot;</span><span class="p">]</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;values converted:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;n_values_converted&quot;</span><span class="p">])</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ambiguous:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">])</span>     <span class="c1"># left-unchanged 1-&gt;many values</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;unresolved:&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="s2">&quot;unresolved&quot;</span><span class="p">])</span>   <span class="c1"># produced a value not in the 3.0 list</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;overall complete:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="p">[</span><span class="s2">&quot;is_complete&quot;</span><span class="p">])</span>
 </code></pre></div>
 <p>Report shape:</p>
 <ul>
@@ -1810,11 +1783,11 @@ report instead:</p>
    in 3.0 depending on concentration, which can't be inferred from the category alone.</li>
 <li><strong>Values removed in 3.0</strong> — e.g. the <code>csf</code> lab specimen has no 3.0 equivalent.</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">med</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;med_category&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;albumin&quot;</span><span class="p">,</span> <span class="s2">&quot;norepinephrine&quot;</span><span class="p">]})</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">med</span><span class="p">,</span> <span class="s2">&quot;medication_admin_continuous&quot;</span><span class="p">)</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;med_category&quot;</span><span class="p">]))</span>   <span class="c1"># &#39;albumin&#39; is left unchanged</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">][</span><span class="s2">&quot;med_category&quot;</span><span class="p">][</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">med</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;med_category&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;albumin&quot;</span><span class="p">,</span> <span class="s2">&quot;norepinephrine&quot;</span><span class="p">]})</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">converted</span><span class="p">,</span> <span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">med</span><span class="p">,</span> <span class="s2">&quot;medication_admin_continuous&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">converted</span><span class="p">[</span><span class="s2">&quot;med_category&quot;</span><span class="p">]))</span>   <span class="c1"># &#39;albumin&#39; is left unchanged</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">][</span><span class="s2">&quot;med_category&quot;</span><span class="p">][</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">])</span>
 </code></pre></div>
 <p>Review these entries and resolve them with your own domain knowledge (for <code>albumin</code>, choose
 <code>albumin_5</code>/<code>albumin_25</code> based on the product concentration).</p>
@@ -1822,20 +1795,20 @@ report instead:</p>
 <p>For tables too large to hold in memory, use <code>crosswalk_file_2_1_to_3_0</code>, which reads a file,
 converts it, and writes the result — without loading the whole table into Python.</p>
 <!-- skip: next -->
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_file_2_1_to_3_0</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># DuckDB backend (default): streams parquet/CSV -&gt; parquet/CSV, fully out-of-core.</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_file_2_1_to_3_0</span><span class="p">(</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="s2">&quot;respiratory_support.parquet&quot;</span><span class="p">,</span>        <span class="c1"># CLIF 2.1 input</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="s2">&quot;respiratory_support_3_0.parquet&quot;</span><span class="p">,</span>    <span class="c1"># converted output</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">)</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Or the chunked pandas backend (bounded memory, no DuckDB):</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_file_2_1_to_3_0</span><span class="p">(</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="s2">&quot;respiratory_support.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;respiratory_support_3_0.csv&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>    <span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;pandas&quot;</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">,</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_file_2_1_to_3_0</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># DuckDB backend (default): streams parquet/CSV -&gt; parquet/CSV, fully out-of-core.</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_file_2_1_to_3_0</span><span class="p">(</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="s2">&quot;respiratory_support.parquet&quot;</span><span class="p">,</span>        <span class="c1"># CLIF 2.1 input</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="s2">&quot;respiratory_support_3_0.parquet&quot;</span><span class="p">,</span>    <span class="c1"># converted output</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">)</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Or the chunked pandas backend (bounded memory, no DuckDB):</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">report</span> <span class="o">=</span> <span class="n">crosswalk_file_2_1_to_3_0</span><span class="p">(</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="s2">&quot;respiratory_support.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;respiratory_support_3_0.csv&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;pandas&quot;</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">,</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="p">)</span>
 </code></pre></div>
 <table>
 <thead>
@@ -1871,25 +1844,25 @@ identical output and the same report.</p>
 <h2 id="convert-a-single-value">Convert a single value<a class="headerlink" href="#convert-a-single-value" title="Permanent link">&para;</a></h2>
 <p><code>normalize_category_value</code> is the deterministic transform the crosswalk applies to any value
 that isn't a curated rename. It's handy for one-off normalization or for understanding the rules:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_category_value</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;IMV&quot;</span><span class="p">,</span> <span class="s2">&quot;Non-Hispanic&quot;</span><span class="p">,</span> <span class="s2">&quot;l&amp;d&quot;</span><span class="p">,</span> <span class="s2">&quot;DNR/DNI&quot;</span><span class="p">,</span> <span class="s2">&quot;Mobility/Activity&quot;</span><span class="p">]:</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">!r:</span><span class="s2">22</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">normalize_category_value</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_category_value</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;IMV&quot;</span><span class="p">,</span> <span class="s2">&quot;Non-Hispanic&quot;</span><span class="p">,</span> <span class="s2">&quot;l&amp;d&quot;</span><span class="p">,</span> <span class="s2">&quot;DNR/DNI&quot;</span><span class="p">,</span> <span class="s2">&quot;Mobility/Activity&quot;</span><span class="p">]:</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">!r:</span><span class="s2">22</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">normalize_category_value</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>which prints:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>&#39;IMV&#39;                  -&gt; &#39;imv&#39;
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>&#39;Non-Hispanic&#39;         -&gt; &#39;non_hispanic&#39;
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>&#39;l&amp;d&#39;                  -&gt; &#39;l_and_d&#39;
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>&#39;DNR/DNI&#39;              -&gt; &#39;dnr_or_dni&#39;
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>&#39;Mobility/Activity&#39;    -&gt; &#39;mobility_or_activity&#39;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>&#39;IMV&#39;                  -&gt; &#39;imv&#39;
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>&#39;Non-Hispanic&#39;         -&gt; &#39;non_hispanic&#39;
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>&#39;l&amp;d&#39;                  -&gt; &#39;l_and_d&#39;
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>&#39;DNR/DNI&#39;              -&gt; &#39;dnr_or_dni&#39;
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>&#39;Mobility/Activity&#39;    -&gt; &#39;mobility_or_activity&#39;
 </code></pre></div>
 <h2 id="inspecting-validating-against-a-schema-version">Inspecting / validating against a schema version<a class="headerlink" href="#inspecting-validating-against-a-schema-version" title="Permanent link">&para;</a></h2>
 <p>clifpy can load either version's schema. To see the 3.0 permissible values for a column:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_schema</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">load_schema</span><span class="p">(</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">device</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;device_category&quot;</span><span class="p">)</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">device</span><span class="p">[</span><span class="s2">&quot;permissible_values&quot;</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_schema</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">load_schema</span><span class="p">(</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">device</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;columns&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;device_category&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">device</span><span class="p">[</span><span class="s2">&quot;permissible_values&quot;</span><span class="p">])</span>
 </code></pre></div>
 <h3 id="looking-up-permissible-values-without-code">Looking up permissible values without code<a class="headerlink" href="#looking-up-permissible-values-without-code" title="Permanent link">&para;</a></h3>
 <p>Prefer to browse the controlled vocabularies directly instead of loading a schema?</p>
@@ -1904,16 +1877,16 @@ that isn't a curated rename. It's handy for one-off normalization or for underst
 <h3 id="validating-your-converted-data-against-clif-30">Validating your converted data against CLIF 3.0<a class="headerlink" href="#validating-your-converted-data-against-clif-30" title="Permanent link">&para;</a></h3>
 <p><code>.validate()</code> is a method on a <strong>table object</strong>, not on a DataFrame — so to validate the
 DataFrame the crosswalk returns, wrap it in a table object created at <code>clif_version="3.0"</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">,</span> <span class="n">RespiratorySupport</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_demo_clif</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">rs_2_1</span> <span class="o">=</span> <span class="n">load_demo_clif</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">respiratory_support</span><span class="o">.</span><span class="n">df</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">rs_2_1</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span><span class="p">)</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Wrap the converted DataFrame in a 3.0 table object, then validate</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">rs</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">timezone</span><span class="o">=</span><span class="s2">&quot;US/Eastern&quot;</span><span class="p">,</span> <span class="n">clif_version</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">rs</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;valid:&quot;</span><span class="p">,</span> <span class="n">rs</span><span class="o">.</span><span class="n">isvalid</span><span class="p">(),</span> <span class="s2">&quot;| issues:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">rs</span><span class="o">.</span><span class="n">errors</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">,</span> <span class="n">RespiratorySupport</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_demo_clif</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">rs_2_1</span> <span class="o">=</span> <span class="n">load_demo_clif</span><span class="p">(</span><span class="n">tables</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">respiratory_support</span><span class="o">.</span><span class="n">df</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">crosswalk_table_2_1_to_3_0</span><span class="p">(</span><span class="n">rs_2_1</span><span class="p">,</span> <span class="s2">&quot;respiratory_support&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Wrap the converted DataFrame in a 3.0 table object, then validate</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">rs</span> <span class="o">=</span> <span class="n">RespiratorySupport</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">timezone</span><span class="o">=</span><span class="s2">&quot;US/Eastern&quot;</span><span class="p">,</span> <span class="n">clif_version</span><span class="o">=</span><span class="s2">&quot;3.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">rs</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;valid:&quot;</span><span class="p">,</span> <span class="n">rs</span><span class="o">.</span><span class="n">isvalid</span><span class="p">(),</span> <span class="s2">&quot;| issues:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">rs</span><span class="o">.</span><span class="n">errors</span><span class="p">))</span>
 </code></pre></div>
 <p><code>validate()</code> checks the data against the <strong>3.0</strong> schema — required columns, data types, and that
 categorical values fall within the 3.0 permissible lists, plus completeness/plausibility — stores
@@ -1921,11 +1894,11 @@ findings in <code>rs.errors</code>, and returns <code>None</code> (read <code>rs
 validates against 3.0, raw 2.1 values (e.g. <code>device_category = "IMV"</code>) would be flagged — which
 is the point of converting first.</p>
 <p>Prefer not to build a table object? Validate the DataFrame directly against a version's schema:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">validator</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_schema</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">errors</span> <span class="o">=</span> <span class="n">validator</span><span class="o">.</span><span class="n">validate_dataframe</span><span class="p">(</span><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">load_schema</span><span class="p">(</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="s2">&quot;3.0&quot;</span><span class="p">))</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">),</span> <span class="s2">&quot;issue(s)&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">validator</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_schema</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">errors</span> <span class="o">=</span> <span class="n">validator</span><span class="o">.</span><span class="n">validate_dataframe</span><span class="p">(</span><span class="n">rs_3_0</span><span class="p">,</span> <span class="n">load_schema</span><span class="p">(</span><span class="s2">&quot;respiratory_support&quot;</span><span class="p">,</span> <span class="s2">&quot;3.0&quot;</span><span class="p">))</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">),</span> <span class="s2">&quot;issue(s)&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>And if your data is already on disk in 3.0 form, load it at 3.0 directly with
 <code>&lt;TableClass&gt;.from_file(..., clif_version="3.0")</code> and call <code>.validate()</code>.</p>
@@ -1933,54 +1906,64 @@ is the point of converting first.</p>
 <code>clif_version="3.0"</code> → <code>validate()</code>.</strong></p>
 <h2 id="migrating-a-whole-site-folder-at-once">Migrating a whole site folder at once<a class="headerlink" href="#migrating-a-whole-site-folder-at-once" title="Permanent link">&para;</a></h2>
 <p>The functions above convert a single table or file. To migrate an <strong>entire site
-data folder</strong> in one command — applying that same crosswalk to every beta table,
+data folder</strong> in one call — applying that same crosswalk to every beta table,
 with per‑table verification and a written log — use the directory runner:
-<code>CrosswalkMigrationRunner</code> (in <code>clifpy.utils.migrate_versions_2_1_to_3</code>) and its
-command‑line entry point, <code>run_crosswalk.py</code>.</p>
+<code>CrosswalkMigrationRunner</code> (in <code>clifpy.utils.migrate_versions_2_1_to_3</code>).</p>
 <p>It is the same conversion described above — values only, non‑mutating — just
 applied across a folder, plus checks that confirm nothing but the sanctioned
 values changed.</p>
 <h3 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python<span class="w"> </span>run_crosswalk.py<span class="w">                                 </span><span class="c1"># default config</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>python<span class="w"> </span>run_crosswalk.py<span class="w"> </span>--config<span class="w"> </span>config/your_site.yaml<span class="w">  </span><span class="c1"># a specific site</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>python<span class="w"> </span>run_crosswalk.py<span class="w"> </span>--config<span class="w"> </span>config/your_site.yaml<span class="w"> </span>--dry-run<span class="w">  </span><span class="c1"># audit only</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.migrate_versions_2_1_to_3</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrosswalkMigrationRunner</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># A specific site, via its CLIF config YAML:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">CrosswalkMigrationRunner</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s2">&quot;your_site.yaml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dry_run</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="c1"># …or explicit input/output folders, no config needed:</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="n">CrosswalkMigrationRunner</span><span class="p">(</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    <span class="n">data_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_2_1&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_3_0&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dry_run</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
-<p>The runner reads <code>data_directory</code> and <code>output_directory</code> from the config, writes
-the converted 3.0 files to the output directory, and saves a timestamped log to
-<code>&lt;output_directory&gt;/logs/</code>. Always <code>--dry-run</code> first to preview the audit without
-writing anything.</p>
+<p>With <code>config_path</code>, the runner reads <code>data_directory</code> and <code>output_directory</code> from
+the config; <code>data_dir</code> / <code>output_dir</code> override them (and let you skip the config
+entirely). It writes the converted 3.0 files to the output directory and saves a
+timestamped log to <code>&lt;output_directory&gt;/logs/</code>. Always run with <strong><code>dry_run=True</code>
+first</strong> to preview the audit without writing anything, then drop it to write.</p>
+<p><code>run()</code> returns <code>True</code> on success. A <code>REVIEW</code> result (<code>is_complete=False</code>) does
+<strong>not</strong> make it return <code>False</code> — only a conversion failure or an integrity
+mismatch does.</p>
 <table>
 <thead>
 <tr>
-<th>Flag</th>
+<th>Argument</th>
 <th>Default</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>--config</code></td>
-<td><code>config/demo_data_config.yaml</code></td>
+<td><code>config_path</code></td>
+<td>—</td>
 <td>CLIF config YAML (supplies the data/output dirs).</td>
 </tr>
 <tr>
-<td><code>--data-dir</code> / <code>--output-dir</code></td>
-<td>—</td>
-<td>Use explicit folders instead of a config.</td>
+<td><code>data_dir</code> / <code>output_dir</code></td>
+<td>from config</td>
+<td>Explicit folders; override the config (either lets you omit it).</td>
 </tr>
 <tr>
-<td><code>--log-dir</code></td>
+<td><code>log_dir</code></td>
 <td><code>&lt;output_dir&gt;/logs</code></td>
 <td>Folder for the run log.</td>
 </tr>
 <tr>
-<td><code>--filetype</code></td>
+<td><code>filetype</code></td>
 <td><code>parquet</code></td>
-<td>Data file type.</td>
+<td>Data file type (<code>parquet</code> or <code>csv</code>).</td>
 </tr>
 <tr>
-<td><code>--dry-run</code></td>
-<td>off</td>
+<td><code>dry_run</code> (on <code>.run()</code>)</td>
+<td><code>False</code></td>
 <td>Audit and report only; write nothing.</td>
 </tr>
 </tbody>
@@ -1998,10 +1981,10 @@ writing anything.</p>
 <h3 id="verifying-the-conversion">Verifying the conversion<a class="headerlink" href="#verifying-the-conversion" title="Permanent link">&para;</a></h3>
 <p>For each table the runner compares input vs. output using parquet metadata only
 (no full data load) and prints one aligned row:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>table                          check      values             rows  tz         ids
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>------------------------------ ---------- -------- ---------------- --------- --------------------
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>adt                            OK         REVIEW          3,399     UTC        hosp=1,482
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>patient                        OK         complete          668     UTC        pt=668
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>table                          check      values             rows  tz         ids
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>------------------------------ ---------- -------- ---------------- --------- --------------------
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>adt                            OK         REVIEW          3,399     UTC        hosp=1,482
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>patient                        OK         complete          668     UTC        pt=668
 </code></pre></div>
 <p>The two status columns answer different questions:</p>
 <ul>
@@ -2030,24 +2013,11 @@ Only a real zone shift, or a tz‑aware column becoming naive, raises <code>TZ-W
 <li><strong>Converted 3.0 files</strong> → the config's <code>output_directory</code>, same filenames as the
   inputs (<code>clif_labs.parquet</code>, …).</li>
 <li><strong>Run log</strong> → <code>&lt;output_directory&gt;/logs/crosswalk_2.1_to_3.0_&lt;timestamp&gt;.log</code>
-  (console output is identical); override with <code>--log-dir</code>.</li>
+  (console output is identical); override with <code>log_dir</code>.</li>
 </ul>
 <p>The summary line records the paths and tally:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>DONE.  converted=14  skipped=4  failed=0  mismatch=0  needs-review=5
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>DONE.  converted=14  skipped=4  failed=0  mismatch=0  needs-review=5
 </code></pre></div>
-<h3 id="using-it-programmatically">Using it programmatically<a class="headerlink" href="#using-it-programmatically" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">clifpy.utils.migrate_versions_2_1_to_3</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrosswalkMigrationRunner</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">ok</span> <span class="o">=</span> <span class="n">CrosswalkMigrationRunner</span><span class="p">(</span><span class="n">config_path</span><span class="o">=</span><span class="s2">&quot;config/your_site.yaml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1"># explicit folders instead of a config:</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="n">ok</span> <span class="o">=</span> <span class="n">CrosswalkMigrationRunner</span><span class="p">(</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    <span class="n">data_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_2_1&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>    <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;/path/to/clif_3_0&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dry_run</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</code></pre></div>
-<p><code>run()</code> returns <code>True</code> on success. <code>REVIEW</code> (<code>is_complete=False</code>) does <strong>not</strong>
-make it return <code>False</code> — only a conversion failure or an integrity mismatch does.</p>
 <h3 id="good-to-know">Good to know<a class="headerlink" href="#good-to-know" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Rerun‑safe.</strong> A table whose output already exists is skipped; delete that file
