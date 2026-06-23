@@ -219,3 +219,52 @@ def test_basetable_validate_stamps_version(version):
     t.validate()
     assert t.clif_version == version
     assert {e.get("clif_version") for e in t.errors} == {version}
+
+
+# --------------------------------------------------------------------------- #
+# Bundled CLIF 3.0 demo data (produced by the 2.1->3.0 crosswalk)
+# --------------------------------------------------------------------------- #
+
+DEMO_30_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "clifpy", "data", "clif_demo", "3.0",
+)
+DEMO_30_FILES = sorted(glob.glob(os.path.join(DEMO_30_DIR, "clif_*.parquet")))
+
+
+def _demo_table_name(path):
+    return os.path.basename(path)[len("clif_"):-len(".parquet")]
+
+
+def test_30_demo_data_present():
+    # The crosswalk converts the 14 bundled 2.1 demo tables to 3.0.
+    assert len(DEMO_30_FILES) == 14
+
+
+@pytest.mark.parametrize("path", DEMO_30_FILES, ids=_demo_table_name)
+def test_30_demo_data_validates_with_version_stamp(path):
+    """Every bundled 3.0 demo table runs through the full DQA suite and the
+    3.0 version is stamped on the top-level result and every check object."""
+    table = _demo_table_name(path)
+    df = pd.read_parquet(path)
+    result = run_full_dqa(df, table_name=table, clif_version="3.0")
+    assert result["clif_version"] == "3.0"
+    checks = [
+        check
+        for family in ("conformance", "completeness", "plausibility")
+        for check in result[family].values()
+    ]
+    assert checks, f"no DQA checks ran for {table}"
+    assert all(c["clif_version"] == "3.0" for c in checks)
+
+
+def test_30_demo_data_loads_through_table_class():
+    """A converted 3.0 demo table loads via the table API against the 3.0
+    schema and stamps the version onto its validation errors."""
+    df = pd.read_parquet(os.path.join(DEMO_30_DIR, "clif_vitals.parquet"))
+    t = Vitals(data=df, clif_version="3.0")
+    t.validate()
+    assert t.clif_version == "3.0"
+    assert t.schema["version"] == "3.0"
+    # errors are expected (e.g. mCIDE coverage gaps); each must carry the version
+    assert all(e.get("clif_version") == "3.0" for e in t.errors)
