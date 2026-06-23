@@ -44,7 +44,6 @@ from .tables.therapy_details import TherapyDetails
 from .tables.transfusion import Transfusion
 from .tables.clinical_trial import ClinicalTrial
 from .tables.clinical_notes_facts import ClinicalNotesFacts
-from .tables.clinical_notes_text import ClinicalNotesText
 from .tables.validated_diagnosis import ValidatedDiagnosis
 from .tables.model_registry import ModelRegistry
 from .tables.scores import Scores
@@ -94,7 +93,6 @@ TABLE_CLASSES = {
     'transfusion': Transfusion,
     'clinical_trial': ClinicalTrial,
     'clinical_notes_facts': ClinicalNotesFacts,
-    'clinical_notes_text': ClinicalNotesText,
     'validated_diagnosis': ValidatedDiagnosis,
     'model_registry': ModelRegistry,
     'scores': Scores,
@@ -285,7 +283,6 @@ class ClifOrchestrator:
         self.transfusion: Transfusion = None
         self.clinical_trial: ClinicalTrial = None
         self.clinical_notes_facts: ClinicalNotesFacts = None
-        self.clinical_notes_text: ClinicalNotesText = None
         self.validated_diagnosis: ValidatedDiagnosis = None
         self.model_registry: ModelRegistry = None
         self.scores: Scores = None

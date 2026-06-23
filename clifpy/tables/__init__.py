@@ -32,7 +32,6 @@ from .therapy_details import TherapyDetails
 from .transfusion import Transfusion
 from .clinical_trial import ClinicalTrial
 from .clinical_notes_facts import ClinicalNotesFacts
-from .clinical_notes_text import ClinicalNotesText
 from .validated_diagnosis import ValidatedDiagnosis
 from .model_registry import ModelRegistry
 from .scores import Scores
@@ -78,7 +77,6 @@ __all__ = [
       'Transfusion',
       'ClinicalTrial',
       'ClinicalNotesFacts',
-      'ClinicalNotesText',
       'ValidatedDiagnosis',
       'ModelRegistry',
       'Scores',
