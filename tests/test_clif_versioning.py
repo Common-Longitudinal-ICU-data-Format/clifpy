@@ -236,9 +236,23 @@ def _demo_table_name(path):
     return os.path.basename(path)[len("clif_"):-len(".parquet")]
 
 
+DEMO_21_FILES = sorted(glob.glob(os.path.join(
+    os.path.dirname(DEMO_30_DIR), "clif_*.parquet")))
+
+
 def test_30_demo_data_present():
     # The crosswalk converts the 14 bundled 2.1 demo tables to 3.0.
     assert len(DEMO_30_FILES) == 14
+
+
+@pytest.mark.parametrize("path", DEMO_21_FILES + DEMO_30_FILES,
+                         ids=lambda p: f"{os.path.basename(os.path.dirname(p))}/{_demo_table_name(p)}")
+def test_demo_data_has_no_leaked_index_column(path):
+    # Guard against the pandas __index_level_0__ artifact creeping back into
+    # the bundled demo data (2.1 source or 3.0 crosswalk output).
+    cols = pd.read_parquet(path).columns
+    leaked = [c for c in cols if c.startswith("__index")]
+    assert not leaked, f"{path} leaks index column(s): {leaked}"
 
 
 @pytest.mark.parametrize("path", DEMO_30_FILES, ids=_demo_table_name)
