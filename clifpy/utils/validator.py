@@ -461,6 +461,10 @@ class DQAConformanceResult:
     def __init__(self, check_type: str, table_name: str):
         self.check_type = check_type
         self.table_name = table_name
+        # CLIF schema version this check was run against. Stamped by the
+        # validation entry points (run_full_dqa / validate_dataframe) from the
+        # schema's own ``version`` key. None until stamped.
+        self.clif_version: Optional[str] = None
         self.passed = True
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -489,6 +493,7 @@ class DQAConformanceResult:
         return {
             "check_type": self.check_type,
             "table_name": self.table_name,
+            "clif_version": self.clif_version,
             "passed": self.passed,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -505,6 +510,9 @@ class DQACompletenessResult:
     def __init__(self, check_type: str, table_name: str):
         self.check_type = check_type
         self.table_name = table_name
+        # CLIF schema version this check was run against (stamped by the
+        # validation entry points from the schema's ``version`` key).
+        self.clif_version: Optional[str] = None
         self.passed = True
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -527,6 +535,7 @@ class DQACompletenessResult:
         return {
             "check_type": self.check_type,
             "table_name": self.table_name,
+            "clif_version": self.clif_version,
             "passed": self.passed,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -543,6 +552,9 @@ class DQAPlausibilityResult:
     def __init__(self, check_type: str, table_name: str):
         self.check_type = check_type
         self.table_name = table_name
+        # CLIF schema version this check was run against (stamped by the
+        # validation entry points from the schema's ``version`` key).
+        self.clif_version: Optional[str] = None
         self.passed = True
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -565,6 +577,7 @@ class DQAPlausibilityResult:
         return {
             "check_type": self.check_type,
             "table_name": self.table_name,
+            "clif_version": self.clif_version,
             "passed": self.passed,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -6865,6 +6878,32 @@ def run_cross_table_plausibility_checks(
     return results
 
 
+def _resolve_clif_version(
+    schema: Optional[Dict[str, Any]],
+    clif_version: Optional[str],
+) -> Optional[str]:
+    """Resolve the CLIF version a validation actually ran against.
+
+    The schema's own ``version`` key is the source of truth (it reflects the
+    schema file that was loaded); the ``clif_version`` argument is the
+    fallback used when the schema carries no version (e.g. a hand-built
+    schema dict).
+    """
+    if schema:
+        version = schema.get('version')
+        if version:
+            return str(version)
+    return clif_version
+
+
+def _stamp_clif_version(results: Dict[str, Any], clif_version: Optional[str]) -> Dict[str, Any]:
+    """Tag each DQA result object with the CLIF version it was run against."""
+    if clif_version:
+        for result in results.values():
+            result.clif_version = clif_version
+    return results
+
+
 def run_full_dqa(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Optional[Dict[str, Any]] = None,
@@ -6927,8 +6966,11 @@ def run_full_dqa(
             )
     _logger.info("Starting full DQA for table: %s", table_name)
 
+    resolved_version = _resolve_clif_version(schema, clif_version)
+
     results: Dict[str, Any] = {
         'table_name': table_name,
+        'clif_version': resolved_version,
         'backend': _ACTIVE_BACKEND,
         'conformance': {},
         'completeness': {},
@@ -6938,13 +6980,18 @@ def run_full_dqa(
 
     results['conformance'] = {
         k: v.to_dict()
-        for k, v in run_conformance_checks(df, schema, table_name).items()
+        for k, v in _stamp_clif_version(
+            run_conformance_checks(df, schema, table_name), resolved_version
+        ).items()
     }
 
     results['completeness'] = {
         k: v.to_dict()
-        for k, v in run_completeness_checks(
-            df, schema, table_name, error_threshold, warning_threshold
+        for k, v in _stamp_clif_version(
+            run_completeness_checks(
+                df, schema, table_name, error_threshold, warning_threshold
+            ),
+            resolved_version,
         ).items()
     }
 
@@ -6953,7 +7000,9 @@ def run_full_dqa(
         if table_name in rel_results:
             results['relational'] = {
                 k: v.to_dict()
-                for k, v in rel_results[table_name].items()
+                for k, v in _stamp_clif_version(
+                    rel_results[table_name], resolved_version
+                ).items()
             }
 
     # Extract hospitalization years for P.6 temporal consistency context
@@ -6984,9 +7033,12 @@ def run_full_dqa(
     # Plausibility checks (single-table)
     results['plausibility'] = {
         k: v.to_dict()
-        for k, v in run_plausibility_checks(
-            df, schema, table_name, hosp_years=hosp_years,
-            plausibility_thresholds=plausibility_thresholds,
+        for k, v in _stamp_clif_version(
+            run_plausibility_checks(
+                df, schema, table_name, hosp_years=hosp_years,
+                plausibility_thresholds=plausibility_thresholds,
+            ),
+            resolved_version,
         ).items()
     }
 
@@ -6995,7 +7047,7 @@ def run_full_dqa(
         cross_plaus = run_cross_table_plausibility_checks(
             tables, plausibility_thresholds=plausibility_thresholds)
         if table_name in cross_plaus:
-            for k, v in cross_plaus[table_name].items():
+            for k, v in _stamp_clif_version(cross_plaus[table_name], resolved_version).items():
                 results['plausibility'][k] = v.to_dict()
 
     gc.collect()
@@ -7014,6 +7066,7 @@ def validate_dataframe(
     schema: Dict[str, Any],
     table_name: Optional[str] = None,
     plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
+    clif_version: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Validate a dataframe against schema and return list of errors.
@@ -7031,6 +7084,10 @@ def validate_dataframe(
         Name of the table (inferred from schema if not provided)
     plausibility_thresholds : dict, optional
         Override default plausibility thresholds per check.
+    clif_version : str, optional
+        CLIF schema version this validation runs against. Falls back to the
+        schema's own ``version`` key when not provided. Stamped onto every
+        returned error dict as ``clif_version``.
 
     Returns
     -------
@@ -7040,8 +7097,10 @@ def validate_dataframe(
         - description: str - Human-readable error description
         - details: dict - Additional error details
         - category: str - 'schema' or 'data_quality'
+        - clif_version: str - CLIF schema version validated against
     """
     table_name = table_name or schema.get('table_name', 'unknown')
+    resolved_version = _resolve_clif_version(schema, clif_version)
     _logger.info("validate_dataframe: starting validation for table '%s'", table_name)
     errors = []
 
@@ -7115,10 +7174,12 @@ def validate_dataframe(
             })
 
     gc.collect()
+    for err in errors:
+        err['clif_version'] = resolved_version
     error_count = sum(1 for e in errors if e.get('severity', 'error') == 'error')
     warning_count = sum(1 for e in errors if e.get('severity') == 'warning')
-    _logger.info("validate_dataframe: table '%s' complete — %d errors, %d warnings",
-                 table_name, error_count, warning_count)
+    _logger.info("validate_dataframe: table '%s' (CLIF %s) complete — %d errors, %d warnings",
+                 table_name, resolved_version, error_count, warning_count)
     return errors
 
 

@@ -293,7 +293,9 @@ class BaseTable:
             # Run basic schema validation
             if self.schema:
                 self.logger.info("Running schema validation")
-                schema_errors = validator.validate_dataframe(self.df, self.schema)
+                schema_errors = validator.validate_dataframe(
+                    self.df, self.schema, clif_version=self.clif_version
+                )
                 self.errors.extend(schema_errors)
 
                 if schema_errors:

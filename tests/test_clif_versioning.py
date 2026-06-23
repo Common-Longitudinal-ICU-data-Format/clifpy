@@ -22,6 +22,7 @@ from clifpy.schemas import (
 )
 from clifpy import EcmoMcs, Mcs, Patient, Vitals, ClifOrchestrator
 from clifpy.clif_orchestrator import TABLE_CLASSES
+from clifpy.utils.validator import run_full_dqa, validate_dataframe
 
 SCHEMAS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'clifpy', 'schemas')
 
@@ -174,3 +175,47 @@ def test_21_schemas_relocated():
     # shared configs remain at the root
     for shared in ("validation_rules.yaml", "outlier_config.yaml", "wide_tables_config.yaml"):
         assert os.path.exists(os.path.join(SCHEMAS_ROOT, shared))
+
+
+# --------------------------------------------------------------------------- #
+# Version surfaced as an attribute through DQA validation
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("version", ["2.1", "3.0"])
+def test_validate_dataframe_stamps_version_on_errors(version):
+    schema = load_schema("labs", version)
+    # Empty frame guarantees some required-column errors to stamp.
+    errors = validate_dataframe(pd.DataFrame({"hospitalization_id": ["1"]}), schema)
+    assert errors, "expected validation errors to stamp"
+    assert {e.get("clif_version") for e in errors} == {version}
+
+
+def test_validate_dataframe_clif_version_arg_overrides_when_schema_unversioned():
+    schema = dict(load_schema("labs", "3.0"))
+    schema.pop("version", None)  # hand-built schema with no version key
+    errors = validate_dataframe(
+        pd.DataFrame({"hospitalization_id": ["1"]}), schema, clif_version="3.0"
+    )
+    assert {e.get("clif_version") for e in errors} == {"3.0"}
+
+
+@pytest.mark.parametrize("version", ["2.1", "3.0"])
+def test_run_full_dqa_reports_version(version):
+    result = run_full_dqa(
+        pd.DataFrame({"hospitalization_id": ["1"]}),
+        table_name="labs",
+        clif_version=version,
+    )
+    assert result["clif_version"] == version
+    # every result object across check families carries the version
+    for family in ("conformance", "completeness", "plausibility"):
+        for check in result[family].values():
+            assert check["clif_version"] == version
+
+
+@pytest.mark.parametrize("version", ["2.1", "3.0"])
+def test_basetable_validate_stamps_version(version):
+    t = Vitals(data=pd.DataFrame({"hospitalization_id": ["1"]}), clif_version=version)
+    t.validate()
+    assert t.clif_version == version
+    assert {e.get("clif_version") for e in t.errors} == {version}
