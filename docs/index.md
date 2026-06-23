@@ -4,6 +4,16 @@
 
 <div class="grid cards" markdown>
 
+- 🆕 [**New — CLIF 2.1 → 3.0 Migration**](user-guide/clif-2-1-to-3-0.md)
+
+    ---
+
+    CLIFpy now ships **CLIF 3.0** schemas alongside 2.1. Convert your site's standardized columns (`*_category` / `*_group` / `*_type`) to the 3.0 value conventions — lowercase/`snake_case` plus curated renames — with a single call, in memory or out-of-core for very large files.
+
+</div>
+
+<div class="grid cards" markdown>
+
 - 🚀 [**Getting Started**](user-guide/installation.md)
 
     ---
