@@ -75,7 +75,7 @@ columns:
       - medical_icu
   - name: room_id
     data_type: VARCHAR
-    required: false
+    required: true
     is_category_column: false
     is_group_column: false
   - name: bed_id
@@ -92,6 +92,7 @@ required_columns:
   - out_dttm
   - location_category
   - location_type
+  - room_id
 
 category_columns:
   - hospital_type
