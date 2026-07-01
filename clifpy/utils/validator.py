@@ -2335,6 +2335,11 @@ def check_missingness_polars(
 
         if total_rows == 0:
             result.add_error("DataFrame is empty")
+            # Empty table: every required column is fully missing. Populate
+            # atomic counts before returning so downstream scoring
+            # (report_generator.collect_dqa_issues) doesn't choke on None.
+            result.atomic_total = max(len(required_columns), 1)
+            result.atomic_passed = 0
             return result
 
         null_exprs = [
@@ -2475,6 +2480,11 @@ def check_missingness_duckdb(
 
         if total_rows == 0:
             result.add_error("DataFrame is empty")
+            # Empty table: every required column is fully missing. Populate
+            # atomic counts before returning so downstream scoring
+            # (report_generator.collect_dqa_issues) doesn't choke on None.
+            result.atomic_total = max(len(required_columns), 1)
+            result.atomic_passed = 0
             con.close()
             return result
 
