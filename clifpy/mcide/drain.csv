@@ -1,0 +1,11 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+drn001,drain,drain_category,chest_tube,Chest Tube,3.0,,active,,,,,UNMAPPED,
+drn002,drain,drain_category,foley,Foley,3.0,,active,,,,,UNMAPPED,
+drn003,drain,drain_category,jp_drain,Jp Drain,3.0,,active,,,,,UNMAPPED,
+drn004,drain,drain_category,eud,Eud,3.0,,active,,,,,UNMAPPED,
+drn005,drain,drain_category,evd,Evd,3.0,,active,,,,,UNMAPPED,
+drn006,drain,drain_category,pigtail,Pigtail,3.0,,active,,,,,UNMAPPED,
+drn007,drain,drain_category,ng_tube,Ng Tube,3.0,,active,,,,,UNMAPPED,
+drn008,drain,drain_category,og_tube,Og Tube,3.0,,active,,,,,UNMAPPED,
+drn009,drain,drain_category,peg_tube,Peg Tube,3.0,,active,,,,,UNMAPPED,
+drn010,drain,drain_category,dobhoff,Dobhoff,3.0,,active,,,,,UNMAPPED,

@@ -1,0 +1,3 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+pos001,position,position_category,prone,prone,2.1;3.0,,active,,,,,UNMAPPED,
+pos002,position,position_category,not_prone,not_prone,2.1;3.0,,active,,,,,UNMAPPED,

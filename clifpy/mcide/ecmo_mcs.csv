@@ -1,0 +1,64 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+mcs001,ecmo_mcs,support_category,ecmo,Ecmo,3.0,,active,,,,,UNMAPPED,
+mcs002,ecmo_mcs,support_category,lvad,Lvad,3.0,,active,,,,,UNMAPPED,
+mcs003,ecmo_mcs,support_category,rvad,Rvad,3.0,,active,,,,,UNMAPPED,
+mcs004,ecmo_mcs,device_category,cardiohelp,Cardiohelp,3.0,,active,,,,,UNMAPPED,
+mcs005,ecmo_mcs,device_category,rotaflow,Rotaflow,3.0,,active,,,,,UNMAPPED,
+mcs006,ecmo_mcs,device_category,centrimag,Centrimag,3.0,,active,,,,,UNMAPPED,
+mcs007,ecmo_mcs,device_category,tandemheart,Tandemheart,3.0,,active,,,,,UNMAPPED,
+mcs008,ecmo_mcs,device_category,impella,Impella,3.0,,active,,,,,UNMAPPED,
+mcs009,ecmo_mcs,device_category,durable,Durable,3.0,,active,,,,,UNMAPPED,
+mcs010,ecmo_mcs,device_category,impella_2.5,Impella_2.5,2.1,"{""2.1"":""Impella_2.5""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs011,ecmo_mcs,device_category,impella_cp,Impella_CP,2.1,"{""2.1"":""Impella_CP""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs012,ecmo_mcs,device_category,impella_5.0,Impella_5.0,2.1,"{""2.1"":""Impella_5.0""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs013,ecmo_mcs,device_category,impella_5.5,Impella_5.5,2.1,"{""2.1"":""Impella_5.5""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs014,ecmo_mcs,device_category,impella_ld,Impella_LD,2.1,"{""2.1"":""Impella_LD""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs015,ecmo_mcs,device_category,impella_rp,Impella_RP,2.1,"{""2.1"":""Impella_RP""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs016,ecmo_mcs,device_category,impella_rp_flex,Impella_RP_Flex,2.1,"{""2.1"":""Impella_RP_Flex""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs017,ecmo_mcs,device_category,ivac,iVAC,2.1,"{""2.1"":""iVAC""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs018,ecmo_mcs,device_category,tandemheart_lv,TandemHeart_LV,2.1,"{""2.1"":""TandemHeart_LV""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs019,ecmo_mcs,device_category,tandemheart_rv,TandemHeart_RV,2.1,"{""2.1"":""TandemHeart_RV""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs020,ecmo_mcs,device_category,centrimag_lv,CentriMag_LV,2.1,"{""2.1"":""CentriMag_LV""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs021,ecmo_mcs,device_category,centrimag_rv,CentriMag_RV,2.1,"{""2.1"":""CentriMag_RV""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs022,ecmo_mcs,device_category,iabp,IABP,2.1,"{""2.1"":""IABP""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs023,ecmo_mcs,device_category,va_ecmo,VA_ECMO,2.1,"{""2.1"":""VA_ECMO""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs024,ecmo_mcs,device_category,vv_ecmo,VV_ECMO,2.1,"{""2.1"":""VV_ECMO""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs025,ecmo_mcs,device_category,vav_ecmo,VAV_ECMO,2.1,"{""2.1"":""VAV_ECMO""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs026,ecmo_mcs,device_category,lava_ecmo,LAVA_ECMO,2.1,"{""2.1"":""LAVA_ECMO""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs027,ecmo_mcs,device_category,heartware,HeartWare,2.1,"{""2.1"":""HeartWare""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs028,ecmo_mcs,device_category,hmii,HMII,2.1,"{""2.1"":""HMII""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs029,ecmo_mcs,device_category,hmiii,HMIII,2.1,"{""2.1"":""HMIII""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs030,ecmo_mcs,config_category,v_v,V V,3.0,,active,,,,,UNMAPPED,
+mcs031,ecmo_mcs,config_category,v_a,V A,3.0,,active,,,,,UNMAPPED,
+mcs032,ecmo_mcs,config_category,v_av,V Av,3.0,,active,,,,,UNMAPPED,
+mcs033,ecmo_mcs,config_category,vv_a,Vv A,3.0,,active,,,,,UNMAPPED,
+mcs034,ecmo_mcs,config_category,v_pa_single,V Pa Single,3.0,,active,,,,,UNMAPPED,
+mcs035,ecmo_mcs,config_category,v_pa_dual,V Pa Dual,3.0,,active,,,,,UNMAPPED,
+mcs036,ecmo_mcs,config_category,hybrid,Hybrid,3.0,,active,,,,,UNMAPPED,
+mcs037,ecmo_mcs,config_category,cp,Cp,3.0,,active,,,,,UNMAPPED,
+mcs038,ecmo_mcs,config_category,2_5,2 5,3.0,,active,,,,,UNMAPPED,
+mcs039,ecmo_mcs,config_category,2_5_or_cp,2 5 Or Cp,3.0,,active,,,,,UNMAPPED,
+mcs040,ecmo_mcs,config_category,5,5,3.0,,active,,,,,UNMAPPED,
+mcs041,ecmo_mcs,config_category,5_5,5 5,3.0,,active,,,,,UNMAPPED,
+mcs042,ecmo_mcs,config_category,rp,Rp,3.0,,active,,,,,UNMAPPED,
+mcs043,ecmo_mcs,config_category,rp_flex,Rp Flex,3.0,,active,,,,,UNMAPPED,
+mcs044,ecmo_mcs,config_category,heartware,Heartware,3.0,,active,,,,,UNMAPPED,
+mcs045,ecmo_mcs,config_category,heartmate2,Heartmate2,3.0,,active,,,,,UNMAPPED,
+mcs046,ecmo_mcs,config_category,heartmate3,Heartmate3,3.0,,active,,,,,UNMAPPED,
+mcs047,ecmo_mcs,config_category,central,Central,3.0,,active,,,,,UNMAPPED,
+mcs048,ecmo_mcs,setting_category,rpm,Rpm,3.0,,active,,,,,UNMAPPED,
+mcs049,ecmo_mcs,setting_category,flow,Flow,3.0,,active,,,,,UNMAPPED,
+mcs050,ecmo_mcs,setting_category,sweep,Sweep,3.0,,active,,,,,UNMAPPED,
+mcs051,ecmo_mcs,setting_category,fdo2,Fdo2,3.0,,active,,,,,UNMAPPED,
+mcs052,ecmo_mcs,setting_category,p_ven,P Ven,3.0,,active,,,,,UNMAPPED,
+mcs053,ecmo_mcs,setting_category,p_art,P Art,3.0,,active,,,,,UNMAPPED,
+mcs054,ecmo_mcs,setting_category,delta_pressure,Delta Pressure,3.0,,active,,,,,UNMAPPED,
+mcs055,ecmo_mcs,setting_category,frequency,Frequency,3.0,,active,,,,,UNMAPPED,
+mcs056,ecmo_mcs,setting_category,power,Power,3.0,,active,,,,,UNMAPPED,
+mcs057,ecmo_mcs,setting_category,pulsatility_index,Pulsatility Index,3.0,,active,,,,,UNMAPPED,
+mcs058,ecmo_mcs,setting_category,performance,Performance,3.0,,active,,,,,UNMAPPED,
+mcs059,ecmo_mcs,mcs_group,ecmo,ECMO,2.1,"{""2.1"":""ECMO""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs060,ecmo_mcs,mcs_group,iabp,IABP,2.1,"{""2.1"":""IABP""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs061,ecmo_mcs,mcs_group,rvad,RVAD,2.1,"{""2.1"":""RVAD""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs062,ecmo_mcs,mcs_group,durable_lvad,durable_LVAD,2.1,"{""2.1"":""durable_LVAD""}",deprecated,,,,,UNMAPPED,removed in 3.0
+mcs063,ecmo_mcs,mcs_group,temporary_lvad,temporary_LVAD,2.1,"{""2.1"":""temporary_LVAD""}",deprecated,,,,,UNMAPPED,removed in 3.0

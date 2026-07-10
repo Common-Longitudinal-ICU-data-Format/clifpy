@@ -7,6 +7,8 @@ dev/requirements.txt
 /archive
 *.csv
 !tests/fixtures/*/*.csv
+# The mCIDE index CSVs are the canonical source of truth — must be tracked.
+!clifpy/mcide/*.csv
 research_config.yaml
 
 

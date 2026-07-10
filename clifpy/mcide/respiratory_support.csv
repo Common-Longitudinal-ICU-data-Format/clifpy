@@ -1,0 +1,21 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+rsp001,respiratory_support,device_category,imv,IMV,2.1;3.0,"{""2.1"":""IMV""}",active,,,,,UNMAPPED,
+rsp002,respiratory_support,device_category,nippv,NIPPV,2.1;3.0,"{""2.1"":""NIPPV""}",active,,,,,UNMAPPED,
+rsp003,respiratory_support,device_category,cpap,CPAP,2.1;3.0,"{""2.1"":""CPAP""}",active,,,,,UNMAPPED,
+rsp004,respiratory_support,device_category,hfnc,High Flow NC,2.1;3.0,"{""2.1"":""High Flow NC""}",active,,,,,UNMAPPED,renamed 2.1 'High Flow NC' -> 3.0 'hfnc'
+rsp005,respiratory_support,device_category,face_mask,Face Mask,2.1;3.0,"{""2.1"":""Face Mask""}",active,,,,,UNMAPPED,
+rsp006,respiratory_support,device_category,trach_collar,Trach Collar,2.1;3.0,"{""2.1"":""Trach Collar""}",active,,,,,UNMAPPED,
+rsp007,respiratory_support,device_category,t_piece,T Piece,3.0,,active,,,,,UNMAPPED,
+rsp008,respiratory_support,device_category,nasal_cannula,Nasal Cannula,2.1;3.0,"{""2.1"":""Nasal Cannula""}",active,,,,,UNMAPPED,
+rsp009,respiratory_support,device_category,room_air,Room Air,2.1;3.0,"{""2.1"":""Room Air""}",active,,,,,UNMAPPED,
+rsp010,respiratory_support,device_category,other,Other,2.1;3.0,"{""2.1"":""Other""}",active,,,,,UNMAPPED,
+rsp011,respiratory_support,mode_category,acvc,Assist Control-Volume Control,2.1;3.0,"{""2.1"":""Assist Control-Volume Control""}",active,,,,,UNMAPPED,renamed 2.1 'Assist Control-Volume Control' -> 3.0 'acvc'
+rsp012,respiratory_support,mode_category,pressure_control,Pressure Control,2.1;3.0,"{""2.1"":""Pressure Control""}",active,,,,,UNMAPPED,
+rsp013,respiratory_support,mode_category,prvc,Pressure-Regulated Volume Control,2.1;3.0,"{""2.1"":""Pressure-Regulated Volume Control""}",active,,,,,UNMAPPED,renamed 2.1 'Pressure-Regulated Volume Control' -> 3.0 'prvc'
+rsp014,respiratory_support,mode_category,simv,SIMV,2.1;3.0,"{""2.1"":""SIMV""}",active,,,,,UNMAPPED,
+rsp015,respiratory_support,mode_category,ps_or_cpap,Pressure Support/CPAP,2.1;3.0,"{""2.1"":""Pressure Support/CPAP""}",active,,,,,UNMAPPED,renamed 2.1 'Pressure Support/CPAP' -> 3.0 'ps_or_cpap'
+rsp016,respiratory_support,mode_category,volume_support,Volume Support,2.1;3.0,"{""2.1"":""Volume Support""}",active,,,,,UNMAPPED,
+rsp017,respiratory_support,mode_category,aprv,Aprv,3.0,,active,,,,,UNMAPPED,
+rsp018,respiratory_support,mode_category,t_piece,T Piece,3.0,,active,,,,,UNMAPPED,
+rsp019,respiratory_support,mode_category,blow_by,Blow by,2.1;3.0,"{""2.1"":""Blow by""}",active,,,,,UNMAPPED,
+rsp020,respiratory_support,mode_category,other,Other,2.1;3.0,"{""2.1"":""Other""}",active,,,,,UNMAPPED,

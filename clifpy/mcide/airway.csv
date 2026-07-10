@@ -1,0 +1,5 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+awy001,airway,airway_category,ett,Ett,3.0,,active,,,,,UNMAPPED,
+awy002,airway,airway_category,npa,Npa,3.0,,active,,,,,UNMAPPED,
+awy003,airway,airway_category,opa,Opa,3.0,,active,,,,,UNMAPPED,
+awy004,airway,airway_category,trach,Trach,3.0,,active,,,,,UNMAPPED,

@@ -1,0 +1,6 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+crt001,crrt_therapy,crrt_mode_category,scuf,scuf,2.1;3.0,,active,,,,,UNMAPPED,
+crt002,crrt_therapy,crrt_mode_category,cvvh,cvvh,2.1;3.0,,active,,,,,UNMAPPED,
+crt003,crrt_therapy,crrt_mode_category,cvvhd,cvvhd,2.1;3.0,,active,,,,,UNMAPPED,
+crt004,crrt_therapy,crrt_mode_category,cvvhdf,cvvhdf,2.1;3.0,,active,,,,,UNMAPPED,
+crt005,crrt_therapy,crrt_mode_category,avvh,avvh,2.1;3.0,,active,,,,,UNMAPPED,

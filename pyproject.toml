@@ -54,7 +54,8 @@ clifpy = [
     "schemas/*.yaml",
     "schemas/*/*.yaml",
     "data/comorbidity/*.yaml",
-    "data/mdro.yaml"
+    "data/mdro.yaml",
+    "mcide/*.csv"
 ]
 
 [tool.pytest.ini_options]

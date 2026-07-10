@@ -1,0 +1,12 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+vit001,vitals,vital_category,dbp,dbp,2.1;3.0,,active,,,,,UNMAPPED,
+vit002,vitals,vital_category,heart_rate,heart_rate,2.1;3.0,,active,,,,,UNMAPPED,
+vit003,vitals,vital_category,height_cm,height_cm,2.1;3.0,,active,,,,,UNMAPPED,
+vit004,vitals,vital_category,intracranial_pressure,Intracranial Pressure,3.0,,active,,,,,UNMAPPED,
+vit005,vitals,vital_category,map,map,2.1;3.0,,active,,,,,UNMAPPED,
+vit006,vitals,vital_category,pulse_pressure_variation,Pulse Pressure Variation,3.0,,active,,,,,UNMAPPED,
+vit007,vitals,vital_category,respiratory_rate,respiratory_rate,2.1;3.0,,active,,,,,UNMAPPED,
+vit008,vitals,vital_category,sbp,sbp,2.1;3.0,,active,,,,,UNMAPPED,
+vit009,vitals,vital_category,spo2,spo2,2.1;3.0,,active,,,,,UNMAPPED,
+vit010,vitals,vital_category,temp_c,temp_c,2.1;3.0,,active,,,,,UNMAPPED,
+vit011,vitals,vital_category,weight_kg,weight_kg,2.1;3.0,,active,,,,,UNMAPPED,

@@ -1,0 +1,11 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+cst001,code_status,code_status_category,dnr,DNR,2.1;3.0,"{""2.1"":""DNR""}",active,,,,,UNMAPPED,
+cst002,code_status,code_status_category,dnar,DNAR,2.1;3.0,"{""2.1"":""DNAR""}",active,,,,,UNMAPPED,
+cst003,code_status,code_status_category,udnr,UDNR,2.1;3.0,"{""2.1"":""UDNR""}",active,,,,,UNMAPPED,
+cst004,code_status,code_status_category,dnr_or_dni,DNR/DNI,2.1;3.0,"{""2.1"":""DNR/DNI""}",active,,,,,UNMAPPED,
+cst005,code_status,code_status_category,dnar_or_dni,DNAR/DNI,2.1;3.0,"{""2.1"":""DNAR/DNI""}",active,,,,,UNMAPPED,
+cst006,code_status,code_status_category,dni_only,DNI_only,2.1;3.0,"{""2.1"":""DNI_only""}",active,,,,,UNMAPPED,
+cst007,code_status,code_status_category,and,AND,2.1;3.0,"{""2.1"":""AND""}",active,,,,,UNMAPPED,
+cst008,code_status,code_status_category,full,Full,2.1;3.0,"{""2.1"":""Full""}",active,,,,,UNMAPPED,
+cst009,code_status,code_status_category,presume_full,Presume Full,2.1;3.0,"{""2.1"":""Presume Full""}",active,,,,,UNMAPPED,
+cst010,code_status,code_status_category,other,Other,2.1;3.0,"{""2.1"":""Other""}",active,,,,,UNMAPPED,

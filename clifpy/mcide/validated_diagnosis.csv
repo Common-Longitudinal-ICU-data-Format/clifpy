@@ -1,0 +1,7 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+vdx001,validated_diagnosis,validation_method,manual_chart_review,Manual Chart Review,3.0,,active,,,,,UNMAPPED,
+vdx002,validated_diagnosis,validation_method,consensus_panel,Consensus Panel,3.0,,active,,,,,UNMAPPED,
+vdx003,validated_diagnosis,validation_method,automated_with_review,Automated With Review,3.0,,active,,,,,UNMAPPED,
+vdx004,validated_diagnosis,diagnosis_status,confirmed,Confirmed,3.0,,active,,,,,UNMAPPED,
+vdx005,validated_diagnosis,diagnosis_status,ruled_out,Ruled Out,3.0,,active,,,,,UNMAPPED,
+vdx006,validated_diagnosis,diagnosis_status,uncertain,Uncertain,3.0,,active,,,,,UNMAPPED,

@@ -1,0 +1,6 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+trf001,transfusion,component_category,cryoprecipitate,Cryoprecipitate,3.0,,active,,,,,UNMAPPED,
+trf002,transfusion,component_category,plasma,Plasma,3.0,,active,,,,,UNMAPPED,
+trf003,transfusion,component_category,platelets,Platelets,3.0,,active,,,,,UNMAPPED,
+trf004,transfusion,component_category,prbc,Prbc,3.0,,active,,,,,UNMAPPED,
+trf005,transfusion,component_category,whole_blood,Whole Blood,3.0,,active,,,,,UNMAPPED,

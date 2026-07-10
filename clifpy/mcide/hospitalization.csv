@@ -1,0 +1,24 @@
+id,table,category_column,mcide,label,versions,version_tokens,status,ontology,concept_id,concept_code,ontology_level,mapping_status,notes
+hsp001,hospitalization,admission_type_category,ed,ed,2.1;3.0,,active,,,,,UNMAPPED,
+hsp002,hospitalization,admission_type_category,facility,facility,2.1;3.0,,active,,,,,UNMAPPED,
+hsp003,hospitalization,admission_type_category,osh,osh,2.1;3.0,,active,,,,,UNMAPPED,
+hsp004,hospitalization,admission_type_category,direct,direct,2.1;3.0,,active,,,,,UNMAPPED,
+hsp005,hospitalization,admission_type_category,elective,elective,2.1;3.0,,active,,,,,UNMAPPED,
+hsp006,hospitalization,admission_type_category,other,other,2.1;3.0,,active,,,,,UNMAPPED,
+hsp007,hospitalization,discharge_category,home,Home,2.1;3.0,"{""2.1"":""Home""}",active,,,,,UNMAPPED,
+hsp008,hospitalization,discharge_category,snf,Skilled Nursing Facility (SNF),2.1;3.0,"{""2.1"":""Skilled Nursing Facility (SNF)""}",active,,,,,UNMAPPED,renamed 2.1 'Skilled Nursing Facility (SNF)' -> 3.0 'snf'
+hsp009,hospitalization,discharge_category,expired,Expired,2.1;3.0,"{""2.1"":""Expired""}",active,,,,,UNMAPPED,
+hsp010,hospitalization,discharge_category,acute_ip_rehab,Acute Inpatient Rehab Facility,2.1;3.0,"{""2.1"":""Acute Inpatient Rehab Facility""}",active,,,,,UNMAPPED,renamed 2.1 'Acute Inpatient Rehab Facility' -> 3.0 'acute_ip_rehab'
+hsp011,hospitalization,discharge_category,hospice,Hospice,2.1;3.0,"{""2.1"":""Hospice""}",active,,,,,UNMAPPED,
+hsp012,hospitalization,discharge_category,ltach,Long Term Care Hospital (LTACH),2.1;3.0,"{""2.1"":""Long Term Care Hospital (LTACH)""}",active,,,,,UNMAPPED,renamed 2.1 'Long Term Care Hospital (LTACH)' -> 3.0 'ltach'
+hsp013,hospitalization,discharge_category,acute_care_hosp,Acute Care Hospital,2.1;3.0,"{""2.1"":""Acute Care Hospital""}",active,,,,,UNMAPPED,renamed 2.1 'Acute Care Hospital' -> 3.0 'acute_care_hosp'
+hsp014,hospitalization,discharge_category,group_home,Group Home,2.1;3.0,"{""2.1"":""Group Home""}",active,,,,,UNMAPPED,
+hsp015,hospitalization,discharge_category,chemical_dependency,Chemical Dependency,2.1;3.0,"{""2.1"":""Chemical Dependency""}",active,,,,,UNMAPPED,
+hsp016,hospitalization,discharge_category,ama,Against Medical Advice (AMA),2.1;3.0,"{""2.1"":""Against Medical Advice (AMA)""}",active,,,,,UNMAPPED,renamed 2.1 'Against Medical Advice (AMA)' -> 3.0 'ama'
+hsp017,hospitalization,discharge_category,assisted_living,Assisted Living,2.1;3.0,"{""2.1"":""Assisted Living""}",active,,,,,UNMAPPED,
+hsp018,hospitalization,discharge_category,still_admitted,Still Admitted,2.1;3.0,"{""2.1"":""Still Admitted""}",active,,,,,UNMAPPED,
+hsp019,hospitalization,discharge_category,missing,Missing,2.1;3.0,"{""2.1"":""Missing""}",active,,,,,UNMAPPED,
+hsp020,hospitalization,discharge_category,other,Other,2.1;3.0,"{""2.1"":""Other""}",active,,,,,UNMAPPED,
+hsp021,hospitalization,discharge_category,mental_health_hosp,Psychiatric Hospital,2.1;3.0,"{""2.1"":""Psychiatric Hospital""}",active,,,,,UNMAPPED,renamed 2.1 'Psychiatric Hospital' -> 3.0 'mental_health_hosp'
+hsp022,hospitalization,discharge_category,shelter,Shelter,2.1;3.0,"{""2.1"":""Shelter""}",active,,,,,UNMAPPED,
+hsp023,hospitalization,discharge_category,jail,Jail,2.1;3.0,"{""2.1"":""Jail""}",active,,,,,UNMAPPED,
