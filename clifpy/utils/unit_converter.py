@@ -17,6 +17,10 @@ from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.unit_converter')
 
+# DuckDB converts TIMESTAMPTZ columns to the local system timezone on .to_df().
+# Setting TimeZone to UTC on the default connection prevents this.
+duckdb.sql("SET TimeZone = 'UTC'")
+
 UNIT_NAMING_VARIANTS = {
     # time
     '/hr': '/h(r|our)?$',
