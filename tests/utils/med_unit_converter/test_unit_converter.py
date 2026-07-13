@@ -20,6 +20,7 @@ from clifpy.utils.unit_converter import (
     _clean_dose_unit_formats_duckdb,
     _clean_dose_unit_names_duckdb
 )
+from clifpy.utils.io import load_data
 
 # --- Helper Fixtures for CSV Loading ---
 @pytest.fixture
@@ -1060,3 +1061,66 @@ def test_show_intermediate_surfaces_qa_columns():
     }
     missing = expected_visible - set(qa_result.columns)
     assert not missing, f"show_intermediate=True missing QA columns: {missing}"
+
+
+# ===========================================
+# Timezone preservation (issue #144)
+# ===========================================
+# The converter must NOT alter admin_dttm -- it changes dose columns only. On this
+# (dev) branch the eager load returns tz-naive admin_dttm, which is immune to the
+# ambient DuckDB default-connection zone, so these pass and GUARD that #144 stays
+# fixed. The end-to-end orchestrator repro + full root-cause write-up live in
+# tests/core/test_clif_orchestrator.py.
+
+_DEMO_DIR = str(Path(__file__).parents[3] / "clifpy" / "data" / "clif_demo")
+
+
+@pytest.fixture
+def hostile_default_tz():
+    """Pin DuckDB's *default* connection to a non-UTC zone for the test body.
+
+    Reproduces the #144 ambient state on any runner regardless of its OS timezone:
+    if the converter rendered a tz-aware ``admin_dttm`` through the default
+    connection it would pick up this zone. Restores UTC on teardown.
+    """
+    duckdb.sql("SET TimeZone = 'America/Los_Angeles'")
+    try:
+        yield
+    finally:
+        duckdb.sql("SET TimeZone = 'UTC'")
+
+
+@pytest.mark.parametrize("site_tz", ["UTC", "US/Eastern", "US/Central"])
+def test_converter_preserves_admin_dttm_tz(site_tz, hostile_default_tz):
+    """``convert_dose_units_by_med_category`` must leave ``admin_dttm``'s tz unchanged.
+
+    Loads real demo continuous-med data in ``site_tz``, converts fentanyl under a
+    hostile (Los Angeles) default connection, and asserts ``admin_dttm``'s timezone
+    label and underlying instants are identical before/after -- conversion touches
+    dose columns only (issue #144).
+
+    Parameters
+    ----------
+    site_tz : str
+        Timezone the med table is loaded in.
+    hostile_default_tz : fixture
+        Forces a non-UTC ambient default-connection zone.
+    """
+    med_df: pd.DataFrame = load_data(
+        "medication_admin_continuous", _DEMO_DIR, "parquet", site_tz=site_tz
+    )
+    med_df = med_df[med_df["med_category"] == "fentanyl"].copy()
+    assert not med_df.empty, "expected fentanyl rows in demo continuous meds"
+    src = med_df["admin_dttm"].copy()
+
+    converted, _ = convert_dose_units_by_med_category(
+        med_df, preferred_units={"fentanyl": "mcg/min"}, override=True
+    )
+    out = converted["admin_dttm"]
+
+    # #144 discriminator: the converter must not relabel the timezone.
+    assert str(out.dt.tz) == str(src.dt.tz), (
+        f"converter changed admin_dttm tz {src.dt.tz} -> {out.dt.tz} (issue #144)"
+    )
+    # Instants (values) unchanged -- conversion changes dose columns only.
+    assert sorted(out.dropna().tolist()) == sorted(src.dropna().tolist())
