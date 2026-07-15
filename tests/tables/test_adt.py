@@ -12,7 +12,13 @@ from clifpy.tables.adt import Adt
 # --- Data Fixtures ---
 @pytest.fixture
 def sample_valid_adt_data():
-    """Create a valid ADT DataFrame for testing."""
+    """Create a structurally valid ADT DataFrame for testing.
+
+    Note: a small fixture cannot cover the full mCIDE vocabulary, so
+    'mCIDE Coverage Gap' signals are expected and tolerated in the tests.
+    All rows use ICU location_categories to stay consistent with the
+    ICU-only location_type permissible values.
+    """
     return pd.DataFrame({
         'hospitalization_id': ['H001', 'H001', 'H002', 'H003'],
         'hospital_id': ['HOSP_A', 'HOSP_A', 'HOSP_B', 'HOSP_A'],
@@ -20,9 +26,9 @@ def sample_valid_adt_data():
         'in_dttm': pd.to_datetime(['2023-01-01 10:00:00+00:00', '2023-01-01 14:00:00+00:00', '2023-01-05 09:00:00+00:00', '2023-01-10 12:00:00+00:00']),
         'out_dttm': pd.to_datetime(['2023-01-01 13:59:00+00:00', '2023-01-03 18:00:00+00:00', '2023-01-08 11:00:00+00:00', '2023-01-12 15:00:00+00:00']),
         'location_name': ['B06F', 'B06T', 'T09F', 'N23E'],
-        'location_category': ['ed', 'icu', 'ward', 'icu'],
+        'location_category': ['icu', 'icu', 'icu', 'icu'],
         'hospital_type': ['academic', 'academic', 'academic', 'academic'],
-        'location_type': ['general_icu', 'medical_icu', 'general_icu', 'general_icu']
+        'location_type': ['general_icu', 'medical_icu', 'surgical_icu', 'neuro_icu']
     })
 
 @pytest.fixture
@@ -125,15 +131,13 @@ def test_timezone_validation_non_utc_datetime(sample_adt_data_invalid_datetime):
 
 # from_file constructor
 def test_adt_from_file(mock_adt_file):
-    """Test loading adt data from a parquet file."""
-    adt_obj = Adt.from_file(data_directory=mock_adt_file, filetype="parquet")
+    adt_obj = Adt.from_file(data_directory=mock_adt_file, filetype="parquet", timezone="UTC")
     assert adt_obj.df is not None
 
 def test_adt_from_file_nonexistent(tmp_path):
-    """Test loading adt data from a nonexistent file."""
     non_existent_path = str(tmp_path / "nonexistent_dir")
     with pytest.raises(FileNotFoundError):
-        Adt.from_file(non_existent_path, filetype="parquet")
+        Adt.from_file(non_existent_path, filetype="parquet", timezone="UTC")
 
 # isvalid method
 def test_adt_isvalid(sample_valid_adt_data, sample_adt_data_invalid_category):

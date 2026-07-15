@@ -52,7 +52,7 @@ def mock_rs_model_json(mock_mcide_dir, mock_rs_schema_content):
 def patch_rs_schema_path(monkeypatch, mock_rs_model_json):
     """Patches the path for the validator to find the mock schema."""
     # The validator looks for ../mCIDE/<ModelName>.json relative to its own location.
-    # We patch the _load_spec function in the validator to use our temp dir.
+    # We patch the _load_schema function in the validator to use our temp dir.
     from clifpy.utils import validator
     monkeypatch.setattr(validator, '_DEF_SPEC_DIR', str(mock_rs_model_json.parent))
 

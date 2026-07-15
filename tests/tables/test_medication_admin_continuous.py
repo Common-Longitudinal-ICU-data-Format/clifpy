@@ -111,7 +111,7 @@ def patch_validator_load_schema(monkeypatch, mock_med_admin_continuous_schema_co
         # If other tables were processed by validate_table in these tests, they'd need their own mock handling.
         raise ValueError(f"patch_validator_load_schema called for unexpected table: {table_name}")
 
-    monkeypatch.setattr("clifpy.utils.validator._load_spec", mock_load_schema_for_validation)
+    monkeypatch.setattr("clifpy.utils.validator._load_schema", mock_load_schema_for_validation)
 
 # --- Data Fixtures --- 
 @pytest.fixture
@@ -162,11 +162,13 @@ def mock_med_admin_continuous_file(tmp_path, sample_valid_med_admin_continuous_d
 # Initialization and Schema Loading
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_with_valid_data(sample_valid_med_admin_continuous_data):
-    mac_obj = MedicationAdminContinuous(sample_valid_med_admin_continuous_data)
+    mac_obj = MedicationAdminContinuous(data=sample_valid_med_admin_continuous_data)
     assert mac_obj.df is not None
+    mac_obj.validate()
     assert mac_obj.isvalid() is True
     assert not mac_obj.errors
     assert mac_obj.med_category_to_group_mapping['Antibiotics'] == 'Antimicrobials'
+
 
 @pytest.mark.usefixtures("patch_med_admin_continuous_schema_path", "patch_validator_load_schema")
 def test_init_with_invalid_schema_data(sample_invalid_med_admin_continuous_data_schema):
