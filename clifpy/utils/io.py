@@ -1,4 +1,23 @@
 
+"""Data loading + timezone handling for clifpy (``clif_*`` tables).
+
+Timezone handling — two parallel mechanisms (full detail in docs/tz_dx.md):
+
+- **pandas / tz-AWARE** — :func:`convert_datetime_columns_to_site_tz` relabels a
+  *materialized* ``DataFrame``'s ``*_dttm`` columns via ``dt.tz_convert`` (aware
+  input) / ``dt.tz_localize`` (naive input), using **pytz**. Output is **tz-aware**.
+  Used by the eager materialized load path (``return_rel=False``) and by
+  :func:`fetch_lazy_result`.
+
+- **DuckDB / tz-NAIVE** — :func:`_build_tz_converted_select` emits SQL
+  ``timezone('X', col)``, producing **naive** wall-clock ``TIMESTAMP`` columns.
+  Used **only** by the ``return_rel=True`` (bare ``DuckDBPyRelation``) path, whose
+  lazy-chaining consumers (e.g. SOFA2) are built on naive-typed columns.
+
+``lazy=True`` (``LazyRelation``) reads UTC on an isolated connection and defers tz
+conversion to :func:`fetch_lazy_result` (pandas, tz-aware). ``site_tz=None`` → UTC.
+"""
+
 import pandas as pd
 import os
 import duckdb
@@ -174,10 +193,18 @@ def _build_tz_converted_select(
     site_tz: Optional[str],
     source_type: str = "parquet"
 ) -> str:
-    """Build SELECT clause with timezone conversion for 'dttm' columns.
+    """Build a SELECT clause that timezone-converts ``*_dttm`` columns in DuckDB SQL.
 
-    Queries the file schema to identify columns, then builds a SELECT clause
-    that applies timezone conversion to columns containing 'dttm' in their name.
+    This is the **DuckDB/SQL-level, tz-NAIVE** timezone mechanism — one of the two
+    parallel tz mechanisms in this module (see the module-level "Timezone handling"
+    note). For each ``*_dttm`` column it emits ``timezone('{site_tz}', col)``, which
+    on a ``TIMESTAMPTZ`` returns a **naive** ``TIMESTAMP`` holding the wall-clock in
+    ``site_tz`` (no tzinfo attached).
+
+    Used **only** by the ``return_rel=True`` (bare ``DuckDBPyRelation``) load path,
+    whose lazy-chaining consumers (e.g. SOFA2) are built on naive-typed columns. The
+    materialized and lazy-fetch paths instead relabel to **tz-aware** in pandas via
+    :func:`convert_datetime_columns_to_site_tz`. See docs/tz_dx.md §10.
 
     Parameters
     ----------
@@ -195,7 +222,7 @@ def _build_tz_converted_select(
     Returns
     -------
     str
-        SQL SELECT clause with timezone conversions applied.
+        SQL SELECT clause; ``*_dttm`` columns wrapped in ``timezone(...)`` (naive).
     """
     # Get column info from file schema
     if source_type == "parquet":
@@ -295,10 +322,12 @@ def load_parquet_with_tz(
     sample_size : int, optional
         Number of rows to load (LIMIT clause).
     site_tz : str, optional
-        Target timezone for datetime columns (e.g., 'US/Eastern').
-        Columns with 'dttm' in their name are converted from UTC at the SQL
-        level. Note: not applied when ``lazy=True`` (apply post-fetch via
-        ``fetch_lazy_result(rel, site_tz=...)``).
+        Target timezone for ``*_dttm`` columns (e.g., 'US/Eastern'). The mechanism
+        differs by mode: materialized (``return_rel=False``) relabels in pandas →
+        **tz-aware** (via ``convert_datetime_columns_to_site_tz``); ``return_rel=True``
+        converts in SQL → **tz-naive** (via ``_build_tz_converted_select``). Not
+        applied when ``lazy=True`` — convert post-fetch via
+        ``fetch_lazy_result(rel, site_tz=...)`` (pandas, tz-aware). See docs/tz_dx.md.
     verbose : bool, optional
         If True, show detailed loading messages.
     return_rel : bool, optional
@@ -364,8 +393,13 @@ def load_parquet_with_tz(
     duckdb.execute("SET timezone = 'UTC';")          # read & return in UTC
     duckdb.execute("SET pandas_analyze_sample=0;")   # avoid sampling issues
 
-    # Build SELECT clause with timezone conversion if site_tz is provided
-    if site_tz:
+    # Build SELECT clause. The return_rel (lazy-chaining) path keeps SQL-level tz
+    # handling (naive wall-clock via _build_tz_converted_select) because its
+    # consumers (e.g. SOFA2) are built on that behavior and a bare relation cannot
+    # be post-processed in pandas. The materialized path below instead reads raw
+    # UTC and relabels to site_tz in pandas -> tz-AWARE, matching main's contract
+    # and the lazy fetch_lazy_result path. See docs/tz_dx.md (§9, §10).
+    if return_rel and site_tz:
         sel = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="parquet")
     else:
         sel = "*" if columns is None else ", ".join(columns)
@@ -388,8 +422,11 @@ def load_parquet_with_tz(
     if return_rel:
         return duckdb.sql(query)  # lazy relation, no connection management
 
-    df = duckdb.sql(query).df()              # pandas DataFrame
+    df = duckdb.sql(query).df()              # tz-aware UTC (default connection at UTC)
     df = _cast_id_cols_to_string(df)         # cast id columns to string
+    if site_tz:
+        # relabel UTC -> site_tz in pandas (instant-preserving, tz-aware)
+        df = convert_datetime_columns_to_site_tz(df, site_tz, verbose)
     return df
 
 
@@ -486,11 +523,12 @@ def load_data(
     filters : dict, optional
         Dictionary of filters to apply.
     site_tz : str, optional
-        Target timezone for datetime columns (e.g., 'US/Eastern').
-        If None, loaded from config file's 'timezone'.
-        Columns with 'dttm' in their name are converted from UTC at the SQL
-        level. Note: not applied when ``lazy=True`` (apply post-fetch via
-        ``fetch_lazy_result(rel, site_tz=...)``).
+        Target timezone for ``*_dttm`` columns (e.g., 'US/Eastern'). If None, loaded
+        from config file's 'timezone'. The mechanism differs by mode: materialized
+        (``return_rel=False``) relabels in pandas → **tz-aware**; ``return_rel=True``
+        converts in SQL → **tz-naive**; ``lazy=True`` applies nothing here — convert
+        post-fetch via ``fetch_lazy_result(rel, site_tz=...)`` (pandas, tz-aware).
+        See docs/tz_dx.md.
     verbose : bool, optional
         If True, show detailed loading messages. Default is False.
     return_rel : bool, optional
@@ -599,11 +637,9 @@ def load_data(
         duckdb.execute("SET timezone = 'UTC';")
         duckdb.execute("SET pandas_analyze_sample=0;")
 
-        # Build SELECT clause with timezone conversion if site_tz is provided
-        if site_tz:
-            select_clause = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="csv")
-        else:
-            select_clause = "*" if not columns else ", ".join(columns)
+        # Read raw UTC; relabel to site_tz in pandas below -> tz-aware (main's
+        # contract; materialized path only -- CSV has no return_rel). See docs/tz_dx.md.
+        select_clause = "*" if not columns else ", ".join(columns)
 
         query = f"SELECT {select_clause} FROM read_csv_auto('{file_path}')"
 
@@ -624,6 +660,9 @@ def load_data(
             query += f" LIMIT {sample_size}"
 
         df = duckdb.sql(query).df()
+        if site_tz:
+            # relabel UTC -> site_tz in pandas (instant-preserving, tz-aware)
+            df = convert_datetime_columns_to_site_tz(df, site_tz, verbose)
 
     elif table_format_type == 'parquet':
         # Pass through both lazy flags to load_parquet_with_tz
@@ -650,26 +689,43 @@ def convert_datetime_columns_to_site_tz(
     site_tz_str: str,
     verbose: bool = True
 ) -> pd.DataFrame:
-    """Convert all datetime columns in the DataFrame to the specified site timezone.
+    """Relabel a DataFrame's ``*_dttm`` columns to a site timezone (pandas/pytz).
 
-    .. deprecated::
-        This function is deprecated. Timezone conversion is now handled at the
-        DuckDB SQL level in `load_data()` and `load_parquet_with_tz()` using
-        the `site_tz` parameter. This function is kept for backward compatibility.
+    This is the **pandas-level, tz-AWARE** timezone decoder — one of the two parallel
+    tz mechanisms in this module (see the module-level "Timezone handling" note). It
+    operates on an *already-materialized* ``DataFrame`` and, per ``*_dttm`` column:
+
+    - **tz-aware input** → ``dt.tz_convert(site_tz)`` — a pure relabel; the absolute
+      UTC instant is preserved, only the wall-clock/label changes.
+    - **tz-naive input** → ``dt.tz_localize(site_tz)`` — *attaches* the zone, assuming
+      the naive wall-clock is already in ``site_tz`` (logs a warning).
+
+    Output columns are **tz-aware** in ``site_tz``. Used by the eager materialized load
+    path (``load_data`` / ``load_parquet_with_tz`` with ``return_rel=False``) and by
+    :func:`fetch_lazy_result`. Contrast with :func:`_build_tz_converted_select`, which
+    is DuckDB/SQL-level and yields tz-*naive* columns.
+
+    Note
+    ----
+    Zone resolution uses **pytz**, whose DST transition table freezes at ~2037, so for
+    de-identified far-future dates (e.g. CLIF-MIMIC's ~2180 shift) it applies a frozen
+    offset. This is *intentionally* retained: pytz-decode is the correct inverse of
+    CLIF-MIMIC's pytz encoding and recovers the intended clinical local time. See
+    docs/tz_dx.md §11.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Input DataFrame.
+        Input DataFrame (already materialized; e.g. from ``duckdb.sql(...).df()``).
     site_tz_str : str
-        Timezone string, e.g., "America/New_York" or "US/Central".
+        Target timezone string, e.g., "America/New_York" or "US/Central".
     verbose : bool
-        Whether to print detailed output (default: True).
+        Whether to log a per-run conversion summary (default: True).
 
     Returns
     -------
     pd.DataFrame
-        Modified DataFrame with datetime columns converted.
+        The same DataFrame with every ``*_dttm`` column tz-aware in ``site_tz``.
     """
     site_tz = pytz.timezone(site_tz_str)
 

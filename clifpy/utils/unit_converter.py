@@ -1253,6 +1253,51 @@ def convert_dose_units_by_med_category(
 ) -> Tuple[DuckDBPyRelation, DuckDBPyRelation]: ...
 
 
+def _capture_tz_columns(df: pd.DataFrame) -> dict:
+    """Map ``{column_name: tzinfo}`` for every tz-aware datetime column in ``df``.
+
+    Used to preserve input timestamp timezones across the DuckDB round-trip in
+    :func:`convert_dose_units_by_med_category`: DuckDB renders TIMESTAMPTZ to pandas
+    in the *connection's* TimeZone, which can differ from the input's zone. Returns
+    an empty dict for naive input (no zones to preserve). See docs/tz_dx.md (§9).
+    """
+    return {
+        col: df[col].dtype.tz
+        for col in df.columns
+        if isinstance(df[col].dtype, pd.DatetimeTZDtype)
+    }
+
+
+def _relabel_tz_columns(df: pd.DataFrame, tz_map: dict) -> pd.DataFrame:
+    """Restore each captured column's original tz label (instant-preserving).
+
+    ``tz_convert`` only relabels the zone, not the underlying UTC instant, so this
+    corrects a mislabel introduced by rendering TIMESTAMPTZ under a different
+    default-connection TimeZone. No-op when ``tz_map`` is empty (naive input).
+    """
+    for col, tz in tz_map.items():
+        if col in df.columns and isinstance(df[col].dtype, pd.DatetimeTZDtype):
+            df[col] = df[col].dt.tz_convert(tz)
+    return df
+
+
+def _pin_default_tz_for_deferred_render(tz_map: dict) -> None:
+    """Pin the default connection's TimeZone so a later caller ``.df()`` on a
+    returned relation renders TIMESTAMPTZ in the intended zone.
+
+    Persistent by design (a deferred render cannot be intercepted). Best-effort:
+    swallows errors so returning the relation never fails on an exotic zone. Only
+    relevant for ``return_rel=True`` with tz-aware input. See docs/tz_dx.md (§9).
+    """
+    if not tz_map:
+        return
+    tz = tz_map.get('admin_dttm') or next(iter(tz_map.values()))
+    try:
+        duckdb.execute(f"SET TimeZone = '{tz}'")
+    except Exception:
+        logger.warning(f"Could not pin default-connection TimeZone to '{tz}' for deferred render")
+
+
 def convert_dose_units_by_med_category(
     med_df: pd.DataFrame | DuckDBPyRelation,
     vitals_df: pd.DataFrame | DuckDBPyRelation = None,
@@ -1341,7 +1386,12 @@ def convert_dose_units_by_med_category(
     # DataFrame with no statistics.
     # ------------------------------------------------------------------
     materialized_input = False
+    input_tz_map = {}
     if isinstance(med_df, pd.DataFrame):
+        # Capture tz-aware input zones BEFORE the DuckDB round-trip so we can
+        # restore them on output — DuckDB renders TIMESTAMPTZ in the default
+        # connection's zone, not necessarily the input's. See docs/tz_dx.md (§9).
+        input_tz_map = _capture_tz_columns(med_df)
         duckdb.execute("CREATE OR REPLACE TEMP TABLE _med_unit_input AS SELECT * FROM med_df")
         _register_temp_table("_med_unit_input")
         med_df = duckdb.table("_med_unit_input")
@@ -1512,9 +1562,13 @@ def convert_dose_units_by_med_category(
         if show_intermediate:
             if return_rel:
                 # Caller owns cleanup; do not drop temp tables yet.
+                _pin_default_tz_for_deferred_render(input_tz_map)
                 materialized_input = False
                 return med_df_converted, convert_counts_df
-            return med_df_converted.to_df(), convert_counts_df.to_df()
+            return (
+                _relabel_tz_columns(med_df_converted.to_df(), input_tz_map),
+                convert_counts_df.to_df(),
+            )
 
         # Default (show_intermediate=False): drop QA columns the user didn't ask for.
         possible_cols_to_exclude = {
@@ -1543,9 +1597,13 @@ def convert_dose_units_by_med_category(
 
         if return_rel:
             # Caller owns cleanup; do not drop temp tables yet.
+            _pin_default_tz_for_deferred_render(input_tz_map)
             materialized_input = False
             return result_rel, convert_counts_df
-        return result_rel.to_df(), convert_counts_df.to_df()
+        return (
+            _relabel_tz_columns(result_rel.to_df(), input_tz_map),
+            convert_counts_df.to_df(),
+        )
 
     finally:
         # Cleanup temp tables only when we own the lifecycle (return_rel=False
