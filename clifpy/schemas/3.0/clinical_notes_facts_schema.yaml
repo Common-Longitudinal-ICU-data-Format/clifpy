@@ -1,0 +1,105 @@
+table_name: clinical_notes_facts
+version: "3.0"
+
+composite_keys:
+  - hospitalization_id
+  - note_id
+  - revision_id
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: provider_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: note_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: note_type
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: note_type_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - h_and_p_note
+      - progress_note
+      - consult_note
+      - procedure_note
+      - discharge_summary
+      - transfer_note
+      - therapy_note
+      - nutrition_note
+      - pharmacy_note
+      - nursing_note
+      - case_management_note
+      - death_pronouncement
+      - patient_instructions
+  - name: note_status
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - signed
+      - addendum
+      - incomplete
+      - co-signed
+  - name: cosigner_specialty
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: note_author_specialty
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: revision_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: creation_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: revision_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: service_date
+    data_type: DATE
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - provider_id
+  - note_id
+  - note_type
+  - note_type_category
+  - note_status
+  - revision_id
+  - creation_dttm
+  - revision_dttm
+  - service_date
+
+category_columns:
+  - note_type_category
+
+group_columns: []

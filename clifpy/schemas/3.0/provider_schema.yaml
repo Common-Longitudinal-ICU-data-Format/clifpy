@@ -1,0 +1,45 @@
+table_name: provider
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: provider_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: start_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: stop_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: provider_role_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: provider_role_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - provider_id
+  - start_dttm
+  - stop_dttm
+  - provider_role_category
+
+category_columns: []
+
+group_columns: []

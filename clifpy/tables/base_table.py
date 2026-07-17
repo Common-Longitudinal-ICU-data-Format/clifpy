@@ -20,6 +20,7 @@ from ..utils import validator
 from ..utils.outlier_handler import _load_outlier_config
 from ..utils.config import get_config_or_params
 from ..utils.logging_config import setup_logging
+from ..schemas import DEFAULT_CLIF_VERSION, load_schema
 
 
 class BaseTable:
@@ -57,11 +58,12 @@ class BaseTable:
         filetype: str,
         timezone: str,
         output_directory: Optional[str] = None,
-        data: Optional[pd.DataFrame] = None
+        data: Optional[pd.DataFrame] = None,
+        clif_version: str = DEFAULT_CLIF_VERSION
     ):
         """
         Initialize the BaseTable.
-        
+
         Parameters
         ----------
         data_directory : str
@@ -75,11 +77,15 @@ class BaseTable:
             If not provided, creates an 'output' directory in the current working directory.
         data : pd.DataFrame, optional
             Pre-loaded data to use instead of loading from file
+        clif_version : str, optional
+            CLIF schema version to validate against (e.g. "2.1", "3.0").
+            Defaults to the package default (2.1).
         """
         # Store configuration
         self.data_directory = data_directory
         self.filetype = filetype
         self.timezone = timezone
+        self.clif_version = clif_version or DEFAULT_CLIF_VERSION
         
         # Set output directory
         if output_directory is None:
@@ -144,29 +150,18 @@ class BaseTable:
         self.logger.info(f"Output directory: {self.output_directory}")
     
     def _load_schema(self):
-        """Load the YAML schema for this table."""
+        """Load the YAML schema for this table at the configured CLIF version."""
         try:
-            # Construct schema file path
-            schema_dir = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'schemas'
-            )
-            schema_file = os.path.join(
-                schema_dir,
-                f'{self.table_name}_schema.yaml'
-            )
-
-            # Check if schema file exists
-            if not os.path.exists(schema_file):
-                self.logger.warning(f"Schema file not found: {schema_file}")
-                return
-
-            # Load YAML schema
-            with open(schema_file, 'r') as f:
-                self.schema = yaml.safe_load(f)
-
-            self.logger.info(f"Loaded schema from {schema_file}")
-
+            self.schema = load_schema(self.table_name, self.clif_version)
+            if self.schema is None:
+                self.logger.warning(
+                    f"Schema file not found for table '{self.table_name}' "
+                    f"(CLIF {self.clif_version})"
+                )
+            else:
+                self.logger.info(
+                    f"Loaded schema for '{self.table_name}' (CLIF {self.clif_version})"
+                )
         except Exception as e:
             self.logger.error(f"Error loading schema: {str(e)}")
             self.schema = None
@@ -194,11 +189,12 @@ class BaseTable:
         sample_size: Optional[int] = None,
         columns: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
-        verbose: bool = False
+        verbose: bool = False,
+        clif_version: Optional[str] = None
     ) -> 'BaseTable':
         """
         Load data from file and create a table instance.
-        
+
         Parameters
         ----------
         data_directory : str, optional
@@ -219,7 +215,10 @@ class BaseTable:
             Filters to apply when loading
         verbose : bool, optional
             If True, show detailed loading messages. Default is False
-            
+        clif_version : str, optional
+            CLIF schema version to validate against. Overrides any ``clif_version``
+            in the config file. If neither is set, the package default (2.1) is used.
+
         Notes
         -----
         Loading priority:
@@ -242,9 +241,12 @@ class BaseTable:
             output_directory=output_directory
         )
         
+        # Resolve CLIF version: explicit param > config file > package default
+        resolved_version = clif_version or config.get('clif_version', DEFAULT_CLIF_VERSION)
+
         # Derive snake_case table name from PascalCase class name
         table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in cls.__name__]).lstrip('_')
-        
+
         # Load data using existing io utility
         data = load_data(
             table_name,
@@ -256,14 +258,15 @@ class BaseTable:
             site_tz=config['timezone'],
             verbose=verbose
         )
-        
+
         # Create instance with loaded data
         return cls(
             data_directory=config['data_directory'],
             filetype=config['filetype'],
             timezone=config['timezone'],
             output_directory=config.get('output_directory', output_directory),
-            data=data
+            data=data,
+            clif_version=resolved_version
         )
     
     def validate(self):

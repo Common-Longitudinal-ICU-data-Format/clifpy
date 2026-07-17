@@ -1,0 +1,44 @@
+table_name: model_registry
+version: "3.0"
+
+columns:
+  - name: model_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: model_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: model_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: model_version
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: release_date
+    data_type: DATE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: is_live
+    data_type: INT
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - model_id
+  - model_category
+  - model_version
+  - is_live
+
+category_columns: []
+
+group_columns: []

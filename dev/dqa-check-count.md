@@ -561,7 +561,7 @@ BETA = ['patient','hospitalization','adt','vitals','labs','patient_assessments',
         'position','patient_procedures','code_status','crrt_therapy','hospital_diagnosis',
         'microbiology_culture','microbiology_susceptibility']
 
-schemas = {t: yaml.safe_load(open(f'clifpy/schemas/{t}_schema.yaml')) for t in BETA}
+schemas = {t: yaml.safe_load(open(f'clifpy/schemas/2.1/{t}_schema.yaml')) for t in BETA}
 vrules = yaml.safe_load(open('clifpy/schemas/validation_rules.yaml'))
 outliers = yaml.safe_load(open('clifpy/schemas/outlier_config.yaml'))
 

@@ -1,0 +1,34 @@
+table_name: scores
+version: "3.0"
+
+columns:
+  - name: model_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: score_value
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - model_id
+  - hospitalization_id
+  - recorded_dttm
+  - score_value
+
+category_columns: []
+
+group_columns: []

@@ -17,7 +17,8 @@ class PatientAssessments(BaseTable):
         filetype: str = None,
         timezone: str = "UTC",
         output_directory: Optional[str] = None,
-        data: Optional[pd.DataFrame] = None
+        data: Optional[pd.DataFrame] = None,
+        clif_version: Optional[str] = None
     ):
         """
         Initialize the patient_assessments table.
@@ -50,7 +51,8 @@ class PatientAssessments(BaseTable):
             filetype=filetype,
             timezone=timezone,
             output_directory=output_directory,
-            data=data
+            data=data,
+            clif_version=clif_version
         )
         
         # Load assessment-specific schema data

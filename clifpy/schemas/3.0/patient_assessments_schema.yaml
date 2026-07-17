@@ -1,0 +1,242 @@
+table_name: patient_assessments
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: documenting_provider_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: assessment_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: assessment_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - am_pac
+      - ams
+      - apgar
+      - avpu
+      - bps
+      - braden_activity
+      - braden_friction
+      - braden_mobility
+      - braden_moisture
+      - braden_nutrition
+      - braden_sensory
+      - braden_total
+      - cam_inattention
+      - cam_loc
+      - cam_mental
+      - cam_thinking
+      - cam_total
+      - ciwa
+      - cows
+      - cpot_body
+      - cpot_facial
+      - cpot_intubated
+      - cpot_muscle
+      - cpot_total
+      - cpot_vocalization
+      - dvprs
+      - gcs_eye
+      - gcs_motor
+      - gcs_total
+      - gcs_verbal
+      - icans
+      - icsdc
+      - icsdc_agitation
+      - icsdc_disorientation
+      - icsdc_hallucination
+      - icsdc_inattention
+      - icsdc_loc
+      - icsdc_sleep
+      - icsdc_speech
+      - icsdc_symptoms
+      - icsdc_total
+      - ims
+      - minds
+      - morse_fall_scale
+      - npi_l
+      - npi_r
+      - nrs
+      - nvps
+      - painad
+      - pupil_reactive_l
+      - pupil_reactive_r
+      - pupil_size_l
+      - pupil_size_r
+      - rass
+      - sas
+      - sat_delivery_pass_fail
+      - sat_delivery_performed
+      - sat_escalating_sedation
+      - sat_intracranial_pressure
+      - sat_myocardial_ischemia
+      - sat_neuromuscular_blockers
+      - sat_screen_pass_fail
+      - sat_screen_performed
+      - sat_sedative_infusion
+      - sbt_agitation
+      - sbt_delivery_pass_fail
+      - sbt_delivery_performed
+      - sbt_fail_reason
+      - sbt_inadequate_oxygenation
+      - sbt_intracranial_pressure
+      - sbt_no_spontaneous_effort
+      - sbt_screen_pass_fail
+      - sbt_screen_performed
+      - sbt_vasopressor_use
+      - tof
+      - vas
+      - wat
+  - name: assessment_group
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - delirium
+      - mobility_or_activity
+      - neurological
+      - nursing_risk
+      - pain
+      - sat_delivery
+      - sat_delivery_pass_or_fail
+      - sat_screen
+      - sat_screen_pass_or_fail
+      - sbt_delivery
+      - sbt_delivery_pass_or_fail
+      - sbt_failure_reason
+      - sbt_screen
+      - sbt_screen_pass_or_fail
+      - sedation_or_agitation
+      - spontaneous_awakening_trial_sat
+      - spontaneous_breathing_trial_sbt
+      - withdrawal
+  - name: numerical_value
+    data_type: DOUBLE
+    required: true
+    allow_missing: true
+    is_category_column: false
+    is_group_column: false
+  - name: categorical_value
+    data_type: VARCHAR
+    required: true
+    allow_missing: true
+    is_category_column: false
+    is_group_column: false
+  - name: text_value
+    data_type: VARCHAR
+    required: true
+    allow_missing: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - assessment_category
+  - numerical_value
+  - categorical_value
+  - text_value
+
+category_columns:
+  - assessment_category
+
+group_columns:
+  - assessment_group
+
+assessment_category_to_group_mapping:
+  am_pac: mobility_or_activity
+  ams: mobility_or_activity
+  apgar: neurological
+  avpu: neurological
+  bps: pain
+  braden_activity: nursing_risk
+  braden_friction: nursing_risk
+  braden_mobility: mobility_or_activity
+  braden_moisture: nursing_risk
+  braden_nutrition: nursing_risk
+  braden_sensory: nursing_risk
+  braden_total: nursing_risk
+  cam_inattention: delirium
+  cam_loc: delirium
+  cam_mental: delirium
+  cam_thinking: delirium
+  cam_total: delirium
+  ciwa: withdrawal
+  cows: withdrawal
+  cpot_body: pain
+  cpot_facial: pain
+  cpot_intubated: pain
+  cpot_muscle: pain
+  cpot_total: pain
+  cpot_vocalization: pain
+  dvprs: pain
+  gcs_eye: neurological
+  gcs_motor: neurological
+  gcs_total: neurological
+  gcs_verbal: neurological
+  icans: neurological
+  icsdc: delirium
+  icsdc_agitation: delirium
+  icsdc_disorientation: delirium
+  icsdc_hallucination: delirium
+  icsdc_inattention: delirium
+  icsdc_loc: delirium
+  icsdc_sleep: delirium
+  icsdc_speech: delirium
+  icsdc_symptoms: delirium
+  icsdc_total: delirium
+  ims: mobility_or_activity
+  minds: withdrawal
+  morse_fall_scale: nursing_risk
+  npi_l: neurological
+  npi_r: neurological
+  nrs: pain
+  nvps: pain
+  painad: pain
+  pupil_reactive_l: neurological
+  pupil_reactive_r: neurological
+  pupil_size_l: neurological
+  pupil_size_r: neurological
+  rass: sedation_or_agitation
+  sas: sedation_or_agitation
+  sat_delivery_pass_fail: sat_delivery_pass_or_fail
+  sat_delivery_performed: sat_delivery
+  sat_escalating_sedation: spontaneous_awakening_trial_sat
+  sat_intracranial_pressure: spontaneous_awakening_trial_sat
+  sat_myocardial_ischemia: spontaneous_awakening_trial_sat
+  sat_neuromuscular_blockers: spontaneous_awakening_trial_sat
+  sat_screen_pass_fail: sat_screen_pass_or_fail
+  sat_screen_performed: sat_screen
+  sat_sedative_infusion: spontaneous_awakening_trial_sat
+  sbt_agitation: spontaneous_breathing_trial_sbt
+  sbt_delivery_pass_fail: sbt_delivery_pass_or_fail
+  sbt_delivery_performed: sbt_delivery
+  sbt_fail_reason: sbt_failure_reason
+  sbt_inadequate_oxygenation: spontaneous_breathing_trial_sbt
+  sbt_intracranial_pressure: spontaneous_breathing_trial_sbt
+  sbt_no_spontaneous_effort: spontaneous_breathing_trial_sbt
+  sbt_screen_pass_fail: sbt_screen_pass_or_fail
+  sbt_screen_performed: sbt_screen
+  sbt_vasopressor_use: spontaneous_breathing_trial_sbt
+  tof: neurological
+  vas: pain
+  wat: withdrawal

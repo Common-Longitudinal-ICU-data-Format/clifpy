@@ -17,7 +17,8 @@ class Position(BaseTable):
         filetype: str = None,
         timezone: str = "UTC",
         output_directory: Optional[str] = None,
-        data: Optional[pd.DataFrame] = None
+        data: Optional[pd.DataFrame] = None,
+        clif_version: Optional[str] = None
     ):
         """
         Initialize the position table.
@@ -47,7 +48,8 @@ class Position(BaseTable):
             filetype=filetype,
             timezone=timezone,
             output_directory=output_directory,
-            data=data
+            data=data,
+            clif_version=clif_version
         )
     
     def get_position_category_stats(self) -> pd.DataFrame:

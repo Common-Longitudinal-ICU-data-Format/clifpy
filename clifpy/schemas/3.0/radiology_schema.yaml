@@ -1,0 +1,109 @@
+table_name: radiology
+version: "3.0"
+
+columns:
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: radiology_accession
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: radiology_order_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: radiology_capture_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: radiology_report_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: radiology_order_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: radiology_modality_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ct
+      - mr
+      - nm
+      - other
+      - us
+      - xr
+  - name: radiology_region_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - abdomen
+      - abdomen_pelvis
+      - brain
+      - chest
+      - heart
+      - lower_extremity
+      - maxillofacial
+      - neck
+      - other
+      - pelvis
+      - ruq
+      - spine
+      - upper_extremity
+      - vascular
+      - whole_body
+  - name: iv_contrast_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - not_applicable
+      - unknown
+      - with_and_without_contrast
+      - with_contrast
+      - without_contrast
+  - name: radiology_location_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - portable
+      - radiology
+      - unknown
+  - name: radiology_report_text
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - patient_id
+  - radiology_accession
+  - radiology_report_dttm
+  - radiology_modality_category
+  - radiology_region_category
+  - iv_contrast_category
+  - radiology_location_category
+
+category_columns:
+  - radiology_modality_category
+  - radiology_region_category
+  - iv_contrast_category
+  - radiology_location_category
+
+group_columns: []

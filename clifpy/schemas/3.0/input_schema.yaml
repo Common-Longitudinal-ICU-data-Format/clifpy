@@ -1,0 +1,85 @@
+table_name: input
+version: "3.0"
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: input_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: input_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - iv_crystalloid
+      - iv_colloid
+      - blood_products
+      - parenteral_nutrition
+      - po_intake
+      - enteral_nutrition
+      - enteral_water
+      - iv_medication
+      - enteral_medication
+      - renal_replacement_fluids
+      - flush_irrigation_urine
+      - flush_irrigation_drain
+      - flush_irrigation_gi
+      - flush_irrigation_respiratory
+      - flush_irrigation_other
+      - other
+  - name: input_group
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - iv_fluids
+      - blood_products
+      - nutrition
+      - medication_fluids
+      - renal_replacement_fluids
+      - flush_irrigation
+      - other
+  - name: input_volume
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - input_category
+  - input_group
+  - input_volume
+category_columns:
+  - input_category
+group_columns:
+  - input_group
+input_category_to_group_mapping:
+  iv_crystalloid: iv_fluids
+  iv_colloid: iv_fluids
+  blood_products: blood_products
+  parenteral_nutrition: nutrition
+  po_intake: nutrition
+  enteral_nutrition: nutrition
+  enteral_water: nutrition
+  iv_medication: medication_fluids
+  enteral_medication: medication_fluids
+  renal_replacement_fluids: renal_replacement_fluids
+  flush_irrigation_urine: flush_irrigation
+  flush_irrigation_drain: flush_irrigation
+  flush_irrigation_gi: flush_irrigation
+  flush_irrigation_respiratory: flush_irrigation
+  flush_irrigation_other: flush_irrigation
+  other: other

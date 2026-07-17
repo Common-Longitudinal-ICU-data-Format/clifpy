@@ -32,6 +32,12 @@ from .utils.outlier_handler import apply_outlier_handling, get_outlier_summary
 from .utils.config import load_config
 from .utils.io import load_data
 from .utils.logging_config import setup_logging, get_logger
+from .utils.crosswalk import (
+    crosswalk_table_2_1_to_3_0,
+    crosswalk_file_2_1_to_3_0,
+    normalize_category_value,
+    BETA_TABLES,
+)
 
 # SOFA-2 scoring
 from .utils.sofa2 import calculate_sofa2, calculate_sofa2_daily, SOFA2Config
@@ -95,6 +101,10 @@ __all__ = [
     "SOFA2Config",
     # DuckDB resource config
     "DuckDBResourceConfig",
+    "crosswalk_table_2_1_to_3_0",
+    "crosswalk_file_2_1_to_3_0",
+    "normalize_category_value",
+    "BETA_TABLES",
     # Polars-based utilities
     "compute_sofa_polars",
     "standardize_datetime_columns_polars",

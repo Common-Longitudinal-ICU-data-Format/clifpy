@@ -1,0 +1,72 @@
+table_name: validated_diagnosis
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_start_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: diagnosis_end_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: validation_method
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - manual_chart_review
+      - consensus_panel
+      - automated_with_review
+  - name: diagnosis_status
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - confirmed
+      - ruled_out
+      - uncertain
+  - name: reviewer_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: review_timestamp
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - diagnosis_category
+  - diagnosis_start_dttm
+  - validation_method
+  - diagnosis_status
+  - reviewer_id
+  - review_timestamp
+
+category_columns:
+  - validation_method
+  - diagnosis_status
+
+group_columns: []

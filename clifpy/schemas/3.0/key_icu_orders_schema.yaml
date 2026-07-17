@@ -1,0 +1,64 @@
+table_name: key_icu_orders
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: order_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: order_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: order_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - pt
+      - social_work
+      - ot
+      - nutrition
+      - swallowing
+      - respiratory
+      - interpreter
+      - skin_care
+      - pain_services
+      - addiction_nurse
+      - speech
+      - pastoral_services
+      - palliative_care
+      - psych_liaison_nurse
+      - et_nurse
+      - eeg
+      - other
+  - name: order_status_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - sent
+      - completed
+      - resulted
+      - canceled
+
+required_columns:
+  - hospitalization_id
+  - order_dttm
+  - order_category
+  - order_status_category
+
+category_columns:
+  - order_category
+  - order_status_category
+
+group_columns: []

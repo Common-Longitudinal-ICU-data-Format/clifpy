@@ -1,0 +1,69 @@
+# CLIF 2.1 -> 3.0 value crosswalk for standardized columns (*_category/*_group/*_type).
+#
+# This file holds ONLY the value changes that the deterministic normalizer
+# (clifpy.utils.crosswalk.normalize_category_value: lowercase + snake_case,
+# & -> _and_, / -> _or_) CANNOT reproduce. Everything else (the large majority,
+# e.g. IMV -> imv, Non-Hispanic -> non_hispanic, l&d -> l_and_d, DNR/DNI ->
+# dnr_or_dni, Mobility/Activity -> mobility_or_activity) is handled by the
+# normalizer and intentionally NOT listed here.
+#
+# Scope: the 16 CLIF beta tables. Completeness is enforced by
+# tests/test_crosswalk.py — every 2.1 permissible value must resolve to a valid
+# 3.0 permissible value via the normalizer or this file, or be listed under
+# `unresolved`.
+from_version: "2.1"
+to_version: "3.0"
+
+# Non-derivable old -> new value renames (abbreviations, semantic renames,
+# spelling corrections, genus reclassifications).
+renames:
+  patient:
+    language_category:
+      "Unknown or NA": unknown            # "or NA" dropped
+
+  hospitalization:
+    discharge_category:
+      "Skilled Nursing Facility (SNF)": snf
+      "Acute Inpatient Rehab Facility": acute_ip_rehab
+      "Long Term Care Hospital (LTACH)": ltach
+      "Acute Care Hospital": acute_care_hosp
+      "Against Medical Advice (AMA)": ama
+      "Psychiatric Hospital": mental_health_hosp   # semantic rename
+
+  labs:
+    lab_category:
+      glucose_fingerstick: glucose        # 3.0 folds fingerstick/POC glucose into `glucose`
+    lab_specimen_category:
+      "blood/plasma/serum": plasma_blood
+
+  respiratory_support:
+    device_category:
+      "High Flow NC": hfnc                # abbreviation
+    mode_category:
+      "Assist Control-Volume Control": acvc
+      "Pressure-Regulated Volume Control": prvc
+      "Pressure Support/CPAP": ps_or_cpap
+
+  microbiology_culture:
+    organism_category:
+      clostridium_difficile: clostridioides_difficile   # genus reclassification
+      staphyloccocus_coagneg: staphylococcus_coagneg    # 2.1 spelling typo corrected
+
+# Values that cannot be auto-resolved: 1->many splits and values removed in 3.0
+# with no direct equivalent. The converter LEAVES THESE UNCHANGED and surfaces
+# them in the report (report["columns"][col]["ambiguous"]). Excluded from the
+# completeness check.
+unresolved:
+  medication_admin_continuous:
+    med_category:
+      albumin:
+        candidates: [albumin_5, albumin_25]
+        reason: "Concentration-dependent split in 3.0; choose albumin_5 or albumin_25 from the product concentration."
+  labs:
+    lab_specimen_category:
+      csf:
+        candidates: []
+        reason: "Removed from lab_specimen_category in CLIF 3.0; no direct equivalent."
+      other:
+        candidates: []
+        reason: "Removed from lab_specimen_category in CLIF 3.0; no direct equivalent."

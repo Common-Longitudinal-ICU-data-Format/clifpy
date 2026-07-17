@@ -1,0 +1,77 @@
+table_name: line
+version: "3.0"
+
+composite_keys:
+  - hospitalization_id
+  - line_id
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: line_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: placed_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: removed_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: line_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - cvc
+      - art_line
+      - picc
+      - midline
+      - dialysis_catheter
+      - swan_ganz
+      - cordis
+      - piv
+  - name: line_site
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - right_ij
+      - left_ij
+      - right_subclavian
+      - left_subclavian
+      - right_femoral
+      - left_femoral
+      - right_radial
+      - left_radial
+      - right_brachial
+      - left_brachial
+      - other
+  - name: lumen_count
+    data_type: INT
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - line_id
+  - placed_dttm
+  - line_category
+  - line_site
+
+category_columns:
+  - line_category
+  - line_site
+
+group_columns: []

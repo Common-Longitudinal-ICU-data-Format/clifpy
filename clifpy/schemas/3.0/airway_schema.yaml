@@ -1,0 +1,62 @@
+table_name: airway
+version: "3.0"
+
+composite_keys:
+  - hospitalization_id
+  - airway_id
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: airway_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: placed_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: removed_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: airway_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - ett
+      - npa
+      - opa
+      - trach
+  - name: airway_size
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: is_cuffed
+    data_type: INT
+    required: false
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - 0
+      - 1
+
+required_columns:
+  - hospitalization_id
+  - airway_id
+  - placed_dttm
+  - airway_category
+
+category_columns:
+  - airway_category
+
+group_columns: []

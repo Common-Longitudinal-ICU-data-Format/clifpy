@@ -1,0 +1,150 @@
+table_name: patient
+version: "3.0"
+composite_keys:
+  - patient_id
+
+columns:
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: race_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: race_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - black_or_african_american
+      - white
+      - american_indian_or_alaska_native
+      - asian
+      - native_hawaiian_or_other_pacific_islander
+      - middle_eastern_or_north_african
+      - unknown
+      - other
+  - name: ethnicity_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: ethnicity_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - hispanic
+      - non_hispanic
+      - unknown
+  - name: sex_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: sex_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - male
+      - female
+      - unknown
+  - name: birth_date
+    data_type: DATE
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: death_dttm
+    data_type: DATETIME
+    required: true
+    nullable: true
+    is_category_column: false
+    is_group_column: false
+  - name: language_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: language_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - english
+      - spanish
+      - french
+      - haitian_creole
+      - italian
+      - portuguese
+      - german
+      - yiddish_pennsylvania_dutch_or_other_west_germanic_languages
+      - greek
+      - russian
+      - polish
+      - serbo_croatian
+      - ukrainian_or_other_slavic_languages
+      - armenian
+      - persian
+      - gujarati
+      - hindi
+      - urdu
+      - punjabi
+      - bengali
+      - nepali_marathi_or_other_indic_languages
+      - other_european_indo_european_languages
+      - other_asian_indo_european_languages
+      - telugu
+      - tamil
+      - malayalam_kannada_or_other_dravidian_languages
+      - chinese
+      - japanese
+      - korean
+      - vietnamese
+      - khmer
+      - thai_lao_or_other_tai_kadai_languages
+      - other_languages_of_asia
+      - tagalog
+      - ilocano_samoan_hawaiian_or_other_austronesian_languages
+      - arabic
+      - hebrew
+      - amharic_somali_or_other_afro_asiatic_languages
+      - yoruba_twi_igbo_or_other_languages_of_western_africa
+      - swahili_or_other_languages_of_central_eastern_and_southern_africa
+      - navajo
+      - other_native_languages_of_north_america
+      - other_and_unspecified_languages
+      - sign_language
+      - unknown
+  - name: language_interpreter
+    data_type: INT
+    required: false
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - 0
+      - 1
+
+required_columns:
+  - patient_id
+  - race_category
+  - ethnicity_category
+  - sex_category
+  - birth_date
+  - death_dttm
+  - language_category
+
+category_columns:
+  - race_category
+  - ethnicity_category
+  - sex_category
+  - language_category
+
+group_columns: []

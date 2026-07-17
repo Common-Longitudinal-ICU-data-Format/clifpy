@@ -1,0 +1,115 @@
+table_name: patient_attributes
+version: "3.0"
+
+columns:
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: recorded_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: attribute_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: attribute_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - alcohol_use
+      - employment_status
+      - financial_strain
+      - food_insecurity
+      - functional_status
+      - housing_status
+      - interpersonal_safety
+      - marital_status
+      - organ_donor
+      - pregnancy_status
+      - smoking_status
+      - social_isolation
+      - substance_use
+      - transportation_barrier
+      - utility_insecurity
+  - name: attribute_group
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: true
+    permissible_values:
+      - care_preferences
+      - functional
+      - health_related_social_needs
+      - reproductive
+      - sociodemographic
+      - substance_use_behavior
+  - name: attribute_value_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: attribute_value_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - active
+      - connected
+      - current
+      - disabled
+      - divorced
+      - former
+      - full_time
+      - fully_dependent
+      - heavy
+      - history
+      - housed
+      - independent
+      - insecure
+      - isolated
+      - married
+      - never
+      - no
+      - none
+      - not_pregnant
+      - part_time
+      - partially_dependent
+      - postpartum
+      - pregnant
+      - present
+      - retired
+      - safe
+      - secure
+      - separated
+      - single
+      - social
+      - student
+      - undomiciled
+      - unemployed
+      - unknown
+      - unsafe
+      - unstable
+      - widowed
+      - yes
+
+required_columns:
+  - patient_id
+  - recorded_dttm
+  - attribute_category
+  - attribute_group
+  - attribute_value_category
+
+category_columns:
+  - attribute_category
+  - attribute_value_category
+
+group_columns:
+  - attribute_group

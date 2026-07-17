@@ -35,6 +35,7 @@ CLIFpy is the official Python implementation for working with CLIF (Common Longi
 - ⚡ **High Performance**: Leverages DuckDB and Polars for efficient processing of large datasets
 - 🌍 **Timezone Aware**: Proper timestamp handling across different healthcare systems
 - 📈 **Wide Format Support**: Transform longitudinal data into hourly resolution for analysis
+- ✅ **Data Quality Assessment Framework**: Comprehensive assessment of conformance, completeness, and plausibility across all CLIF 2.1 Beta tables
 
 ## Installation
 
@@ -99,6 +100,8 @@ CLIFpy uses [uv](https://docs.astral.sh/uv/) for fast, reliable dependency manag
 | Lab Conversion Units | Dema Therese | Cathy Gao | In Progress |
 | CRRT Waterfall | Kaveri Chhikara | Shan Guleria, Jay Koyner | Future Feature |
 | Medication Unit Conversion | Zewei (Whiskey) Liao | | Published |
+| Data Quality Assessment | Dema Therese | | Published |
+| Intubation Extubation | Vaishvik Chaudhari | | In Progress |
 
 ## Links & Resources
 

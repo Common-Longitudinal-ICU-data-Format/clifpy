@@ -1,0 +1,68 @@
+table_name: transfusion
+version: "3.0"
+
+columns:
+  - name: hospitalization_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: transfusion_start_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: transfusion_end_dttm
+    data_type: DATETIME
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: component_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: component_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - cryoprecipitate
+      - plasma
+      - platelets
+      - prbc
+      - whole_blood
+  - name: attribute_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: volume_transfused
+    data_type: DOUBLE
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: volume_unit
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: product_code
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - transfusion_start_dttm
+  - transfusion_end_dttm
+  - component_category
+  - volume_transfused
+  - volume_unit
+
+category_columns:
+  - component_category
+
+group_columns: []
