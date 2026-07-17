@@ -157,20 +157,30 @@ class TestLoadParquetWithTz:
     """Tests for load_parquet_with_tz function with timezone conversion."""
 
     def test_loads_with_timezone_conversion(self, demo_vitals_path):
-        """Test that load_parquet_with_tz applies timezone conversion."""
+        """load_parquet_with_tz returns tz-aware site_tz columns, instant-preserving.
+
+        Asserts the real contract (tz-awareness + UTC-instant preservation) rather
+        than hardcoded wall-clock hours. The wall-clock hour depends on the tz engine
+        (pandas/pytz vs ICU) and the date, which diverge for CLIF-MIMIC's far-future
+        de-identified dates (pytz's DST table freezes at 2037). See docs/tz_dx.md §11.
+        """
         df = load_parquet_with_tz(
-            demo_vitals_path,
-            sample_size=5,
-            site_tz='US/Eastern'
+            demo_vitals_path, sample_size=5, site_tz='US/Eastern'
+        )
+        df_utc = load_parquet_with_tz(
+            demo_vitals_path, sample_size=5, site_tz=None
         )
 
         assert len(df) == 5
         assert 'recorded_dttm' in df.columns
-
-        # Verify hours are in Eastern time (not UTC)
-        # UTC data has hour 14, Eastern should be 10 (EDT)
-        hours = df['recorded_dttm'].dt.hour.unique()
-        assert 14 not in hours or 10 in hours  # Either converted or was already in range
+        # tz-aware in the requested zone
+        assert df['recorded_dttm'].dt.tz is not None
+        assert str(df['recorded_dttm'].dt.tz) == 'US/Eastern'
+        # instant-preserving: same UTC instants as the unconverted (UTC) load
+        assert (
+            df['recorded_dttm'].dt.tz_convert('UTC').reset_index(drop=True)
+            == df_utc['recorded_dttm'].dt.tz_convert('UTC').reset_index(drop=True)
+        ).all()
 
     def test_loads_without_timezone_conversion(self, demo_vitals_path):
         """Test that load_parquet_with_tz returns UTC when site_tz is None."""
