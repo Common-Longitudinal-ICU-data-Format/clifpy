@@ -242,9 +242,9 @@ carried into the newer converter code. The fix is to extend that discipline into
 ## 9. The fix + tests
 
 **Chosen direction:** restore aware output on the **materialized** load path (match `main`, zero
-regression for existing users) and fix the converter render. This ships as **Batch A now**; full
-`return_rel`/SOFA2 aware-ness is deferred to **Batch B** (§10 gives the exact aware-vs-naive scope and
-why the split is forward-compatible).
+regression for existing users) and fix the converter render. Shipped as **Batch A**; **Batch B** (now
+also done — see §12) extends aware-ness to the `return_rel` path and unifies SOFA2. As of Batch B
+**all load paths are tz-aware** (§10 describes the interim Batch-A split, since resolved).
 
 **Batch A — what actually changes:**
 
@@ -263,8 +263,8 @@ why the split is forward-compatible).
   instant-preserving, zero global state. (`return_rel=True` callers own their connection's zone; the
   deferred-render pin only matters once return_rel loads go aware in Batch B.)
 
-- **Keep `_build_tz_converted_select`** (io.py:170) — still used by the `return_rel` path and covered by
-  `test_tz.py::TestBuildTzConvertedSelect`.
+- `_build_tz_converted_select` (io.py:170) — Batch A kept it for the `return_rel` path; **Batch B
+  removed it** (return_rel no longer converts in SQL). See §12.
 
 **Regression guards (already landed):**
 
@@ -279,6 +279,9 @@ why the split is forward-compatible).
   restoration.
 
 ## 10. Fix scope: aware vs naive per path, and why the tests all pass under Batch A
+
+> **Superseded by Batch B (§12):** the naive `return_rel` path described below is now aware-UTC — all
+> load paths are tz-aware. This section is retained as the record of the interim Batch-A state.
 
 The user's sharp question: *are we making it aware or naive, and if Batch A is only a partial fix, why
 do **all** timezone tests pass?* This section answers both.
@@ -393,3 +396,34 @@ intended 13:00 ET  --[pytz encode]-->  18:00 UTC  --[pytz decode]-->   13:00  �
   wall-clock hours (which are engine- and date-dependent). `test_tz.py::test_loads_with_timezone_
   conversion` was re-anchored to this contract (its old hardcoded-hour assertion happened to encode the
   zoneinfo/ICU value and so mis-fired against the correct pytz result).
+
+## 12. Batch B — `return_rel` unified to tz-aware (all paths aware)
+
+Batch B extends the aware contract to the last naive path (`return_rel=True`), so **every** load path
+now returns tz-aware `*_dttm`. Changes:
+
+- **io.py** — the `return_rel` branch of `load_parquet_with_tz` now selects **raw `TIMESTAMPTZ`**
+  columns (the `_build_tz_converted_select` naive wrapper is **removed**). A bare `DuckDBPyRelation`
+  renders `TIMESTAMPTZ` in the *connection's* zone at the caller's later `.df()`, so it returns
+  **aware-UTC** (the loader pins the default connection to UTC). `site_tz` is **not** applied to a
+  return_rel label — a persistent `SET timezone=site_tz` on the shared default connection is unreliable
+  (the next `load_data` re-pins UTC and clobbers it), and an isolated connection would break the
+  "default conn, no cleanup" contract. Consumers needing a non-UTC label relabel after `.df()` via
+  `convert_datetime_columns_to_site_tz`.
+
+- **SOFA2** — the six fallback `EMPTY_*` sentinels (`_core.py:59/98/134/170/210`, `_kidney.py:514`)
+  flip `NULL::TIMESTAMP` → `NULL::TIMESTAMPTZ` to match the now-aware real relations they substitute
+  for / `UNION` with; the subscore test fixtures (`tests/utils/sofa2/conftest.py::load_csv_fixture`)
+  `tz_localize('UTC')` their dttm columns so unit tests stay internally aware-consistent. (`_resp.py`'s
+  `NULL::INTERVAL` offset columns are unchanged — they are intervals, not timestamps.)
+
+- **test_tz.py** — the `return_rel` tests now assert **aware-UTC + UTC-instant preservation** (not the
+  old hour-offset); the `_build_tz_converted_select` tests are removed with the helper.
+
+**End-to-end behavior note (untested path):** SOFA2's real `load_data(return_rel=True, site_tz=config)`
+relations go from **naive-config-tz → aware-UTC**. SOFA2 computes with the default connection pinned to
+UTC, so numeric results should be unchanged (UTC wall-clock == the prior naive values interpreted at
+UTC). No automated test covers SOFA2 end-to-end, so a one-time end-to-end re-validation is advised.
+
+**Verification:** tz suites + SOFA2 + converter + orchestrator = **91 passed**; full-suite failed-count
+**unchanged vs Batch A** (110 failed, all pre-existing tables/validator drift — out of scope).
