@@ -1,21 +1,21 @@
 
 """Data loading + timezone handling for clifpy (``clif_*`` tables).
 
-Timezone handling — two parallel mechanisms (full detail in docs/tz_dx.md):
+Timezone handling — all load paths return **tz-aware** ``*_dttm`` columns (detail in
+docs/tz_dx.md):
 
-- **pandas / tz-AWARE** — :func:`convert_datetime_columns_to_site_tz` relabels a
-  *materialized* ``DataFrame``'s ``*_dttm`` columns via ``dt.tz_convert`` (aware
-  input) / ``dt.tz_localize`` (naive input), using **pytz**. Output is **tz-aware**.
-  Used by the eager materialized load path (``return_rel=False``) and by
-  :func:`fetch_lazy_result`.
+- **Materialized** (``return_rel=False``) — reads raw UTC, then
+  :func:`convert_datetime_columns_to_site_tz` relabels to ``site_tz`` in pandas
+  (``dt.tz_convert`` aware / ``dt.tz_localize`` naive, via **pytz**) → tz-aware in
+  ``site_tz``.
 
-- **DuckDB / tz-NAIVE** — :func:`_build_tz_converted_select` emits SQL
-  ``timezone('X', col)``, producing **naive** wall-clock ``TIMESTAMP`` columns.
-  Used **only** by the ``return_rel=True`` (bare ``DuckDBPyRelation``) path, whose
-  lazy-chaining consumers (e.g. SOFA2) are built on naive-typed columns.
+- **return_rel** (bare ``DuckDBPyRelation``) — returns raw ``TIMESTAMPTZ`` that renders
+  **tz-aware in the connection's zone (UTC)** at the caller's later ``.df()``;
+  ``site_tz`` is not applied to the label (relabel post-``.df()`` if another zone is
+  needed).
 
-``lazy=True`` (``LazyRelation``) reads UTC on an isolated connection and defers tz
-conversion to :func:`fetch_lazy_result` (pandas, tz-aware). ``site_tz=None`` → UTC.
+- **lazy** (``LazyRelation``) — reads UTC on an isolated connection; convert via
+  :func:`fetch_lazy_result` (pandas, tz-aware). ``site_tz=None`` → tz-aware UTC.
 """
 
 import pandas as pd
@@ -186,67 +186,6 @@ def fetch_lazy_result(
     return df
 
 
-def _build_tz_converted_select(
-    con: duckdb.DuckDBPyConnection,
-    file_path: str,
-    columns: Optional[List[str]],
-    site_tz: Optional[str],
-    source_type: str = "parquet"
-) -> str:
-    """Build a SELECT clause that timezone-converts ``*_dttm`` columns in DuckDB SQL.
-
-    This is the **DuckDB/SQL-level, tz-NAIVE** timezone mechanism — one of the two
-    parallel tz mechanisms in this module (see the module-level "Timezone handling"
-    note). For each ``*_dttm`` column it emits ``timezone('{site_tz}', col)``, which
-    on a ``TIMESTAMPTZ`` returns a **naive** ``TIMESTAMP`` holding the wall-clock in
-    ``site_tz`` (no tzinfo attached).
-
-    Used **only** by the ``return_rel=True`` (bare ``DuckDBPyRelation``) load path,
-    whose lazy-chaining consumers (e.g. SOFA2) are built on naive-typed columns. The
-    materialized and lazy-fetch paths instead relabel to **tz-aware** in pandas via
-    :func:`convert_datetime_columns_to_site_tz`. See docs/tz_dx.md §10.
-
-    Parameters
-    ----------
-    con : duckdb.DuckDBPyConnection
-        Active DuckDB connection used to introspect the file schema.
-    file_path : str
-        Path to the data file.
-    columns : list of str, optional
-        Specific columns to select. If None, selects all columns.
-    site_tz : str, optional
-        Target timezone string (e.g., 'US/Eastern'). If None, no conversion.
-    source_type : str
-        Type of source file ('parquet' or 'csv').
-
-    Returns
-    -------
-    str
-        SQL SELECT clause; ``*_dttm`` columns wrapped in ``timezone(...)`` (naive).
-    """
-    # Get column info from file schema
-    if source_type == "parquet":
-        schema_query = f"DESCRIBE SELECT * FROM parquet_scan('{file_path}')"
-    else:  # csv
-        schema_query = f"DESCRIBE SELECT * FROM read_csv_auto('{file_path}')"
-
-    schema_result = con.execute(schema_query).fetchall()
-    all_columns = [row[0] for row in schema_result]
-
-    # Filter to requested columns or use all
-    target_columns = columns if columns else all_columns
-
-    select_parts = []
-    for col in target_columns:
-        if 'dttm' in col.lower() and site_tz:
-            # Convert UTC to site timezone for datetime columns
-            select_parts.append(f"timezone('{site_tz}', {col}) AS {col}")
-        else:
-            select_parts.append(col)
-
-    return ", ".join(select_parts)
-
-
 def load_config(file_path: str) -> Dict[str, Any]:
     with open(file_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -322,12 +261,12 @@ def load_parquet_with_tz(
     sample_size : int, optional
         Number of rows to load (LIMIT clause).
     site_tz : str, optional
-        Target timezone for ``*_dttm`` columns (e.g., 'US/Eastern'). The mechanism
-        differs by mode: materialized (``return_rel=False``) relabels in pandas →
-        **tz-aware** (via ``convert_datetime_columns_to_site_tz``); ``return_rel=True``
-        converts in SQL → **tz-naive** (via ``_build_tz_converted_select``). Not
-        applied when ``lazy=True`` — convert post-fetch via
-        ``fetch_lazy_result(rel, site_tz=...)`` (pandas, tz-aware). See docs/tz_dx.md.
+        Target timezone for ``*_dttm`` columns (e.g., 'US/Eastern'), applied only on the
+        materialized (``return_rel=False``) path → **tz-aware** in ``site_tz`` (via
+        ``convert_datetime_columns_to_site_tz``). ``return_rel=True`` returns raw
+        ``TIMESTAMPTZ`` → **tz-aware UTC** at ``.df()`` (site_tz not applied to the
+        label; relabel post-``.df()`` if needed). ``lazy=True`` → convert post-fetch via
+        ``fetch_lazy_result(rel, site_tz=...)``. See docs/tz_dx.md.
     verbose : bool, optional
         If True, show detailed loading messages.
     return_rel : bool, optional
@@ -393,16 +332,13 @@ def load_parquet_with_tz(
     duckdb.execute("SET timezone = 'UTC';")          # read & return in UTC
     duckdb.execute("SET pandas_analyze_sample=0;")   # avoid sampling issues
 
-    # Build SELECT clause. The return_rel (lazy-chaining) path keeps SQL-level tz
-    # handling (naive wall-clock via _build_tz_converted_select) because its
-    # consumers (e.g. SOFA2) are built on that behavior and a bare relation cannot
-    # be post-processed in pandas. The materialized path below instead reads raw
-    # UTC and relabels to site_tz in pandas -> tz-AWARE, matching main's contract
-    # and the lazy fetch_lazy_result path. See docs/tz_dx.md (§9, §10).
-    if return_rel and site_tz:
-        sel = _build_tz_converted_select(duckdb.default_connection(), file_path, columns, site_tz, source_type="parquet")
-    else:
-        sel = "*" if columns is None else ", ".join(columns)
+    # Both paths select raw TIMESTAMPTZ columns -> tz-AWARE. The materialized path
+    # relabels UTC -> site_tz in pandas below. The return_rel path returns a bare
+    # relation that renders in the connection's zone (UTC here) at the caller's later
+    # .df() -> aware-UTC, regardless of site_tz (relabel post-.df() if another zone is
+    # needed -- a persistent per-site SET on the shared default connection would be
+    # clobbered by the next load's UTC re-pin). See docs/tz_dx.md.
+    sel = "*" if columns is None else ", ".join(columns)
 
     query = f"SELECT {sel} FROM parquet_scan('{file_path}')"
 
@@ -524,11 +460,11 @@ def load_data(
         Dictionary of filters to apply.
     site_tz : str, optional
         Target timezone for ``*_dttm`` columns (e.g., 'US/Eastern'). If None, loaded
-        from config file's 'timezone'. The mechanism differs by mode: materialized
-        (``return_rel=False``) relabels in pandas → **tz-aware**; ``return_rel=True``
-        converts in SQL → **tz-naive**; ``lazy=True`` applies nothing here — convert
-        post-fetch via ``fetch_lazy_result(rel, site_tz=...)`` (pandas, tz-aware).
-        See docs/tz_dx.md.
+        from config file's 'timezone'. Applied only on the materialized
+        (``return_rel=False``) path → **tz-aware** in ``site_tz``. ``return_rel=True``
+        returns raw ``TIMESTAMPTZ`` → **tz-aware UTC** (site_tz not applied to the
+        label); ``lazy=True`` → convert post-fetch via
+        ``fetch_lazy_result(rel, site_tz=...)``. See docs/tz_dx.md.
     verbose : bool, optional
         If True, show detailed loading messages. Default is False.
     return_rel : bool, optional
@@ -702,8 +638,7 @@ def convert_datetime_columns_to_site_tz(
 
     Output columns are **tz-aware** in ``site_tz``. Used by the eager materialized load
     path (``load_data`` / ``load_parquet_with_tz`` with ``return_rel=False``) and by
-    :func:`fetch_lazy_result`. Contrast with :func:`_build_tz_converted_select`, which
-    is DuckDB/SQL-level and yields tz-*naive* columns.
+    :func:`fetch_lazy_result`.
 
     Note
     ----

@@ -1,15 +1,14 @@
 """Tests for timezone conversion in io module.
 
-This module contains tests for the DuckDB-based timezone conversion
-functionality in clifpy.utils.io, including the _build_tz_converted_select
-helper function and timezone conversion in load_data/load_parquet_with_tz.
+This module contains tests for timezone conversion in clifpy.utils.io
+(load_data / load_parquet_with_tz), covering the aware materialized,
+return_rel (aware-UTC), and lazy paths.
 """
 import pytest
 import pandas as pd
 import duckdb
 from pathlib import Path
 from clifpy.utils.io import (
-    _build_tz_converted_select,
     load_parquet_with_tz,
     load_data
 )
@@ -98,55 +97,6 @@ class TestDuckDBTimezoneConversion:
 
         hour_diff = (utc_hours - central_hours).iloc[0]
         assert hour_diff in [5, 6], f"Expected 5-6 hour difference for Central, got {hour_diff}"
-
-
-# ===========================================
-# Tests for _build_tz_converted_select
-# ===========================================
-@pytest.mark.tz_conversion
-class TestBuildTzConvertedSelect:
-    """Tests for _build_tz_converted_select helper function."""
-
-    def test_identifies_dttm_columns(self, demo_vitals_path, duckdb_connection):
-        """Test that function correctly identifies columns with 'dttm' in name."""
-        con = duckdb_connection
-
-        select_clause = _build_tz_converted_select(
-            con, demo_vitals_path, None, 'US/Eastern', source_type='parquet'
-        )
-
-        # Should contain timezone conversion for recorded_dttm
-        assert "timezone('US/Eastern', recorded_dttm)" in select_clause
-        # Should not apply timezone to non-dttm columns
-        assert "timezone('US/Eastern', hospitalization_id)" not in select_clause
-
-    def test_no_conversion_without_site_tz(self, demo_vitals_path, duckdb_connection):
-        """Test that no conversion is applied when site_tz is None."""
-        con = duckdb_connection
-
-        select_clause = _build_tz_converted_select(
-            con, demo_vitals_path, None, None, source_type='parquet'
-        )
-
-        # Should not contain any timezone() calls
-        assert "timezone(" not in select_clause
-        # Should contain column names directly
-        assert "recorded_dttm" in select_clause
-
-    def test_respects_column_filter(self, demo_vitals_path, duckdb_connection):
-        """Test that function only includes specified columns."""
-        con = duckdb_connection
-
-        columns = ['hospitalization_id', 'recorded_dttm', 'vital_value']
-        select_clause = _build_tz_converted_select(
-            con, demo_vitals_path, columns, 'US/Eastern', source_type='parquet'
-        )
-
-        # Should only include specified columns
-        assert 'hospitalization_id' in select_clause
-        assert 'vital_value' in select_clause
-        # Should not include unspecified columns
-        assert 'vital_category' not in select_clause
 
 
 # ===========================================
@@ -307,30 +257,35 @@ class TestReturnRelation:
         assert len(df) == 5
         # No connection cleanup needed - uses default connection
 
-    def test_relation_with_timezone_conversion(self, demo_vitals_path):
-        """Test timezone conversion works in returned relation."""
-        # Get UTC version first
+    def test_relation_is_tz_aware_utc(self, demo_vitals_path):
+        """return_rel returns tz-aware UTC (site_tz not applied to a bare relation).
+
+        A bare DuckDBPyRelation renders TIMESTAMPTZ in the connection's zone (UTC) at
+        .df() time; site_tz is not applied to the label. Assert tz-awareness + that the
+        instant matches the materialized UTC load. See docs/tz_dx.md.
+        """
         df_utc = load_parquet_with_tz(
             demo_vitals_path,
             sample_size=5,
             site_tz=None
         )
 
-        # Get Eastern version via relation
+        # site_tz is ignored for return_rel -> aware-UTC regardless
         rel = load_parquet_with_tz(
             demo_vitals_path,
             sample_size=5,
             site_tz='US/Eastern',
             return_rel=True
         )
-        df_eastern = rel.df()
+        df_rel = rel.df()
 
-        # Verify timezone was converted (hour offset)
-        utc_hour = df_utc['recorded_dttm'].dt.hour.iloc[0]
-        eastern_hour = df_eastern['recorded_dttm'].dt.hour.iloc[0]
-        hour_diff = utc_hour - eastern_hour
-
-        assert hour_diff in [4, 5], f"Expected 4-5 hour diff, got {hour_diff}"
+        assert df_rel['recorded_dttm'].dt.tz is not None
+        assert str(df_rel['recorded_dttm'].dt.tz) in ('UTC', 'utc')
+        # instant-preserving: same UTC instants as the materialized UTC load
+        assert (
+            df_rel['recorded_dttm'].dt.tz_convert('UTC').reset_index(drop=True)
+            == df_utc['recorded_dttm'].dt.tz_convert('UTC').reset_index(drop=True)
+        ).all()
 
     def test_relation_lazy_evaluation(self, demo_vitals_path):
         """Test that relation is lazily evaluated and supports chaining."""
@@ -374,9 +329,8 @@ class TestReturnRelation:
         df = rel.df()
         assert len(df) == 5
 
-    def test_load_data_relation_with_timezone(self, demo_data_dir):
-        """Test timezone conversion in relation from load_data."""
-        # Get UTC version
+    def test_load_data_relation_is_tz_aware_utc(self, demo_data_dir):
+        """load_data(return_rel=True) yields tz-aware UTC (site_tz not applied)."""
         df_utc = load_data(
             table_name='vitals',
             table_path=str(demo_data_dir),
@@ -385,7 +339,6 @@ class TestReturnRelation:
             site_tz=None
         )
 
-        # Get Eastern version via relation
         rel = load_data(
             table_name='vitals',
             table_path=str(demo_data_dir),
@@ -394,14 +347,14 @@ class TestReturnRelation:
             site_tz='US/Eastern',
             return_rel=True
         )
-        df_eastern = rel.df()
+        df_rel = rel.df()
 
-        # Verify hour offset
-        utc_hour = df_utc['recorded_dttm'].dt.hour.iloc[0]
-        eastern_hour = df_eastern['recorded_dttm'].dt.hour.iloc[0]
-        hour_diff = utc_hour - eastern_hour
-
-        assert hour_diff in [4, 5], f"Expected 4-5 hour diff, got {hour_diff}"
+        assert df_rel['recorded_dttm'].dt.tz is not None
+        assert str(df_rel['recorded_dttm'].dt.tz) in ('UTC', 'utc')
+        assert (
+            df_rel['recorded_dttm'].dt.tz_convert('UTC').reset_index(drop=True)
+            == df_utc['recorded_dttm'].dt.tz_convert('UTC').reset_index(drop=True)
+        ).all()
 
     def test_default_returns_dataframe(self, demo_vitals_path):
         """Test that default (return_rel=False) returns DataFrame."""
