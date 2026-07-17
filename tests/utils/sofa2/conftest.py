@@ -17,7 +17,8 @@ def load_csv_fixture(path, datetime_cols):
     df = pd.read_csv(str(path), dtype={'hospitalization_id': str})
     for col in datetime_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format='mixed')
+            # aware-UTC so fixtures match the tz-aware relations load_data now returns
+            df[col] = pd.to_datetime(df[col], format='mixed').dt.tz_localize('UTC')
     return duckdb.sql("SELECT * FROM df")
 
 

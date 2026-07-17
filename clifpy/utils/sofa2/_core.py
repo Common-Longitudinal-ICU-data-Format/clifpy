@@ -56,7 +56,7 @@ def _load_ecmo_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     EMPTY_ECMO = duckdb.sql("""
         SELECT
             NULL::VARCHAR AS hospitalization_id
-            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::TIMESTAMPTZ AS recorded_dttm
             , NULL::VARCHAR AS mcs_group
             , NULL::VARCHAR AS ecmo_configuration_category
         WHERE false
@@ -95,7 +95,7 @@ def _load_intm_meds_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     EMPTY_INTM = duckdb.sql("""
         SELECT
             NULL::VARCHAR AS hospitalization_id
-            , NULL::TIMESTAMP AS admin_dttm
+            , NULL::TIMESTAMPTZ AS admin_dttm
             , NULL::VARCHAR AS med_category
             , NULL::DOUBLE AS med_dose
             , NULL::VARCHAR AS mar_action_category
@@ -131,7 +131,7 @@ def _load_output_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     EMPTY = duckdb.sql("""
         SELECT
             NULL::VARCHAR AS hospitalization_id
-            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::TIMESTAMPTZ AS recorded_dttm
             , NULL::DOUBLE AS output_volume
             , NULL::VARCHAR AS output_group
         WHERE false
@@ -167,7 +167,7 @@ def _load_input_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     EMPTY = duckdb.sql("""
         SELECT
             NULL::VARCHAR AS hospitalization_id
-            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::TIMESTAMPTZ AS recorded_dttm
             , NULL::DOUBLE AS input_volume
             , NULL::VARCHAR AS input_category
         WHERE false
@@ -207,7 +207,7 @@ def _load_crrt_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     EMPTY_CRRT = duckdb.sql("""
         SELECT
             NULL::VARCHAR AS hospitalization_id
-            , NULL::TIMESTAMP AS recorded_dttm
+            , NULL::TIMESTAMPTZ AS recorded_dttm
         WHERE false
     """)
 

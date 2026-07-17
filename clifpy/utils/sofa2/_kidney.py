@@ -511,7 +511,7 @@ def _calculate_kidney_subscore(
             input_rel = duckdb.sql(f"""
                 SELECT
                     NULL::VARCHAR AS {id_name}
-                    , NULL::TIMESTAMP AS recorded_dttm
+                    , NULL::TIMESTAMPTZ AS recorded_dttm
                     , NULL::DOUBLE AS input_volume
                     , NULL::VARCHAR AS input_category
                 WHERE false
