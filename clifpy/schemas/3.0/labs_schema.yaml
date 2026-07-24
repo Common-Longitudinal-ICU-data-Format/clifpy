@@ -101,7 +101,6 @@ columns:
       - free_t3
       - free_t4
       - glucose
-      - glucose_serum
       - hematocrit
       - hematocrit_percent
       - hemoglobin
