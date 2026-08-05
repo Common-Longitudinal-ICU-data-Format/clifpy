@@ -39,6 +39,9 @@ from .utils.crosswalk import (
     BETA_TABLES,
 )
 
+# SOFA-2 scoring
+from .utils.sofa2 import calculate_sofa2, calculate_sofa2_daily, SOFA2Config
+from .utils._duckdb_config import DuckDBResourceConfig
 # Re-export Polars-based utilities at package root
 from .utils.sofa_polars import compute_sofa_polars
 from .utils.datetime_polars import (
@@ -92,6 +95,12 @@ __all__ = [
     "load_data",
     "setup_logging",
     "get_logger",
+    # SOFA-2 scoring
+    "calculate_sofa2",
+    "calculate_sofa2_daily",
+    "SOFA2Config",
+    # DuckDB resource config
+    "DuckDBResourceConfig",
     "crosswalk_table_2_1_to_3_0",
     "crosswalk_file_2_1_to_3_0",
     "normalize_category_value",

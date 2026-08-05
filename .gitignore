@@ -6,9 +6,11 @@ dev/readme.md
 dev/requirements.txt
 /archive
 *.csv
-!tests/fixtures/*/*.csv
+!tests/utils/med_unit_converter/*.csv
+!tests/utils/sofa2/*/*.csv
 research_config.yaml
-
+dev/*/*.txt
+/.vscode/
 
 build/
 dist/
@@ -54,5 +56,9 @@ rules.md
 kilo.md
 
 
+clif_config.json
+clifpy/utils/sofa2/sofa2.md
+config/ucmc_config.yaml
+config/mimic_config.yaml
 clif_config.json".ipynb_checkpoints/" 
 .ipynb_checkpoints/

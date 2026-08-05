@@ -42,3 +42,16 @@ lit,lit
 mcgs,mcgs
 gram/kg/minute,g/kg/min
 gram,g
+gram/kg,g/kg
+units/kg,u/kg
+unit/lb,u/lb
+liter/kg,l/kg
+liters/lb,l/lb
+µg/kg,mcg/kg
+ug/kg,mcg/kg
+μg/lb,mcg/lb
+milli-unit/kg,mu/kg
+milliunits/lb,mu/lb
+mu/kg,mu/kg
+mg/kg,mg/kg
+mcg/kg,mcg/kg

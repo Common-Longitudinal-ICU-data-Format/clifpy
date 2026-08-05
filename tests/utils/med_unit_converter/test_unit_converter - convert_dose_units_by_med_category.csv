@@ -1,0 +1,40 @@
+rn,case,med_category,med_dose,med_dose_unit,_clean_unit,_unit_class,_unit_subclass,_base_dose,_base_unit,weight_kg,_preferred_unit,_unit_class_preferred,_unit_subclass_preferred,_needs_wt,med_dose_converted,med_dose_unit_converted,_convert_status,note,update_status
+0,valid,propofol,420,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/kg/min,70,mcg/kg/min,rate,mass,0,7,mcg/kg/min,success,weighted to weighted with weight available,1
+1,valid,propofol,420,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/kg/min,,mcg/kg/min,rate,mass,0,7,mcg/kg/min,success,weighted to weighted with weight missing but still ok,1
+2,valid,propofol_lb,420,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/kg/min,,mcg/lb/min,rate,mass,0,3.175150366,mcg/lb/min,success,weighted by kg to weighted  by lb with weight missing but still ok,1
+3,valid,propofol_unweighted,420,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/kg/min,70,mcg/min,rate,mass,1,490,mcg/min,success,weighted to unweighted with weight available,1
+4,valid,propofol,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,70,mcg/kg/min,rate,mass,1,0.2,mcg/kg/min,success,unweighted to weighted with weight available,1
+5,invalid,propofol_unweighted,420,MCG/KG/HR,mcg/kg/hr,rate,mass,7,mcg/kg/min,,mcg/min,rate,mass,1,420,mcg/kg/hr,cannot convert weighted to unweighted: weight_kg is missing,weighted to unweighted but weight missing,1
+6,invalid,propofol,840,mcg/h,mcg/hr,rate,mass,14,mcg/min,,mcg/kg/min,rate,mass,1,840,mcg/hr,cannot convert unweighted to weighted: weight_kg is missing,unweighted to weighted but weight missing,1
+7,invalid,propofol,0.007,MG,mg,amount,mass,7,mcg,70,mcg/kg/min,rate,mass,0,0.007,mg,cannot convert amount to rate,can't convert amount to rate,1
+8,invalid,propofol,14, mcg ,mcg,amount,mass,14,mcg,70,mcg/kg/min,rate,mass,0,14,mcg,cannot convert amount to rate,can't convert amount to rate,1
+9,invalid,fentanyl,1000,mu/min,mu/min,rate,unit,1,u/min,79,mcg/hr,rate,mass,0,1000,mu/min,cannot convert unit to mass,can't convert u to mcg in rate,1
+10,invalid,fentanyl,2000,mu/min,mu/min,rate,unit,2,u/min,,mcg/hr,rate,mass,0,2000,mu/min,cannot convert unit to mass,can't convert u to mcg in rate,1
+11,invalid,insulin,20,iu,iu,unrecognized,unrecognized,20,iu,,u/hr,rate,unit,0,20,iu,original unit iu is not recognized,iu as input is not accepted,1
+12,invalid,insulin,20,,,unrecognized,unrecognized,20,,,u/hr,rate,unit,0,20,,original unit is missing,empty unit is not recognized,1
+13,invalid,zidovudine,20,U,u,unrecognized,unrecognized,20,u,,iu/hr,unrecognized,unrecognized,0,20,u,user-preferred unit iu/hr is not recognized,iu as output is not accepted (yet?),1
+14,valid,midazolam,420,MCG/HR,mcg/hr,rate,mass,7,mcg/min,84,mg/hr,rate,mass,0,0.42,mg/hr,success,mcg to mg and min to hr,1
+15,valid,midazolam,840,MCG/HR,mcg/hr,rate,mass,14,mcg/min,,mg/hr,rate,mass,0,0.84,mg/hr,success,mcg to mg and min to hr,1
+16,valid,fentanyl,6,mcg / hr,mcg/hr,rate,mass,0.1,mcg/min,86,mcg/hr,rate,mass,0,6,mcg/hr,success,min to hr for mass,1
+17,valid,fentanyl,6,mcg/hr,mcg/hr,rate,mass,0.1,mcg/min,,mcg/hr,rate,mass,0,6,mcg/hr,success,min to hr for mass w/o weight,1
+18,valid,insulin,1000,mu/min,mu/min,rate,unit,1,u/min,88,u/hr,rate,unit,0,60,u/hr,success,min to hr for u,1
+19,valid,insulin,2000,mu/min,mu/min,rate,unit,2,u/min,,u/hr,rate,unit,0,120,u/hr,success,min to hr for u,1
+20,valid,norepinephrine,7.8,mcG / M,mcg/min,rate,mass,7.8,mcg/min,90,ng/kg/min,rate,mass,1,86.66666667,ng/kg/min,success,mcg to ng and add weight,1
+21,valid,norepinephrine,15.8,μg/m,mcg/min,rate,mass,15.8,mcg/min,91,ng/kg/min,rate,mass,1,173.6263736,ng/kg/min,success,mcg to ng and add weight,1
+22,valid,dextrose,10,   mg ,mg,amount,mass,10000,mcg,92,g,amount,mass,0,0.01,g,success,mcg to g,1
+23,valid,dextrose,10,mg  ,mg,amount,mass,10000,mcg,,g,amount,mass,0,0.01,g,success,mcg to g,1
+24,valid,heparin,120,mL/h,ml/hr,rate,volume,2,ml/min,94,l/hr,rate,volume,0,0.12,l/hr,success,min to hr and ml to l,1
+25,valid,heparin,180,mL/hour,ml/hr,rate,volume,3,ml/min,,l/hr,rate,volume,0,0.18,l/hr,success,min to hr and ml to l,1
+26,valid,bivalirudin,0.12,L/hr,l/hr,rate,volume,2,ml/min,96,ml/hr,rate,volume,0,120,ml/hr,success,min to hr for ml,1
+27,valid,bivalirudin,0.18,L/h,l/hr,rate,volume,3,ml/min,,ml/hr,rate,volume,0,180,ml/hr,success,min to hr for ml,1
+28,valid,oxytocin,3000,mU,u,amount,unit,3,u,98,mu,amount,unit,0,3000,mu,success,u to mu,1
+29,valid,oxytocin,4,units,u,amount,unit,4,u,,mu,amount,unit,0,4000,mu,success,u to mu,1
+30,valid,lactated_ringers_solution,0.001,L,l,amount,volume,1,ml,100,ml,amount,volume,0,1,ml,success,ml stays the same,1
+31,valid,lactated_ringers_solution,2,  mL,ml,amount,volume,2,ml,,ml,amount,volume,0,2,ml,success,ml stays the same,1
+32,valid,propofol_mcg_kg,100,mcg / Kg,mcg/kg,amount,mass,100,mcg/kg,,mcg/kg,amount,mass,0,100,mcg/kg,success,,
+33,valid,propofol_mcg_kg,100,mcG,mcg,amount,mass,100,mcg,100,mcg/kg,amount,mass,1,1,mcg/kg,success,,
+34,invalid,propofol_mcg_kg,100,mcG,mcg,amount,mass,100,mcg,,mcg/kg,amount,mass,1,100,mcg,cannot convert unweighted to weighted: weight_kg is missing,,
+35,valid,propofol_mcg,1,mg / Kg,mg/kg,amount,mass,1000,mcg/kg,100,mcg,amount,mass,1,100000,mcg,success,,
+36,invalid,propofol_mcg,1,mg / Kg,mg/kg,amount,mass,1000,mcg/kg,,mcg,amount,mass,1,1,mg/kg,cannot convert weighted to unweighted: weight_kg is missing,,
+37,,,,,,,,,,,,,,,,,,,
+38,,,,,,,,,,,,,,,,,,,

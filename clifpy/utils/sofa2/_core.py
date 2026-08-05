@@ -1,0 +1,1013 @@
+"""Core orchestration functions for SOFA-2 scoring.
+
+This module contains the main public functions:
+- calculate_sofa2: Calculate SOFA-2 scores for a cohort with time windows
+- calculate_sofa2_daily: Calculate daily SOFA-2 scores with carry-forward logic
+"""
+
+from __future__ import annotations
+
+import platform
+
+import pandas as pd
+import polars as pl
+import duckdb
+from duckdb import DuckDBPyRelation
+
+from ._utils import (
+    SOFA2Config,
+    _expand_to_daily_windows,
+    _validate_id_name,
+    _extract_id_mapping,
+    _remap_clif_rel,
+    _dedup_cohort,
+)
+from ._brain import _calculate_brain_subscore
+from ._resp import _calculate_resp_subscore
+from ._cv import _calculate_cv_subscore
+from ._liver import _calculate_liver_subscore
+from ._kidney import _calculate_kidney_subscore
+from ._hemo import _calculate_hemo_subscore
+from ._perf import StepTimer, NoOpTimer, _cleanup_temp_tables, _materialize_subscore, _drop_temp_table, _register_temp_table, _with_duckdb_config
+from clifpy.utils._duckdb_config import DuckDBResourceConfig
+from clifpy.utils.logging_config import get_logger
+
+logger = get_logger('utils.sofa2.core')
+
+
+def _load_ecmo_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load ecmo_mcs table; return empty sentinel if unavailable.
+
+    Many sites have not built the ECMO/MCS table yet. Since ECMO scoring
+    only affects a small subset of patients (score 4 in resp and/or CV),
+    the pipeline should gracefully skip ECMO scoring when the table is
+    unavailable rather than crashing.
+
+    Returns an empty DuckDB relation with the correct schema when:
+    1. The file doesn't exist (FileNotFoundError)
+    2. The file exists but is missing required columns
+
+    The empty relation flows harmlessly through the downstream LEFT JOIN +
+    COALESCE pattern, resulting in all ECMO-related flags defaulting to 0.
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm', 'mcs_group', 'ecmo_configuration_category'}
+    EMPTY_ECMO = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMPTZ AS recorded_dttm
+            , NULL::VARCHAR AS mcs_group
+            , NULL::VARCHAR AS ecmo_configuration_category
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('ecmo_mcs', config_path=clif_config_path, return_rel=True)
+    except Exception as e:
+        logger.warning(f"ECMO/MCS table not available ({e}). ECMO scoring will be skipped.")
+        return EMPTY_ECMO
+
+    # Validate required columns exist
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"ECMO/MCS table missing required columns: {missing}. ECMO scoring will be skipped."
+        )
+        return EMPTY_ECMO
+
+    return rel
+
+
+def _load_intm_meds_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load medication_admin_intermittent table; return empty sentinel if unavailable.
+
+    Many sites may not have the intermittent medication table. It is used for:
+    - Sedation detection (intermittent sedation drugs)
+    - Delirium drug detection (haloperidol, quetiapine, ziprasidone, olanzapine)
+
+    The empty relation flows harmlessly — no intermittent drugs are detected,
+    and only continuous drug data is used for scoring.
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'admin_dttm', 'med_category', 'med_dose', 'mar_action_category'}
+    EMPTY_INTM = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMPTZ AS admin_dttm
+            , NULL::VARCHAR AS med_category
+            , NULL::DOUBLE AS med_dose
+            , NULL::VARCHAR AS mar_action_category
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('medication_admin_intermittent', config_path=clif_config_path, return_rel=True)
+    except Exception as e:
+        logger.warning(f"Intermittent meds table not available ({e}). Only continuous meds will be used.")
+        return EMPTY_INTM
+
+    # Validate required columns exist
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"Intermittent meds table missing required columns: {missing}. Only continuous meds will be used."
+        )
+        return EMPTY_INTM
+
+    return rel
+
+
+def _load_output_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load output table; return empty sentinel if unavailable.
+
+    Used for urine output scoring in the kidney subscore. When unavailable,
+    kidney scoring falls back to creatinine-only (existing behavior).
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm', 'output_volume', 'output_group'}
+    EMPTY = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMPTZ AS recorded_dttm
+            , NULL::DOUBLE AS output_volume
+            , NULL::VARCHAR AS output_group
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('output', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm', 'output_volume', 'output_group'],
+            filters={'output_group': 'urine'})
+    except Exception as e:
+        logger.warning(f"Output table not available ({e}). UO scoring will be skipped.")
+        return EMPTY
+
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"Output table missing required columns: {missing}. UO scoring will be skipped."
+        )
+        return EMPTY
+
+    return rel
+
+
+def _load_input_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load input table; return empty sentinel if unavailable.
+
+    Used for bladder irrigation subtraction in UO scoring. When unavailable,
+    irrigation volumes are not subtracted (UO = gross output only).
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm', 'input_volume', 'input_category'}
+    EMPTY = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMPTZ AS recorded_dttm
+            , NULL::DOUBLE AS input_volume
+            , NULL::VARCHAR AS input_category
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('input', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm', 'input_volume', 'input_category'],
+            filters={'input_category': 'flush_irrigation_urine'})
+    except Exception as e:
+        logger.warning(f"Input table not available ({e}). Irrigation subtraction will be skipped.")
+        return EMPTY
+
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"Input table missing required columns: {missing}. Irrigation subtraction will be skipped."
+        )
+        return EMPTY
+
+    return rel
+
+
+def _load_crrt_optional(clif_config_path: str | None) -> DuckDBPyRelation:
+    """Try to load crrt_therapy table; return empty sentinel if unavailable.
+
+    Many sites may not have the CRRT therapy table. It is used for:
+    - RRT detection in the kidney subscore (automatic score 4)
+
+    The empty relation flows harmlessly through the downstream LEFT JOIN +
+    COALESCE pattern in _flag_rrt(), resulting in has_rrt defaulting to 0.
+    The kidney subscore still works correctly based on creatinine alone.
+    """
+    from clifpy import load_data
+
+    REQUIRED_COLS = {'hospitalization_id', 'recorded_dttm'}
+    EMPTY_CRRT = duckdb.sql("""
+        SELECT
+            NULL::VARCHAR AS hospitalization_id
+            , NULL::TIMESTAMPTZ AS recorded_dttm
+        WHERE false
+    """)
+
+    try:
+        rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm'])
+    except Exception as e:
+        logger.warning(f"CRRT therapy table not available ({e}). RRT scoring will be skipped.")
+        return EMPTY_CRRT
+
+    # Validate required columns exist
+    missing = REQUIRED_COLS - set(rel.columns)
+    if missing:
+        logger.warning(
+            f"CRRT therapy table missing required columns: {missing}. RRT scoring will be skipped."
+        )
+        return EMPTY_CRRT
+
+    return rel
+
+
+def calculate_sofa2(
+    cohort_df: pd.DataFrame | DuckDBPyRelation,
+    clif_config_path: str | None = None,
+    return_rel: bool = False,
+    dev: bool = False,
+    *,
+    sofa2_config: SOFA2Config | None = None,
+    perf_profile: bool = False,
+    id_name: str = 'hospitalization_id',
+    id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
+    memory_limit: str | None = None,
+    duckdb_config: DuckDBResourceConfig | None = None,
+) -> pd.DataFrame | DuckDBPyRelation | tuple:
+    """
+    Calculate SOFA-2 scores for a cohort with time windows.
+
+    Parameters
+    ----------
+    cohort_df : pd.DataFrame | DuckDBPyRelation
+        Cohort with columns [id_name, start_dttm, end_dttm].
+        One row per scoring window. Windows for the same id_name must be non-overlapping.
+        When id_name != 'hospitalization_id' and id_mapping is not provided,
+        cohort must also contain 'hospitalization_id' for CLIF table remapping.
+    clif_config_path : str, optional
+        Path to CLIF config file for data loading.
+    return_rel : bool, default False
+        If True, return DuckDB relation for lazy evaluation.
+    dev : bool, default False
+        If True, return (results, intermediates) where intermediates is a dict
+        of DuckDBPyRelation objects. Call .df() on any intermediate to materialize.
+    sofa2_config : SOFA2Config, optional
+        Configuration object with calculation parameters.
+        If None, uses default values.
+    id_name : str, default 'hospitalization_id'
+        Identity column name. Use 'encounter_block' for stitched encounters
+        or any alternative grouping column present in the cohort.
+    id_mapping : pd.DataFrame | DuckDBPyRelation, optional
+        Mapping from hospitalization_id to id_name (e.g. encounter_mapping
+        from stitch_encounters()). Columns: [hospitalization_id, {id_name}].
+        If provided, used directly for CLIF table remapping (skips internal
+        extraction). If omitted, extracted from cohort via SELECT DISTINCT.
+    memory_limit : str, optional
+        **Deprecated** — use ``duckdb_config`` instead.
+        DuckDB memory limit (e.g., '8GB', '16GB'). When set, DuckDB will
+        spill to disk instead of exceeding this limit.
+    duckdb_config : DuckDBResourceConfig, optional
+        DuckDB resource limits (memory, disk, batching). When provided,
+        supersedes ``memory_limit``. Default: None (DuckDB system defaults).
+
+    Returns
+    -------
+    pd.DataFrame | DuckDBPyRelation | tuple
+        If dev=False: DataFrame or relation with columns:
+            - {id_name}, start_dttm, end_dttm (from input)
+            - sofa2_total (sum of subscores, 0-24)
+            - sofa2_brain, sofa2_resp, sofa2_cv, sofa2_liver, sofa2_kidney, sofa2_hemo
+            - Brain: gcs_min, gcs_type, gcs_min_dttm_offset, has_sedation,
+              sedation_start_dttm_offset, sedation_end_dttm_offset,
+              has_delirium_drug, delirium_drug_dttm_offset
+            - Resp: pf_ratio, sf_ratio, has_advanced_support, device_category,
+              pao2_at_worst, pao2_dttm_offset, spo2_at_worst, spo2_dttm_offset,
+              fio2_at_worst, fio2_dttm_offset, has_ecmo, ecmo_dttm_offset
+            - CV: map_min, map_min_dttm_offset, norepi_epi_maxsum,
+              norepi_epi_maxsum_dttm_offset, dopa_max, dopa_max_dttm_offset,
+              has_other_non_dopa, has_other_vaso, has_mechanical_cv_support,
+              mechanical_cv_dttm_offset
+            - Liver: bilirubin_total, bilirubin_dttm_offset
+            - Kidney: creatinine, creatinine_dttm_offset, potassium,
+              potassium_dttm_offset, ph, ph_type, ph_dttm_offset, bicarbonate,
+              bicarbonate_dttm_offset, has_rrt, rrt_dttm_offset, rrt_criteria_met,
+              uo_score, uo_rate_6hr, uo_rate_12hr, uo_rate_24hr,
+              has_uo_oliguria, weight_at_uo
+            - Hemo: platelet_count, platelet_dttm_offset
+        If dev=True: (results, intermediates_dict)
+    """
+    # Backward compat: wrap legacy memory_limit into DuckDBResourceConfig
+    if memory_limit is not None and duckdb_config is None:
+        duckdb_config = DuckDBResourceConfig(memory_limit=memory_limit)
+
+    if duckdb_config is not None:
+        cfg = duckdb_config
+    elif platform.system() == 'Windows':
+        cfg = DuckDBResourceConfig.from_system()
+        logger.info("Windows detected: auto-applying resource limits")
+        for line in cfg.summary().splitlines():
+            logger.info(f"  {line}")
+    else:
+        cfg = DuckDBResourceConfig()
+
+    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size, cfg.threads):
+        # Batching: split large cohorts into chunks to reduce peak memory
+        if (
+            cfg.batch_size
+            and isinstance(cohort_df, pd.DataFrame)
+            and len(cohort_df) > cfg.batch_size
+        ):
+            return _calculate_sofa2_batched(
+                cohort_df, clif_config_path, return_rel, dev,
+                sofa2_config=sofa2_config, perf_profile=perf_profile,
+                id_name=id_name, id_mapping=id_mapping,
+                batch_size=cfg.batch_size,
+            )
+        return _calculate_sofa2_impl(
+            cohort_df, clif_config_path, return_rel, dev,
+            sofa2_config=sofa2_config, perf_profile=perf_profile,
+            id_name=id_name, id_mapping=id_mapping,
+        )
+
+
+def _calculate_sofa2_batched(
+    cohort_df, clif_config_path, return_rel, dev,
+    *, sofa2_config, perf_profile, id_name, id_mapping, batch_size,
+):
+    """Split cohort into batches, run _calculate_sofa2_impl per batch, concat."""
+    chunks = [cohort_df[i:i + batch_size] for i in range(0, len(cohort_df), batch_size)]
+    logger.info(f"Batching: {len(cohort_df)} rows -> {len(chunks)} batches of <={batch_size}")
+
+    all_results = []
+    last_timer = None
+    last_cv_timer = None
+
+    for i, chunk in enumerate(chunks):
+        logger.info(f"Batch {i + 1}/{len(chunks)}: {len(chunk)} rows")
+        out = _calculate_sofa2_impl(
+            chunk, clif_config_path, return_rel=False, dev=False,
+            sofa2_config=sofa2_config, perf_profile=perf_profile,
+            id_name=id_name, id_mapping=id_mapping,
+        )
+        if perf_profile:
+            result, last_timer, last_cv_timer = out
+        else:
+            result = out
+        all_results.append(result)
+
+    combined = pd.concat(all_results, ignore_index=True)
+
+    if return_rel:
+        combined = duckdb.sql("SELECT * FROM combined")
+    if perf_profile:
+        return combined, last_timer, last_cv_timer
+    return combined
+
+
+def _calculate_sofa2_impl(
+    cohort_df, clif_config_path, return_rel, dev,
+    *, sofa2_config, perf_profile, id_name, id_mapping,
+):
+    """Inner implementation of calculate_sofa2 (separated for resource config wrapping)."""
+    from clifpy import load_data
+
+    cfg = sofa2_config or SOFA2Config()
+    intermediates = {} if dev else None
+    timer = StepTimer() if perf_profile else NoOpTimer()
+
+    logger.info("Starting SOFA-2 calculation...")
+    logger.info(f"Config: {cfg}")
+
+    # Materialize cohort into DuckDB temp table for optimal join planning.
+    # A lazy duckdb.sql() wrapper is insufficient for Polars — DuckDB's Polars
+    # scan path lacks statistics, causing nested-loop joins on temporal windows.
+    if isinstance(cohort_df, (pd.DataFrame, pl.DataFrame)):
+        duckdb.execute("CREATE OR REPLACE TEMP TABLE _sofa2_cohort AS SELECT * FROM cohort_df")
+        _register_temp_table("_sofa2_cohort")
+        cohort_rel = duckdb.table("_sofa2_cohort")
+    else:
+        cohort_rel = cohort_df
+
+    # =========================================================================
+    # ID remapping (when id_name != 'hospitalization_id')
+    # =========================================================================
+    if id_name != 'hospitalization_id':
+        _validate_id_name(cohort_rel, id_name, id_mapping_provided=id_mapping is not None)
+        if id_mapping is None:
+            logger.info(f"Extracting hospitalization_id -> {id_name} mapping from cohort...")
+            id_mapping = _extract_id_mapping(cohort_rel, id_name)
+        logger.info(f"Deduplicating cohort to ({id_name}, start_dttm, end_dttm)...")
+        cohort_rel = _dedup_cohort(cohort_rel, id_name).df()
+
+    # =========================================================================
+    # Load CLIF tables (with category predicate pushdown into parquet scan)
+    # =========================================================================
+    with timer.step("load_tables"):
+        logger.info("Loading CLIF tables (vitals, labs, meds, respiratory_support, crrt_therapy)...")
+        labs_rel = load_data('labs', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'lab_category', 'lab_collect_dttm', 'lab_value_numeric'],
+            filters={'lab_category': [
+                'platelet_count', 'bilirubin_total', 'creatinine',
+                'potassium', 'ph_arterial', 'ph_venous',
+                'bicarbonate', 'po2_arterial',
+            ]})
+        crrt_rel = _load_crrt_optional(clif_config_path)
+        assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'assessment_category', 'recorded_dttm', 'numerical_value'],
+            filters={'assessment_category': ['gcs_total', 'gcs_motor']})
+        vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'vital_category', 'recorded_dttm', 'vital_value'],
+            filters={'vital_category': ['spo2', 'map', 'weight_kg']})
+        cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_dose', 'med_dose_unit', 'mar_action_category'])
+        resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True,
+            columns=['hospitalization_id', 'recorded_dttm', 'device_category', 'mode_category', 'fio2_set', 'lpm_set'])
+        ecmo_rel = _load_ecmo_optional(clif_config_path)
+        intm_meds_rel = _load_intm_meds_optional(clif_config_path)
+        output_rel = _load_output_optional(clif_config_path)
+        input_rel = _load_input_optional(clif_config_path)
+
+    # Remap CLIF tables when using alternative ID
+    if id_mapping is not None:
+        logger.info(f"Remapping CLIF tables: hospitalization_id -> {id_name}...")
+        labs_rel = _remap_clif_rel(labs_rel, id_name, id_mapping)
+        crrt_rel = _remap_clif_rel(crrt_rel, id_name, id_mapping)
+        assessments_rel = _remap_clif_rel(assessments_rel, id_name, id_mapping)
+        vitals_rel = _remap_clif_rel(vitals_rel, id_name, id_mapping)
+        cont_meds_rel = _remap_clif_rel(cont_meds_rel, id_name, id_mapping)
+        resp_rel = _remap_clif_rel(resp_rel, id_name, id_mapping)
+        ecmo_rel = _remap_clif_rel(ecmo_rel, id_name, id_mapping)
+        intm_meds_rel = _remap_clif_rel(intm_meds_rel, id_name, id_mapping)
+        output_rel = _remap_clif_rel(output_rel, id_name, id_mapping)
+        input_rel = _remap_clif_rel(input_rel, id_name, id_mapping)
+
+    # =========================================================================
+    # Materialize CLIF tables filtered to cohort (Phase 1+2 optimization)
+    # =========================================================================
+    # Materializing breaks the lazy relation chains and gives DuckDB concrete
+    # statistics (row count, min/max) for optimal join planning. Without this,
+    # each subscore re-scans the full parquet file through nested lazy relations
+    # — labs_rel alone is referenced 8 times across 4 subscores.
+    # SEMI JOIN filters to cohort patients, reducing downstream table sizes by
+    # ~99% for small cohorts (n=100 out of 10K hospitalizations).
+    with timer.step("materialize_clif"):
+        logger.info("Materializing CLIF tables (filtered to cohort)...")
+        clif_tables = {
+            'labs': labs_rel,
+            'vitals': vitals_rel,
+            'assessments': assessments_rel,
+            'cont_meds': cont_meds_rel,
+            'resp': resp_rel,
+            'crrt': crrt_rel,
+            'ecmo': ecmo_rel,
+            'intm_meds': intm_meds_rel,
+            'output': output_rel,
+            'input': input_rel,
+        }
+        for tbl_name, rel in clif_tables.items():
+            table_id = f"_clif_{tbl_name}"
+            duckdb.execute(f"""
+                CREATE OR REPLACE TEMP TABLE {table_id} AS
+                FROM rel t
+                SEMI JOIN cohort_rel c ON t.{id_name} = c.{id_name}
+                SELECT t.*
+            """)
+            _register_temp_table(table_id)
+
+        labs_rel = duckdb.table("_clif_labs")
+        vitals_rel = duckdb.table("_clif_vitals")
+        assessments_rel = duckdb.table("_clif_assessments")
+        cont_meds_rel = duckdb.table("_clif_cont_meds")
+        resp_rel = duckdb.table("_clif_resp")
+        crrt_rel = duckdb.table("_clif_crrt")
+        ecmo_rel = duckdb.table("_clif_ecmo")
+        intm_meds_rel = duckdb.table("_clif_intm_meds")
+        output_rel = duckdb.table("_clif_output")
+        input_rel = duckdb.table("_clif_input")
+        # Extract weight_rel from vitals for UO rate calculation
+        weight_rel = duckdb.sql(f"""
+            FROM vitals_rel
+            SELECT *
+            WHERE vital_category = 'weight_kg' AND vital_value IS NOT NULL
+        """)
+        logger.info("CLIF tables materialized")
+
+    # =========================================================================
+    # Calculate subscores
+    # =========================================================================
+    logger.info("Calculating all 6 organ subscores in sequence...")
+
+    # Brain subscore
+    cv_timer = StepTimer() if perf_profile else None
+    with timer.step("brain"):
+        if dev:
+            brain_score, brain_intermediates = _calculate_brain_subscore(
+                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg,
+                dev=True, id_name=id_name,
+            )
+            intermediates.update({f'brain_{k}': v for k, v in brain_intermediates.items()})
+            intermediates['brain_score'] = brain_score
+        else:
+            brain_score = _calculate_brain_subscore(
+                cohort_rel, assessments_rel, cont_meds_rel, intm_meds_rel, cfg,
+                id_name=id_name,
+            )
+        brain_score = _materialize_subscore("brain", brain_score)
+
+    # Respiratory subscore
+    with timer.step("resp"):
+        if dev:
+            resp_score, resp_intermediates = _calculate_resp_subscore(
+                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg,
+                dev=True, id_name=id_name,
+            )
+            intermediates.update({f'resp_{k}': v for k, v in resp_intermediates.items()})
+            intermediates['resp_score'] = resp_score
+        else:
+            resp_score = _calculate_resp_subscore(
+                cohort_rel, resp_rel, labs_rel, vitals_rel, ecmo_rel, cfg,
+                id_name=id_name,
+            )
+        resp_score = _materialize_subscore("resp", resp_score)
+
+    # Cardiovascular subscore
+    with timer.step("cv"):
+        if dev:
+            cv_score, cv_intermediates = _calculate_cv_subscore(
+                cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg,
+                dev=True, id_name=id_name, _timer=cv_timer,
+            )
+            intermediates.update({f'cv_{k}': v for k, v in cv_intermediates.items()})
+            intermediates['cv_score'] = cv_score
+        else:
+            cv_score = _calculate_cv_subscore(
+                cohort_rel, cont_meds_rel, vitals_rel, ecmo_rel, cfg,
+                id_name=id_name, _timer=cv_timer,
+            )
+        cv_score = _materialize_subscore("cv", cv_score)
+        # CV intermediates no longer referenced — free DuckDB memory
+        for t in ["pressor_events_raw", "pressor_events", "epi_ne_wide", "epi_ne_duration"]:
+            _drop_temp_table(t)
+
+    # Liver subscore
+    with timer.step("liver"):
+        if dev:
+            liver_score, liver_intermediates = _calculate_liver_subscore(
+                cohort_rel, labs_rel, cfg, dev=True, id_name=id_name,
+            )
+            intermediates.update({f'liver_{k}': v for k, v in liver_intermediates.items()})
+            intermediates['liver_score'] = liver_score
+        else:
+            liver_score = _calculate_liver_subscore(
+                cohort_rel, labs_rel, cfg, id_name=id_name,
+            )
+        liver_score = _materialize_subscore("liver", liver_score)
+
+    # Kidney subscore
+    with timer.step("kidney"):
+        if dev:
+            kidney_score, kidney_intermediates = _calculate_kidney_subscore(
+                cohort_rel, labs_rel, crrt_rel, cfg,
+                output_rel=output_rel, input_rel=input_rel, weight_rel=weight_rel,
+                dev=True, id_name=id_name,
+            )
+            intermediates.update({f'kidney_{k}': v for k, v in kidney_intermediates.items()})
+            intermediates['kidney_score'] = kidney_score
+        else:
+            kidney_score = _calculate_kidney_subscore(
+                cohort_rel, labs_rel, crrt_rel, cfg,
+                output_rel=output_rel, input_rel=input_rel, weight_rel=weight_rel,
+                id_name=id_name,
+            )
+        kidney_score = _materialize_subscore("kidney", kidney_score)
+
+    # Hemostasis subscore
+    with timer.step("hemo"):
+        if dev:
+            hemo_score, hemo_intermediates = _calculate_hemo_subscore(
+                cohort_rel, labs_rel, cfg, dev=True, id_name=id_name,
+            )
+            intermediates.update({f'hemo_{k}': v for k, v in hemo_intermediates.items()})
+            intermediates['hemo_score'] = hemo_score
+        else:
+            hemo_score = _calculate_hemo_subscore(
+                cohort_rel, labs_rel, cfg, id_name=id_name,
+            )
+        hemo_score = _materialize_subscore("hemo", hemo_score)
+
+    # =========================================================================
+    # Combine all subscores
+    # =========================================================================
+    with timer.step("assembly"):
+        logger.info("Combining subscores into final SOFA-2 total (0-24 scale)...")
+        sofa_scores = duckdb.sql(f"""
+            FROM cohort_rel c
+            LEFT JOIN hemo_score h USING ({id_name}, start_dttm)
+            LEFT JOIN liver_score li USING ({id_name}, start_dttm)
+            LEFT JOIN kidney_score k USING ({id_name}, start_dttm)
+            LEFT JOIN brain_score b USING ({id_name}, start_dttm)
+            LEFT JOIN cv_score cv USING ({id_name}, start_dttm)
+            LEFT JOIN resp_score resp USING ({id_name}, start_dttm)
+            SELECT
+                c.{id_name}
+                , c.start_dttm
+                , c.end_dttm
+                -- SOFA-2 total and subscores
+                , sofa2_total: COALESCE(b.sofa2_brain, 0)
+                    + COALESCE(resp.sofa2_resp, 0)
+                    + COALESCE(cv.sofa2_cv, 0)
+                    + COALESCE(li.sofa2_liver, 0)
+                    + COALESCE(k.sofa2_kidney, 0)
+                    + COALESCE(h.sofa2_hemo, 0)
+                , b.sofa2_brain
+                , resp.sofa2_resp
+                , cv.sofa2_cv
+                , li.sofa2_liver
+                , k.sofa2_kidney
+                , h.sofa2_hemo
+                -- Brain scoring variables
+                , b.gcs_min
+                , b.gcs_type
+                , b.gcs_min_dttm_offset
+                , b.has_sedation
+                , b.sedation_start_dttm_offset
+                , b.sedation_end_dttm_offset
+                , b.has_delirium_drug
+                , b.delirium_drug_dttm_offset
+                -- Respiratory scoring variables
+                , resp.pf_ratio
+                , resp.sf_ratio
+                , resp.has_advanced_support
+                , resp.device_category
+                , resp.pao2_at_worst
+                , resp.pao2_dttm_offset
+                , resp.spo2_at_worst
+                , resp.spo2_dttm_offset
+                , resp.fio2_at_worst
+                , resp.fio2_dttm_offset
+                , resp.has_ecmo
+                , resp.ecmo_dttm_offset
+                -- Cardiovascular scoring variables
+                , cv.map_min
+                , cv.map_min_dttm_offset
+                , cv.norepi_epi_maxsum
+                , cv.norepi_epi_maxsum_dttm_offset
+                , cv.dopa_max
+                , cv.dopa_max_dttm_offset
+                , cv.has_other_non_dopa
+                , cv.has_other_vaso
+                , cv.has_mechanical_cv_support
+                , cv.mechanical_cv_dttm_offset
+                -- Liver scoring variables
+                , li.bilirubin_total
+                , li.bilirubin_dttm_offset
+                -- Kidney scoring variables
+                , k.creatinine
+                , k.creatinine_dttm_offset
+                , k.potassium
+                , k.potassium_dttm_offset
+                , k.ph
+                , k.ph_type
+                , k.ph_dttm_offset
+                , k.bicarbonate
+                , k.bicarbonate_dttm_offset
+                , k.has_rrt
+                , k.rrt_dttm_offset
+                , k.rrt_criteria_met
+                -- Kidney UO scoring variables
+                , k.uo_score
+                , k.uo_rate_6hr
+                , k.uo_rate_12hr
+                , k.uo_rate_24hr
+                , k.has_uo_oliguria
+                , k.weight_at_uo
+                -- Hemostasis scoring variables
+                , h.platelet_count
+                , h.platelet_dttm_offset
+        """)
+
+    logger.info("SOFA-2 calculation complete")
+
+    # Return based on options
+    # NOTE: Cleanup temp tables after .df() forces evaluation of the lazy DAG.
+    # When return_rel=True, skip cleanup — caller owns evaluation lifetime.
+    if dev:
+        if return_rel:
+            result = sofa_scores, intermediates
+        else:
+            result = sofa_scores.df(), intermediates
+            _cleanup_temp_tables()
+    elif return_rel:
+        result = sofa_scores
+    else:
+        result = sofa_scores.df()
+        _cleanup_temp_tables()
+
+    if perf_profile:
+        return result, timer, cv_timer
+    return result
+
+
+def calculate_sofa2_daily(
+    cohort_df: pd.DataFrame | DuckDBPyRelation,
+    clif_config_path: str | None = None,
+    return_rel: bool = False,
+    *,
+    sofa2_config: SOFA2Config | None = None,
+    perf_profile: bool = False,
+    id_name: str = 'hospitalization_id',
+    id_mapping: pd.DataFrame | DuckDBPyRelation | None = None,
+    memory_limit: str | None = None,
+    duckdb_config: DuckDBResourceConfig | None = None,
+) -> pd.DataFrame | DuckDBPyRelation:
+    """
+    Calculate daily SOFA-2 scores with carry-forward for missing data.
+
+    Accepts input windows of any duration >= 24 hours and automatically breaks
+    them into complete 24-hour chunks. Partial days at the end are dropped.
+
+    Implements footnote b: "for missing data after day 1, carry forward
+    the last observation, the rationale being that nonmeasurement suggests stability."
+
+    - Day 1 missing values -> score as 0
+
+    - Day 2+ missing values -> forward-fill from last observation
+
+    Parameters
+    ----------
+    cohort_df : pd.DataFrame | DuckDBPyRelation
+        Cohort with columns [id_name, start_dttm, end_dttm].
+        Windows can be any duration >= 24 hours; will be broken into
+        complete 24-hour chunks (partial days dropped).
+        When id_name != 'hospitalization_id' and id_mapping is not provided,
+        cohort must also contain 'hospitalization_id' for CLIF table remapping.
+    clif_config_path : str, optional
+        Path to CLIF config file for data loading.
+    return_rel : bool, default False
+        If True, return DuckDB relation for lazy evaluation.
+    sofa2_config : SOFA2Config, optional
+        Configuration object with calculation parameters.
+    id_name : str, default 'hospitalization_id'
+        Identity column name. Use 'encounter_block' for stitched encounters
+        or any alternative grouping column present in the cohort.
+    id_mapping : pd.DataFrame | DuckDBPyRelation, optional
+        Mapping from hospitalization_id to id_name. See calculate_sofa2().
+    memory_limit : str, optional
+        **Deprecated** — use ``duckdb_config`` instead.
+        DuckDB memory limit (e.g., '8GB', '16GB'). When set, DuckDB will
+        spill to disk instead of exceeding this limit.
+    duckdb_config : DuckDBResourceConfig, optional
+        DuckDB resource limits (memory, disk, batching). When provided,
+        supersedes ``memory_limit``. Default: None (DuckDB system defaults).
+
+    Returns
+    -------
+    pd.DataFrame | DuckDBPyRelation
+        Same columns as calculate_sofa2 output, plus nth_day.
+        Column order: {id_name}, start_dttm, end_dttm, nth_day,
+        sofa2_total, sofa2_brain, sofa2_resp, sofa2_cv, sofa2_liver,
+        sofa2_kidney, sofa2_hemo, then all scoring variables.
+        Subscores are carried forward; scoring variables are raw per-window.
+
+    Notes
+    -----
+    - Windows < 24 hours produce no output rows
+
+    - Partial days at the end are dropped
+
+    - Example: 47h window → 1 row (nth_day=1); 49h window → 2 rows (nth_day=1, 2)
+    """
+    # Backward compat: wrap legacy memory_limit into DuckDBResourceConfig
+    if memory_limit is not None and duckdb_config is None:
+        duckdb_config = DuckDBResourceConfig(memory_limit=memory_limit)
+
+    if duckdb_config is not None:
+        cfg = duckdb_config
+    elif platform.system() == 'Windows':
+        cfg = DuckDBResourceConfig.from_system()
+        logger.info("Windows detected: auto-applying resource limits")
+        for line in cfg.summary().splitlines():
+            logger.info(f"  {line}")
+    else:
+        cfg = DuckDBResourceConfig()
+
+    with _with_duckdb_config(cfg.memory_limit, cfg.temp_directory, cfg.max_temp_directory_size, cfg.threads):
+        return _calculate_sofa2_daily_impl(
+            cohort_df, clif_config_path, return_rel,
+            sofa2_config=sofa2_config, perf_profile=perf_profile,
+            id_name=id_name, id_mapping=id_mapping,
+        )
+
+
+def _calculate_sofa2_daily_impl(
+    cohort_df, clif_config_path, return_rel,
+    *, sofa2_config, perf_profile, id_name, id_mapping,
+):
+    """Inner implementation of calculate_sofa2_daily (separated for resource config wrapping)."""
+    cfg = sofa2_config or SOFA2Config()
+    rrt_carryforward_days = cfg.rrt_carryforward_days
+
+    logger.info("Starting daily SOFA-2 calculation...")
+    timer = StepTimer() if perf_profile else NoOpTimer()
+
+    # Convert to relation if needed
+    if isinstance(cohort_df, pd.DataFrame):
+        cohort_rel = duckdb.sql("SELECT * FROM cohort_df")
+    else:
+        cohort_rel = cohort_df
+
+    # Extract ID mapping before expansion (when using alternative ID)
+    if id_name != 'hospitalization_id':
+        _validate_id_name(cohort_rel, id_name, id_mapping_provided=id_mapping is not None)
+        if id_mapping is None:
+            logger.info(f"Extracting hospitalization_id -> {id_name} mapping from cohort...")
+            id_mapping = _extract_id_mapping(cohort_rel, id_name)
+        logger.info(f"Deduplicating cohort to ({id_name}, start_dttm, end_dttm)...")
+        cohort_rel = _dedup_cohort(cohort_rel, id_name).df()
+
+    # Step 1: Expand arbitrary windows to complete 24h periods
+    with timer.step("expand_windows"):
+        logger.info("Expanding windows to 24h periods...")
+        # Materialize expansion to DataFrame so calculate_sofa2() gets
+        # concrete cardinality — prevents DuckDB optimizer from choking on
+        # deeply nested lazy subqueries (observed 5x slowdown without this).
+        expanded_cohort = _expand_to_daily_windows(cohort_rel, id_name=id_name).df()
+        logger.info(f"Expanded cohort: {len(expanded_cohort)} rows (from input cohort)")
+
+    # Step 2: Calculate raw scores for each 24h window
+    with timer.step("calculate_sofa2"):
+        if perf_profile:
+            raw_result, inner_timer, inner_cv_timer = calculate_sofa2(
+                expanded_cohort,
+                clif_config_path=clif_config_path,
+                return_rel=False,
+                dev=False,
+                sofa2_config=sofa2_config,
+                perf_profile=True,
+                id_name=id_name,
+                id_mapping=id_mapping,
+            )
+            raw_scores = raw_result
+        else:
+            raw_scores = calculate_sofa2(
+                expanded_cohort,
+                clif_config_path=clif_config_path,
+                return_rel=False,
+                dev=False,
+                sofa2_config=sofa2_config,
+                id_name=id_name,
+                id_mapping=id_mapping,
+            )
+    logger.info(f"Raw scores: {len(raw_scores)} rows")
+
+    # Step 3: Join back to get nth_day and apply carry-forward logic
+    logger.info("Applying carry-forward logic...")
+    filled_scores = duckdb.sql(f"""
+        WITH with_nth_day AS (
+            -- Join raw scores with expanded cohort to get nth_day
+            FROM raw_scores r
+            LEFT JOIN expanded_cohort e USING ({id_name}, start_dttm)
+            SELECT
+                r.*
+                , e.nth_day
+                -- Most recent day with actual RRT (for 3-day carry-forward)
+                , MAX(CASE WHEN has_rrt = 1 THEN e.nth_day END) OVER (
+                    PARTITION BY r.{id_name}
+                    ORDER BY r.start_dttm
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) AS last_rrt_day
+        ),
+        with_carryforward AS (
+            FROM with_nth_day
+            SELECT *
+                -- For each subscore, fill NULLs with last non-null value (day 2+)
+                -- Day 1 NULLs become 0 at the end
+                , CASE WHEN nth_day = 1 THEN sofa2_brain
+                       ELSE COALESCE(sofa2_brain, LAST_VALUE(sofa2_brain IGNORE NULLS) OVER w)
+                  END AS sofa2_brain_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_resp
+                       ELSE COALESCE(sofa2_resp, LAST_VALUE(sofa2_resp IGNORE NULLS) OVER w)
+                  END AS sofa2_resp_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_cv
+                       ELSE COALESCE(sofa2_cv, LAST_VALUE(sofa2_cv IGNORE NULLS) OVER w)
+                  END AS sofa2_cv_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_liver
+                       ELSE COALESCE(sofa2_liver, LAST_VALUE(sofa2_liver IGNORE NULLS) OVER w)
+                  END AS sofa2_liver_filled
+                -- RRT 3-day carry-forward: override to 4 within window, then standard fill
+                , CASE
+                    WHEN last_rrt_day IS NOT NULL
+                         AND nth_day - last_rrt_day < {rrt_carryforward_days}
+                    THEN 4
+                    WHEN nth_day = 1 THEN sofa2_kidney
+                    ELSE COALESCE(sofa2_kidney, LAST_VALUE(sofa2_kidney IGNORE NULLS) OVER w)
+                  END AS sofa2_kidney_filled
+                , CASE WHEN nth_day = 1 THEN sofa2_hemo
+                       ELSE COALESCE(sofa2_hemo, LAST_VALUE(sofa2_hemo IGNORE NULLS) OVER w)
+                  END AS sofa2_hemo_filled
+            WINDOW w AS (
+                PARTITION BY {id_name}
+                ORDER BY start_dttm
+                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            )
+        )
+        -- Fill day 1 NULLs with 0, recalculate total from carried-forward subscores
+        FROM with_carryforward
+        SELECT
+            {id_name}
+            , start_dttm
+            , end_dttm
+            , nth_day
+            -- SOFA-2 total and subscores (carried forward)
+            , sofa2_total: COALESCE(sofa2_brain_filled, 0)
+                + COALESCE(sofa2_resp_filled, 0)
+                + COALESCE(sofa2_cv_filled, 0)
+                + COALESCE(sofa2_liver_filled, 0)
+                + COALESCE(sofa2_kidney_filled, 0)
+                + COALESCE(sofa2_hemo_filled, 0)
+            , sofa2_brain: COALESCE(sofa2_brain_filled, 0)
+            , sofa2_resp: COALESCE(sofa2_resp_filled, 0)
+            , sofa2_cv: COALESCE(sofa2_cv_filled, 0)
+            , sofa2_liver: COALESCE(sofa2_liver_filled, 0)
+            , sofa2_kidney: COALESCE(sofa2_kidney_filled, 0)
+            , sofa2_hemo: COALESCE(sofa2_hemo_filled, 0)
+            -- Brain scoring variables
+            , gcs_min
+            , gcs_type
+            , gcs_min_dttm_offset
+            , has_sedation
+            , sedation_start_dttm_offset
+            , sedation_end_dttm_offset
+            , has_delirium_drug
+            , delirium_drug_dttm_offset
+            -- Respiratory scoring variables
+            , pf_ratio
+            , sf_ratio
+            , has_advanced_support
+            , device_category
+            , pao2_at_worst
+            , pao2_dttm_offset
+            , spo2_at_worst
+            , spo2_dttm_offset
+            , fio2_at_worst
+            , fio2_dttm_offset
+            , has_ecmo
+            , ecmo_dttm_offset
+            -- Cardiovascular scoring variables
+            , map_min
+            , map_min_dttm_offset
+            , norepi_epi_maxsum
+            , norepi_epi_maxsum_dttm_offset
+            , dopa_max
+            , dopa_max_dttm_offset
+            , has_other_non_dopa
+            , has_other_vaso
+            , has_mechanical_cv_support
+            , mechanical_cv_dttm_offset
+            -- Liver scoring variables
+            , bilirubin_total
+            , bilirubin_dttm_offset
+            -- Kidney scoring variables
+            , creatinine
+            , creatinine_dttm_offset
+            , potassium
+            , potassium_dttm_offset
+            , ph
+            , ph_type
+            , ph_dttm_offset
+            , bicarbonate
+            , bicarbonate_dttm_offset
+            , has_rrt
+            , rrt_dttm_offset
+            , rrt_criteria_met
+            -- Kidney UO scoring variables
+            , uo_score
+            , uo_rate_6hr
+            , uo_rate_12hr
+            , uo_rate_24hr
+            , has_uo_oliguria
+            , weight_at_uo
+            -- Hemostasis scoring variables
+            , platelet_count
+            , platelet_dttm_offset
+    """)
+
+    logger.info("Daily SOFA-2 calculation complete")
+
+    if return_rel:
+        result = filled_scores
+    else:
+        result = filled_scores.df()
+        _cleanup_temp_tables()
+
+    if perf_profile:
+        return result, timer, inner_timer, inner_cv_timer
+    return result
