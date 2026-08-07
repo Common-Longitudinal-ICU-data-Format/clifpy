@@ -58,11 +58,18 @@ columns:
   - benazepril
   - benazepril_hctz
   - betamethasone
+  - bisoprolol
+  - bisoprolol_hctz
   - blinatumomab
   - brexucabtagene_autoleucel
+  - bumetanide
+  - canagliflozin
+  - canagliflozin_metformin
   - candesartan
   - candesartan_hctz
   - captopril
+  - carvedilol
+  - carvedilol_cr
   - caspofungin
   - cefaclor
   - cefadroxil
@@ -94,6 +101,8 @@ columns:
   - cephapirin
   - cephradine
   - chloramphenicol
+  - chlorothiazide
+  - chlorthalidone
   - cidofovir
   - ciltacabtagene_autoleucel
   - cinoxacin
@@ -104,24 +113,33 @@ columns:
   - cloxacillin
   - colistin
   - dalbavancin
+  - dapagliflozin
+  - dapagliflozin_metformin
+  - dapagliflozin_saxagliptin
   - daptomycin
   - delafloxacin
   - dexamethasone
   - diatrizoate
   - diazepam
   - dicloxacillin
+  - digoxin
   - diphenhydramine
   - doripenem
   - dornase_alfa
   - doxycycline
   - elratanamab
+  - empagliflozin
+  - empagliflozin_linagliptin
+  - empagliflozin_metformin
   - enalapril
   - enalapril_hctz
   - epcoritamab
   - epinephrine
+  - eplerenone
   - eprosartan
   - eravacycline
   - ertapenem
+  - ertugliflozin
   - erythromycin
   - etomidate
   - fentanyl
@@ -131,6 +149,7 @@ columns:
   - foscarnet
   - fosfomycin
   - fosinopril
+  - furosemide
   - gadobenate
   - gadobutrol
   - gadodiamide
@@ -143,6 +162,9 @@ columns:
   - gentamicin
   - glofitamab
   - haloperidol
+  - hydralazine
+  - hydralazine_isosorbide
+  - hydrochlorothiazide
   - hydrocortisone
   - hydromorphone
   - hydroxocobalamin
@@ -154,6 +176,7 @@ columns:
   - idecabtagene_vicleucel
   - imipenem
   - imipenem_relebactam
+  - indapamide
   - iobitridol
   - iodixanol
   - iohexol
@@ -165,7 +188,9 @@ columns:
   - irbesartan_hctz
   - isavuconazole
   - isavuconazonium
+  - isosorbide_dinitrate
   - itraconazole
+  - ivabradine
   - kanamycin
   - ketamine
   - lefamulin
@@ -187,6 +212,11 @@ columns:
   - methicillin
   - methylene_blue
   - methylprednisolone
+  - metolazone
+  - metoprolol_succinate
+  - metoprolol_succinate_hctz
+  - metoprolol_tartrate
+  - metoprolol_tartrate_hctz
   - metrizamide
   - metronidazole
   - mezlocillin
@@ -240,6 +270,9 @@ columns:
   - rocuronium
   - sacubitril_valsartan
   - siltuximab
+  - sotagliflozin
+  - spironolactone
+  - spironolactone_hctz
   - streptomycin
   - succinylcholine
   - sulbactam_durlobactam
@@ -262,6 +295,7 @@ columns:
   - tisagenlecleucel
   - tobramycin
   - tocilizumab
+  - torsemide
   - trandolapril
   - trimethoprim
   - trimethoprim_sulfamethoxazole
@@ -273,6 +307,7 @@ columns:
   - valsartan_hctz
   - vancomycin
   - vecuronium
+  - vericiguat
   - voriconazole
 - name: med_group
   data_type: VARCHAR
@@ -285,8 +320,11 @@ columns:
   - antipsychotic
   - anxiolytic
   - car_t
+  - cardiac_glycoside
   - cms_sepsis_qualifying_antibiotics
   - contrast_agent
+  - diabetes
+  - diuretic
   - other
   - paralytics
   - sedation
@@ -410,15 +448,29 @@ med_category_to_group_mapping:
   - anti_hypertensive
   betamethasone:
   - steroid
+  bisoprolol:
+  - anti_hypertensive
+  bisoprolol_hctz:
+  - anti_hypertensive
   blinatumomab:
   - other
   brexucabtagene_autoleucel:
   - car_t
+  bumetanide:
+  - diuretic
+  canagliflozin:
+  - diabetes
+  canagliflozin_metformin:
+  - diabetes
   candesartan:
   - anti_hypertensive
   candesartan_hctz:
   - anti_hypertensive
   captopril:
+  - anti_hypertensive
+  carvedilol:
+  - anti_hypertensive
+  carvedilol_cr:
   - anti_hypertensive
   caspofungin:
   - cms_sepsis_qualifying_antibiotics
@@ -482,6 +534,10 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   chloramphenicol:
   - cms_sepsis_qualifying_antibiotics
+  chlorothiazide:
+  - diuretic
+  chlorthalidone:
+  - diuretic
   cidofovir:
   - cms_sepsis_qualifying_antibiotics
   ciltacabtagene_autoleucel:
@@ -502,6 +558,12 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   dalbavancin:
   - cms_sepsis_qualifying_antibiotics
+  dapagliflozin:
+  - diabetes
+  dapagliflozin_metformin:
+  - diabetes
+  dapagliflozin_saxagliptin:
+  - diabetes
   daptomycin:
   - cms_sepsis_qualifying_antibiotics
   delafloxacin:
@@ -514,6 +576,8 @@ med_category_to_group_mapping:
   - anxiolytic
   dicloxacillin:
   - cms_sepsis_qualifying_antibiotics
+  digoxin:
+  - cardiac_glycoside
   diphenhydramine:
   - other
   doripenem:
@@ -524,6 +588,12 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   elratanamab:
   - other
+  empagliflozin:
+  - diabetes
+  empagliflozin_linagliptin:
+  - diabetes
+  empagliflozin_metformin:
+  - diabetes
   enalapril:
   - anti_hypertensive
   enalapril_hctz:
@@ -532,12 +602,16 @@ med_category_to_group_mapping:
   - other
   epinephrine:
   - vasopressor
+  eplerenone:
+  - anti_hypertensive
   eprosartan:
   - anti_hypertensive
   eravacycline:
   - cms_sepsis_qualifying_antibiotics
   ertapenem:
   - cms_sepsis_qualifying_antibiotics
+  ertugliflozin:
+  - diabetes
   erythromycin:
   - cms_sepsis_qualifying_antibiotics
   etomidate:
@@ -556,6 +630,8 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   fosinopril:
   - anti_hypertensive
+  furosemide:
+  - diuretic
   gadobenate:
   - contrast_agent
   gadobutrol:
@@ -580,6 +656,12 @@ med_category_to_group_mapping:
   - other
   haloperidol:
   - antipsychotic
+  hydralazine:
+  - anti_hypertensive
+  hydralazine_isosorbide:
+  - anti_hypertensive
+  hydrochlorothiazide:
+  - diuretic
   hydrocortisone:
   - steroid
   hydromorphone:
@@ -602,6 +684,8 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   imipenem_relebactam:
   - cms_sepsis_qualifying_antibiotics
+  indapamide:
+  - diuretic
   iobitridol:
   - contrast_agent
   iodixanol:
@@ -624,8 +708,12 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   isavuconazonium:
   - cms_sepsis_qualifying_antibiotics
+  isosorbide_dinitrate:
+  - anti_hypertensive
   itraconazole:
   - cms_sepsis_qualifying_antibiotics
+  ivabradine:
+  - other
   kanamycin:
   - cms_sepsis_qualifying_antibiotics
   ketamine:
@@ -668,6 +756,16 @@ med_category_to_group_mapping:
   - vasopressor
   methylprednisolone:
   - steroid
+  metolazone:
+  - diuretic
+  metoprolol_succinate:
+  - anti_hypertensive
+  metoprolol_succinate_hctz:
+  - anti_hypertensive
+  metoprolol_tartrate:
+  - anti_hypertensive
+  metoprolol_tartrate_hctz:
+  - anti_hypertensive
   metrizamide:
   - contrast_agent
   metronidazole:
@@ -774,6 +872,12 @@ med_category_to_group_mapping:
   - anti_hypertensive
   siltuximab:
   - other
+  sotagliflozin:
+  - diabetes
+  spironolactone:
+  - anti_hypertensive
+  spironolactone_hctz:
+  - anti_hypertensive
   streptomycin:
   - cms_sepsis_qualifying_antibiotics
   succinylcholine:
@@ -818,6 +922,8 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   tocilizumab:
   - other
+  torsemide:
+  - diuretic
   trandolapril:
   - anti_hypertensive
   trimethoprim:
@@ -840,5 +946,7 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   vecuronium:
   - paralytics
+  vericiguat:
+  - other
   voriconazole:
   - cms_sepsis_qualifying_antibiotics

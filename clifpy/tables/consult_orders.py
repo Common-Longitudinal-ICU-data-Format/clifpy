@@ -3,9 +3,9 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class KeyIcuOrders(BaseTable):
+class ConsultOrders(BaseTable):
     """
-    Key ICU consult/order events (CLIF 3.0).
+    Consult/service orders (CLIF 3.0).
 
     Thin wrapper inheriting from BaseTable. Schema is selected by ``clif_version``;
     this table is defined in the CLIF 3.0 schema set.
@@ -21,7 +21,7 @@ class KeyIcuOrders(BaseTable):
         clif_version: Optional[str] = None
     ):
         """
-        Initialize the key_icu_orders table.
+        Initialize the consult_orders table.
 
         Parameters
         ----------

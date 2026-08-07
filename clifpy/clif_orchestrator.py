@@ -35,7 +35,8 @@ from .tables.intermittent_dialysis import IntermittentDialysis
 from .tables.input import Input
 from .tables.output import Output
 from .tables.invasive_hemodynamics import InvasiveHemodynamics
-from .tables.key_icu_orders import KeyIcuOrders
+from .tables.consult_orders import ConsultOrders
+from .tables.misc_icu_orders import MiscIcuOrders
 from .tables.medication_orders import MedicationOrders
 from .tables.patient_diagnosis import PatientDiagnosis
 from .tables.place_based_index import PlaceBasedIndex
@@ -84,7 +85,8 @@ TABLE_CLASSES = {
     'input': Input,
     'output': Output,
     'invasive_hemodynamics': InvasiveHemodynamics,
-    'key_icu_orders': KeyIcuOrders,
+    'consult_orders': ConsultOrders,
+    'misc_icu_orders': MiscIcuOrders,
     'medication_orders': MedicationOrders,
     'patient_diagnosis': PatientDiagnosis,
     'place_based_index': PlaceBasedIndex,
@@ -274,7 +276,8 @@ class ClifOrchestrator:
         self.input: Input = None
         self.output: Output = None
         self.invasive_hemodynamics: InvasiveHemodynamics = None
-        self.key_icu_orders: KeyIcuOrders = None
+        self.consult_orders: ConsultOrders = None
+        self.misc_icu_orders: MiscIcuOrders = None
         self.medication_orders: MedicationOrders = None
         self.patient_diagnosis: PatientDiagnosis = None
         self.place_based_index: PlaceBasedIndex = None

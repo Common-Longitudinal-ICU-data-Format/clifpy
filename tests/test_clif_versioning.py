@@ -143,7 +143,7 @@ def test_orchestrator_version_from_config(tmp_path):
 
 def test_30_schema_set_parses_and_is_consistent():
     files = sorted(glob.glob(os.path.join(SCHEMAS_ROOT, "3.0", "*_schema.yaml")))
-    assert len(files) == 40
+    assert len(files) == 41
     for fp in files:
         table = os.path.basename(fp).replace("_schema.yaml", "")
         s = yaml.safe_load(open(fp))

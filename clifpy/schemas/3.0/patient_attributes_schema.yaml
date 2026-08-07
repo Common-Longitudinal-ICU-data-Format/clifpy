@@ -77,7 +77,7 @@ columns:
       - isolated
       - married
       - never
-      - no
+      - "no"
       - none
       - not_pregnant
       - part_time
@@ -98,7 +98,7 @@ columns:
       - unsafe
       - unstable
       - widowed
-      - yes
+      - "yes"
 
 required_columns:
   - patient_id

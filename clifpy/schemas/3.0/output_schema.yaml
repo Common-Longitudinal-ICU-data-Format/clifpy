@@ -36,13 +36,16 @@ columns:
       - ileostomy
       - indwelling_urinary_catheter
       - jejunostomy
+      - lumbar_csf_drain
       - nephrostomy
       - orogastric_nasogastric_tube
       - orogjejunal_nasojejunal_tube
       - other
+      - other_cns_drain
       - other_procedure
       - ostomy_gi_other
       - paracentesis
+      - pd_output
       - pericardial_drain
       - peritoneal_drain
       - procedural_drain_other
@@ -55,6 +58,7 @@ columns:
       - urethral
       - urostomy
       - urinary_other
+      - ventricular_csf_drain
       - wound_drain
   - name: output_group
     data_type: VARCHAR
@@ -63,10 +67,12 @@ columns:
     is_group_column: true
     permissible_values:
       - blood_loss
+      - cns
       - drains
       - gi
       - other
       - procedure
+      - renal_replacement_output
       - respiratory
       - ultrafiltration
       - urine

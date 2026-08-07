@@ -33,6 +33,7 @@ renames:
   labs:
     lab_category:
       glucose_fingerstick: glucose        # 3.0 folds fingerstick/POC glucose into `glucose`
+      glucose_serum: glucose              # 3.0 folds serum glucose into `glucose`
     lab_specimen_category:
       "blood/plasma/serum": plasma_blood
 
@@ -59,6 +60,14 @@ unresolved:
       albumin:
         candidates: [albumin_5, albumin_25]
         reason: "Concentration-dependent split in 3.0; choose albumin_5 or albumin_25 from the product concentration."
+      oxytocin:
+        candidates: []
+        reason: "Removed from medication_admin_continuous med_category in CLIF 3.0; no direct equivalent."
+  respiratory_support:
+    mode_category:
+      "Blow by":
+        candidates: []
+        reason: "blow_by is a device_category, not a mode_category, in CLIF 3.0; requires a column move, not a value rename."
   labs:
     lab_specimen_category:
       csf:

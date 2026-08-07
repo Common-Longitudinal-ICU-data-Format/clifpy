@@ -37,6 +37,7 @@ columns:
       - trach_collar
       - t_piece
       - nasal_cannula
+      - blow_by
       - room_air
       - other
   - name: vent_brand_name
@@ -61,9 +62,8 @@ columns:
       - simv
       - ps_or_cpap
       - volume_support
+      - avaps
       - aprv
-      - t_piece
-      - blow_by
       - other
   - name: tracheostomy
     data_type: INT

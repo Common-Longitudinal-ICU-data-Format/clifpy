@@ -23,7 +23,8 @@ from .intermittent_dialysis import IntermittentDialysis
 from .input import Input
 from .output import Output
 from .invasive_hemodynamics import InvasiveHemodynamics
-from .key_icu_orders import KeyIcuOrders
+from .consult_orders import ConsultOrders
+from .misc_icu_orders import MiscIcuOrders
 from .medication_orders import MedicationOrders
 from .patient_diagnosis import PatientDiagnosis
 from .place_based_index import PlaceBasedIndex
@@ -68,7 +69,8 @@ __all__ = [
       'Input',
       'Output',
       'InvasiveHemodynamics',
-      'KeyIcuOrders',
+      'ConsultOrders',
+      'MiscIcuOrders',
       'MedicationOrders',
       'PatientDiagnosis',
       'PlaceBasedIndex',
