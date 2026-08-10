@@ -4276,8 +4276,9 @@ def _report_empty_strings(
         return
     seen[column] = count
     result.add_warning(
-        f"Empty strings in '{column}': {count:,} rows use '' instead of null — "
-        f"treated as absent by this check; convert '' to null in the ETL",
+        f"Column '{column}' has {count:,} rows with empty strings ('') where "
+        f"null is expected. Empty strings were treated as missing for this "
+        f"check. Please convert '' to null in your ETL.",
         {"column": column, "empty_string_rows": count,
          "recommendation": "Store missing values as null, not ''"}
     )

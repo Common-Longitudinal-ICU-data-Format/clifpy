@@ -1615,7 +1615,7 @@ class TestCheckFieldPlausibility:
         assert result.metrics["violations_by_rule"] == {}
         assert result.metrics["empty_string_columns"] == {"location_type": 2}
         messages = [w["message"] for w in result.warnings]
-        assert any("instead of null" in m for m in messages)
+        assert any("convert '' to null" in m for m in messages)
         assert not any("plausibility violation" in m for m in messages)
 
     @pytest.mark.parametrize("backend", ["polars", "duckdb"])
