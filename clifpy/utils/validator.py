@@ -4259,6 +4259,30 @@ def check_numeric_range_plausibility(
 # A.3 Field-level plausibility rules
 # ---------------------------------------------------------------------------
 
+def _report_empty_strings(
+    result: 'DQAPlausibilityResult',
+    table_name: str,
+    column: str,
+    count: int,
+    seen: Dict[str, int],
+) -> None:
+    """Emit one per-column advisory when '' is used instead of null.
+
+    Field plausibility treats empty/whitespace-only strings as absent, so
+    they never count as rule violations — but '' instead of null is an ETL
+    format deviation worth its own warning.
+    """
+    if count <= 0 or column in seen:
+        return
+    seen[column] = count
+    result.add_warning(
+        f"Empty strings in '{column}': {count:,} rows use '' instead of null — "
+        f"treated as absent by this check; convert '' to null in the ETL",
+        {"column": column, "empty_string_rows": count,
+         "recommendation": "Store missing values as null, not ''"}
+    )
+
+
 def check_field_plausibility_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -4280,6 +4304,7 @@ def check_field_plausibility_polars(
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         col_names = lf.collect_schema().names()
         violations_by_rule = {}
+        empty_string_columns = {}
 
         for rule in rules:
             when_col = rule['when_column']
@@ -4298,7 +4323,12 @@ def check_field_plausibility_polars(
                 if then_col not in col_names:
                     continue
 
-                filtered = lf.filter(pl.col(when_col).is_not_null())
+                # Empty strings carry no value: treat them like nulls in the filter
+                when_absent = (
+                    pl.col(when_col).is_null()
+                    | (pl.col(when_col).cast(pl.Utf8).str.strip_chars() == "")
+                )
+                filtered = lf.filter(~when_absent)
                 stats = filtered.select([
                     pl.len().alias('total'),
                     pl.col(then_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
@@ -4350,10 +4380,23 @@ def check_field_plausibility_polars(
                 if check_col not in col_names:
                     continue
 
+                # "" carries no value: only non-null, non-empty values violate
+                # the rule. Empty strings are surfaced separately below.
+                stripped = pl.col(check_col).cast(pl.Utf8).str.strip_chars()
+                present = pl.col(check_col).is_not_null() & (stripped != "")
                 stats = filtered.select([
                     pl.len().alias('total'),
-                    pl.col(check_col).is_not_null().sum().alias('non_null')
+                    present.sum().alias('non_null')
                 ]).collect(streaming=True)
+
+                empty_count = int(
+                    lf.select(
+                        (pl.col(check_col).is_not_null() & (stripped == ""))
+                        .sum().alias('n')
+                    ).collect(streaming=True)[0, 'n']
+                )
+                _report_empty_strings(result, table_name, check_col, empty_count,
+                                      empty_string_columns)
 
                 total = stats[0, 'total']
                 non_null = stats[0, 'non_null']
@@ -4382,6 +4425,7 @@ def check_field_plausibility_polars(
 
         result.metrics["rules_checked"] = len(rules)
         result.metrics["violations_by_rule"] = violations_by_rule
+        result.metrics["empty_string_columns"] = empty_string_columns
 
         gc.collect()
 
@@ -4418,6 +4462,7 @@ def check_field_plausibility_duckdb(
         con = duckdb.connect(':memory:')
         con.register('df', df)
         violations_by_rule = {}
+        empty_string_columns = {}
 
         for rule in rules:
             when_col = rule['when_column']
@@ -4444,6 +4489,7 @@ def check_field_plausibility_duckdb(
                         SUM(CASE WHEN TRIM(LOWER(CAST("{then_col}" AS VARCHAR))) IN ({forbidden_str}) THEN 1 ELSE 0 END) as violations
                     FROM df
                     WHERE "{when_col}" IS NOT NULL
+                      AND TRIM(CAST("{when_col}" AS VARCHAR)) <> ''
                 """).fetchone()
 
                 total, violations = stats
@@ -4487,10 +4533,20 @@ def check_field_plausibility_duckdb(
                 stats = con.execute(f"""
                     SELECT
                         COUNT(*) as total,
-                        SUM(CASE WHEN "{check_col}" IS NOT NULL THEN 1 ELSE 0 END) as non_null
+                        SUM(CASE WHEN "{check_col}" IS NOT NULL
+                                  AND TRIM(CAST("{check_col}" AS VARCHAR)) <> ''
+                             THEN 1 ELSE 0 END) as non_null
                     FROM df
                     WHERE TRIM(LOWER(CAST("{when_col}" AS VARCHAR))) NOT IN ({values_str})
                 """).fetchone()
+
+                empty_count = con.execute(f"""
+                    SELECT COUNT(*) FROM df
+                    WHERE "{check_col}" IS NOT NULL
+                      AND TRIM(CAST("{check_col}" AS VARCHAR)) = ''
+                """).fetchone()[0]
+                _report_empty_strings(result, table_name, check_col,
+                                      int(empty_count), empty_string_columns)
 
                 total, non_null = stats
                 pct = (non_null / total * 100) if total > 0 else 0
@@ -4518,6 +4574,7 @@ def check_field_plausibility_duckdb(
 
         result.metrics["rules_checked"] = len(rules)
         result.metrics["violations_by_rule"] = violations_by_rule
+        result.metrics["empty_string_columns"] = empty_string_columns
 
         con.close()
 

@@ -1586,3 +1586,80 @@ class TestRealSchemaIntegration:
         results = run_completeness_checks(lf, schema, "patient")
         assert "missingness" in results
         assert results["missingness"].passed is True
+
+
+class TestCheckFieldPlausibility:
+    """Field plausibility: '' must count as absent, with its own advisory."""
+
+    def _rules(self):
+        return [{
+            "when_column": "location_category",
+            "when_not_value": ["icu"],
+            "then_null_or_absent": ["location_type"],
+            "description": "Non-ICU locations should not have ICU location_type",
+        }]
+
+    def _run(self, backend, df):
+        if backend == "polars":
+            return check_field_plausibility_polars(
+                pl.from_pandas(df).lazy(), "adt", self._rules())
+        return check_field_plausibility_duckdb(df, "adt", self._rules())
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_empty_strings_are_absent_not_violations(self, backend):
+        df = pd.DataFrame({
+            "location_category": ["ward", "ed"],
+            "location_type": ["", ""],
+        })
+        result = self._run(backend, df)
+        assert result.metrics["violations_by_rule"] == {}
+        assert result.metrics["empty_string_columns"] == {"location_type": 2}
+        messages = [w["message"] for w in result.warnings]
+        assert any("instead of null" in m for m in messages)
+        assert not any("plausibility violation" in m for m in messages)
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_real_values_still_violate(self, backend):
+        df = pd.DataFrame({
+            "location_category": ["ward", "ward", "icu"],
+            "location_type": ["general_icu", "", "general_icu"],
+        })
+        result = self._run(backend, df)
+        stats = result.metrics["violations_by_rule"][
+            "Non-ICU locations should not have ICU location_type"]
+        assert stats["violations"] == 1
+        assert stats["total_applicable"] == 2
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_nulls_pass_clean(self, backend):
+        df = pd.DataFrame({
+            "location_category": ["ward", "ed"],
+            "location_type": [None, None],
+        })
+        result = self._run(backend, df)
+        assert result.metrics["violations_by_rule"] == {}
+        assert result.metrics["empty_string_columns"] == {}
+        assert len(result.warnings) == 0
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_when_not_null_variant_ignores_empty_when_values(self, backend):
+        rules = [{
+            "when_column": "discharge_dttm",
+            "when_not_null": True,
+            "then_column": "discharge_category",
+            "then_not_value": ["Still Admitted"],
+            "description": "Discharged patients should not have "
+                           "discharge_category 'Still Admitted'",
+        }]
+        df = pd.DataFrame({
+            "discharge_dttm": ["2024-01-01", "", None],
+            "discharge_category": ["Still Admitted", "Still Admitted", "Still Admitted"],
+        })
+        if backend == "polars":
+            result = check_field_plausibility_polars(
+                pl.from_pandas(df).lazy(), "hospitalization", rules)
+        else:
+            result = check_field_plausibility_duckdb(df, "hospitalization", rules)
+        stats = result.metrics["violations_by_rule"][rules[0]["description"]]
+        assert stats["total_applicable"] == 1
+        assert stats["violations"] == 1
