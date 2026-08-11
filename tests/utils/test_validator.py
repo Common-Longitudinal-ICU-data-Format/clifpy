@@ -47,6 +47,9 @@ from clifpy.utils.validator import (
     check_category_group_mapping,
     check_category_group_mapping_polars,
     check_category_group_mapping_duckdb,
+    check_medication_dose_units,
+    check_medication_dose_units_polars,
+    check_medication_dose_units_duckdb,
     # Completeness checks
     check_missingness,
     check_missingness_polars,
@@ -1663,3 +1666,256 @@ class TestCheckFieldPlausibility:
         stats = result.metrics["violations_by_rule"][rules[0]["description"]]
         assert stats["total_applicable"] == 1
         assert stats["violations"] == 1
+
+
+# ---------------------------------------------------------------------------
+# 22. Medication dose units (per-category expected units from mCIDE)
+# ---------------------------------------------------------------------------
+
+class TestCheckMedicationDoseUnits:
+    """Conformance check of med_dose_unit against the schema's
+    med_category_to_dose_unit_mapping, on both backends."""
+
+    CONT_SCHEMA = {
+        "med_category_to_dose_unit_mapping": {
+            "norepinephrine": "mcg",
+            "sodium_bicarbonate": "ml/hr",
+            "nitric_oxide": "ppm",
+            "epoprostenol": ["ng", "mcg"],
+        },
+        "expected_volume_infusion_rate_unit": "ml/hr",
+    }
+    INT_SCHEMA = {
+        "med_category_to_dose_unit_mapping": {
+            "acetaminophen": "mg",
+            "vancomycin": "g",
+        },
+    }
+
+    def _run(self, backend, df, schema, table="medication_admin_continuous"):
+        if backend == "polars":
+            return check_medication_dose_units_polars(
+                pl.from_pandas(df).lazy(), schema, table)
+        return check_medication_dose_units_duckdb(df, schema, table)
+
+    def _warnings_for(self, result, category):
+        return [w for w in result.warnings
+                if w["details"].get("med_category") == category]
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_continuous_numerator_match_passes(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine", "norepinephrine"],
+            "med_dose_unit": ["mcg/kg/min", " MCG/HR "],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        assert self._warnings_for(result, "norepinephrine") == []
+        assert result.metrics["categories_with_mismatch"] == 0
+        assert result.metrics["mismatched_records"] == 0
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_full_rate_expected_requires_exact_unit(self, backend):
+        # sodium_bicarbonate expects the full rate 'ml/hr': bare 'ml' mismatches
+        df = pd.DataFrame({
+            "med_category": ["sodium_bicarbonate", "sodium_bicarbonate"],
+            "med_dose_unit": ["ml/hr", "ml"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        warns = self._warnings_for(result, "sodium_bicarbonate")
+        assert len(warns) == 1
+        details = warns[0]["details"]
+        assert details["matched_records"] == 1
+        assert details["mismatched_records"] == 1
+        assert details["top_mismatched_units"][0]["med_dose_unit"] == "ml"
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_no_slash_expected_unit_passes(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["nitric_oxide"],
+            "med_dose_unit": ["ppm"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        assert self._warnings_for(result, "nitric_oxide") == []
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_continuous_numerator_mismatch_warns(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"] * 3,
+            "med_dose_unit": ["mcg/kg/min", "mg/hr", "mg/hr"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        warns = self._warnings_for(result, "norepinephrine")
+        assert len(warns) == 1
+        details = warns[0]["details"]
+        assert details["matched_records"] == 1
+        assert details["mismatched_records"] == 2
+        assert result.metrics["categories_with_mismatch"] == 1
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_multi_unit_list_accepts_any(self, backend):
+        # epoprostenol (IV vs inhaled formulations) accepts ng or mcg
+        df = pd.DataFrame({
+            "med_category": ["epoprostenol"] * 3,
+            "med_dose_unit": ["ng/kg/min", "mcg/kg/min", "mg/hr"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        warns = self._warnings_for(result, "epoprostenol")
+        assert len(warns) == 1
+        assert warns[0]["details"]["matched_records"] == 2
+        assert warns[0]["details"]["mismatched_records"] == 1
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_intermittent_requires_exact_match(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["acetaminophen"] * 3,
+            "med_dose_unit": ["mg", "mg/hr", "g"],
+        })
+        result = self._run(backend, df, self.INT_SCHEMA,
+                           table="medication_admin_intermittent")
+        warns = self._warnings_for(result, "acetaminophen")
+        assert len(warns) == 1
+        assert warns[0]["details"]["matched_records"] == 1
+        assert warns[0]["details"]["mismatched_records"] == 2
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_unknown_and_absent_categories(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["mystery_med"],
+            "med_dose_unit": ["mg"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        # unknown data category: metric + info, never a warning
+        assert result.metrics["unknown_categories"] == [
+            {"med_category": "mystery_med", "count": 1}]
+        assert not any("mystery_med" in w["message"] for w in result.warnings)
+        # mapping categories absent from data: info only
+        infos = [i["message"] for i in result.info]
+        assert any("'norepinephrine': not present in data" in m for m in infos)
+        assert result.metrics["categories_checked"] == 0
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_null_category_rows_are_skipped(self, backend):
+        df = pd.DataFrame({
+            "med_category": [None, "norepinephrine"],
+            "med_dose_unit": ["mg", "mcg/kg/min"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        assert result.errors == [] and result.warnings == []
+        assert result.metrics["total_records"] == 1
+        assert "unknown_categories" not in result.metrics
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_schema_without_mapping_degrades_gracefully(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"],
+            "med_dose_unit": ["mcg/kg/min"],
+        })
+        result = self._run(backend, df, {})
+        assert result.atomic_total == 0
+        assert result.warnings == [] and result.errors == []
+        assert any("No med_category dose unit mapping" in i["message"]
+                   for i in result.info)
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_null_and_empty_units_excluded_with_advisory(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"] * 3,
+            "med_dose_unit": ["mcg/kg/min", "", None],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        assert self._warnings_for(result, "norepinephrine") == []
+        assert result.metrics["total_records"] == 1
+        empties = [w for w in result.warnings
+                   if w["details"].get("column") == "med_dose_unit"]
+        assert len(empties) == 1
+        assert empties[0]["details"]["empty_string_rows"] == 1
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_volume_infusion_rate_unit_subcheck(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"] * 3,
+            "med_dose_unit": ["mcg/kg/min"] * 3,
+            "volume_infusion_rate_unit": ["ml/hr", "l/hr", None],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        vol = result.metrics["volume_infusion_rate_unit"]
+        assert vol["matched_records"] == 1
+        assert vol["mismatched_records"] == 1
+        assert vol["top_mismatched_units"][0]["volume_infusion_rate_unit"] == "l/hr"
+        # counts as one extra atomic item
+        assert result.atomic_total == len(
+            self.CONT_SCHEMA["med_category_to_dose_unit_mapping"]) + 1
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_volume_column_absent_is_skipped(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"],
+            "med_dose_unit": ["mcg/kg/min"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        assert "volume_infusion_rate_unit" not in result.metrics
+        assert result.atomic_total == len(
+            self.CONT_SCHEMA["med_category_to_dose_unit_mapping"])
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_intermittent_ignores_volume_key(self, backend):
+        schema = dict(self.INT_SCHEMA,
+                      expected_volume_infusion_rate_unit="ml/hr")
+        df = pd.DataFrame({
+            "med_category": ["acetaminophen"],
+            "med_dose_unit": ["mg"],
+            "volume_infusion_rate_unit": ["l/hr"],
+        })
+        result = self._run(backend, df, schema,
+                           table="medication_admin_intermittent")
+        assert "volume_infusion_rate_unit" not in result.metrics
+        assert result.warnings == []
+
+    def test_run_conformance_checks_includes_med_dose_units(self):
+        schema = _load_schema("medication_admin_continuous", clif_version="3.0")
+        lf = pl.LazyFrame({
+            "hospitalization_id": ["h1"],
+            "med_category": ["norepinephrine"],
+            "med_dose_unit": ["mcg/kg/min"],
+        })
+        results = run_conformance_checks(lf, schema, "medication_admin_continuous")
+        assert "medication_dose_units" in results
+        assert results["medication_dose_units"].atomic_total > 0
+
+
+class TestMedicationDoseUnitConsistencyExemptions:
+    """P.4 shape check: exempt_units (validation_rules.yaml) lets valid
+    non-rate units like nitric_oxide's 'ppm' through for continuous meds."""
+
+    def _run(self, backend, df, table="medication_admin_continuous"):
+        if backend == "polars":
+            return check_medication_dose_unit_consistency_polars(
+                pl.from_pandas(df).lazy(), table)
+        return check_medication_dose_unit_consistency_duckdb(df, table)
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_ppm_exempt_for_continuous(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["nitric_oxide", "norepinephrine"],
+            "med_dose_unit": ["ppm", "mcg/kg/min"],
+        })
+        result = self._run(backend, df)
+        assert result.metrics["unit_pattern_violations"] == 0
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_non_exempt_discrete_unit_still_flagged(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine", "norepinephrine"],
+            "med_dose_unit": ["mg", "mcg/kg/min"],
+        })
+        result = self._run(backend, df)
+        assert result.metrics["unit_pattern_violations"] == 1
+
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_intermittent_unaffected_by_exemptions(self, backend):
+        df = pd.DataFrame({
+            "med_category": ["acetaminophen", "acetaminophen"],
+            "med_dose_unit": ["mg", "mg/hr"],
+        })
+        result = self._run(backend, df, table="medication_admin_intermittent")
+        assert result.metrics["unit_pattern_violations"] == 1

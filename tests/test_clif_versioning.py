@@ -159,6 +159,26 @@ def test_30_schema_set_parses_and_is_consistent():
         assert grp_flags == set(s.get("group_columns") or []), table
 
 
+@pytest.mark.parametrize("table,expected_count", [
+    ("medication_admin_continuous", 75),
+    ("medication_admin_intermittent", 271),
+])
+def test_30_med_dose_unit_mappings_consistent(table, expected_count):
+    # The mCIDE-derived dose unit mapping must stay in lockstep with the
+    # med_category permissible values.
+    s = yaml.safe_load(open(os.path.join(SCHEMAS_ROOT, "3.0", f"{table}_schema.yaml")))
+    mapping = s["med_category_to_dose_unit_mapping"]
+    assert len(mapping) == expected_count
+    cats = next(c for c in s["columns"] if c["name"] == "med_category")["permissible_values"]
+    assert set(mapping) == set(cats)
+    for cat, units in mapping.items():
+        units = units if isinstance(units, list) else [units]
+        assert units, cat
+        assert all(isinstance(u, str) and u.strip() for u in units), cat
+    if table == "medication_admin_continuous":
+        assert s["expected_volume_infusion_rate_unit"] == "ml/hr"
+
+
 def test_all_30_tables_registered():
     files = {os.path.basename(f).replace("_schema.yaml", "")
              for f in glob.glob(os.path.join(SCHEMAS_ROOT, "3.0", "*_schema.yaml"))}
