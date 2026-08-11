@@ -1804,6 +1804,7 @@ def _evaluate_med_category_units(
     mismatched = sum(x['count'] for x in bad)
 
     details = {
+        "column": med_cat_orig_key,
         "med_category": med_cat_orig_key,
         "expected_units": expected_units,
         "match_mode": "numerator" if continuous else "exact",
@@ -1832,7 +1833,7 @@ def _report_med_dose_unit_results(
         if pairs is None:
             result.add_info(
                 f"Med category '{med_cat_orig_key}': not present in data",
-                {"med_category": med_cat_orig_key}
+                {"column": med_cat_orig_key, "med_category": med_cat_orig_key}
             )
             continue
 
@@ -1893,6 +1894,7 @@ def _report_volume_rate_units(
     )
     mismatched = sum(x['count'] for x in bad)
     details = {
+        "column": "volume_infusion_rate_unit",
         "expected_unit": expected_norm,
         "matched_records": matched,
         "mismatched_records": mismatched,

@@ -1871,6 +1871,28 @@ class TestCheckMedicationDoseUnits:
         assert "volume_infusion_rate_unit" not in result.metrics
         assert result.warnings == []
 
+    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
+    def test_report_enrichment_shows_units_and_rule_code(self, backend):
+        # The report layer must render rule code C.8, the category as the
+        # column field, and expected-vs-observed units in the finding text.
+        from clifpy.utils.rule_codes import enrich_issue
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"],
+            "med_dose_unit": ["mg/hr"],
+        })
+        result = self._run(backend, df, self.CONT_SCHEMA)
+        warn = self._warnings_for(result, "norepinephrine")[0]
+        issue = enrich_issue({
+            "category": "conformance", "check_type": "medication_dose_units",
+            "severity": "warning", "message": warn["message"],
+            "details": warn["details"],
+        })
+        assert issue["rule_code"] == "C.8"
+        assert issue["rule_description"] == "Medication dose unit validation"
+        assert issue["column_field"] == "norepinephrine"
+        assert "Expected 'mcg'" in issue["finding"]
+        assert "'mg/hr' (1 rows)" in issue["finding"]
+
     def test_run_conformance_checks_includes_med_dose_units(self):
         schema = _load_schema("medication_admin_continuous", clif_version="3.0")
         lf = pl.LazyFrame({

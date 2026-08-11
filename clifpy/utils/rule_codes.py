@@ -12,6 +12,7 @@ RULE_CODES: Dict[tuple, tuple] = {
     ('conformance', 'categorical_values'):          ('C.5', 'Categorical values conformance'),
     ('conformance', 'category_group_mapping'):      ('C.6', 'Category-to-group mapping validation'),
     ('conformance', 'lab_reference_units'):         ('C.7', 'Lab reference unit validation'),
+    ('conformance', 'medication_dose_units'):       ('C.8', 'Medication dose unit validation'),
 
     ('completeness', 'missingness'):                ('K.1', 'Required column missingness'),
     ('completeness', 'conditional_requirements'):   ('K.2', 'Conditional field requirements'),
@@ -40,6 +41,7 @@ PASSING_FINDINGS: Dict[str, str] = {
     'C.5': 'All categorical values conform to mCIDE',
     'C.6': 'All category-group mappings consistent',
     'C.7': 'All lab reference units valid',
+    'C.8': 'All medication dose units match mCIDE',
     'K.1': 'Required columns below null thresholds',
     'K.2': 'All conditional requirements met',
     'K.3': 'All mCIDE values represented',
@@ -98,6 +100,8 @@ _NOT_APPLICABLE_PREFIXES = (
     "No field plausibility rules defined for this table",
     "No numeric range configuration for this table",
     "Medication dose unit check not applicable",
+    "Medication dose units check not applicable",
+    "No med_category dose unit mapping defined in schema",
     "Missing hospitalization_id column; skipping",
     "No composite keys defined for this table",
     "No suitable datetime column found for temporal consistency check",
@@ -217,6 +221,28 @@ def build_finding(message: str, details: Dict[str, Any]) -> str:
             else:
                 items.append(str(it))
         parts.append(f"Units: {', '.join(items)}")
+
+    # Medication dose units: expected vs observed units
+    top_med_units = details.get('top_mismatched_units')
+    if top_med_units and isinstance(top_med_units, list):
+        expected = details.get('expected_units', details.get('expected_unit', '?'))
+        if isinstance(expected, (list, tuple)):
+            expected_str = ' or '.join(f"'{u}'" for u in expected)
+        else:
+            expected_str = f"'{expected}'"
+        items = []
+        for it in top_med_units[:5]:
+            if isinstance(it, dict):
+                unit = it.get('med_dose_unit', it.get('volume_infusion_rate_unit', '?'))
+                count = it.get('count')
+                if count is not None:
+                    items.append(f"'{unit}' ({count:,} rows)")
+                else:
+                    items.append(f"'{unit}'")
+            else:
+                items.append(str(it))
+        suffix = f" ... ({len(top_med_units)} distinct)" if len(top_med_units) > 5 else ""
+        parts.append(f"Expected {expected_str}; found {', '.join(items)}{suffix}")
 
     # Category-group mapping: mismatched pairs (replaces generic message)
     mismatched = details.get('mismatched_pairs')
