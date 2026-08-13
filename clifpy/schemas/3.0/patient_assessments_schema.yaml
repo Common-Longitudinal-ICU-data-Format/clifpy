@@ -76,7 +76,9 @@ columns:
       - npi_r
       - nrs
       - nvps
+      - ot_discharge_recommend
       - painad
+      - pt_discharge_recommend
       - pupil_reactive_l
       - pupil_reactive_r
       - pupil_size_l
@@ -112,6 +114,7 @@ columns:
     is_group_column: true
     permissible_values:
       - delirium
+      - discharge_recommend
       - mobility_or_activity
       - neurological
       - nursing_risk
@@ -211,7 +214,9 @@ assessment_category_to_group_mapping:
   npi_r: neurological
   nrs: pain
   nvps: pain
+  ot_discharge_recommend: discharge_recommend
   painad: pain
+  pt_discharge_recommend: discharge_recommend
   pupil_reactive_l: neurological
   pupil_reactive_r: neurological
   pupil_size_l: neurological
