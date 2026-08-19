@@ -1,0 +1,25 @@
+hospitalization_id,lab_collect_dttm,lab_category,lab_value_numeric
+601,2024-01-01 02:00:00,platelet_count,200
+602,2024-01-01 02:00:00,platelet_count,90
+603,2024-01-01 02:00:00,platelet_count,200
+603,2024-01-01 08:00:00,platelet_count,250
+604,2024-01-01 02:00:00,platelet_count,200
+604,2024-01-01 06:00:00,platelet_count,60
+605,2024-01-01 02:00:00,platelet_count,60
+605,2024-01-01 06:00:00,platelet_count,200
+607,2024-01-01 02:00:00,platelet_count,140
+607,2024-01-03 12:00:00,platelet_count,100
+608,2024-01-01 02:00:00,platelet_count,90
+608,2024-01-02 00:00:00,platelet_count,80
+609,2024-01-01 02:00:00,platelet_count,60
+609,2024-01-01 02:00:00,platelet_count,100
+610,2024-01-01 02:00:00,platelet_count,90
+611,2024-01-01 02:00:00,platelet_count,200
+611,2024-01-01 06:00:00,platelet_count,60
+611,2024-01-01 10:00:00,platelet_count,65
+611,2024-01-01 14:00:00,platelet_count,45
+612,2024-01-01 02:00:00,platelet_count,145
+612,2024-01-01 06:00:00,platelet_count,130
+613,2024-01-01 02:00:00,platelet_count,200
+613,2024-01-01 06:00:00,platelet_count,90
+613,2024-01-01 10:00:00,platelet_count,85

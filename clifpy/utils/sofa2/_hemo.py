@@ -16,7 +16,7 @@ from __future__ import annotations
 import duckdb
 from duckdb import DuckDBPyRelation
 
-from ._utils import SOFA2Config
+from ._utils import SOFA2Config, _hemo_score_sql
 from clifpy.utils.logging_config import get_logger
 
 logger = get_logger('utils.sofa2.hemo')
@@ -125,14 +125,7 @@ def _calculate_hemo_subscore(
             , c.start_dttm
             , p.platelet_count
             , p.platelet_dttm_offset
-            , sofa2_hemo: CASE
-                WHEN p.platelet_count IS NULL THEN NULL
-                WHEN p.platelet_count <= 50 THEN 4
-                WHEN p.platelet_count <= 80 THEN 3
-                WHEN p.platelet_count <= 100 THEN 2
-                WHEN p.platelet_count <= 150 THEN 1
-                ELSE 0
-            END
+            , {_hemo_score_sql('p.platelet_count')}
     """)
 
     logger.info("Hemostasis subscore complete")
