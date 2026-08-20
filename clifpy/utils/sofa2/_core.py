@@ -63,7 +63,7 @@ def _load_ecmo_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     """)
 
     try:
-        rel = load_data('ecmo_mcs', config_path=clif_config_path, return_rel=True)
+        rel = load_data('ecmo_mcs', config_path=clif_config_path, return_format='duckdb')
     except Exception as e:
         logger.warning(f"ECMO/MCS table not available ({e}). ECMO scoring will be skipped.")
         return EMPTY_ECMO
@@ -103,7 +103,7 @@ def _load_intm_meds_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     """)
 
     try:
-        rel = load_data('medication_admin_intermittent', config_path=clif_config_path, return_rel=True)
+        rel = load_data('medication_admin_intermittent', config_path=clif_config_path, return_format='duckdb')
     except Exception as e:
         logger.warning(f"Intermittent meds table not available ({e}). Only continuous meds will be used.")
         return EMPTY_INTM
@@ -138,7 +138,7 @@ def _load_output_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     """)
 
     try:
-        rel = load_data('output', config_path=clif_config_path, return_rel=True,
+        rel = load_data('output', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'recorded_dttm', 'output_volume', 'output_group'],
             filters={'output_group': 'urine'})
     except Exception as e:
@@ -174,7 +174,7 @@ def _load_input_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     """)
 
     try:
-        rel = load_data('input', config_path=clif_config_path, return_rel=True,
+        rel = load_data('input', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'recorded_dttm', 'input_volume', 'input_category'],
             filters={'input_category': 'flush_irrigation_urine'})
     except Exception as e:
@@ -212,7 +212,7 @@ def _load_crrt_optional(clif_config_path: str | None) -> DuckDBPyRelation:
     """)
 
     try:
-        rel = load_data('crrt_therapy', config_path=clif_config_path, return_rel=True,
+        rel = load_data('crrt_therapy', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'recorded_dttm'])
     except Exception as e:
         logger.warning(f"CRRT therapy table not available ({e}). RRT scoring will be skipped.")
@@ -412,7 +412,7 @@ def _calculate_sofa2_impl(
     # =========================================================================
     with timer.step("load_tables"):
         logger.info("Loading CLIF tables (vitals, labs, meds, respiratory_support, crrt_therapy)...")
-        labs_rel = load_data('labs', config_path=clif_config_path, return_rel=True,
+        labs_rel = load_data('labs', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'lab_category', 'lab_collect_dttm', 'lab_value_numeric'],
             filters={'lab_category': [
                 'platelet_count', 'bilirubin_total', 'creatinine',
@@ -420,15 +420,15 @@ def _calculate_sofa2_impl(
                 'bicarbonate', 'po2_arterial',
             ]})
         crrt_rel = _load_crrt_optional(clif_config_path)
-        assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_rel=True,
+        assessments_rel = load_data('patient_assessments', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'assessment_category', 'recorded_dttm', 'numerical_value'],
             filters={'assessment_category': ['gcs_total', 'gcs_motor']})
-        vitals_rel = load_data('vitals', config_path=clif_config_path, return_rel=True,
+        vitals_rel = load_data('vitals', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'vital_category', 'recorded_dttm', 'vital_value'],
             filters={'vital_category': ['spo2', 'map', 'weight_kg']})
-        cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_rel=True,
+        cont_meds_rel = load_data('medication_admin_continuous', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'admin_dttm', 'med_category', 'med_dose', 'med_dose_unit', 'mar_action_category'])
-        resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_rel=True,
+        resp_rel = load_data('respiratory_support', config_path=clif_config_path, return_format='duckdb',
             columns=['hospitalization_id', 'recorded_dttm', 'device_category', 'mode_category', 'fio2_set', 'lpm_set'])
         ecmo_rel = _load_ecmo_optional(clif_config_path)
         intm_meds_rel = _load_intm_meds_optional(clif_config_path)
