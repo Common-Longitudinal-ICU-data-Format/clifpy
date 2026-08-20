@@ -27,14 +27,14 @@ def _():
 @app.cell
 def _():
     from clifpy import load_data
-    labs_rel = load_data('labs', config_path=CONFIG_PATH, return_rel=True)
-    crrt_rel = load_data('crrt_therapy', config_path=CONFIG_PATH, return_rel=True)
-    assessments_rel = load_data('patient_assessments', config_path=CONFIG_PATH, return_rel=True)
-    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
-    vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
-    meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
-    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_rel=True)
-    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_rel=True)
+    labs_rel = load_data('labs', config_path=CONFIG_PATH, return_format='duckdb')
+    crrt_rel = load_data('crrt_therapy', config_path=CONFIG_PATH, return_format='duckdb')
+    assessments_rel = load_data('patient_assessments', config_path=CONFIG_PATH, return_format='duckdb')
+    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_format='duckdb')
+    vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_format='duckdb')
+    meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_format='duckdb')
+    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_format='duckdb')
+    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_format='duckdb')
     return (
         adt_rel,
         assessments_rel,
