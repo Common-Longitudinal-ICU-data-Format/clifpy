@@ -315,28 +315,30 @@ class ClifOrchestrator:
             self.run_stitch_encounters()
     
     def run_stitch_encounters(self):
-        if (self.hospitalization is None) or (self.adt is None):
-            # automatically load hospitalization and adt
+        # automatically load whichever of hospitalization / adt is missing,
+        # then stitch -- loading alone must not short-circuit the stitch
+        if self.hospitalization is None:
             self.load_table('hospitalization')
+        if self.adt is None:
             self.load_table('adt')
-        else:
-            self.logger.info(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours")
-            try:
-                hospitalization_stitched, adt_stitched, encounter_mapping = stitch_encounters(
-                    self.hospitalization.df,
-                    self.adt.df,
-                    time_interval=self.stitch_time_interval
-                )
 
-                # Update the dataframes in place
-                self.hospitalization.df = hospitalization_stitched
-                self.adt.df = adt_stitched
-                self.encounter_mapping = encounter_mapping
+        self.logger.info(f"Performing encounter stitching with time interval of {self.stitch_time_interval} hours")
+        try:
+            hospitalization_stitched, adt_stitched, encounter_mapping = stitch_encounters(
+                self.hospitalization.df,
+                self.adt.df,
+                time_interval=self.stitch_time_interval
+            )
 
-                self.logger.info("Encounter stitching completed successfully")
-            except Exception as e:
-                self.logger.error(f"Error during encounter stitching: {e}")
-                self.encounter_mapping = None
+            # Update the dataframes in place
+            self.hospitalization.df = hospitalization_stitched
+            self.adt.df = adt_stitched
+            self.encounter_mapping = encounter_mapping
+
+            self.logger.info("Encounter stitching completed successfully")
+        except Exception as e:
+            self.logger.error(f"Error during encounter stitching: {e}")
+            self.encounter_mapping = None
         
     def get_loaded_tables(self) -> List[str]:
         """
