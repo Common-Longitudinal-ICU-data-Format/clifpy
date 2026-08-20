@@ -159,6 +159,9 @@ already pushed down in DuckDB, this was judged acceptable (see §4.3).
 Practical rule: never close a connection behind a returned LazyFrame. This is precisely the
 footgun `LazyRelation.close()` presents and `duckdb_con` avoids.
 
+**Superseded for the default path by 4.3**: `'polars'` / `'polars_lazy'` now scan natively, so
+this shape only applies when `duckdb_con` is passed explicitly.
+
 ### 3.5 `pl.scan_csv` does not parse datetimes by default
 
 ```text
@@ -173,6 +176,40 @@ column" warning. CSV timestamps have therefore been silently unparsed on that pa
 through the DuckDB reader fixes it — an intentional behaviour change, not a regression.
 
 ---
+
+### 3.6 `site_tz` silently ignored the config in the common call shape
+
+`load_data` only consulted the config when `table_path` **or** `table_format_type` was `None`:
+
+```text
+if table_path is None or table_format_type is None:
+    config = get_config_or_params(...)
+    if site_tz is None:
+        site_tz = config.get('timezone')
+```
+
+Pass both explicitly -- what most code and every test does -- and the config's `timezone` was
+never read. Measured with a config declaring `US/Eastern`, on a machine pinned to
+`America/Chicago`, against MIMIC-shaped far-future rows encoding an intended 13:00 Eastern:
+
+```text
+load_data('vitals', config_path=CFG)                     US/Eastern   [13, 13]  correct
+load_data('vitals', DIR, 'parquet', config_path=CFG)     UTC          [18, 18]  the bug
+load_data(..., site_tz='US/Central')                     US/Central             arg wins
+no config anywhere                                       UTC                    correct
+```
+
+Quietly serious for MIMIC work from a non-Eastern machine: every time-of-day result off by five
+hours, under a plausible-looking UTC label.
+
+*Fix.* Resolution is now uniform -- explicit argument, else config `timezone`, else UTC -- via a
+best-effort `_resolve_site_tz_from_config`. It must stay best-effort: calling
+`get_config_or_params` unconditionally raises when no config exists and `timezone` is unset, which
+would break `load_data('vitals', DIR, 'parquet')`.
+
+Note the wording trap this exposed. "Relabel to `site_tz or 'UTC'`" reads as self-contradictory
+because it collapses two steps. They are distinct: **resolve** (argument -> config -> `None`),
+then **apply** (convert to the resolved zone, or UTC if resolution produced nothing).
 
 ## 4. Options considered and rejected
 
@@ -203,16 +240,46 @@ _brain.py 9    rolling/_hemo.py 7   _perf.py 6   _liver.py 4   _hemo.py 4
 plus `unit_converter.py` 19, `sofa.py` 6, `query.py` 4. And downstream repos would need the same
 treatment. Kept as a follow-up; `duckdb_con` makes it *possible* incrementally.
 
-### 4.3 Build `'polars_lazy'` on native `pl.scan_parquet` instead of `rel.pl(lazy=True)`
+### 4.3 Build the polars formats on DuckDB rather than native polars scans
 
-*Motivation:* true end-to-end laziness with real predicate/projection pushdown into the parquet
-reader, and no DuckDB connection held.
+**Originally accepted, then REVERSED on measurement.** The first implementation routed all four
+formats through DuckDB so `columns` / `filters` / `site_tz` had a single implementation. The
+appeal was real -- a second filter path is how `io_polars.py` grew the `scan_csv` bug in 3.5.
 
-*Rejected:* it requires a second implementation of `columns` / `filters` (polars expressions vs.
-SQL) that can drift from the DuckDB path, plus `scan_csv(try_parse_dates=True)` handling (§3.5).
-One filter/tz implementation across four formats was judged more valuable than pushdown on a
-user's *later* filters. Users who want that can call `pl.scan_parquet` directly — the docstring
-says so.
+*Reversed because the cost was much larger than estimated.* On 8M rows / 86 MB, best of 3:
+
+```text
+                                        DuckDB -> .pl()   native pl.scan_parquet
+full scan                                       98 ms              15 ms   6.5x
+projection + filter                             26 ms              12 ms     2x
+user chains their own .filter(), collects       42 ms               4 ms    11x   <-- the case
+                                                                                      that matters
+```
+
+The plans explain it:
+
+```text
+duckdb-backed:  PYTHON SCAN []                  <- opaque source; 8M rows materialize
+                PROJECT */4 COLUMNS                through Arrow before polars can filter
+                SELECTION: [vital_category == "spo2"]
+
+native:         Parquet SCAN [bench.parquet]    <- predicate reaches the parquet reader
+                PROJECT */4 COLUMNS
+                SELECTION: [vital_category == "spo2"]
+```
+
+**A LazyFrame that cannot push down is a poor LazyFrame** -- deferred execution is the entire
+reason to request one, and the DuckDB-backed version deferred without gaining anything.
+
+*Resolution.* `'polars'` and `'polars_lazy'` now use `pl.scan_parquet` / `pl.scan_csv`;
+`'duckdb'` and `'pandas'` keep DuckDB SQL; and **any** format keeps DuckDB when `duckdb_con` is
+explicitly passed, since a caller supplying a connection wants that connection.
+
+The drift risk is handled structurally rather than by discipline: `columns` / `filters` /
+`sample_size` compile from one spec via `_compile_filters_sql` / `_compile_filters_polars`, and
+`tests/utils/io_return_formats/test_backend_parity.py` asserts both backends return identical rows
+across a matrix of argument combinations. `pl.scan_csv` is called with `try_parse_dates=True`,
+asserted directly -- that is the exact bug from 3.5.
 
 ### 4.4 Apply `site_tz` to the `'duckdb'` relation
 
@@ -251,6 +318,65 @@ pairs poorly with `return_format='duckdb'`. Local variables stay `con`; only the
 is qualified.
 
 ---
+
+### 4.8 Accept `duckdb_con` with any `return_format`
+
+**Originally shipped, then REVERSED.** The first cut let `duckdb_con` force the DuckDB path for
+every format, reasoning that a caller supplying a connection wants that connection.
+
+*Reversed because the combination has no observable effect.* The materialized formats relabel to
+`site_tz or 'UTC'` unconditionally (5.2), so a connection cannot influence their result -- it only
+selects which engine runs the query, and forces the slower path for polars. An argument that
+silently does nothing is a footgun, not flexibility.
+
+*Resolution.* `duckdb_con` is valid only with `return_format='duckdb'`; anything else raises
+`ValueError`. That also collapses the routing: polars formats always scan natively, `'pandas'`
+always uses the default connection.
+
+### 4.9 Let `site_tz` be silently ignored for `'duckdb'`
+
+**Originally shipped, then REVERSED.** `site_tz` cannot apply to a relation (4.4) and was simply
+dropped when the two were combined.
+
+*Reversed because a silent no-op on a timezone argument is how quietly-wrong analyses happen* --
+the same class of bug as 3.6, where a configured zone was ignored and everything came back
+plausibly labelled UTC. The caller has stated an intent the function cannot honour, and should
+hear about it.
+
+*Resolution.* `site_tz` + `return_format='duckdb'` emits a `UserWarning` naming the two working
+alternatives: `duckdb_con=new_duckdb_con(site_tz=...)`, or relabel after `.df()`/`.pl()`. A zone
+inherited from the config does **not** warn -- it is ambient rather than a stated intent for this
+call, and warning on it would be noise on every relation load. `load_data` threads a private
+`_site_tz_explicit` flag into `load_parquet_with_tz` to keep that distinction, since it resolves
+config before delegating.
+
+### 4.10 Was `LazyRelation` the right idea all along?
+
+Worth recording, since `duckdb_con` looks like a rediscovery of it. `LazyRelation` wrapped a
+relation together with a private connection and kept it alive -- the same instinct as
+`duckdb_con`, and a correct one. Measured against what it actually delivered:
+
+```text
+lazy=True + site_tz='US/Eastern'  ->  .df() renders UTC        # zone ignored
+two lazy=True loads               ->  con_a is con_b: False    # cannot be joined
+```
+
+Two structural problems, both fatal for the case `duckdb_con` serves:
+
+1. **The connection is hardcoded to UTC** (`SET timezone = 'UTC'` in the lazy branch), so the one
+   thing owning a connection buys you -- choosing the zone a relation renders in -- was
+   unreachable.
+2. **One connection per *call*, not per *workflow*.** Every `lazy=True` load opened its own, so two
+   loaded tables could never be joined. Relations cannot cross connections (3.2), and composing
+   relations is the whole reason to want them.
+
+It also inverted ownership: the library created and owned the connection, and `.close()` silently
+invalidated every child relation derived from it.
+
+So the pattern justified the *instinct* and not the *implementation*. `duckdb_con` keeps the
+instinct -- an explicit connection whose zone you control -- and fixes the granularity by handing
+ownership to the caller, who creates one connection and passes it to every load whose relations
+they intend to join. That is why `LazyRelation` is deprecated rather than generalized.
 
 ## 5. Invariants
 
