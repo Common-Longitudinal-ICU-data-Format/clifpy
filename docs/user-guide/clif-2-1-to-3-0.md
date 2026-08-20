@@ -6,6 +6,36 @@ most pervasive change in 3.0 is that the standardized column values — everythi
 and a handful were **renamed**. This guide shows how to migrate a site's CLIF 2.1 data to
 the 3.0 value conventions.
 
+## Which approach should I use?
+
+Pick the entry point that matches what you're migrating — every one applies the
+**same** crosswalk (values only, non-mutating) and returns a change report.
+
+| If you want to migrate… | Use | Jump to |
+|---|---|---|
+| **A whole site folder** (every beta table at once) | `CrosswalkMigrationRunner` | [Quick start](#quick-start) |
+| **One table** already loaded in memory (pandas/polars) | `crosswalk_table_2_1_to_3_0()` | [Migrate a table in memory](#migrate-a-table-in-memory) |
+| **One file** too large to hold in memory | `crosswalk_file_2_1_to_3_0()` | [Large / out-of-core files](#large-out-of-core-files) |
+| **A single value** (one-off / to understand the rules) | `normalize_category_value()` | [Convert a single value](#convert-a-single-value) |
+
+Migrating an entire site is the common case — start there:
+
+```python
+from clifpy.utils.migrate_versions_2_1_to_3 import CrosswalkMigrationRunner
+
+# Audit first (writes nothing), then run for real by dropping dry_run.
+CrosswalkMigrationRunner(config_path="your_site.yaml").run(dry_run=True)
+
+# …or point at explicit folders instead of a config:
+CrosswalkMigrationRunner(
+    data_dir="/path/to/clif_2_1",
+    output_dir="/path/to/clif_3_0",
+).run(dry_run=True)
+```
+
+After converting, validate against 3.0 — see
+[Validating your converted data against CLIF 3.0](#validating-your-converted-data-against-clif-30).
+
 ## What changed
 
 The change applies to **every** value in **every** standardized column
@@ -248,10 +278,9 @@ A typical migration is therefore: **crosswalk your 2.1 data to 3.0 → wrap/load
 ## Migrating a whole site folder at once
 
 The functions above convert a single table or file. To migrate an **entire site
-data folder** in one command — applying that same crosswalk to every beta table,
+data folder** in one call — applying that same crosswalk to every beta table,
 with per‑table verification and a written log — use the directory runner:
-`CrosswalkMigrationRunner` (in `clifpy.utils.migrate_versions_2_1_to_3`) and its
-command‑line entry point, `run_crosswalk.py`.
+`CrosswalkMigrationRunner` (in `clifpy.utils.migrate_versions_2_1_to_3`).
 
 It is the same conversion described above — values only, non‑mutating — just
 applied across a folder, plus checks that confirm nothing but the sanctioned
@@ -259,24 +288,36 @@ values changed.
 
 ### Quick start
 
-```bash
-python run_crosswalk.py                                 # default config
-python run_crosswalk.py --config config/your_site.yaml  # a specific site
-python run_crosswalk.py --config config/your_site.yaml --dry-run  # audit only
+```python
+from clifpy.utils.migrate_versions_2_1_to_3 import CrosswalkMigrationRunner
+
+# A specific site, via its CLIF config YAML:
+CrosswalkMigrationRunner(config_path="your_site.yaml").run(dry_run=True)
+
+# …or explicit input/output folders, no config needed:
+CrosswalkMigrationRunner(
+    data_dir="/path/to/clif_2_1",
+    output_dir="/path/to/clif_3_0",
+).run(dry_run=True)
 ```
 
-The runner reads `data_directory` and `output_directory` from the config, writes
-the converted 3.0 files to the output directory, and saves a timestamped log to
-`<output_directory>/logs/`. Always `--dry-run` first to preview the audit without
-writing anything.
+With `config_path`, the runner reads `data_directory` and `output_directory` from
+the config; `data_dir` / `output_dir` override them (and let you skip the config
+entirely). It writes the converted 3.0 files to the output directory and saves a
+timestamped log to `<output_directory>/logs/`. Always run with **`dry_run=True`
+first** to preview the audit without writing anything, then drop it to write.
 
-| Flag | Default | Description |
+`run()` returns `True` on success. A `REVIEW` result (`is_complete=False`) does
+**not** make it return `False` — only a conversion failure or an integrity
+mismatch does.
+
+| Argument | Default | Description |
 | --- | --- | --- |
-| `--config` | `config/demo_data_config.yaml` | CLIF config YAML (supplies the data/output dirs). |
-| `--data-dir` / `--output-dir` | — | Use explicit folders instead of a config. |
-| `--log-dir` | `<output_dir>/logs` | Folder for the run log. |
-| `--filetype` | `parquet` | Data file type. |
-| `--dry-run` | off | Audit and report only; write nothing. |
+| `config_path` | — | CLIF config YAML (supplies the data/output dirs). |
+| `data_dir` / `output_dir` | from config | Explicit folders; override the config (either lets you omit it). |
+| `log_dir` | `<output_dir>/logs` | Folder for the run log. |
+| `filetype` | `parquet` | Data file type (`parquet` or `csv`). |
+| `dry_run` (on `.run()`) | `False` | Audit and report only; write nothing. |
 
 ### What it processes
 
@@ -328,30 +369,13 @@ those values per table; resolve them as described in
 - **Converted 3.0 files** → the config's `output_directory`, same filenames as the
   inputs (`clif_labs.parquet`, …).
 - **Run log** → `<output_directory>/logs/crosswalk_2.1_to_3.0_<timestamp>.log`
-  (console output is identical); override with `--log-dir`.
+  (console output is identical); override with `log_dir`.
 
 The summary line records the paths and tally:
 
 ```
 DONE.  converted=14  skipped=4  failed=0  mismatch=0  needs-review=5
 ```
-
-### Using it programmatically
-
-```python
-from clifpy.utils.migrate_versions_2_1_to_3 import CrosswalkMigrationRunner
-
-ok = CrosswalkMigrationRunner(config_path="config/your_site.yaml").run()
-
-# explicit folders instead of a config:
-ok = CrosswalkMigrationRunner(
-    data_dir="/path/to/clif_2_1",
-    output_dir="/path/to/clif_3_0",
-).run(dry_run=True)
-```
-
-`run()` returns `True` on success. `REVIEW` (`is_complete=False`) does **not**
-make it return `False` — only a conversion failure or an integrity mismatch does.
 
 ### Good to know
 
