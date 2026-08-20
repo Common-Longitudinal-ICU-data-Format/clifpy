@@ -76,9 +76,22 @@ columns:
       - respiratory
       - ultrafiltration
       - urine
-  - name: output_volume
+  - name: output_value
     data_type: DOUBLE
     required: true
+    is_category_column: false
+    is_group_column: false
+  - name: output_unit
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+    permissible_values:
+      - mL
+      - occurrences
+  - name: lda_id
+    data_type: VARCHAR
+    required: false
     is_category_column: false
     is_group_column: false
 
@@ -87,7 +100,8 @@ required_columns:
   - recorded_dttm
   - output_category
   - output_group
-  - output_volume
+  - output_value
+  - output_unit
 
 category_columns:
   - output_category

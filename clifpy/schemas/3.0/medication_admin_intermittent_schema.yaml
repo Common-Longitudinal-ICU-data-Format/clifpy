@@ -12,11 +12,6 @@ columns:
   required: false
   is_category_column: false
   is_group_column: false
-- name: ordering_provider_id
-  data_type: VARCHAR
-  required: false
-  is_category_column: false
-  is_group_column: false
 - name: administering_provider_id
   data_type: VARCHAR
   required: true
