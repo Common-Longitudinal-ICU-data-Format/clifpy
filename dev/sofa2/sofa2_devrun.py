@@ -27,7 +27,7 @@ def _():
 
 @app.cell
 def _(load_data):
-    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_rel=True)
+    ecmo_rel = load_data('ecmo_mcs', config_path=CONFIG_PATH, return_format='duckdb')
     return
 
 
@@ -41,7 +41,7 @@ def _():
 @app.cell
 def _():
     from clifpy import load_data
-    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
+    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_format='duckdb')
     return adt_rel, load_data
 
 

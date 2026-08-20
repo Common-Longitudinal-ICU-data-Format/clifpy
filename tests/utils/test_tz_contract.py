@@ -100,6 +100,7 @@ def test_eager_load_site_tz_is_tz_aware(demo_data_dir, site_tz):
         table_format_type="parquet",
         sample_size=5,
         site_tz=site_tz,
+        return_format="pandas",
     )
     assert "recorded_dttm" in df.columns
     assert df["recorded_dttm"].dt.tz is not None, (
@@ -116,6 +117,7 @@ def test_eager_load_site_tz_none_is_utc_aware(demo_data_dir):
         table_format_type="parquet",
         sample_size=5,
         site_tz=None,
+        return_format="pandas",
     )
     assert df["recorded_dttm"].dt.tz is not None
     assert _tzname(df["recorded_dttm"]) in ("UTC", "utc")
@@ -137,8 +139,8 @@ def test_eager_load_hour_offset(demo_data_dir, site_tz, expected_offsets):
         table_format_type="parquet",
         sample_size=5,
     )
-    df_utc: pd.DataFrame = load_data(**common, site_tz=None)
-    df_local: pd.DataFrame = load_data(**common, site_tz=site_tz)
+    df_utc: pd.DataFrame = load_data(**common, site_tz=None, return_format="pandas")
+    df_local: pd.DataFrame = load_data(**common, site_tz=site_tz, return_format="pandas")
     diffs = (df_utc["recorded_dttm"].dt.hour - df_local["recorded_dttm"].dt.hour) % 24
     assert set(diffs.unique()).issubset(expected_offsets), (
         f"{site_tz}: expected offsets {expected_offsets}, got {sorted(diffs.unique())}"
@@ -153,6 +155,7 @@ def test_eager_load_multiple_dttm_columns_all_aware(demo_data_dir):
         table_format_type="parquet",
         sample_size=5,
         site_tz="US/Eastern",
+        return_format="pandas",
     )
     dttm_cols = [c for c in df.columns if "dttm" in c.lower()]
     assert dttm_cols, "expected at least one dttm column in adt"
@@ -192,8 +195,8 @@ def test_site_tz_conversion_preserves_utc_instant(demo_data_dir):
         table_format_type="parquet",
         sample_size=5,
     )
-    df_utc: pd.DataFrame = load_data(**common, site_tz=None)
-    df_local: pd.DataFrame = load_data(**common, site_tz="US/Eastern")
+    df_utc: pd.DataFrame = load_data(**common, site_tz=None, return_format="pandas")
+    df_local: pd.DataFrame = load_data(**common, site_tz="US/Eastern", return_format="pandas")
     utc_instants = df_utc["recorded_dttm"].dt.tz_convert("UTC").reset_index(drop=True)
     local_instants = (
         df_local["recorded_dttm"].dt.tz_convert("UTC").reset_index(drop=True)
@@ -215,6 +218,7 @@ def test_eager_load_correct_under_hostile_default_tz(demo_data_dir, hostile_defa
         table_format_type="parquet",
         sample_size=5,
         site_tz="US/Eastern",
+        return_format="pandas",
     )
     assert df["recorded_dttm"].dt.tz is not None
     assert _tzname(df["recorded_dttm"]) == "US/Eastern"

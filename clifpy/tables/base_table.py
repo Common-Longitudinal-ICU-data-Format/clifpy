@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 from datetime import datetime
 
-from ..utils.io import load_data
+from ..utils.io import load_data, _pinned_pandas
 from ..utils import validator
 from ..utils.outlier_handler import _load_outlier_config
 from ..utils.config import get_config_or_params
@@ -101,6 +101,15 @@ class BaseTable:
         self.table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in self.__class__.__name__]).lstrip('_')
 
         # Initialize data and validation state
+        # Guard the pandas boundary: load_data() defaults to polars now, so a caller
+        # passing a polars frame would otherwise fail much later inside validation or
+        # summary stats with a confusing AttributeError.
+        if data is not None and not isinstance(data, pd.DataFrame):
+            raise TypeError(
+                f"{self.__class__.__name__} requires a pandas DataFrame, got "
+                f"{type(data).__name__}. load_data() returns polars by default -- pass "
+                f"return_format='pandas' (or convert with .to_pandas())."
+            )
         self.df: Optional[pd.DataFrame] = data
         self.errors: List[Dict[str, Any]] = []
         self.schema: Optional[Dict[str, Any]] = None
@@ -248,16 +257,21 @@ class BaseTable:
         table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in cls.__name__]).lstrip('_')
 
         # Load data using existing io utility
-        data = load_data(
-            table_name,
-            config['data_directory'],
-            config['filetype'],
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters,
-            site_tz=config['timezone'],
-            verbose=verbose
-        )
+        with _pinned_pandas():
+            data = load_data(
+                table_name,
+                config['data_directory'],
+                config['filetype'],
+                sample_size=sample_size,
+                columns=columns,
+                filters=filters,
+                site_tz=config['timezone'],
+                verbose=verbose,
+                # NOTE pinned: load_data() now defaults to polars. The table layer is still
+                # pandas (self.df uses .select_dtypes/.describe/.groupby), so this stays
+                # explicit until BaseTable.df migrates. See docs/io_return_formats_dx.md 7.
+                return_format='pandas',
+            )
 
         # Create instance with loaded data
         return cls(

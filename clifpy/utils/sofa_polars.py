@@ -35,7 +35,6 @@ import logging
 import gc
 
 from .datetime_polars import standardize_datetime_columns
-from .io_polars import load_data_polars
 
 # Set up logging
 logger = logging.getLogger('clifpy.utils.sofa_polars')
