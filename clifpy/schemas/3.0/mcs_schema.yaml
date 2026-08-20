@@ -26,6 +26,7 @@ columns:
       - ecmo
       - lvad
       - rvad
+      - iabp
   - name: device_name
     data_type: VARCHAR
     required: false
@@ -43,6 +44,7 @@ columns:
       - tandemheart
       - impella
       - durable
+      - cardiosave
   - name: config_name
     data_type: VARCHAR
     required: false
@@ -64,7 +66,7 @@ columns:
       - cp
       - "2_5"
       - 2_5_or_cp
-      - "5"
+      - "5_0"
       - "5_5"
       - rp
       - rp_flex
@@ -90,10 +92,10 @@ columns:
       - p_ven
       - p_art
       - delta_pressure
-      - frequency
       - power
       - pulsatility_index
       - performance
+      - iabp_ratio
   - name: setting_value
     data_type: DOUBLE
     required: true

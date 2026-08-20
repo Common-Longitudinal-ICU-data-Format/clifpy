@@ -12,7 +12,7 @@ columns:
     required: true
     is_category_column: false
     is_group_column: false
-  - name: provider_id
+  - name: author_id
     data_type: VARCHAR
     required: true
     is_category_column: false
@@ -56,6 +56,11 @@ columns:
       - addendum
       - incomplete
       - co-signed
+  - name: cosigner_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
   - name: cosigner_specialty
     data_type: VARCHAR
     required: false
@@ -89,7 +94,7 @@ columns:
 
 required_columns:
   - hospitalization_id
-  - provider_id
+  - author_id
   - note_id
   - note_type
   - note_type_category

@@ -56,6 +56,11 @@ columns:
     required: true
     is_category_column: false
     is_group_column: false
+  - name: lda_id
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
 required_columns:
   - hospitalization_id
   - recorded_dttm

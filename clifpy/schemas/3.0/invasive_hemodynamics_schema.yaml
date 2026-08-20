@@ -31,21 +31,21 @@ columns:
       - pa_mean
       - pcwp
       - cco
-      - cardiac_output_thermodilution
-      - cardiac_index
-      - cardiac_output_fick
-      - stroke_volume
-      - ppv
+      - co_thermodilution
+      - co_index
+      - co_fick
+      - sv
       - svv
-      - svi
+      - sv_index
       - svr
-      - svri
+      - svr_index
       - evlw
-      - evlwi
-      - ef
-      - itbi
+      - evlw_index
+      - gef
+      - itbv_index
       - gedv
-      - lvswi
+      - gedv_index
+      - lvsw_index
       - tfcd0
       - tfc
       - do2

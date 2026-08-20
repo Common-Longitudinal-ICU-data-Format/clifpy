@@ -12,11 +12,6 @@ columns:
     required: false
     is_category_column: false
     is_group_column: false
-  - name: ordering_provider_id
-    data_type: VARCHAR
-    required: false
-    is_category_column: false
-    is_group_column: false
   - name: administering_provider_id
     data_type: VARCHAR
     required: false
@@ -91,7 +86,6 @@ columns:
       - nitroprusside
       - norepinephrine
       - octreotide
-      - oxytocin
       - pantoprazole
       - papaverine
       - pentobarbital
@@ -280,7 +274,6 @@ med_category_to_group_mapping:
   nitroprusside: cardiac
   norepinephrine: vasoactives
   octreotide: gastrointestinal
-  oxytocin: endocrine
   pantoprazole: gastrointestinal
   papaverine: cardiac
   pentobarbital: sedation
@@ -305,3 +298,85 @@ med_category_to_group_mapping:
   vasopressin: vasoactives
   vecuronium: paralytics
   zidovudine: others
+# Expected dose unit(s) per med_category (from mCIDE med_categories CSV).
+# Continuous: expected NUMERATOR base unit (observed rates like mcg/kg/min
+# match expected mcg); an expected value containing '/' must match the full
+# observed unit. Scalar = single accepted unit; list = any of them.
+med_category_to_dose_unit_mapping:
+  albumin_5: ml
+  albumin_25: g
+  albuterol: mg
+  alprostadil: mcg
+  aminocaproic_acid: g
+  aminophylline: mg
+  amiodarone: mg
+  angiotensin: ng
+  argatroban: mcg
+  baclofen: ml
+  bivalirudin: mcg
+  bumetanide: mg
+  bupivacaine: ml
+  cangrelor: mcg
+  cisatracurium: mcg
+  clevidipine: mg
+  dexmedetomidine: mcg
+  dextrose_10_water: ml
+  dextrose_5_water: ml
+  dextrose_other: ml
+  diltiazem: mg
+  dobutamine: mcg
+  dopamine: mcg
+  epinephrine: mcg
+  epoprostenol: [ng, mcg]
+  eptifibatide: mcg
+  esmolol: mcg
+  esomeprazole: mg
+  fentanyl: mcg
+  furosemide: mg
+  heparin: units
+  hydromorphone: mg
+  insulin: units
+  ipratropium: ml
+  isoproterenol: mcg
+  ketamine: mg
+  labetalol: mg
+  lactated_ringers_solution: ml
+  levothyroxine: mcg
+  lidocaine: mg
+  liothyronine: mcg
+  lorazepam: mg
+  magnesium_sulfate: g
+  midazolam: mg
+  milrinone: mcg
+  morphine: mg
+  naloxone: mcg
+  nicardipine: mg
+  nitric_oxide: ppm
+  nitroglycerin: mcg
+  nitroprusside: mcg
+  norepinephrine: mcg
+  octreotide: mcg
+  pantoprazole: mg
+  papaverine: mg
+  pentobarbital: mg
+  phentolamine: mg
+  phenylephrine: mcg
+  pitocin: milli_units
+  plasma_lyte: ml
+  procainamide: mg
+  propofol: mcg
+  remifentanil: mcg
+  rocuronium: mcg
+  ropivacaine: ml
+  sodium_bicarbonate: ml/hr
+  sodium_chloride: ml
+  tacrolimus: mcg
+  terbutaline: [mg, mcg]
+  torsemide: mg
+  tpn: ml
+  treprostinil: ng
+  vasopressin: units
+  vecuronium: mcg
+  zidovudine: mg
+# Expected unit for the optional volume_infusion_rate_unit column.
+expected_volume_infusion_rate_unit: ml/hr

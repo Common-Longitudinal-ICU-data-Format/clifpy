@@ -12,11 +12,6 @@ columns:
   required: false
   is_category_column: false
   is_group_column: false
-- name: ordering_provider_id
-  data_type: VARCHAR
-  required: false
-  is_category_column: false
-  is_group_column: false
 - name: administering_provider_id
   data_type: VARCHAR
   required: true
@@ -58,11 +53,18 @@ columns:
   - benazepril
   - benazepril_hctz
   - betamethasone
+  - bisoprolol
+  - bisoprolol_hctz
   - blinatumomab
   - brexucabtagene_autoleucel
+  - bumetanide
+  - canagliflozin
+  - canagliflozin_metformin
   - candesartan
   - candesartan_hctz
   - captopril
+  - carvedilol
+  - carvedilol_cr
   - caspofungin
   - cefaclor
   - cefadroxil
@@ -94,6 +96,8 @@ columns:
   - cephapirin
   - cephradine
   - chloramphenicol
+  - chlorothiazide
+  - chlorthalidone
   - cidofovir
   - ciltacabtagene_autoleucel
   - cinoxacin
@@ -104,24 +108,33 @@ columns:
   - cloxacillin
   - colistin
   - dalbavancin
+  - dapagliflozin
+  - dapagliflozin_metformin
+  - dapagliflozin_saxagliptin
   - daptomycin
   - delafloxacin
   - dexamethasone
   - diatrizoate
   - diazepam
   - dicloxacillin
+  - digoxin
   - diphenhydramine
   - doripenem
   - dornase_alfa
   - doxycycline
   - elratanamab
+  - empagliflozin
+  - empagliflozin_linagliptin
+  - empagliflozin_metformin
   - enalapril
   - enalapril_hctz
   - epcoritamab
   - epinephrine
+  - eplerenone
   - eprosartan
   - eravacycline
   - ertapenem
+  - ertugliflozin
   - erythromycin
   - etomidate
   - fentanyl
@@ -131,6 +144,7 @@ columns:
   - foscarnet
   - fosfomycin
   - fosinopril
+  - furosemide
   - gadobenate
   - gadobutrol
   - gadodiamide
@@ -143,6 +157,9 @@ columns:
   - gentamicin
   - glofitamab
   - haloperidol
+  - hydralazine
+  - hydralazine_isosorbide
+  - hydrochlorothiazide
   - hydrocortisone
   - hydromorphone
   - hydroxocobalamin
@@ -154,6 +171,7 @@ columns:
   - idecabtagene_vicleucel
   - imipenem
   - imipenem_relebactam
+  - indapamide
   - iobitridol
   - iodixanol
   - iohexol
@@ -165,7 +183,9 @@ columns:
   - irbesartan_hctz
   - isavuconazole
   - isavuconazonium
+  - isosorbide_dinitrate
   - itraconazole
+  - ivabradine
   - kanamycin
   - ketamine
   - lefamulin
@@ -187,6 +207,11 @@ columns:
   - methicillin
   - methylene_blue
   - methylprednisolone
+  - metolazone
+  - metoprolol_succinate
+  - metoprolol_succinate_hctz
+  - metoprolol_tartrate
+  - metoprolol_tartrate_hctz
   - metrizamide
   - metronidazole
   - mezlocillin
@@ -240,6 +265,9 @@ columns:
   - rocuronium
   - sacubitril_valsartan
   - siltuximab
+  - sotagliflozin
+  - spironolactone
+  - spironolactone_hctz
   - streptomycin
   - succinylcholine
   - sulbactam_durlobactam
@@ -262,6 +290,7 @@ columns:
   - tisagenlecleucel
   - tobramycin
   - tocilizumab
+  - torsemide
   - trandolapril
   - trimethoprim
   - trimethoprim_sulfamethoxazole
@@ -273,6 +302,7 @@ columns:
   - valsartan_hctz
   - vancomycin
   - vecuronium
+  - vericiguat
   - voriconazole
 - name: med_group
   data_type: VARCHAR
@@ -285,8 +315,11 @@ columns:
   - antipsychotic
   - anxiolytic
   - car_t
+  - cardiac_glycoside
   - cms_sepsis_qualifying_antibiotics
   - contrast_agent
+  - diabetes
+  - diuretic
   - other
   - paralytics
   - sedation
@@ -410,15 +443,29 @@ med_category_to_group_mapping:
   - anti_hypertensive
   betamethasone:
   - steroid
+  bisoprolol:
+  - anti_hypertensive
+  bisoprolol_hctz:
+  - anti_hypertensive
   blinatumomab:
   - other
   brexucabtagene_autoleucel:
   - car_t
+  bumetanide:
+  - diuretic
+  canagliflozin:
+  - diabetes
+  canagliflozin_metformin:
+  - diabetes
   candesartan:
   - anti_hypertensive
   candesartan_hctz:
   - anti_hypertensive
   captopril:
+  - anti_hypertensive
+  carvedilol:
+  - anti_hypertensive
+  carvedilol_cr:
   - anti_hypertensive
   caspofungin:
   - cms_sepsis_qualifying_antibiotics
@@ -482,6 +529,10 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   chloramphenicol:
   - cms_sepsis_qualifying_antibiotics
+  chlorothiazide:
+  - diuretic
+  chlorthalidone:
+  - diuretic
   cidofovir:
   - cms_sepsis_qualifying_antibiotics
   ciltacabtagene_autoleucel:
@@ -502,6 +553,12 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   dalbavancin:
   - cms_sepsis_qualifying_antibiotics
+  dapagliflozin:
+  - diabetes
+  dapagliflozin_metformin:
+  - diabetes
+  dapagliflozin_saxagliptin:
+  - diabetes
   daptomycin:
   - cms_sepsis_qualifying_antibiotics
   delafloxacin:
@@ -514,6 +571,8 @@ med_category_to_group_mapping:
   - anxiolytic
   dicloxacillin:
   - cms_sepsis_qualifying_antibiotics
+  digoxin:
+  - cardiac_glycoside
   diphenhydramine:
   - other
   doripenem:
@@ -524,6 +583,12 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   elratanamab:
   - other
+  empagliflozin:
+  - diabetes
+  empagliflozin_linagliptin:
+  - diabetes
+  empagliflozin_metformin:
+  - diabetes
   enalapril:
   - anti_hypertensive
   enalapril_hctz:
@@ -532,12 +597,16 @@ med_category_to_group_mapping:
   - other
   epinephrine:
   - vasopressor
+  eplerenone:
+  - anti_hypertensive
   eprosartan:
   - anti_hypertensive
   eravacycline:
   - cms_sepsis_qualifying_antibiotics
   ertapenem:
   - cms_sepsis_qualifying_antibiotics
+  ertugliflozin:
+  - diabetes
   erythromycin:
   - cms_sepsis_qualifying_antibiotics
   etomidate:
@@ -556,6 +625,8 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   fosinopril:
   - anti_hypertensive
+  furosemide:
+  - diuretic
   gadobenate:
   - contrast_agent
   gadobutrol:
@@ -580,6 +651,12 @@ med_category_to_group_mapping:
   - other
   haloperidol:
   - antipsychotic
+  hydralazine:
+  - anti_hypertensive
+  hydralazine_isosorbide:
+  - anti_hypertensive
+  hydrochlorothiazide:
+  - diuretic
   hydrocortisone:
   - steroid
   hydromorphone:
@@ -602,6 +679,8 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   imipenem_relebactam:
   - cms_sepsis_qualifying_antibiotics
+  indapamide:
+  - diuretic
   iobitridol:
   - contrast_agent
   iodixanol:
@@ -624,8 +703,12 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   isavuconazonium:
   - cms_sepsis_qualifying_antibiotics
+  isosorbide_dinitrate:
+  - anti_hypertensive
   itraconazole:
   - cms_sepsis_qualifying_antibiotics
+  ivabradine:
+  - other
   kanamycin:
   - cms_sepsis_qualifying_antibiotics
   ketamine:
@@ -668,6 +751,16 @@ med_category_to_group_mapping:
   - vasopressor
   methylprednisolone:
   - steroid
+  metolazone:
+  - diuretic
+  metoprolol_succinate:
+  - anti_hypertensive
+  metoprolol_succinate_hctz:
+  - anti_hypertensive
+  metoprolol_tartrate:
+  - anti_hypertensive
+  metoprolol_tartrate_hctz:
+  - anti_hypertensive
   metrizamide:
   - contrast_agent
   metronidazole:
@@ -774,6 +867,12 @@ med_category_to_group_mapping:
   - anti_hypertensive
   siltuximab:
   - other
+  sotagliflozin:
+  - diabetes
+  spironolactone:
+  - anti_hypertensive
+  spironolactone_hctz:
+  - anti_hypertensive
   streptomycin:
   - cms_sepsis_qualifying_antibiotics
   succinylcholine:
@@ -818,6 +917,8 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   tocilizumab:
   - other
+  torsemide:
+  - diuretic
   trandolapril:
   - anti_hypertensive
   trimethoprim:
@@ -840,5 +941,280 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   vecuronium:
   - paralytics
+  vericiguat:
+  - other
   voriconazole:
   - cms_sepsis_qualifying_antibiotics
+# Expected dose unit(s) per med_category (from mCIDE med_categories CSV).
+med_category_to_dose_unit_mapping:
+  acetaminophen: mg
+  acyclovir: mg
+  alteplase: mg
+  amikacin: mg
+  amoxicillin: mg
+  amoxicillin_clavulanate: mg
+  amphotericin_b: mg
+  ampicillin: g
+  ampicillin_sulbactam: g
+  anakinra: mg
+  anidulafungin: mg
+  atracurium: mg
+  axicabtagene_ciloleucel: cells
+  azilsartan: mg
+  azithromycin: mg
+  aztreonam: g
+  baricitinib: mg
+  benazepril: mg
+  benazepril_hctz: mg
+  betamethasone: mg
+  bisoprolol: mg
+  bisoprolol_hctz: mg
+  blinatumomab: mcg
+  brexucabtagene_autoleucel: cells
+  bumetanide: mg
+  canagliflozin: mg
+  canagliflozin_metformin: mg
+  candesartan: mg
+  candesartan_hctz: mg
+  captopril: mg
+  carvedilol: mg
+  carvedilol_cr: mg
+  caspofungin: mg
+  cefaclor: mg
+  cefadroxil: mg
+  cefamandole: g
+  cefazolin: g
+  cefdinir: mg
+  cefepime: g
+  cefiderocol: g
+  cefixime: mg
+  cefmetazole: g
+  cefonicid: g
+  cefoperazone: g
+  cefotaxime: g
+  cefotetan: g
+  cefoxitin: g
+  cefpodoxime: mg
+  cefprozil: mg
+  ceftaroline: mg
+  ceftazidime: g
+  ceftazidime_avibactam: g
+  ceftazidime_clavulanate: g
+  ceftibuten: mg
+  ceftizoxime: g
+  ceftolozane_tazobactam: g
+  ceftriaxone: g
+  cefuroxime: mg
+  cephalexin: mg
+  cephalothin: g
+  cephapirin: mg
+  cephradine: mg
+  chloramphenicol: mg
+  chlorothiazide: mg
+  chlorthalidone: mg
+  cidofovir: mg
+  ciltacabtagene_autoleucel: cells
+  cinoxacin: mg
+  ciprofloxacin: mg
+  cisatracurium: mg
+  clarithromycin: mg
+  clindamycin: mg
+  cloxacillin: mg
+  colistin: mg
+  dalbavancin: mg
+  dapagliflozin: mg
+  dapagliflozin_metformin: mg
+  dapagliflozin_saxagliptin: mg
+  daptomycin: mg
+  delafloxacin: mg
+  dexamethasone: mg
+  diatrizoate: ml
+  diazepam: mg
+  dicloxacillin: mg
+  digoxin: mg
+  diphenhydramine: mg
+  doripenem: mg
+  dornase_alfa: mg
+  doxycycline: mg
+  elratanamab: mg
+  empagliflozin: mg
+  empagliflozin_linagliptin: mg
+  empagliflozin_metformin: mg
+  enalapril: mg
+  enalapril_hctz: mg
+  epcoritamab: mg
+  epinephrine: mg
+  eplerenone: mg
+  eprosartan: mg
+  eravacycline: mg
+  ertapenem: g
+  ertugliflozin: mg
+  erythromycin: mg
+  etomidate: mg
+  fentanyl: mcg
+  fidaxomicin: mg
+  fluconazole: mg
+  fludrocortisone: mg
+  foscarnet: mg
+  fosfomycin: g
+  fosinopril: mg
+  furosemide: mg
+  gadobenate: mmol
+  gadobutrol: mmol
+  gadodiamide: mmol
+  gadopentetate: mmol
+  gadoterate: mmol
+  gadoteridol: mmol
+  gadoxetate: mmol
+  ganciclovir: mg
+  gatifloxacin: mg
+  gentamicin: mg
+  glofitamab: mg
+  haloperidol: mg
+  hydralazine: mg
+  hydralazine_isosorbide: mg
+  hydrochlorothiazide: mg
+  hydrocortisone: mg
+  hydromorphone: mg
+  hydroxocobalamin: g
+  hypertonic_saline_20: ml
+  hypertonic_saline_23.4: ml
+  hypertonic_saline_3: ml
+  hypertonic_saline_7: ml
+  hypertonic_saline_7.5: ml
+  idecabtagene_vicleucel: cells
+  imipenem: mg
+  imipenem_relebactam: mg
+  indapamide: mg
+  iobitridol: ml
+  iodixanol: ml
+  iohexol: ml
+  iomeprol: ml
+  iopamidol: ml
+  ioversol: ml
+  ioxaglate: ml
+  irbesartan: mg
+  irbesartan_hctz: mg
+  isavuconazole: mg
+  isavuconazonium: mg
+  isosorbide_dinitrate: mg
+  itraconazole: mg
+  ivabradine: mg
+  kanamycin: mg
+  ketamine: mg
+  lefamulin: mg
+  levofloxacin: mg
+  lincomycin: mg
+  linezolid: mg
+  linvoseltamab: mg
+  lisinopril: mg
+  lisinopril_hctz: mg
+  lisocabtagene_maraleucel: cells
+  lorazepam: mg
+  losartan: mg
+  losartan_hctz: mg
+  magnesium_repletion: mg
+  mannitol: ml
+  maribavir: mg
+  meropenem: g
+  meropenem_vaborbactam: g
+  methicillin: g
+  methylene_blue: mg
+  methylprednisolone: mg
+  metolazone: mg
+  metoprolol_succinate: mg
+  metoprolol_succinate_hctz: mg
+  metoprolol_tartrate: mg
+  metoprolol_tartrate_hctz: mg
+  metrizamide: ml
+  metronidazole: mg
+  mezlocillin: g
+  micafungin: mg
+  micafungin_posaconazole_voriconazole: mg
+  midazolam: mg
+  minocycline: mg
+  moexipril: mg
+  morphine: mg
+  mosunetuzumab: mg
+  moxifloxacin: mg
+  nafcillin: g
+  naloxone: mg
+  nitrofurantoin: mg
+  norfloxacin: mg
+  nystatin: ml
+  ofloxacin: mg
+  olanzapine: mg
+  olmesartan: mg
+  olmesartan_hctz: mg
+  omadacycline: mg
+  oritavancin: mg
+  oseltamivir: mg
+  oxacillin: g
+  oxycodone: mg
+  penicillin: mg
+  peramivir: mg
+  perindopril: mg
+  perindopril_amlodipine: mg
+  phosphate_repletion: mmol
+  piperacillin_tazobactam: g
+  pivampicillin: mg
+  plazomicin: mg
+  polymyxin_b: mg
+  posaconazole: mg
+  potassium_repletion: meq
+  prednisolone: mg
+  prednisone: mg
+  promethazine: mg
+  propofol: mg
+  quetiapine: mg
+  quinapril: mg
+  quinupristin_dalfopristin: mg
+  ramipril: mg
+  ramipril_amlodipine: mg
+  remdesivir: mg
+  rezafungin: mg
+  ribavirin: mg
+  rifampin: mg
+  risperidone: mg
+  rocuronium: mg
+  sacubitril_valsartan: mg
+  siltuximab: mg
+  sotagliflozin: mg
+  spironolactone: mg
+  spironolactone_hctz: mg
+  streptomycin: mg
+  succinylcholine: mg
+  sulbactam_durlobactam: g
+  sulfadiazine: mg
+  sulfadiazine_trimethoprim: mg
+  sulfisoxazole: mg
+  talquetamab: mg
+  tarlatamab: mg
+  tebentafusp: mcg
+  teclistamab: mg
+  tedizolid: mg
+  telavancin: mg
+  telithromycin: mg
+  telmisartan: mg
+  telmisartan_amlodipine: mg
+  tetracycline: mg
+  ticarcillin: g
+  ticarcillin_clavulanate: g
+  tigecycline: mg
+  tisagenlecleucel: cells
+  tobramycin: mg
+  tocilizumab: mg
+  torsemide: mg
+  trandolapril: mg
+  trimethoprim: mg
+  trimethoprim_sulfamethoxazole: mg
+  valacyclovir: mg
+  valganciclovir: mg
+  valproate: mg
+  valsartan: mg
+  valsartan_amlodipine: mg
+  valsartan_hctz: mg
+  vancomycin: mg
+  vecuronium: mg
+  vericiguat: mg
+  voriconazole: mg

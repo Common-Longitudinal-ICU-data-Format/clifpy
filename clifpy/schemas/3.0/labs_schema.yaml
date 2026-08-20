@@ -101,7 +101,6 @@ columns:
       - free_t3
       - free_t4
       - glucose
-      - glucose_serum
       - hematocrit
       - hematocrit_percent
       - hemoglobin
@@ -132,6 +131,7 @@ columns:
       - neutrophils_absolute
       - neutrophils_percent
       - ngal
+      - neuron_specific_enolase
       - nt_pro_bnp
       - opiate
       - other_absolute
@@ -147,7 +147,6 @@ columns:
       - po2_arterial
       - po2_mixed_venous
       - potassium
-      - probnp
       - procalcitonin
       - protein
       - protein_to_creatinine_ratio
@@ -305,6 +304,7 @@ lab_reference_units:
   neutrophils_absolute: 10^3/ul
   neutrophils_percent: "%"
   ngal: ng/ml
+  neuron_specific_enolase: ng/ml
   nt_pro_bnp: pg/ml
   opiate: (no units)
   other_absolute: cells/ul
@@ -320,7 +320,6 @@ lab_reference_units:
   po2_arterial: mmhg
   po2_mixed_venous: mmhg
   potassium: mmol/l
-  probnp: pg/ml
   procalcitonin: ng/ml
   protein: g/dl
   protein_to_creatinine_ratio: mg/g

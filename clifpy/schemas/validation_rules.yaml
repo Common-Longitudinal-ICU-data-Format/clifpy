@@ -171,6 +171,9 @@ field_plausibility_rules:
 medication_dose_unit_rules:
   medication_admin_continuous:
     expect: per_time
+    # Full units that are valid for continuous administration without a time
+    # denominator (e.g. nitric_oxide is dosed in ppm).
+    exempt_units: [ppm]
     description: "Continuous med dose units must be rate-based (contain time denominator)"
   medication_admin_intermittent:
     expect: discrete

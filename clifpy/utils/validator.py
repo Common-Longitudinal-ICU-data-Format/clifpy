@@ -461,6 +461,10 @@ class DQAConformanceResult:
     def __init__(self, check_type: str, table_name: str):
         self.check_type = check_type
         self.table_name = table_name
+        # CLIF schema version this check was run against. Stamped by the
+        # validation entry points (run_full_dqa / validate_dataframe) from the
+        # schema's own ``version`` key. None until stamped.
+        self.clif_version: Optional[str] = None
         self.passed = True
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -489,6 +493,7 @@ class DQAConformanceResult:
         return {
             "check_type": self.check_type,
             "table_name": self.table_name,
+            "clif_version": self.clif_version,
             "passed": self.passed,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -505,6 +510,9 @@ class DQACompletenessResult:
     def __init__(self, check_type: str, table_name: str):
         self.check_type = check_type
         self.table_name = table_name
+        # CLIF schema version this check was run against (stamped by the
+        # validation entry points from the schema's ``version`` key).
+        self.clif_version: Optional[str] = None
         self.passed = True
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -527,6 +535,7 @@ class DQACompletenessResult:
         return {
             "check_type": self.check_type,
             "table_name": self.table_name,
+            "clif_version": self.clif_version,
             "passed": self.passed,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -543,6 +552,9 @@ class DQAPlausibilityResult:
     def __init__(self, check_type: str, table_name: str):
         self.check_type = check_type
         self.table_name = table_name
+        # CLIF schema version this check was run against (stamped by the
+        # validation entry points from the schema's ``version`` key).
+        self.clif_version: Optional[str] = None
         self.passed = True
         self.errors: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -565,6 +577,7 @@ class DQAPlausibilityResult:
         return {
             "check_type": self.check_type,
             "table_name": self.table_name,
+            "clif_version": self.clif_version,
             "passed": self.passed,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -1715,6 +1728,466 @@ def check_lab_reference_units(
     _logger.debug("check_lab_reference_units: table '%s' — valid=%s, invalid_categories=%s",
                   table_name, result.metrics.get("valid_units"),
                   result.metrics.get("invalid_unit_categories"))
+    return result
+
+
+# B.3b. Medication dose units validation (3.0 mCIDE per-category expected units)
+def _med_unit_matches(observed: str, expected_units: List[str], continuous: bool) -> bool:
+    """Return True if a normalized observed dose unit matches any expected unit.
+
+    ``observed`` and ``expected_units`` must already be lowercased+stripped.
+    For continuous tables the expected value is the rate NUMERATOR base unit
+    (observed ``mcg/kg/min`` matches expected ``mcg``) unless the expected
+    value itself contains ``/`` (e.g. ``ml/hr``), which must match the full
+    observed unit. Intermittent tables always require a full-unit match.
+    """
+    for exp in expected_units:
+        if not continuous or '/' in exp:
+            if observed == exp:
+                return True
+        elif observed.split('/', 1)[0].strip() == exp:
+            return True
+    return False
+
+
+def _coerce_expected_units(entry: Any) -> List[str]:
+    """Normalize one dose-unit mapping value (scalar or list) to a lowercased,
+    stripped list of accepted units."""
+    if isinstance(entry, (list, tuple)):
+        return [str(u).lower().strip() for u in entry if u is not None]
+    if entry is None:
+        return []
+    return [str(entry).lower().strip()]
+
+
+def _evaluate_med_category_units(
+    med_cat_orig_key: str,
+    expected_units: List[str],
+    actual_pairs: list,
+    continuous: bool,
+) -> tuple:
+    """Evaluate one med category's observed dose units against the expected
+    unit(s) from the schema mapping.
+
+    Parameters
+    ----------
+    med_cat_orig_key
+        Original-case category key, for user-facing messages.
+    expected_units
+        Accepted units for this category, already lowercased+stripped.
+    actual_pairs
+        List of ``(dose_unit, dose_unit_orig, med_cat_orig, count)`` tuples
+        from the data, with ``dose_unit`` already lowercased+stripped.
+    continuous
+        True for medication_admin_continuous (numerator matching).
+
+    Returns
+    -------
+    (details, is_valid)
+        ``details`` is a dict suitable for add_info/add_warning with match
+        counts and (on mismatch) the top mismatched units. ``is_valid`` is
+        True iff every observed unit matched.
+    """
+    matched = 0
+    bad = []
+    for dose_unit, dose_unit_orig, _, count in actual_pairs:
+        if _med_unit_matches(dose_unit, expected_units, continuous):
+            matched += count
+        else:
+            bad.append({
+                "med_dose_unit": dose_unit_orig,
+                "expected_units": expected_units,
+                "count": count,
+            })
+
+    bad.sort(key=lambda x: x['count'], reverse=True)
+    mismatched = sum(x['count'] for x in bad)
+
+    details = {
+        "column": med_cat_orig_key,
+        "med_category": med_cat_orig_key,
+        "expected_units": expected_units,
+        "match_mode": "numerator" if continuous else "exact",
+        "matched_records": matched,
+        "mismatched_records": mismatched,
+    }
+    if bad:
+        details["top_mismatched_units"] = bad[:10]
+
+    return details, not bool(bad)
+
+
+def _report_med_dose_unit_results(
+    result: DQAConformanceResult,
+    mapping_normalized: Dict[str, tuple],
+    actual_units: Dict[str, list],
+    continuous: bool,
+) -> None:
+    """Shared per-category reporting loop for both backends: one info per
+    matching / absent mapping entry, one warning per mismatching entry."""
+    mismatch_categories = 0
+    mismatched_records = 0
+    for med_cat_norm, (med_cat_orig_key, expected_entry) in mapping_normalized.items():
+        expected_units = _coerce_expected_units(expected_entry)
+        pairs = actual_units.get(med_cat_norm)
+        if pairs is None:
+            result.add_info(
+                f"Med category '{med_cat_orig_key}': not present in data",
+                {"column": med_cat_orig_key, "med_category": med_cat_orig_key}
+            )
+            continue
+
+        details, is_valid = _evaluate_med_category_units(
+            med_cat_orig_key, expected_units, pairs, continuous,
+        )
+        if is_valid:
+            result.add_info(
+                f"Med category '{med_cat_orig_key}': dose units match schema",
+                details,
+            )
+        else:
+            mismatch_categories += 1
+            mismatched_records += details["mismatched_records"]
+            result.add_warning(
+                f"Med category '{med_cat_orig_key}': unexpected dose units found",
+                details,
+            )
+
+    unknown = sorted(set(actual_units) - set(mapping_normalized))
+    if unknown:
+        result.metrics["unknown_categories"] = [
+            {"med_category": cat,
+             "count": sum(p[3] for p in actual_units[cat])}
+            for cat in unknown
+        ]
+        result.add_info(
+            f"{len(unknown)} med categories in data have no expected dose unit "
+            f"in the schema mapping (skipped)",
+            {"med_categories": unknown[:20]}
+        )
+
+    checked = sum(1 for k in mapping_normalized if k in actual_units)
+    total_records = result.metrics.get("total_records", 0)
+    result.metrics["categories_checked"] = checked
+    result.metrics["categories_with_mismatch"] = mismatch_categories
+    result.metrics["mismatched_records"] = mismatched_records
+    result.metrics["mismatch_percent"] = round(
+        mismatched_records / total_records * 100, 2) if total_records else 0
+
+
+def _report_volume_rate_units(
+    result: DQAConformanceResult,
+    expected: str,
+    unit_counts: list,
+) -> None:
+    """Report the volume_infusion_rate_unit sub-check (continuous only).
+
+    ``unit_counts`` is a list of ``(unit_norm, unit_orig, count)`` for
+    non-null, non-empty observed values.
+    """
+    expected_norm = str(expected).lower().strip()
+    matched = sum(c for u, _, c in unit_counts if u == expected_norm)
+    bad = sorted(
+        ({"volume_infusion_rate_unit": orig, "count": c}
+         for u, orig, c in unit_counts if u != expected_norm),
+        key=lambda x: x['count'], reverse=True,
+    )
+    mismatched = sum(x['count'] for x in bad)
+    details = {
+        "column": "volume_infusion_rate_unit",
+        "expected_unit": expected_norm,
+        "matched_records": matched,
+        "mismatched_records": mismatched,
+    }
+    if bad:
+        details["top_mismatched_units"] = bad[:10]
+        result.add_warning(
+            "Column 'volume_infusion_rate_unit': unexpected units found",
+            details,
+        )
+    else:
+        result.add_info(
+            f"Column 'volume_infusion_rate_unit': all values match "
+            f"'{expected_norm}'",
+            details,
+        )
+    result.metrics["volume_infusion_rate_unit"] = details
+
+
+def check_medication_dose_units_polars(
+    df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+) -> DQAConformanceResult:
+    """Check med_dose_unit values against the schema's per-category expected
+    units (``med_category_to_dose_unit_mapping``) using Polars."""
+    result = DQAConformanceResult("medication_dose_units", table_name)
+
+    mapping = schema.get('med_category_to_dose_unit_mapping') or {}
+    if not mapping:
+        result.add_info("No med_category dose unit mapping defined in schema")
+        result.atomic_total = 0
+        result.atomic_passed = 0
+        return result
+    if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        result.add_info("Medication dose units check not applicable to this table")
+        result.atomic_total = 0
+        result.atomic_passed = 0
+        return result
+    continuous = table_name == 'medication_admin_continuous'
+
+    try:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        # Self-normalize if caller invoked the check directly (e.g. from tests).
+        if not _has_sidecars_polars(lf):
+            lf = _normalize_columns_polars(lf)
+        col_names = lf.collect_schema().names()
+
+        if 'med_category' not in col_names or 'med_dose_unit' not in col_names:
+            result.add_error("Missing required columns: med_category and/or med_dose_unit")
+            result.atomic_total = 1
+            result.atomic_passed = 0
+            return result
+
+        orig_cat_col = f"{_ORIG_PREFIX}med_category"
+        orig_unit_col = f"{_ORIG_PREFIX}med_dose_unit"
+        has_orig_cat = orig_cat_col in col_names
+        has_orig_unit = orig_unit_col in col_names
+
+        agg_exprs = [pl.len().alias('count')]
+        if has_orig_cat:
+            agg_exprs.append(pl.col(orig_cat_col).first().alias('__orig_cat'))
+        if has_orig_unit:
+            agg_exprs.append(pl.col(orig_unit_col).first().alias('__orig_unit'))
+
+        # Single pass: null / empty-string units are split out of the grouped
+        # counts in Python rather than via extra filtered scans.
+        unit_counts = (
+            lf
+            .group_by(['med_category', 'med_dose_unit'])
+            .agg(agg_exprs)
+            .collect(streaming=True)
+        )
+
+        # Build lookup: med_category (normalized) -> [(unit, unit_orig, cat_orig, count)]
+        actual_units: Dict[str, list] = {}
+        total_count = 0
+        empty_count = 0
+        for row in unit_counts.iter_rows(named=True):
+            med_cat = row['med_category']
+            dose_unit = row['med_dose_unit']
+            count = row['count']
+            if dose_unit is None:
+                continue
+            if str(dose_unit).strip() == '':
+                empty_count += count
+                continue
+            if med_cat is None:
+                continue
+            med_cat_orig = row.get('__orig_cat', med_cat) if has_orig_cat else med_cat
+            unit_orig = row.get('__orig_unit', dose_unit) if has_orig_unit else dose_unit
+            total_count += count
+            actual_units.setdefault(med_cat, []).append(
+                (dose_unit, unit_orig, med_cat_orig, count))
+
+        # Empty-string dose units are an ETL deviation: advise, then exclude.
+        _report_empty_strings(result, table_name, 'med_dose_unit',
+                              int(empty_count), {})
+
+        result.metrics["total_records"] = total_count
+
+        mapping_normalized = {str(k).lower().strip(): (k, v) for k, v in mapping.items()}
+        _report_med_dose_unit_results(result, mapping_normalized, actual_units, continuous)
+
+        # Continuous only: optional volume_infusion_rate_unit sub-check.
+        expected_vol = schema.get('expected_volume_infusion_rate_unit')
+        vol_checked = False
+        if continuous and expected_vol and 'volume_infusion_rate_unit' in col_names:
+            vol_orig_col = f"{_ORIG_PREFIX}volume_infusion_rate_unit"
+            has_vol_orig = vol_orig_col in col_names
+            vol_aggs = [pl.len().alias('count')]
+            if has_vol_orig:
+                vol_aggs.append(pl.col(vol_orig_col).first().alias('__orig_vol'))
+            vol_counts = (
+                lf.group_by('volume_infusion_rate_unit')
+                .agg(vol_aggs)
+                .collect(streaming=True)
+            )
+            vol_pairs = [
+                (row['volume_infusion_rate_unit'],
+                 row.get('__orig_vol', row['volume_infusion_rate_unit']) if has_vol_orig
+                 else row['volume_infusion_rate_unit'],
+                 row['count'])
+                for row in vol_counts.iter_rows(named=True)
+                if row['volume_infusion_rate_unit'] is not None
+                and str(row['volume_infusion_rate_unit']).strip() != ''
+            ]
+            if vol_pairs:
+                _report_volume_rate_units(result, expected_vol, vol_pairs)
+                vol_checked = True
+            else:
+                result.add_info("Column 'volume_infusion_rate_unit': no non-null values to check")
+        elif continuous and expected_vol:
+            result.add_info("Column 'volume_infusion_rate_unit' not found in table")
+
+        gc.collect()
+
+        result.atomic_total = len(mapping_normalized) + (1 if vol_checked else 0)
+        result.atomic_passed = result.atomic_total - len(result.errors)
+    except Exception as e:
+        _logger.error("Check 'medication_dose_units' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking medication dose units: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
+
+    return result
+
+
+def check_medication_dose_units_duckdb(
+    df: pd.DataFrame,
+    schema: Dict[str, Any],
+    table_name: str,
+) -> DQAConformanceResult:
+    """Check med_dose_unit values against the schema's per-category expected
+    units (``med_category_to_dose_unit_mapping``) using DuckDB."""
+    result = DQAConformanceResult("medication_dose_units", table_name)
+
+    mapping = schema.get('med_category_to_dose_unit_mapping') or {}
+    if not mapping:
+        result.add_info("No med_category dose unit mapping defined in schema")
+        result.atomic_total = 0
+        result.atomic_passed = 0
+        return result
+    if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        result.add_info("Medication dose units check not applicable to this table")
+        result.atomic_total = 0
+        result.atomic_passed = 0
+        return result
+    continuous = table_name == 'medication_admin_continuous'
+
+    try:
+        con = duckdb.connect(':memory:')
+        # Self-normalize if caller invoked the check directly (e.g. from tests).
+        if not any(c.startswith(_ORIG_PREFIX) for c in df.columns):
+            df = _normalize_columns_pandas(df)
+        con.register('meds_df', df)
+
+        if 'med_category' not in df.columns or 'med_dose_unit' not in df.columns:
+            result.add_error("Missing required columns: med_category and/or med_dose_unit")
+            con.close()
+            result.atomic_total = 1
+            result.atomic_passed = 0
+            return result
+
+        orig_cat_col = f"{_ORIG_PREFIX}med_category"
+        orig_unit_col = f"{_ORIG_PREFIX}med_dose_unit"
+        has_orig_cat = orig_cat_col in df.columns
+        has_orig_unit = orig_unit_col in df.columns
+
+        select_extra = ''
+        if has_orig_cat:
+            select_extra += f', MIN("{orig_cat_col}") as __orig_cat'
+        if has_orig_unit:
+            select_extra += f', MIN("{orig_unit_col}") as __orig_unit'
+
+        # Single pass: null / empty-string units are split out of the grouped
+        # counts in Python rather than via extra filtered scans.
+        unit_counts = con.execute(f"""
+            SELECT med_category, med_dose_unit, COUNT(*) as count{select_extra}
+            FROM meds_df
+            GROUP BY med_category, med_dose_unit
+        """).fetchall()
+
+        # Build lookup: med_category (normalized) -> [(unit, unit_orig, cat_orig, count)]
+        actual_units: Dict[str, list] = {}
+        total_count = 0
+        empty_count = 0
+        for row in unit_counts:
+            idx = 3
+            med_cat, dose_unit, count = row[0], row[1], row[2]
+            if dose_unit is None:
+                continue
+            if str(dose_unit).strip() == '':
+                empty_count += int(count)
+                continue
+            if med_cat is None:
+                continue
+            if has_orig_cat:
+                med_cat_orig = row[idx]; idx += 1
+            else:
+                med_cat_orig = med_cat
+            if has_orig_unit:
+                unit_orig = row[idx]; idx += 1
+            else:
+                unit_orig = dose_unit
+            total_count += int(count)
+            actual_units.setdefault(med_cat, []).append(
+                (dose_unit, unit_orig, med_cat_orig, int(count)))
+
+        # Empty-string dose units are an ETL deviation: advise, then exclude.
+        _report_empty_strings(result, table_name, 'med_dose_unit',
+                              int(empty_count), {})
+
+        result.metrics["total_records"] = total_count
+
+        mapping_normalized = {str(k).lower().strip(): (k, v) for k, v in mapping.items()}
+        _report_med_dose_unit_results(result, mapping_normalized, actual_units, continuous)
+
+        # Continuous only: optional volume_infusion_rate_unit sub-check.
+        expected_vol = schema.get('expected_volume_infusion_rate_unit')
+        vol_checked = False
+        if continuous and expected_vol and 'volume_infusion_rate_unit' in df.columns:
+            vol_orig_col = f"{_ORIG_PREFIX}volume_infusion_rate_unit"
+            has_vol_orig = vol_orig_col in df.columns
+            vol_extra = f', MIN("{vol_orig_col}") as __orig_vol' if has_vol_orig else ''
+            vol_rows = con.execute(f"""
+                SELECT volume_infusion_rate_unit, COUNT(*) as count{vol_extra}
+                FROM meds_df
+                GROUP BY volume_infusion_rate_unit
+            """).fetchall()
+            vol_pairs = [
+                (row[0], row[2] if has_vol_orig else row[0], int(row[1]))
+                for row in vol_rows
+                if row[0] is not None and str(row[0]).strip() != ''
+            ]
+            if vol_pairs:
+                _report_volume_rate_units(result, expected_vol, vol_pairs)
+                vol_checked = True
+            else:
+                result.add_info("Column 'volume_infusion_rate_unit': no non-null values to check")
+        elif continuous and expected_vol:
+            result.add_info("Column 'volume_infusion_rate_unit' not found in table")
+
+        con.close()
+        gc.collect()
+
+        result.atomic_total = len(mapping_normalized) + (1 if vol_checked else 0)
+        result.atomic_passed = result.atomic_total - len(result.errors)
+    except Exception as e:
+        _logger.error("Check 'medication_dose_units' failed for table '%s': %s", table_name, e)
+        result.add_error(f"Error checking medication dose units: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
+
+    return result
+
+
+def check_medication_dose_units(
+    df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    schema: Dict[str, Any],
+    table_name: str,
+) -> DQAConformanceResult:
+    """Check med_dose_unit values against per-category expected units."""
+    _logger.debug("check_medication_dose_units: starting for table '%s'", table_name)
+    if _ACTIVE_BACKEND == 'polars':
+        result = check_medication_dose_units_polars(df, schema, table_name)
+    else:
+        result = check_medication_dose_units_duckdb(df, schema, table_name)
+    _logger.debug(
+        "check_medication_dose_units: table '%s' — categories_with_mismatch=%s",
+        table_name, result.metrics.get("categories_with_mismatch"))
     return result
 
 
@@ -4246,6 +4719,31 @@ def check_numeric_range_plausibility(
 # A.3 Field-level plausibility rules
 # ---------------------------------------------------------------------------
 
+def _report_empty_strings(
+    result: Union['DQAPlausibilityResult', 'DQAConformanceResult'],
+    table_name: str,
+    column: str,
+    count: int,
+    seen: Dict[str, int],
+) -> None:
+    """Emit one per-column advisory when '' is used instead of null.
+
+    Field plausibility treats empty/whitespace-only strings as absent, so
+    they never count as rule violations — but '' instead of null is an ETL
+    format deviation worth its own warning.
+    """
+    if count <= 0 or column in seen:
+        return
+    seen[column] = count
+    result.add_warning(
+        f"Column '{column}' has {count:,} rows with empty strings ('') where "
+        f"null is expected. Empty strings were treated as missing for this "
+        f"check. Please convert '' to null in your ETL.",
+        {"column": column, "empty_string_rows": count,
+         "recommendation": "Store missing values as null, not ''"}
+    )
+
+
 def check_field_plausibility_polars(
     df: Union['pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -4267,6 +4765,7 @@ def check_field_plausibility_polars(
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         col_names = lf.collect_schema().names()
         violations_by_rule = {}
+        empty_string_columns = {}
 
         for rule in rules:
             when_col = rule['when_column']
@@ -4285,7 +4784,12 @@ def check_field_plausibility_polars(
                 if then_col not in col_names:
                     continue
 
-                filtered = lf.filter(pl.col(when_col).is_not_null())
+                # Empty strings carry no value: treat them like nulls in the filter
+                when_absent = (
+                    pl.col(when_col).is_null()
+                    | (pl.col(when_col).cast(pl.Utf8).str.strip_chars() == "")
+                )
+                filtered = lf.filter(~when_absent)
                 stats = filtered.select([
                     pl.len().alias('total'),
                     pl.col(then_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
@@ -4337,10 +4841,23 @@ def check_field_plausibility_polars(
                 if check_col not in col_names:
                     continue
 
+                # "" carries no value: only non-null, non-empty values violate
+                # the rule. Empty strings are surfaced separately below.
+                stripped = pl.col(check_col).cast(pl.Utf8).str.strip_chars()
+                present = pl.col(check_col).is_not_null() & (stripped != "")
                 stats = filtered.select([
                     pl.len().alias('total'),
-                    pl.col(check_col).is_not_null().sum().alias('non_null')
+                    present.sum().alias('non_null')
                 ]).collect(streaming=True)
+
+                empty_count = int(
+                    lf.select(
+                        (pl.col(check_col).is_not_null() & (stripped == ""))
+                        .sum().alias('n')
+                    ).collect(streaming=True)[0, 'n']
+                )
+                _report_empty_strings(result, table_name, check_col, empty_count,
+                                      empty_string_columns)
 
                 total = stats[0, 'total']
                 non_null = stats[0, 'non_null']
@@ -4369,6 +4886,7 @@ def check_field_plausibility_polars(
 
         result.metrics["rules_checked"] = len(rules)
         result.metrics["violations_by_rule"] = violations_by_rule
+        result.metrics["empty_string_columns"] = empty_string_columns
 
         gc.collect()
 
@@ -4405,6 +4923,7 @@ def check_field_plausibility_duckdb(
         con = duckdb.connect(':memory:')
         con.register('df', df)
         violations_by_rule = {}
+        empty_string_columns = {}
 
         for rule in rules:
             when_col = rule['when_column']
@@ -4431,6 +4950,7 @@ def check_field_plausibility_duckdb(
                         SUM(CASE WHEN TRIM(LOWER(CAST("{then_col}" AS VARCHAR))) IN ({forbidden_str}) THEN 1 ELSE 0 END) as violations
                     FROM df
                     WHERE "{when_col}" IS NOT NULL
+                      AND TRIM(CAST("{when_col}" AS VARCHAR)) <> ''
                 """).fetchone()
 
                 total, violations = stats
@@ -4474,10 +4994,20 @@ def check_field_plausibility_duckdb(
                 stats = con.execute(f"""
                     SELECT
                         COUNT(*) as total,
-                        SUM(CASE WHEN "{check_col}" IS NOT NULL THEN 1 ELSE 0 END) as non_null
+                        SUM(CASE WHEN "{check_col}" IS NOT NULL
+                                  AND TRIM(CAST("{check_col}" AS VARCHAR)) <> ''
+                             THEN 1 ELSE 0 END) as non_null
                     FROM df
                     WHERE TRIM(LOWER(CAST("{when_col}" AS VARCHAR))) NOT IN ({values_str})
                 """).fetchone()
+
+                empty_count = con.execute(f"""
+                    SELECT COUNT(*) FROM df
+                    WHERE "{check_col}" IS NOT NULL
+                      AND TRIM(CAST("{check_col}" AS VARCHAR)) = ''
+                """).fetchone()[0]
+                _report_empty_strings(result, table_name, check_col,
+                                      int(empty_count), empty_string_columns)
 
                 total, non_null = stats
                 pct = (non_null / total * 100) if total > 0 else 0
@@ -4505,6 +5035,7 @@ def check_field_plausibility_duckdb(
 
         result.metrics["rules_checked"] = len(rules)
         result.metrics["violations_by_rule"] = violations_by_rule
+        result.metrics["empty_string_columns"] = empty_string_columns
 
         con.close()
 
@@ -4567,11 +5098,20 @@ def check_medication_dose_unit_consistency_polars(
 
         rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
         expect = rules.get('expect', 'per_time' if 'continuous' in table_name else 'discrete')
+        exempt_units = [str(u).lower().strip() for u in rules.get('exempt_units', [])]
 
         # Build expression to detect time denominators
         has_time_denom = pl.lit(False)
         for pat in _TIME_DENOMINATOR_PATTERNS:
             has_time_denom = has_time_denom | pl.col('med_dose_unit').cast(pl.Utf8).str.contains(pat.replace('/', '\\/'))
+
+        # Units exempt from the per-time requirement (e.g. nitric_oxide in ppm)
+        is_exempt = pl.lit(False)
+        if exempt_units:
+            is_exempt = (
+                pl.col('med_dose_unit').cast(pl.Utf8).str.strip_chars()
+                .str.to_lowercase().is_in(exempt_units)
+            )
 
         non_null = lf.filter(pl.col('med_dose_unit').is_not_null())
         total = non_null.select(pl.len()).collect(streaming=True).item()
@@ -4584,7 +5124,7 @@ def check_medication_dose_unit_consistency_polars(
 
         if expect == 'per_time':
             # Continuous: expect time denominators
-            violations = non_null.filter(~has_time_denom).select(pl.len()).collect(streaming=True).item()
+            violations = non_null.filter(~has_time_denom & ~is_exempt).select(pl.len()).collect(streaming=True).item()
         else:
             # Intermittent: expect NO time denominators
             violations = non_null.filter(has_time_denom).select(pl.len()).collect(streaming=True).item()
@@ -4598,7 +5138,7 @@ def check_medication_dose_unit_consistency_polars(
         if violations > 0:
             # Get sample violations
             if expect == 'per_time':
-                sample = non_null.filter(~has_time_denom)
+                sample = non_null.filter(~has_time_denom & ~is_exempt)
             else:
                 sample = non_null.filter(has_time_denom)
 
@@ -4673,12 +5213,21 @@ def check_medication_dose_unit_consistency_duckdb(
 
         rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
         expect = rules.get('expect', 'per_time' if 'continuous' in table_name else 'discrete')
+        exempt_units = [str(u).lower().strip() for u in rules.get('exempt_units', [])]
 
         # Build CASE expression for time denominator detection
         time_conditions = ' OR '.join([
             f"CAST(\"med_dose_unit\" AS VARCHAR) LIKE '%{pat}%'"
             for pat in _TIME_DENOMINATOR_PATTERNS
         ])
+
+        # Units exempt from the per-time requirement (e.g. nitric_oxide in ppm)
+        exempt_clause = ''
+        if exempt_units:
+            quoted = ', '.join("'" + u.replace("'", "''") + "'" for u in exempt_units)
+            exempt_clause = (
+                f' AND LOWER(TRIM(CAST("med_dose_unit" AS VARCHAR))) NOT IN ({quoted})'
+            )
 
         total_row = con.execute("""
             SELECT COUNT(*) FROM df WHERE "med_dose_unit" IS NOT NULL
@@ -4695,7 +5244,7 @@ def check_medication_dose_unit_consistency_duckdb(
         if expect == 'per_time':
             violation_query = f"""
                 SELECT COUNT(*) FROM df
-                WHERE "med_dose_unit" IS NOT NULL AND NOT ({time_conditions})
+                WHERE "med_dose_unit" IS NOT NULL AND NOT ({time_conditions}){exempt_clause}
             """
         else:
             violation_query = f"""
@@ -5826,6 +6375,10 @@ def run_conformance_checks(
         results['lab_reference_units'] = check_lab_reference_units(df, schema, table_name)
         gc.collect()
 
+    if table_name in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        results['medication_dose_units'] = check_medication_dose_units(df, schema, table_name)
+        gc.collect()
+
     results['categorical_values'] = check_categorical_values(df, schema, table_name)
     gc.collect()
 
@@ -6875,6 +7428,32 @@ def run_cross_table_plausibility_checks(
     return results
 
 
+def _resolve_clif_version(
+    schema: Optional[Dict[str, Any]],
+    clif_version: Optional[str],
+) -> Optional[str]:
+    """Resolve the CLIF version a validation actually ran against.
+
+    The schema's own ``version`` key is the source of truth (it reflects the
+    schema file that was loaded); the ``clif_version`` argument is the
+    fallback used when the schema carries no version (e.g. a hand-built
+    schema dict).
+    """
+    if schema:
+        version = schema.get('version')
+        if version:
+            return str(version)
+    return clif_version
+
+
+def _stamp_clif_version(results: Dict[str, Any], clif_version: Optional[str]) -> Dict[str, Any]:
+    """Tag each DQA result object with the CLIF version it was run against."""
+    if clif_version:
+        for result in results.values():
+            result.clif_version = clif_version
+    return results
+
+
 def run_full_dqa(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Optional[Dict[str, Any]] = None,
@@ -6937,8 +7516,11 @@ def run_full_dqa(
             )
     _logger.info("Starting full DQA for table: %s", table_name)
 
+    resolved_version = _resolve_clif_version(schema, clif_version)
+
     results: Dict[str, Any] = {
         'table_name': table_name,
+        'clif_version': resolved_version,
         'backend': _ACTIVE_BACKEND,
         'conformance': {},
         'completeness': {},
@@ -6948,13 +7530,18 @@ def run_full_dqa(
 
     results['conformance'] = {
         k: v.to_dict()
-        for k, v in run_conformance_checks(df, schema, table_name).items()
+        for k, v in _stamp_clif_version(
+            run_conformance_checks(df, schema, table_name), resolved_version
+        ).items()
     }
 
     results['completeness'] = {
         k: v.to_dict()
-        for k, v in run_completeness_checks(
-            df, schema, table_name, error_threshold, warning_threshold
+        for k, v in _stamp_clif_version(
+            run_completeness_checks(
+                df, schema, table_name, error_threshold, warning_threshold
+            ),
+            resolved_version,
         ).items()
     }
 
@@ -6963,7 +7550,9 @@ def run_full_dqa(
         if table_name in rel_results:
             results['relational'] = {
                 k: v.to_dict()
-                for k, v in rel_results[table_name].items()
+                for k, v in _stamp_clif_version(
+                    rel_results[table_name], resolved_version
+                ).items()
             }
 
     # Extract hospitalization years for P.6 temporal consistency context
@@ -6994,9 +7583,12 @@ def run_full_dqa(
     # Plausibility checks (single-table)
     results['plausibility'] = {
         k: v.to_dict()
-        for k, v in run_plausibility_checks(
-            df, schema, table_name, hosp_years=hosp_years,
-            plausibility_thresholds=plausibility_thresholds,
+        for k, v in _stamp_clif_version(
+            run_plausibility_checks(
+                df, schema, table_name, hosp_years=hosp_years,
+                plausibility_thresholds=plausibility_thresholds,
+            ),
+            resolved_version,
         ).items()
     }
 
@@ -7005,7 +7597,7 @@ def run_full_dqa(
         cross_plaus = run_cross_table_plausibility_checks(
             tables, plausibility_thresholds=plausibility_thresholds)
         if table_name in cross_plaus:
-            for k, v in cross_plaus[table_name].items():
+            for k, v in _stamp_clif_version(cross_plaus[table_name], resolved_version).items():
                 results['plausibility'][k] = v.to_dict()
 
     gc.collect()
@@ -7024,6 +7616,7 @@ def validate_dataframe(
     schema: Dict[str, Any],
     table_name: Optional[str] = None,
     plausibility_thresholds: Optional[Dict[str, Dict[str, float]]] = None,
+    clif_version: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Validate a dataframe against schema and return list of errors.
@@ -7041,6 +7634,10 @@ def validate_dataframe(
         Name of the table (inferred from schema if not provided)
     plausibility_thresholds : dict, optional
         Override default plausibility thresholds per check.
+    clif_version : str, optional
+        CLIF schema version this validation runs against. Falls back to the
+        schema's own ``version`` key when not provided. Stamped onto every
+        returned error dict as ``clif_version``.
 
     Returns
     -------
@@ -7050,8 +7647,10 @@ def validate_dataframe(
         - description: str - Human-readable error description
         - details: dict - Additional error details
         - category: str - 'schema' or 'data_quality'
+        - clif_version: str - CLIF schema version validated against
     """
     table_name = table_name or schema.get('table_name', 'unknown')
+    resolved_version = _resolve_clif_version(schema, clif_version)
     _logger.info("validate_dataframe: starting validation for table '%s'", table_name)
     errors = []
 
@@ -7125,10 +7724,12 @@ def validate_dataframe(
             })
 
     gc.collect()
+    for err in errors:
+        err['clif_version'] = resolved_version
     error_count = sum(1 for e in errors if e.get('severity', 'error') == 'error')
     warning_count = sum(1 for e in errors if e.get('severity') == 'warning')
-    _logger.info("validate_dataframe: table '%s' complete — %d errors, %d warnings",
-                 table_name, error_count, warning_count)
+    _logger.info("validate_dataframe: table '%s' (CLIF %s) complete — %d errors, %d warnings",
+                 table_name, resolved_version, error_count, warning_count)
     return errors
 
 
