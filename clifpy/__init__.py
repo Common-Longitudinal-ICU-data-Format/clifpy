@@ -21,6 +21,7 @@ from .tables import (
     CodeStatus,
     # CLIF 3.0 tables (mcs replaces ecmo_mcs)
     Mcs,
+    RenalReplacementTherapy,
     IntermittentDialysis,
     Input,
     Output,
@@ -108,6 +109,7 @@ __all__ = [
     "CodeStatus",
     # CLIF 3.0 tables (mcs replaces ecmo_mcs)
     "Mcs",
+    "RenalReplacementTherapy",
     "IntermittentDialysis",
     "Input",
     "Output",

@@ -31,6 +31,7 @@ from .tables.microbiology_nonculture import MicrobiologyNonculture
 from .tables.code_status import CodeStatus
 # CLIF 3.0 tables (new in 3.0; mcs replaces ecmo_mcs)
 from .tables.mcs import Mcs
+from .tables.renal_replacement_therapy import RenalReplacementTherapy
 from .tables.intermittent_dialysis import IntermittentDialysis
 from .tables.input import Input
 from .tables.output import Output
@@ -81,6 +82,7 @@ TABLE_CLASSES = {
     'code_status': CodeStatus,
     # CLIF 3.0 tables (mcs replaces ecmo_mcs)
     'mcs': Mcs,
+    'renal_replacement_therapy': RenalReplacementTherapy,
     'intermittent_dialysis': IntermittentDialysis,
     'input': Input,
     'output': Output,
@@ -272,6 +274,7 @@ class ClifOrchestrator:
         self.code_status: CodeStatus = None
         # CLIF 3.0 tables (mcs replaces ecmo_mcs)
         self.mcs: Mcs = None
+        self.renal_replacement_therapy: RenalReplacementTherapy = None
         self.intermittent_dialysis: IntermittentDialysis = None
         self.input: Input = None
         self.output: Output = None

@@ -1,0 +1,100 @@
+table_name: renal_replacement_therapy
+version: "3.0"
+
+# Captures Renal Replacement Therapy across both CRRT sub-modes and intermittent
+# hemodialysis, including modality, operational parameters and dialysate bath
+# composition.
+#
+# This table records RRT machine SETTINGS AND RATES, not fluid volumes:
+#   - net ultrafiltration (fluid removed) lives in `output`, output_group = ultrafiltration
+#   - replacement / dialysate fluid delivered lives in `input`,
+#     input_group = renal_replacement_fluids
+#
+# ihd vs iuf are distinguished by the dialysate bath: ihd uses a bath containing
+# potassium and calcium (recorded in potassium_bath / calcium_bath), iuf does not.
+
+columns:
+- name: hospitalization_id
+  data_type: VARCHAR
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: device_id
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: dialysis_machine_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: recorded_dttm
+  data_type: DATETIME
+  required: true
+  is_category_column: false
+  is_group_column: false
+- name: mode_name
+  data_type: VARCHAR
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: mode_category
+  data_type: VARCHAR
+  required: true
+  is_category_column: true
+  is_group_column: false
+  permissible_values:
+  - scuf
+  - cvvh
+  - cvvhd
+  - cvvhdf
+  - avvh
+  - ihd
+  - iuf
+# Required for every modality.
+- name: blood_flow_rate
+  data_type: DOUBLE
+  required: true
+  allow_missing: true
+  is_category_column: false
+  is_group_column: false
+# The remaining rates are modality-dependent — "Not Used" for several modes — so
+# they are optional at the table level rather than required-with-nulls.
+- name: pre_filter_replacement_fluid_rate
+  data_type: DOUBLE
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: post_filter_replacement_fluid_rate
+  data_type: DOUBLE
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: dialysate_flow_rate
+  data_type: DOUBLE
+  required: false
+  is_category_column: false
+  is_group_column: false
+# Dialysate bath composition — also the ihd / iuf discriminator.
+- name: potassium_bath
+  data_type: INT
+  required: false
+  is_category_column: false
+  is_group_column: false
+- name: calcium_bath
+  data_type: DOUBLE
+  required: false
+  is_category_column: false
+  is_group_column: false
+
+required_columns:
+  - hospitalization_id
+  - recorded_dttm
+  - mode_category
+  - blood_flow_rate
+
+category_columns:
+  - mode_category
+
+group_columns: []

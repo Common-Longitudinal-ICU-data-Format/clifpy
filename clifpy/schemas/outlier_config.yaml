@@ -27,6 +27,30 @@ tables:
       min: 0
       max: 500
 
+  # Renal replacement therapy (CLIF 3.0). Ranges per the 3.0.0 data dictionary.
+  # Wider than crrt_therapy above because this table also carries intermittent
+  # modes: IHD runs higher blood flow, and its dialysate flow is stored in mL/hr
+  # (mL/min x 60), which lifts the ceiling to 70000.
+  renal_replacement_therapy:
+    blood_flow_rate:
+      min: 100
+      max: 600
+    pre_filter_replacement_fluid_rate:
+      min: 0
+      max: 10000
+    post_filter_replacement_fluid_rate:
+      min: 0
+      max: 10000
+    dialysate_flow_rate:
+      min: 0
+      max: 70000
+    potassium_bath:
+      min: 0
+      max: 4
+    calcium_bath:
+      min: 0
+      max: 4
+
   # Hospitalization table
   hospitalization:
     age_at_admission:
