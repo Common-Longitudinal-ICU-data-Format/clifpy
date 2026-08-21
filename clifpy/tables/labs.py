@@ -168,7 +168,7 @@ class Labs(BaseTable):
             .group_by(['lab_category', 'reference_unit'])
             .agg(pl.len().alias('count'))
             .sort(['lab_category', 'reference_unit'])
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
     def _get_lab_reference_units_pandas(self) -> 'pd.DataFrame':
@@ -412,7 +412,7 @@ class Labs(BaseTable):
                 pl.col('reference_unit').str.to_lowercase()
             )
 
-        return lf.collect(streaming=True)
+        return lf.collect(engine="streaming")
 
     def _standardize_reference_units_pandas(
         self,

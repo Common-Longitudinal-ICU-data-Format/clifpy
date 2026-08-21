@@ -1200,7 +1200,7 @@ def check_lab_reference_units_polars(
             lf
             .group_by(['lab_category', 'reference_unit'])
             .agg(agg_exprs)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
         # Build lookup: lab_category (lowercased) -> list of (ref_unit, ref_unit_orig, cat_orig, count)
@@ -1510,7 +1510,7 @@ def check_medication_dose_units_polars(
             lf
             .group_by(['med_category', 'med_dose_unit'])
             .agg(agg_exprs)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
         # Build lookup: med_category (normalized) -> [(unit, unit_orig, cat_orig, count)]
@@ -1555,7 +1555,7 @@ def check_medication_dose_units_polars(
             vol_counts = (
                 lf.group_by('volume_infusion_rate_unit')
                 .agg(vol_aggs)
-                .collect(streaming=True)
+                .collect(engine="streaming")
             )
             vol_pairs = [
                 (row['volume_infusion_rate_unit'],
@@ -1650,7 +1650,7 @@ def check_categorical_values_polars(
                     .group_by(col_name)
                     .agg([pl.len().alias('count'),
                           pl.col(orig_col).first().alias('__orig_val')])
-                    .collect(streaming=True)
+                    .collect(engine="streaming")
                 )
             else:
                 unique_vals = (
@@ -1659,7 +1659,7 @@ def check_categorical_values_polars(
                     .drop_nulls()
                     .group_by(col_name)
                     .agg(pl.len().alias('count'))
-                    .collect(streaming=True)
+                    .collect(engine="streaming")
                 )
 
             permissible_lower = {str(v).lower().strip() for v in permissible}
@@ -1804,7 +1804,7 @@ def check_category_group_mapping_polars(
                 .filter(pl.col(category_col).is_not_null() & pl.col(group_col).is_not_null())
                 .group_by([category_col, group_col])
                 .agg(agg_exprs)
-                .collect(streaming=True)
+                .collect(engine="streaming")
             )
 
             # Build lookup: category_val (lowercased) -> list of (grp_val, grp_val_orig, count)
@@ -1955,7 +1955,7 @@ def check_missingness_polars(
             for c in required_in_df
         ]
 
-        null_counts = lf.select(null_exprs).collect(streaming=True)
+        null_counts = lf.select(null_exprs).collect(engine="streaming")
 
         missingness_stats = []
         high_missingness = []
@@ -2188,7 +2188,7 @@ def check_conditional_requirements_polars(
                 stats = filtered.select([
                     pl.len().alias('total'),
                     pl.col(req_col).is_null().sum().alias('null_count')
-                ]).collect(streaming=True)
+                ]).collect(engine="streaming")
 
                 total = stats[0, 'total']
                 null_count = stats[0, 'null_count']
@@ -2286,7 +2286,7 @@ def check_mcide_value_coverage_polars(
             unique_vals = (
                 lf
                 .select(pl.col(col_name).drop_nulls().unique())
-                .collect(streaming=True)
+                .collect(engine="streaming")
                 .to_series()
                 .to_list()
             )
@@ -2388,13 +2388,13 @@ def check_relational_integrity_polars(
         source_ids = (
             source_lf
             .select(pl.col(key_column).drop_nulls().unique())
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
         ref_ids = (
             ref_lf
             .select(pl.col(key_column).drop_nulls().unique())
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
         source_id_set = set(source_ids[key_column].to_list())
@@ -2720,7 +2720,7 @@ def check_chronological_order_polars(
             stats = applicable.select([
                 pl.len().alias('total'),
                 violation_expr
-            ]).collect(streaming=True)
+            ]).collect(engine="streaming")
 
             total = stats[0, 'total']
             violation_count = stats[0, 'violations']
@@ -2850,7 +2850,7 @@ def check_numeric_range_plausibility_polars(
                     ((pl.col(col_name) < rmin) | (pl.col(col_name) > rmax)).sum().alias('oor'),
                     (pl.col(col_name) < rmin).sum().alias('below'),
                     (pl.col(col_name) > rmax).sum().alias('above'),
-                ]).collect(streaming=True)
+                ]).collect(engine="streaming")
 
                 # Polars sum() over an all-null column returns None — coerce to 0.
                 total = stats[0, 'total'] or 0
@@ -2934,7 +2934,7 @@ def check_numeric_range_plausibility_polars(
                         continue
 
                     atomic_total += len(combo_keys)
-                    stats_row = lf_cat.select(range_exprs).collect(streaming=True)
+                    stats_row = lf_cat.select(range_exprs).collect(engine="streaming")
                     total_oor = 0
                     total_count = 0
                     for idx, (cat_val, unit_val, rmin, rmax) in enumerate(combo_keys):
@@ -2991,7 +2991,7 @@ def check_numeric_range_plausibility_polars(
                         continue
 
                     atomic_total += len(combo_keys)
-                    stats_row = lf_cat.select(range_exprs).collect(streaming=True)
+                    stats_row = lf_cat.select(range_exprs).collect(engine="streaming")
                     total_oor = 0
                     total_count = 0
                     for idx, (cat_val, rmin, rmax) in enumerate(combo_keys):
@@ -3145,7 +3145,7 @@ def check_field_plausibility_polars(
                     pl.col(then_col).cast(pl.Utf8).str.to_lowercase().str.strip_chars().is_in(
                         [str(v).lower().strip() for v in forbidden]
                     ).sum().alias('violations')
-                ]).collect(streaming=True)
+                ]).collect(engine="streaming")
 
                 total = stats[0, 'total']
                 violations = stats[0, 'violations']
@@ -3198,13 +3198,13 @@ def check_field_plausibility_polars(
                 stats = filtered.select([
                     pl.len().alias('total'),
                     present.sum().alias('non_null')
-                ]).collect(streaming=True)
+                ]).collect(engine="streaming")
 
                 empty_count = int(
                     lf.select(
                         (pl.col(check_col).is_not_null() & (stripped == ""))
                         .sum().alias('n')
-                    ).collect(streaming=True)[0, 'n']
+                    ).collect(engine="streaming")[0, 'n']
                 )
                 _report_empty_strings(result, table_name, check_col, empty_count,
                                       empty_string_columns)
@@ -3312,7 +3312,7 @@ def check_medication_dose_unit_consistency_polars(
             )
 
         non_null = lf.filter(pl.col('med_dose_unit').is_not_null())
-        total = non_null.select(pl.len()).collect(streaming=True).item()
+        total = non_null.select(pl.len()).collect(engine="streaming").item()
 
         if total == 0:
             result.add_info("No non-null med_dose_unit values to check")
@@ -3322,10 +3322,10 @@ def check_medication_dose_unit_consistency_polars(
 
         if expect == 'per_time':
             # Continuous: expect time denominators
-            violations = non_null.filter(~has_time_denom & ~is_exempt).select(pl.len()).collect(streaming=True).item()
+            violations = non_null.filter(~has_time_denom & ~is_exempt).select(pl.len()).collect(engine="streaming").item()
         else:
             # Intermittent: expect NO time denominators
-            violations = non_null.filter(has_time_denom).select(pl.len()).collect(streaming=True).item()
+            violations = non_null.filter(has_time_denom).select(pl.len()).collect(engine="streaming").item()
 
         pct = (violations / total * 100) if total > 0 else 0
 
@@ -3350,7 +3350,7 @@ def check_medication_dose_unit_consistency_polars(
                 .agg(pl.len().alias('count'))
                 .sort('count', descending=True)
                 .head(10)
-                .collect(streaming=True)
+                .collect(engine="streaming")
             )
             sample_list = sample_data.to_dicts()
             result.metrics["sample_violations"] = sample_list
@@ -3454,7 +3454,7 @@ def check_cross_table_temporal_plausibility_polars(
                 pl.len().alias('total'),
                 (pl.col(time_col) < pl.col('admission_dttm')).sum().alias('before_admission'),
                 (pl.col(time_col) > pl.col('discharge_dttm')).sum().alias('after_discharge'),
-            ]).collect(streaming=True)
+            ]).collect(engine="streaming")
 
             total = stats[0, 'total']
             before = stats[0, 'before_admission']
@@ -3559,11 +3559,11 @@ def check_overlapping_periods_polars(
             pl.col('_prev_end').is_not_null() & (pl.col(start_col) < pl.col('_prev_end'))
         )
 
-        total_records = sorted_lf.select(pl.len()).collect(streaming=True).item()
-        overlap_count = overlaps_df.select(pl.len()).collect(streaming=True).item()
+        total_records = sorted_lf.select(pl.len()).collect(engine="streaming").item()
+        overlap_count = overlaps_df.select(pl.len()).collect(engine="streaming").item()
         entities_checked = sorted_lf.select(
             pl.col(entity_col).n_unique()
-        ).collect(streaming=True).item()
+        ).collect(engine="streaming").item()
         pct = (overlap_count / total_records * 100) if total_records > 0 else 0
 
         result.metrics["total_records"] = int(total_records)
@@ -3681,7 +3681,7 @@ def check_category_temporal_consistency_polars(
                     .group_by(['_year', cat_col])
                     .agg(pl.col(id_col).n_unique().alias('unique_ids'))
                     .sort(['_year', cat_col])
-                    .collect(streaming=True)
+                    .collect(engine="streaming")
                 )
             else:
                 yearly = (
@@ -3690,7 +3690,7 @@ def check_category_temporal_consistency_polars(
                     .group_by(['_year', cat_col])
                     .agg(pl.len().alias('unique_ids'))
                     .sort(['_year', cat_col])
-                    .collect(streaming=True)
+                    .collect(engine="streaming")
                 )
 
             if len(yearly) == 0:
@@ -3742,7 +3742,7 @@ def check_category_temporal_consistency_polars(
                 .group_by(group_cols)
                 .agg([n_expr] + avg_expr)
                 .sort(group_cols)
-                .collect(streaming=True)
+                .collect(engine="streaming")
             )
 
             # For tables with schema-based units (no unit col in data), add unit column
@@ -3881,12 +3881,12 @@ def check_duplicate_composite_keys_polars(
             result.atomic_passed = 0
             return result
 
-        total = lf.select(pl.len()).collect(streaming=True).item()
+        total = lf.select(pl.len()).collect(engine="streaming").item()
         unique = (
             lf.group_by(composite_keys)
             .agg(pl.len().alias('_n'))
             .select(pl.len())
-            .collect(streaming=True)
+            .collect(engine="streaming")
             .item()
         )
         duplicates = total - unique
@@ -4226,7 +4226,7 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
         id_series = (
             lf.select(pl.col(fk_column).drop_nulls().unique())
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
         fk_ids[fk_column] = set(id_series[fk_column].to_list())
     # --- Temporal subset for cross-table plausibility ---
@@ -4281,7 +4281,7 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
             matched = (
                 lf.filter(filter_expr)
                 .select(pl.col(join_col).drop_nulls().unique())
-                .collect(streaming=True)
+                .collect(engine="streaming")
             )
             conditional_source_ids[rule_key] = set(matched[join_col].to_list())
         if tname == rule['target_table'] and join_col in actual_cols and rule['target_column'] in actual_cols:
@@ -4296,7 +4296,7 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
             matched = (
                 lf.filter(not_null_filter)
                 .select(pl.col(join_col).drop_nulls().unique())
-                .collect(streaming=True)
+                .collect(engine="streaming")
             )
             conditional_target_ids[rule_key] = set(matched[join_col].to_list())
     cache = {
@@ -4659,7 +4659,7 @@ def run_cross_table_completeness_checks(
         matched = (
             lf.filter(filter_expr)
             .select(pl.col(join_col).drop_nulls().unique())
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
         source_ids = set(matched[join_col].to_list())
         # Get target IDs with non-null target column (also exclude empty strings)
@@ -4675,7 +4675,7 @@ def run_cross_table_completeness_checks(
         matched = (
             lf.filter(not_null_filter)
             .select(pl.col(join_col).drop_nulls().unique())
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
         target_ids = set(matched[join_col].to_list())
         result = DQACompletenessResult(
