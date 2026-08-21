@@ -200,6 +200,7 @@ def _count_numeric_range_leaves(table_name: str) -> int:
 def get_schema_check_counts(
     table_name: str,
     schema_dir: Optional[str] = None,
+    clif_version: str = DEFAULT_CLIF_VERSION,
 ) -> Dict[str, int]:
     """Compute expected atomic DQA check counts from schema + config alone.
 
@@ -222,6 +223,13 @@ def get_schema_check_counts(
         Name of the CLIF table (e.g. ``'labs'``, ``'vitals'``).
     schema_dir : str, optional
         Override path to the schemas directory.
+    clif_version : str, optional
+        CLIF schema version to compute the counts against (e.g. ``"2.1"``,
+        ``"3.0"``). Must match the version the data was validated at — the
+        counts are denominators, so a mismatch silently skews any score
+        computed from them, and a table that only exists in one version
+        returns all zeros when asked for the other. Defaults to the package
+        default.
 
     Returns
     -------
@@ -229,7 +237,7 @@ def get_schema_check_counts(
         Keys ``conformance``, ``completeness``, ``plausibility`` each
         mapping to the expected atomic check count for that category.
     """
-    schema = _load_schema(table_name, schema_dir)
+    schema = _load_schema(table_name, schema_dir, clif_version)
     if schema is None:
         return {"conformance": 0, "completeness": 0, "plausibility": 0}
 
@@ -266,6 +274,20 @@ def get_schema_check_counts(
         lab_units = schema.get('lab_reference_units', {})
         if lab_units:
             conf += len(lab_units)
+    # C.8 medication_dose_units (medication admin tables only): 1 per
+    # med_category → dose unit mapping entry, plus 1 for the continuous-only
+    # volume_infusion_rate_unit sub-check when the schema declares an expected
+    # unit. Mirrors check_medication_dose_units, which sets
+    # atomic_total = len(mapping) + (1 if the volume sub-check ran).
+    # run_conformance_checks runs this check for these two tables, so it has to
+    # be counted here or the denominator understates by the whole mapping.
+    if table_name in ('medication_admin_continuous', 'medication_admin_intermittent'):
+        dose_unit_mapping = schema.get('med_category_to_dose_unit_mapping') or {}
+        if dose_unit_mapping:
+            conf += len(dose_unit_mapping)
+            if (table_name == 'medication_admin_continuous'
+                    and schema.get('expected_volume_infusion_rate_unit')):
+                conf += 1
 
     # --- Completeness ---
     comp = 0
@@ -336,6 +358,7 @@ def get_schema_check_counts(
 def build_absent_table_dqa_result(
     table_name: str,
     schema_dir: Optional[str] = None,
+    clif_version: str = DEFAULT_CLIF_VERSION,
 ) -> Dict[str, Any]:
     """Build a :func:`run_full_dqa`-shaped result for a table the site did not submit.
 
@@ -353,13 +376,17 @@ def build_absent_table_dqa_result(
         Name of the CLIF table (e.g. ``'microbiology_susceptibility'``).
     schema_dir : str, optional
         Override path to the schemas directory.
+    clif_version : str, optional
+        CLIF schema version the denominators are computed against. Pass the
+        same version the present tables were validated at, otherwise the
+        ``0/N`` this produces is measured against a different ``N``.
 
     Returns
     -------
     Dict[str, Any]
         A dict with the same top-level keys as :func:`run_full_dqa`
-        (``table_name``, ``backend``, ``conformance``, ``completeness``,
-        ``relational``, ``plausibility``) plus:
+        (``table_name``, ``clif_version``, ``backend``, ``conformance``,
+        ``completeness``, ``relational``, ``plausibility``) plus:
 
         - ``absent`` — always ``True``
         - ``total_rows`` — always ``0``
@@ -371,7 +398,7 @@ def build_absent_table_dqa_result(
         result marked ``passed=False`` with a ``"Table not present in
         dataset"`` error; other categories are empty dicts.
     """
-    expected = get_schema_check_counts(table_name, schema_dir)
+    expected = get_schema_check_counts(table_name, schema_dir, clif_version)
     expected_conf = int(expected.get("conformance", 1) or 1)
 
     # Represent an absent table as a single ERROR whose atomic footprint
@@ -402,6 +429,7 @@ def build_absent_table_dqa_result(
 
     return {
         "table_name": table_name,
+        "clif_version": clif_version,
         "backend": "absent",
         "absent": True,
         "conformance": {"table_presence": table_presence},
@@ -5070,7 +5098,7 @@ def run_full_dqa(
     clif_version : str, optional
         CLIF schema version to auto-load when *schema* is None
         (e.g. "2.1", "3.0"). Ignored when *schema* is passed explicitly.
-        Defaults to the package default (2.1).
+        Defaults to the package default (3.0).
 
     Returns
     -------

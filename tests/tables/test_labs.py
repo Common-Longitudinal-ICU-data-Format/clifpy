@@ -120,7 +120,9 @@ def test_labs_init_with_missing_columns(sample_labs_data_missing_cols):
     assert "Missing Required Columns" in error_types
     missing_cols = [e['details']['column'] for e in labs_obj.errors
                     if e['type'] == 'Missing Required Columns']
-    assert set(missing_cols) == {'lab_category', 'lab_order_category'}
+    # lab_specimen_category became required in CLIF 3.0 and is also absent
+    # from this fixture, so it is reported alongside the other two.
+    assert set(missing_cols) == {'lab_category', 'lab_order_category', 'lab_specimen_category'}
 
 def test_labs_init_without_data():
     """Test labs initialization without data."""

@@ -22,9 +22,10 @@ logger = logging.getLogger('clifpy.schemas')
 # Directory containing this module (the schemas package root).
 _SCHEMAS_ROOT = os.path.dirname(__file__)
 
-#: Default CLIF version used when a caller does not specify one. Kept at 2.1
-#: so existing downstream code behaves identically without changes.
-DEFAULT_CLIF_VERSION = "2.1"
+#: Default CLIF version used when a caller does not specify one. Tracks the
+#: package's own major version (clifpy 3.x ships CLIF 3.0 as the default);
+#: pass ``clif_version="2.1"`` explicitly to validate against the older schemas.
+DEFAULT_CLIF_VERSION = "3.0"
 
 #: CLIF versions for which a schema subdirectory exists.
 SUPPORTED_CLIF_VERSIONS = ("2.1", "3.0")

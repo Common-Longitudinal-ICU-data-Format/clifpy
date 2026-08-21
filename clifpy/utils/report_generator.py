@@ -1026,6 +1026,26 @@ def collect_table_results(
     return results, feedback_map
 
 
+
+def _clif_version_from_results(table_results: Dict[str, Any]) -> Optional[str]:
+    """Recover the CLIF version a set of DQA results was produced at.
+
+    Absent tables have no schema of their own to read a version from, but their
+    ``0/N`` denominators have to be computed against the same version as the
+    tables that were submitted — otherwise the two are not comparable. Every
+    present result carries the version ``run_full_dqa`` stamped on it, so take
+    it from there rather than making callers pass it twice.
+
+    Returns None when nothing in *table_results* reports a version, in which case
+    the caller falls back to the package default.
+    """
+    for result in (table_results or {}).values():
+        if isinstance(result, dict):
+            version = result.get('clif_version')
+            if version:
+                return str(version)
+    return None
+
 def generate_combined_validation_pdf(
     table_results: Dict[str, Any],
     output_path: str,
@@ -1067,6 +1087,9 @@ def generate_combined_validation_pdf(
         Path to the generated PDF.
     """
     from clifpy.utils.validator import build_absent_table_dqa_result
+    from clifpy.schemas import DEFAULT_CLIF_VERSION
+
+    resolved_version = _clif_version_from_results(table_results) or DEFAULT_CLIF_VERSION
 
     if feedback_map is None:
         feedback_map = {}
@@ -1202,10 +1225,12 @@ def generate_combined_validation_pdf(
             # Table was not submitted. Use the canonical absent-result
             # helper so denominators and messaging come from one place.
             if dqa_data is None:
-                dqa_data = build_absent_table_dqa_result(table_name)
+                dqa_data = build_absent_table_dqa_result(table_name, clif_version=resolved_version)
             expected = dqa_data.get(
                 'expected_check_counts',
-                build_absent_table_dqa_result(table_name)['expected_check_counts'],
+                build_absent_table_dqa_result(
+                    table_name, clif_version=resolved_version
+                )['expected_check_counts'],
             )
             row = [label]
             for cat in DQA_CATEGORIES:
@@ -1355,6 +1380,9 @@ def generate_consolidated_csv(
         Path to the generated CSV.
     """
     from clifpy.utils.validator import build_absent_table_dqa_result
+    from clifpy.schemas import DEFAULT_CLIF_VERSION
+
+    resolved_version = _clif_version_from_results(table_results) or DEFAULT_CLIF_VERSION
 
     if feedback_map is None:
         feedback_map = {}
@@ -1371,7 +1399,7 @@ def generate_consolidated_csv(
 
         if dqa_data is None or dqa_data.get('absent'):
             if dqa_data is None:
-                dqa_data = build_absent_table_dqa_result(table_name)
+                dqa_data = build_absent_table_dqa_result(table_name, clif_version=resolved_version)
             presence = dqa_data.get('conformance', {}).get('table_presence', {})
             msg = (
                 presence.get('errors', [{}])[0].get('message')

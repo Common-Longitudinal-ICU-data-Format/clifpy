@@ -209,7 +209,7 @@ class ClifOrchestrator:
         clif_version : str, optional
             CLIF schema version for all loaded tables (e.g. "2.1", "3.0").
             Overrides any ``clif_version`` in the config file. If neither is
-            set, the package default (2.1) is used.
+            set, the package default (3.0) is used.
                 
         Notes
         -----

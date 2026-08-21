@@ -46,6 +46,7 @@ def sample_adt_data_invalid_category():
         'in_dttm': pd.to_datetime(['2023-01-01 10:00:00+00:00', '2023-01-05 09:00:00+00:00']),
         'out_dttm': pd.to_datetime(['2023-01-01 13:59:00+00:00', '2023-01-08 11:00:00+00:00']),
         'location_name': ['B06F', 'B06T'],
+        'room_id': ['R001', 'R002'],  # required from CLIF 3.0
         'location_category': ['INVALID_LOCATION', 'ICU'], # Invalid location
         'hospital_type': ['ACADEMIC', 'INVALID_HOSP_TYPE'], # Invalid hospital type
         'location_type': ['INVALID_icu', 'medical_icu'] # Invalid location type
@@ -61,6 +62,7 @@ def sample_adt_data_invalid_datetime():
         'in_dttm': pd.to_datetime(['2023-01-01 13:59:00', '2023-01-01 13:59:00']),
         'out_dttm': pd.to_datetime(['2023-01-01 13:59:00+00:00', '2023-01-08 11:00:00+00:00']),
         'location_name': ['B06F', 'B06T'],
+        'room_id': ['R001', 'R002'],  # required from CLIF 3.0
         'location_category': ['INVALID_LOCATION', 'ICU'], # Invalid location
         'hospital_type': ['ACADEMIC', 'INVALID_HOSP_TYPE'], # Invalid hospital type
         'location_type': ['INVALID_icu', 'medical_icu'] # Invalid location type

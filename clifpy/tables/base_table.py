@@ -121,7 +121,7 @@ class BaseTable:
             Pre-loaded data to use instead of loading from file
         clif_version : str, optional
             CLIF schema version to validate against (e.g. "2.1", "3.0").
-            Defaults to the package default (2.1).
+            Defaults to the package default (3.0).
         """
         # Store configuration
         self.data_directory = data_directory
@@ -322,7 +322,7 @@ class BaseTable:
             If True, show detailed loading messages. Default is False
         clif_version : str, optional
             CLIF schema version to validate against. Overrides any ``clif_version``
-            in the config file. If neither is set, the package default (2.1) is used.
+            in the config file. If neither is set, the package default (3.0) is used.
 
         Notes
         -----

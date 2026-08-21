@@ -1,4 +1,4 @@
-"""Tests for CLIF schema versioning (2.1 default + 3.0 support).
+"""Tests for CLIF schema versioning (3.0 default + 2.1 support).
 
 Covers the schema registry, version threading through BaseTable and
 ClifOrchestrator, the ecmo_mcs -> mcs rename, and integrity of the 3.0
@@ -32,14 +32,14 @@ SCHEMAS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'clifpy'
 # --------------------------------------------------------------------------- #
 
 def test_default_and_supported_versions():
-    assert DEFAULT_CLIF_VERSION == "2.1"
+    assert DEFAULT_CLIF_VERSION == "3.0"
     assert set(SUPPORTED_CLIF_VERSIONS) == {"2.1", "3.0"}
 
 
-def test_load_schema_defaults_to_21():
+def test_load_schema_defaults_to_30():
     s = load_schema("patient")
     assert s is not None
-    assert s["version"] == "2.1"
+    assert s["version"] == "3.0"
     assert s["table_name"] == "patient"
 
 
@@ -92,10 +92,10 @@ def test_ecmo_mcs_class_versions():
 # BaseTable version threading
 # --------------------------------------------------------------------------- #
 
-def test_basetable_defaults_to_21():
+def test_basetable_defaults_to_30():
     p = Patient(data=pd.DataFrame())
-    assert p.clif_version == "2.1"
-    assert p.schema["version"] == "2.1"
+    assert p.clif_version == "3.0"
+    assert p.schema["version"] == "3.0"
 
 
 def test_basetable_honors_version():
@@ -110,7 +110,7 @@ def test_basetable_honors_version():
 
 def test_none_version_coerced_to_default():
     p = Patient(data=pd.DataFrame(), clif_version=None)
-    assert p.clif_version == "2.1"
+    assert p.clif_version == "3.0"
 
 
 # --------------------------------------------------------------------------- #
@@ -119,7 +119,7 @@ def test_none_version_coerced_to_default():
 
 def test_orchestrator_default_version(tmp_path):
     co = ClifOrchestrator(data_directory=str(tmp_path), filetype="parquet", timezone="UTC")
-    assert co.clif_version == "2.1"
+    assert co.clif_version == "3.0"
 
 
 def test_orchestrator_explicit_version(tmp_path):
@@ -302,3 +302,69 @@ def test_30_demo_data_loads_through_table_class():
     assert t.schema["version"] == "3.0"
     # errors are expected (e.g. mCIDE coverage gaps); each must carry the version
     assert all(e.get("clif_version") == "3.0" for e in t.errors)
+
+
+# --------------------------------------------------------------------------- #
+# Expected-check-count denominators must track the version being validated
+# --------------------------------------------------------------------------- #
+
+def test_check_counts_honour_clif_version():
+    """``get_schema_check_counts`` must compute against the requested version.
+
+    It previously had no ``clif_version`` parameter and always resolved the
+    default schema set, so a 3.0 run was scored against 2.1 denominators.
+    """
+    from clifpy.utils.validator import get_schema_check_counts
+
+    c21 = get_schema_check_counts("medication_admin_continuous", clif_version="2.1")
+    c30 = get_schema_check_counts("medication_admin_continuous", clif_version="3.0")
+    assert c21 != c30, "2.1 and 3.0 must not produce identical denominators"
+
+    # A table that only exists in 3.0 must count there and be empty at 2.1,
+    # rather than silently returning zeros for both.
+    rrt30 = get_schema_check_counts("renal_replacement_therapy", clif_version="3.0")
+    rrt21 = get_schema_check_counts("renal_replacement_therapy", clif_version="2.1")
+    assert all(v > 0 for v in rrt30.values()), rrt30
+    assert rrt21 == {"conformance": 0, "completeness": 0, "plausibility": 0}
+
+
+@pytest.mark.parametrize("version", ["2.1", "3.0"])
+@pytest.mark.parametrize(
+    "table", ["medication_admin_continuous", "medication_admin_intermittent"]
+)
+def test_conformance_denominator_covers_every_check_that_runs(table, version):
+    """Every check ``run_conformance_checks`` executes must be counted.
+
+    ``medication_dose_units`` runs for the medication-admin tables but had no
+    term in ``get_schema_check_counts``, so on 3.0 the denominator understated
+    the work actually done by the whole dose-unit mapping.
+    """
+    from clifpy.utils.validator import (
+        get_schema_check_counts,
+        run_conformance_checks,
+    )
+
+    df = pd.DataFrame({
+        "hospitalization_id": ["h1"],
+        "med_category": ["norepinephrine"],
+        "med_dose": [5.0],
+        "med_dose_unit": ["mcg/min"],
+        "admin_dttm": pd.to_datetime(["2024-01-01 00:00:00"]),
+        "volume_infusion_rate_unit": ["ml/hr"],
+    })
+    schema = load_schema(table, version)
+    results = run_conformance_checks(df, schema, table)
+    actual = sum(r.atomic_total or 0 for r in results.values())
+    expected = get_schema_check_counts(table, clif_version=version)["conformance"]
+    assert actual == expected, (
+        f"{table} @{version}: {actual} atoms ran but the denominator is {expected}"
+    )
+
+
+def test_absent_table_result_reports_its_version():
+    """The absent-table stand-in must say which version its 0/N is measured against."""
+    from clifpy.utils.validator import build_absent_table_dqa_result
+
+    r = build_absent_table_dqa_result("renal_replacement_therapy", clif_version="3.0")
+    assert r["clif_version"] == "3.0"
+    assert r["expected_check_counts"]["conformance"] > 0
