@@ -2385,33 +2385,31 @@ def check_relational_integrity_polars(
         source_lf = source_df if isinstance(source_df, pl.LazyFrame) else source_df.lazy()
         ref_lf = reference_df if isinstance(reference_df, pl.LazyFrame) else reference_df.lazy()
 
-        source_ids = (
-            source_lf
-            .select(pl.col(key_column).drop_nulls().unique())
+        # Stay in Arrow: the check needs three counts, not the IDs themselves.
+        # Materializing both id columns into Python sets to take a difference
+        # costs ~5x the Arrow representation (a 500k-id set is ~60 MB of
+        # PyObject pointers); an anti-join computes the same number lazily.
+        source_ids = source_lf.select(pl.col(key_column).drop_nulls().unique())
+        ref_ids = ref_lf.select(pl.col(key_column).drop_nulls().unique())
+
+        total_source = source_ids.select(pl.len()).collect(engine="streaming").item()
+        total_ref = ref_ids.select(pl.len()).collect(engine="streaming").item()
+        total_orphan = (
+            source_ids
+            .join(ref_ids, on=key_column, how="anti")
+            .select(pl.len())
             .collect(engine="streaming")
+            .item()
         )
 
-        ref_ids = (
-            ref_lf
-            .select(pl.col(key_column).drop_nulls().unique())
-            .collect(engine="streaming")
-        )
-
-        source_id_set = set(source_ids[key_column].to_list())
-        ref_id_set = set(ref_ids[key_column].to_list())
-
-        orphan_ids = source_id_set - ref_id_set
-
-        total_source = len(source_id_set)
-        total_orphan = len(orphan_ids)
         coverage_pct = ((total_source - total_orphan) / total_source * 100) if total_source > 0 else 100
 
         result.metrics["source_unique_ids"] = total_source
-        result.metrics["reference_unique_ids"] = len(ref_id_set)
+        result.metrics["reference_unique_ids"] = total_ref
         result.metrics["orphan_ids"] = total_orphan
         result.metrics["coverage_percent"] = round(coverage_pct, 2)
 
-        if orphan_ids:
+        if total_orphan:
             result.add_warning(
                 f"{total_orphan}/{total_source} {key_column} values in {source_table} "
                 f"not found in {reference_table} ({round(coverage_pct, 1)}% coverage)",
@@ -4196,13 +4194,19 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     dict
         Keys: ``table_name``, ``fk_ids``, ``schema_cols``,
         ``temporal_df``, ``hosp_bounds_df``, ``hosp_years``.
+
+        ``fk_ids`` and the ``conditional_*_ids`` maps hold single-column
+        :class:`pl.DataFrame` objects of distinct ids, not Python ``set``
+        objects. The ``*_from_cache`` consumers compare them with anti-joins;
+        callers doing their own set algebra should join, or call
+        ``.to_series().to_list()`` to get the values back.
     """
     tname = getattr(table_obj, 'table_name', '').replace('clif_', '')
     df = _table_frame(table_obj)
     schema = getattr(table_obj, 'schema', None) or {}
 
     # Case-normalize for validation (column names + string values; sidecars preserved).
-    # This makes downstream FK set-membership checks case-insensitive too.
+    # This makes downstream FK membership checks case-insensitive too.
     df = _normalize_for_validation(df)
 
     # Schema-defined column names
@@ -4218,17 +4222,21 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     col_names = schema_cols if schema_cols is not None else actual_cols
 
     # --- FK ID sets ---
+    # Held as single-column polars frames rather than Python sets. These caches
+    # are built for every table and kept alive simultaneously, so they dominate
+    # the pipeline's memory; a set of 500k ids costs ~60 MB of PyObject pointers
+    # against ~12 MB in Arrow. The `*_from_cache` consumers below use anti-joins,
+    # which need no Python-level set at all.
     fk_rules = _load_validation_rules().get('relational_integrity', {})
-    fk_ids: Dict[str, set] = {}
+    fk_ids: Dict[str, 'pl.DataFrame'] = {}
     for fk_column in fk_rules:
         if fk_column not in col_names or fk_column not in actual_cols:
             continue
         lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-        id_series = (
+        fk_ids[fk_column] = (
             lf.select(pl.col(fk_column).drop_nulls().unique())
             .collect(engine="streaming")
         )
-        fk_ids[fk_column] = set(id_series[fk_column].to_list())
     # --- Temporal subset for cross-table plausibility ---
     time_cols = _CROSS_TABLE_TIME_COLUMNS.get(tname, [])
     temporal_df = None
@@ -4259,8 +4267,8 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
 
     # --- Cross-table conditional requirements cache ---
     ct_cond_rules = _load_validation_rules().get('cross_table_conditional_requirements', [])
-    conditional_source_ids: Dict[str, set] = {}
-    conditional_target_ids: Dict[str, set] = {}
+    conditional_source_ids: Dict[str, 'pl.DataFrame'] = {}
+    conditional_target_ids: Dict[str, 'pl.DataFrame'] = {}
 
     for rule in ct_cond_rules:
         rule_key = f"{rule['source_column']}_{rule['target_column']}"
@@ -4278,12 +4286,11 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
                 filter_expr = pl.col(rule['source_column']).is_in(match_values)
             else:
                 filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
-            matched = (
+            conditional_source_ids[rule_key] = (
                 lf.filter(filter_expr)
                 .select(pl.col(join_col).drop_nulls().unique())
                 .collect(engine="streaming")
             )
-            conditional_source_ids[rule_key] = set(matched[join_col].to_list())
         if tname == rule['target_table'] and join_col in actual_cols and rule['target_column'] in actual_cols:
             # Extract join_column IDs where target_column is not null (and not empty string)
             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
@@ -4293,12 +4300,11 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
             dtype = lf.collect_schema()[rule['target_column']]
             if dtype == pl.Utf8 or dtype == pl.String:
                 not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
-            matched = (
+            conditional_target_ids[rule_key] = (
                 lf.filter(not_null_filter)
                 .select(pl.col(join_col).drop_nulls().unique())
                 .collect(engine="streaming")
             )
-            conditional_target_ids[rule_key] = set(matched[join_col].to_list())
     cache = {
         'table_name': tname,
         'fk_ids': fk_ids,
@@ -4324,7 +4330,7 @@ def run_relational_integrity_checks_from_cache(
     """Run relational integrity checks using pre-extracted caches.
 
     Equivalent to :func:`run_relational_integrity_checks` but operates on
-    Python ``set`` objects (FK ID sets) instead of scanning full DataFrames.
+    pre-extracted distinct-id frames instead of scanning full DataFrames.
 
     Parameters
     ----------
@@ -4365,7 +4371,7 @@ def run_relational_integrity_checks_from_cache(
                 )
                 continue
 
-            # Get the FK ID sets
+            # Get the distinct-id frames
             source_ids = cache['fk_ids'].get(fk_column)
             if source_ids is None:
                 continue
@@ -4388,16 +4394,15 @@ def run_relational_integrity_checks_from_cache(
             )
 
             try:
-                # Forward: reference -> target (source=ref, ref=target)
-                fwd_orphans = ref_ids - source_ids
-                fwd_total = len(ref_ids)
-                fwd_orphan_count = len(fwd_orphans)
-                fwd_coverage = ((fwd_total - fwd_orphan_count) / fwd_total * 100) if fwd_total > 0 else 100
+                # Both directions are orphan *counts*, so an anti-join answers
+                # them without materializing either id column as a Python set.
+                fwd_total = ref_ids.height
+                rev_total = source_ids.height
 
-                # Reverse: target -> reference (source=target, ref=reference)
-                rev_orphans = source_ids - ref_ids
-                rev_total = len(source_ids)
-                rev_orphan_count = len(rev_orphans)
+                fwd_orphan_count = ref_ids.join(source_ids, on=fk_column, how="anti").height
+                rev_orphan_count = source_ids.join(ref_ids, on=fk_column, how="anti").height
+
+                fwd_coverage = ((fwd_total - fwd_orphan_count) / fwd_total * 100) if fwd_total > 0 else 100
                 rev_coverage = ((rev_total - rev_orphan_count) / rev_total * 100) if rev_total > 0 else 100
 
                 result.metrics["forward_coverage_percent"] = round(fwd_coverage, 2)
@@ -4413,7 +4418,7 @@ def run_relational_integrity_checks_from_cache(
                 # hospitalizations don't have, e.g., CRRT / procedures /
                 # ECMO). Always surface it as a warning but mark atomic_count=0
                 # so it doesn't contribute to the FK's one-atom denominator.
-                if fwd_orphans:
+                if fwd_orphan_count:
                     result.add_warning(
                         f"{fwd_orphan_count}/{fwd_total} {fk_column} values in {ref_table_name} "
                         f"not found in {table_name} ({round(fwd_coverage, 1)}% coverage)",
@@ -4425,7 +4430,7 @@ def run_relational_integrity_checks_from_cache(
                 # `rev` is the real FK integrity check ("does every source
                 # FK value resolve in the reference?"). Apply thresholds:
                 # >10% orphans → ERROR, >1% → WARNING, else silent pass.
-                if rev_orphans:
+                if rev_orphan_count:
                     orphan_pct = 100 - rev_coverage
                     emit = (result.add_error if orphan_pct > 10.0
                             else result.add_warning if orphan_pct > 1.0
@@ -4439,7 +4444,7 @@ def run_relational_integrity_checks_from_cache(
                              "orphan_percent": round(orphan_pct, 2)}
                         )
 
-                if not fwd_orphans and not rev_orphans:
+                if not fwd_orphan_count and not rev_orphan_count:
                     result.add_info(
                         f"Full bidirectional coverage for {fk_column} between "
                         f"{table_name} and {ref_table_name}"
@@ -4540,7 +4545,8 @@ def run_cross_table_completeness_checks_from_cache(
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
-        if not source_ids:
+        total = source_ids.height
+        if total == 0:
             result.add_info(
                 f"No {rule['source_column']} = {rule['source_value']} found in "
                 f"{source_table}; cross-table conditional check not triggered"
@@ -4550,17 +4556,18 @@ def run_cross_table_completeness_checks_from_cache(
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
-        missing_ids = source_ids - target_ids
-        total = len(source_ids)
-        missing_count = len(missing_ids)
+        join_col = rule['join_column']
+        missing_ids = source_ids.join(target_ids, on=join_col, how="anti")
+        missing_count = missing_ids.height
         pct = round(missing_count / total * 100, 1) if total > 0 else 0
 
         result.metrics["total_matching_source"] = total
         result.metrics["missing_in_target"] = missing_count
         result.metrics["coverage_percent"] = round(100 - pct, 2)
 
-        if missing_ids:
-            sample = sorted(list(missing_ids))[:10]
+        if missing_count:
+            # sort().head(10) reproduces the previous sorted(list(<set>))[:10] sample
+            sample = missing_ids[join_col].sort().head(10).to_list()
             result.add_warning(
                 f"{missing_count}/{total} patients discharged as {rule['source_value']} "
                 f"in {source_table} are missing {rule['target_column']} in {target_table} "
@@ -4656,12 +4663,12 @@ def run_cross_table_completeness_checks(
             filter_expr = pl.col(rule['source_column']).is_in(match_values)
         else:
             filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
-        matched = (
+        # Kept lazy: only the counts and a 10-id sample are needed below, so the
+        # id columns never have to become Python sets.
+        source_ids = (
             lf.filter(filter_expr)
             .select(pl.col(join_col).drop_nulls().unique())
-            .collect(engine="streaming")
         )
-        source_ids = set(matched[join_col].to_list())
         # Get target IDs with non-null target column (also exclude empty strings)
         lf = tgt_df if isinstance(tgt_df, pl.LazyFrame) else tgt_df.lazy()
         schema_names = lf.collect_schema().names()
@@ -4672,18 +4679,18 @@ def run_cross_table_completeness_checks(
         dtype = lf.collect_schema()[rule['target_column']]
         if dtype == pl.Utf8 or dtype == pl.String:
             not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
-        matched = (
+        target_ids = (
             lf.filter(not_null_filter)
             .select(pl.col(join_col).drop_nulls().unique())
-            .collect(engine="streaming")
         )
-        target_ids = set(matched[join_col].to_list())
         result = DQACompletenessResult(
             "cross_table_conditional_completeness",
             f"{source_table}->{target_table}",
         )
 
-        if not source_ids:
+        total = source_ids.select(pl.len()).collect(engine="streaming").item()
+
+        if total == 0:
             result.add_info(
                 f"No {rule['source_column']} = {rule['source_value']} found in "
                 f"{source_table}; cross-table conditional check not triggered"
@@ -4693,17 +4700,22 @@ def run_cross_table_completeness_checks(
             results.setdefault(target_table, {})[rule_key] = result
             continue
 
-        missing_ids = source_ids - target_ids
-        total = len(source_ids)
-        missing_count = len(missing_ids)
+        missing_ids = source_ids.join(target_ids, on=join_col, how="anti")
+        missing_count = missing_ids.select(pl.len()).collect(engine="streaming").item()
         pct = round(missing_count / total * 100, 1) if total > 0 else 0
 
         result.metrics["total_matching_source"] = total
         result.metrics["missing_in_target"] = missing_count
         result.metrics["coverage_percent"] = round(100 - pct, 2)
 
-        if missing_ids:
-            sample = sorted(list(missing_ids))[:10]
+        if missing_count:
+            # sort().head(10) reproduces the previous sorted(list(<set>))[:10] sample
+            sample = (
+                missing_ids
+                .select(pl.col(join_col).sort().head(10))
+                .collect(engine="streaming")[join_col]
+                .to_list()
+            )
             result.add_warning(
                 f"{missing_count}/{total} patients discharged as {rule['source_value']} "
                 f"in {source_table} are missing {rule['target_column']} in {target_table} "
