@@ -104,6 +104,25 @@ def _normalize_columns_polars(lf: 'pl.LazyFrame') -> 'pl.LazyFrame':
     return lf
 
 
+def _table_frame(obj) -> Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame']:
+    """Return a table object's frame, preferring the polars one.
+
+    ``BaseTable`` stores polars in ``.data`` and exposes ``.df`` as a pandas
+    *conversion* that is materialized on first access and then cached on the
+    object. Reading ``.df`` here would therefore cost a full pandas copy, a full
+    conversion back to polars in ``_normalize_for_validation``, and a permanent
+    pandas twin held on the table for the rest of the session -- roughly 2x the
+    frame, on the code path documented as the memory-efficient one.
+
+    ``.df`` remains the fallback so objects that only duck-type that attribute
+    (and any caller passing a bare pandas frame) keep working unchanged.
+    """
+    data = getattr(obj, 'data', None)
+    if isinstance(data, (pl.DataFrame, pl.LazyFrame)):
+        return data
+    return getattr(obj, 'df', None)
+
+
 def _normalize_for_validation(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame']
 ) -> Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame']:
@@ -4067,8 +4086,9 @@ def run_relational_integrity_checks(
     Parameters
     ----------
     tables : list
-        Objects with ``.table_name`` (str) and ``.df`` (DataFrame)
-        attributes — typically :class:`BaseTable` instances.
+        Objects with ``.table_name`` (str) and a frame attribute — ``.data``
+        (polars) is preferred, ``.df`` is the fallback. Typically
+        :class:`BaseTable` instances.
 
     Returns
     -------
@@ -4082,7 +4102,7 @@ def run_relational_integrity_checks(
     # matching the pattern used by run_conformance_checks / run_completeness_checks.
     lookup = {}
     for obj in tables:
-        df = obj.df
+        df = _table_frame(obj)
         if isinstance(df, pd.DataFrame):
             _logger.debug("Converting pandas DataFrame to Polars for table '%s'", obj.table_name)
             df = pl.from_pandas(df)
@@ -4168,7 +4188,8 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     Parameters
     ----------
     table_obj : BaseTable
-        Object with ``.table_name``, ``.df``, and ``.schema`` attributes.
+        Object with ``.table_name``, ``.schema``, and a frame attribute —
+        ``.data`` (polars) is preferred, ``.df`` is the fallback.
 
     Returns
     -------
@@ -4177,7 +4198,7 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
         ``temporal_df``, ``hosp_bounds_df``, ``hosp_years``.
     """
     tname = getattr(table_obj, 'table_name', '').replace('clif_', '')
-    df = table_obj.df
+    df = _table_frame(table_obj)
     schema = getattr(table_obj, 'schema', None) or {}
 
     # Case-normalize for validation (column names + string values; sidecars preserved).
@@ -4583,7 +4604,8 @@ def run_cross_table_completeness_checks(
     Parameters
     ----------
     tables : list
-        Objects with ``.table_name`` and ``.df`` attributes.
+        Objects with ``.table_name`` and a frame attribute — ``.data``
+        (polars) is preferred, ``.df`` is the fallback.
 
     Returns
     -------
@@ -4599,7 +4621,7 @@ def run_cross_table_completeness_checks(
     lookup = {}
     for obj in tables:
         tname = getattr(obj, 'table_name', '').replace('clif_', '')
-        tdf = obj.df
+        tdf = _table_frame(obj)
         if isinstance(tdf, pd.DataFrame):
             tdf = pl.from_pandas(tdf)
         # Case-normalize for validation (see run_conformance_checks).
@@ -4902,7 +4924,8 @@ def run_cross_table_plausibility_checks(
     Parameters
     ----------
     tables : list
-        Objects with ``.table_name`` and ``.df`` attributes.
+        Objects with ``.table_name`` and a frame attribute — ``.data``
+        (polars) is preferred, ``.df`` is the fallback.
     plausibility_thresholds : dict, optional
         Override default plausibility thresholds per check.
 
@@ -4924,7 +4947,7 @@ def run_cross_table_plausibility_checks(
 
     lookup = {}
     for obj in tables:
-        tdf = obj.df
+        tdf = _table_frame(obj)
         if isinstance(tdf, pd.DataFrame):
             tdf = pl.from_pandas(tdf)
         # Case-normalize for validation (see run_conformance_checks).
@@ -5018,7 +5041,8 @@ def run_full_dqa(
     table_name : str
         Name of the table.
     tables : list, optional
-        Objects with ``.table_name`` and ``.df`` attributes (e.g.
+        Objects with ``.table_name`` and a frame attribute (``.data``
+        preferred, ``.df`` fallback) (e.g.
         :class:`BaseTable` instances).  When provided, relational
         integrity and cross-table plausibility checks are run.
     error_threshold : float
@@ -5098,9 +5122,9 @@ def run_full_dqa(
         for obj in tables:
             tname = getattr(obj, 'table_name', '').replace('clif_', '')
             if tname == 'hospitalization':
-                # obj.df is whatever the caller holds -- BaseTable.df is pandas --
-                # so coerce once here rather than keeping a parallel pandas branch.
-                hdf = obj.df
+                # Prefer the stored polars frame; a caller holding pandas is
+                # coerced once here rather than via a parallel pandas branch.
+                hdf = _table_frame(obj)
                 if isinstance(hdf, pd.DataFrame):
                     hdf = pl.from_pandas(hdf)
                 if isinstance(hdf, (pl.DataFrame, pl.LazyFrame)):
