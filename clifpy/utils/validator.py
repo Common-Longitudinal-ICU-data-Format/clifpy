@@ -18,16 +18,19 @@ COMPLETENESS CHECKS:
 - C.1. Relational integrity checks
 
 DESIGN PRINCIPLES:
-- Default backend is Polars (memory-efficient, lazy evaluation)
-- Falls back to DuckDB if Polars is unavailable or fails a runtime smoke test
+- Checks run on Polars (memory-efficient, lazy evaluation). Polars is a hard
+  dependency of clifpy -- ``clifpy.utils.io`` imports it unconditionally -- so there
+  is nothing to detect, no backend selection, and no fallback.
+- pandas input is still accepted and converted on the way in, so callers holding a
+  ``pd.DataFrame`` (e.g. ``BaseTable.df``) need not change.
 - Uses garbage collection and cache clearing for memory management
 """
 import os
 import yaml
 from typing import List, Dict, Any, Optional, Union
 import pandas as pd
+import polars as pl
 import logging
-import duckdb
 from pathlib import Path
 import gc
 
@@ -35,29 +38,6 @@ from ..schemas import DEFAULT_CLIF_VERSION, load_schema
 
 # Logger for this module
 _logger = logging.getLogger(__name__)
-
-try:
-    import polars as pl
-    _logger.debug("Polars imported (version %s), running smoke tests", pl.__version__)
-    # Smoke test: exercise the compute paths used by DQA checks so that
-    # platforms where Polars imports but fails at runtime (e.g. Windows
-    # thread-pool/SIMD issues) fall back to DuckDB immediately.
-    _smoke_a = pl.LazyFrame({"k": [1, 1, 2], "v": [10, 20, 30]})
-    _smoke_a.collect_schema()                                      # 1. schema inspection
-    _smoke_a.group_by("k").agg(pl.col("v").sum()).collect()        # 2. group_by + agg
-    _smoke_b = pl.LazyFrame({"k": [1, 2]})
-    _smoke_a.join(_smoke_b, on="k").collect()                      # 3. join
-    _smoke_a.filter(pl.col("k").is_in([1])).collect()              # 4. filter + is_in
-    _smoke_a.select(pl.col("v").sum()).collect(streaming=True)     # 5. streaming collect
-    del _smoke_a, _smoke_b
-    HAS_POLARS = True
-except (ImportError, Exception) as _pl_err:
-    HAS_POLARS = False
-    if not isinstance(_pl_err, ImportError):
-        _logger.warning("Polars imported but failed runtime check, falling back to DuckDB: %s", _pl_err)
-
-_ACTIVE_BACKEND = 'polars' if HAS_POLARS else 'duckdb'
-_logger.info("DQA backend: %s", _ACTIVE_BACKEND)
 
 # Default plausibility thresholds: {check_name: {error_threshold, warning_threshold}}
 # - warning_threshold: percent above which a warning is raised
@@ -101,48 +81,6 @@ def _load_schema(
 _ORIG_PREFIX = "__orig_"
 
 
-def _normalize_columns_pandas(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a pandas DataFrame with lowercased column names and, for every
-    string/object column, a sidecar ``__orig_<col>`` holding the original
-    (pre-normalization) values. The main string column is lowercased+stripped.
-
-    Only used by the DuckDB backend of the validator. Original ``df`` is not
-    mutated.
-    """
-    out = df.rename(columns=lambda c: c.lower() if isinstance(c, str) else c).copy(deep=False)
-    # Detect both numpy object strings AND pyarrow-backed string extension
-    # dtypes (``string[pyarrow]``, ``string``). Without this, callers that
-    # build arrow-backed pandas frames (e.g. CLIF-TableOne's DuckDB loader
-    # via ``to_pandas(types_mapper=pd.ArrowDtype)``) skip normalization,
-    # which makes every case-insensitive check (C.5, C.6, K.3) emit false-
-    # positive mismatches.
-    string_cols = [
-        c for c in out.columns
-        if not c.startswith(_ORIG_PREFIX)
-        and (
-            out[c].dtype == object
-            or pd.api.types.is_string_dtype(out[c])
-        )
-    ]
-    for c in string_cols:
-        col = out[c]
-        out[f"{_ORIG_PREFIX}{c}"] = col
-        if col.dtype == object:
-            # Object-dtype columns can hold mixed-type cells (ints, bools, None,
-            # strings); coerce to str before lowering. `where(isna, …)` keeps
-            # NaN positions because `.astype(str)` would otherwise turn NaN into
-            # the literal string "nan".
-            out[c] = col.where(col.isna(), col.astype(str).str.lower().str.strip())
-        else:
-            # Typed string columns (pd.ArrowDtype(pa.string()), string[pyarrow],
-            # pandas StringDtype) route .str.lower()/.str.strip() through native
-            # compute kernels without per-cell Python materialization; skipping
-            # .astype(str) avoids a full Python-string copy of the column, which
-            # dominates runtime on large arrow-backed tables (e.g., labs).
-            out[c] = col.str.lower().str.strip()
-    return out
-
-
 def _normalize_columns_polars(lf: 'pl.LazyFrame') -> 'pl.LazyFrame':
     """Return a polars LazyFrame with lowercased column names and sidecar
     ``__orig_<col>`` columns holding original values for every string column.
@@ -181,15 +119,16 @@ def _normalize_for_validation(
     Scope: validation only. Callers outside validator.py should NOT use this —
     they keep case-sensitive semantics.
     """
-    if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+    # pandas is accepted at the door and converted once; everything downstream of
+    # here is polars, so there is a single normalization path rather than two that
+    # have to be kept in agreement.
+    if isinstance(df, pd.DataFrame):
+        df = pl.from_pandas(df)
+    if isinstance(df, (pl.DataFrame, pl.LazyFrame)):
         lf = df.lazy() if isinstance(df, pl.DataFrame) else df
         if _has_sidecars_polars(lf):
             return lf
         return _normalize_columns_polars(lf)
-    if isinstance(df, pd.DataFrame):
-        if any(c.startswith(_ORIG_PREFIX) for c in df.columns):
-            return df
-        return _normalize_columns_pandas(df)
     # Unknown type — return unchanged; downstream will error with a clearer message.
     return df
 
@@ -684,52 +623,6 @@ def check_table_presence_polars(
     return result
 
 
-def check_table_presence_duckdb(
-    df: pd.DataFrame,
-    table_name: str
-) -> DQAConformanceResult:
-    """
-    Check that a loaded DataFrame has rows and columns using DuckDB/pandas.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The data to validate
-    table_name : str
-        Name of the table
-    """
-    result = DQAConformanceResult("table_presence", table_name)
-
-    try:
-        row_count = len(df)
-        column_count = len(_strip_sidecars(df.columns.tolist()))
-
-        result.metrics["row_count"] = row_count
-        result.metrics["column_count"] = column_count
-
-        if column_count == 0:
-            result.add_error(
-                f"Table '{table_name}' has no columns",
-                {"column_count": column_count},
-            )
-        if row_count == 0:
-            result.add_error(
-                f"Table '{table_name}' has 0 rows",
-                {"row_count": row_count},
-            )
-        if result.passed:
-            result.add_info(
-                f"Table '{table_name}' present with {row_count} rows and {column_count} columns"
-            )
-    except Exception as e:
-        _logger.error("Check 'table_presence' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking table presence: {str(e)}")
-
-    result.atomic_total = 1
-    result.atomic_passed = 1 if not result.errors else 0
-    return result
-
-
 def check_table_presence(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str
@@ -745,10 +638,7 @@ def check_table_presence(
         Name of the table
     """
     _logger.debug("check_table_presence: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_table_presence_polars(df, table_name)
-    else:
-        result = check_table_presence_duckdb(df, table_name)
+    result = check_table_presence_polars(df, table_name)
     _logger.debug("check_table_presence: table '%s' — rows=%s, cols=%s",
                   table_name, result.metrics.get("row_count"), result.metrics.get("column_count"))
     return result
@@ -802,48 +692,6 @@ def check_required_columns_polars(
     return result
 
 
-def check_required_columns_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str
-) -> DQAConformanceResult:
-    """Check if all required columns are present using DuckDB."""
-    result = DQAConformanceResult("required_columns", table_name)
-
-    try:
-        actual_columns = set(df.columns)
-        required_list = schema.get('required_columns', [])
-
-        missing = set(required_list) - actual_columns
-
-        result.metrics["total_required"] = len(required_list)
-        result.metrics["total_present"] = len(required_list) - len(missing)
-        result.metrics["total_missing"] = len(missing)
-
-        for col_name in required_list:
-            if col_name in missing:
-                result.add_error(
-                    f"Column '{col_name}': missing from data",
-                    {"column": col_name}
-                )
-            else:
-                result.add_info(
-                    f"Column '{col_name}': present",
-                    {"column": col_name}
-                )
-
-        result.atomic_total = len(required_list)
-        result.atomic_passed = len(required_list) - len(missing)
-    except Exception as e:
-        _logger.error("Check 'required_columns' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking columns: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 0
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_required_columns(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -862,10 +710,7 @@ def check_required_columns(
         Name of the table
     """
     _logger.debug("check_required_columns: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_required_columns_polars(df, schema, table_name)
-    else:
-        result = check_required_columns_duckdb(df, schema, table_name)
+    result = check_required_columns_polars(df, schema, table_name)
     if result.metrics.get("total_missing", 0) > 0:
         _logger.info("check_required_columns: table '%s' missing %d of %d required columns",
                      table_name, result.metrics["total_missing"], result.metrics.get("total_required", 0))
@@ -1022,139 +867,6 @@ def _check_castable_polars(lf: 'pl.LazyFrame', col_name: str, target_type: str) 
         return False
 
 
-def check_column_dtypes_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str
-) -> DQAConformanceResult:
-    """Check if columns have correct data types using DuckDB."""
-    result = DQAConformanceResult("column_dtypes", table_name)
-
-    type_mapping = {
-        'VARCHAR': ['VARCHAR', 'TEXT', 'STRING'],
-        'DATETIME': ['TIMESTAMP', 'TIMESTAMP WITH TIME ZONE'],
-        'DATE': ['DATE'],
-        'INTEGER': ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'INT'],
-        'INT': ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'INT'],
-        'FLOAT': ['FLOAT', 'DOUBLE', 'REAL', 'DECIMAL'],
-        'DOUBLE': ['FLOAT', 'DOUBLE', 'REAL', 'DECIMAL'],
-    }
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        describe_result = con.execute("DESCRIBE df").fetchall()
-        actual_types = {row[0]: row[1].upper() for row in describe_result}
-
-        dtype_errors = []
-        dtype_warnings = []
-
-        for col_spec in schema.get('columns', []):
-            col_name = col_spec['name']
-            expected_type = col_spec.get('data_type')
-
-            if not expected_type or col_name not in actual_types:
-                continue
-
-            actual_dtype = actual_types[col_name]
-            expected_duckdb_types = type_mapping.get(expected_type, [])
-
-            type_matches = any(
-                expected_t in actual_dtype
-                for expected_t in expected_duckdb_types
-            )
-
-            if not type_matches:
-                # When all values are NULL *and* the pandas dtype is object,
-                # DuckDB infers an arbitrary type (e.g. INTEGER) because it
-                # has no data to work with.  Skip only this ambiguous case.
-                # Columns with a concrete pandas dtype (Int32, datetime64, …)
-                # have a reliable inferred type even when all-null.
-                if col_name in df.columns and df[col_name].isna().all() and df[col_name].dtype == object:
-                    continue
-
-                castable = _check_castable_duckdb(con, col_name, expected_type)
-
-                if castable:
-                    dtype_warnings.append({
-                        "column": col_name,
-                        "expected": expected_type,
-                        "actual": actual_dtype,
-                        "castable": True
-                    })
-                else:
-                    dtype_errors.append({
-                        "column": col_name,
-                        "expected": expected_type,
-                        "actual": actual_dtype,
-                        "castable": False
-                    })
-
-        result.metrics["columns_checked"] = len(schema.get('columns', []))
-        result.metrics["dtype_errors"] = len(dtype_errors)
-        result.metrics["dtype_warnings"] = len(dtype_warnings)
-
-        issue_cols = {err['column'] for err in dtype_errors} | {warn['column'] for warn in dtype_warnings}
-
-        for err in dtype_errors:
-            result.add_error(
-                f"Column '{err['column']}' has type {err['actual']}, cannot cast to {err['expected']}",
-                err
-            )
-
-        for warn in dtype_warnings:
-            result.add_warning(
-                f"Column '{warn['column']}' has type {warn['actual']}, can be cast to {warn['expected']}",
-                warn
-            )
-
-        for col_spec in schema.get('columns', []):
-            col_name = col_spec['name']
-            expected_type = col_spec.get('data_type')
-            if not expected_type:
-                continue
-            if col_name not in actual_types:
-                result.add_info(
-                    f"Column '{col_name}': not present in data (dtype check skipped)",
-                    {"column": col_name, "expected": expected_type}
-                )
-            elif col_name not in issue_cols:
-                result.add_info(
-                    f"Column '{col_name}': dtype matches schema ({expected_type})",
-                    {"column": col_name, "expected": expected_type}
-                )
-
-        con.close()
-
-        result.atomic_total = len(schema.get('columns', []))
-        result.atomic_passed = result.atomic_total - len(dtype_errors)
-    except Exception as e:
-        _logger.error("Check 'column_dtypes' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking dtypes: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 0
-            result.atomic_passed = 0
-
-    return result
-
-
-def _check_castable_duckdb(con, col_name: str, target_type: str) -> bool:
-    """Check if a column can be cast to the target type using DuckDB."""
-    try:
-        if target_type in ('INTEGER', 'INT'):
-            con.execute(f'SELECT TRY_CAST("{col_name}" AS BIGINT) FROM df LIMIT 100')
-        elif target_type in ('FLOAT', 'DOUBLE'):
-            con.execute(f'SELECT TRY_CAST("{col_name}" AS DOUBLE) FROM df LIMIT 100')
-        elif target_type == 'DATETIME':
-            con.execute(f'SELECT TRY_CAST("{col_name}" AS TIMESTAMP) FROM df LIMIT 100')
-        elif target_type == 'VARCHAR':
-            con.execute(f'SELECT CAST("{col_name}" AS VARCHAR) FROM df LIMIT 100')
-        return True
-    except Exception:
-        return False
-
-
 def check_column_dtypes(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -1173,10 +885,7 @@ def check_column_dtypes(
         Name of the table
     """
     _logger.debug("check_column_dtypes: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_column_dtypes_polars(df, schema, table_name)
-    else:
-        result = check_column_dtypes_duckdb(df, schema, table_name)
+    result = check_column_dtypes_polars(df, schema, table_name)
     _logger.debug("check_column_dtypes: table '%s' — checked=%s, errors=%s, warnings=%s",
                   table_name, result.metrics.get("columns_checked"),
                   result.metrics.get("dtype_errors"), result.metrics.get("dtype_warnings"))
@@ -1253,69 +962,6 @@ def check_datetime_format_polars(
     return result
 
 
-def check_datetime_format_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str,
-    expected_tz: str = 'UTC'
-) -> DQAConformanceResult:
-    """Validate datetime columns are in correct format using DuckDB."""
-    result = DQAConformanceResult("datetime_format", table_name)
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        describe_result = con.execute("DESCRIBE df").fetchall()
-        actual_types = {row[0]: row[1].upper() for row in describe_result}
-
-        all_datetime_columns = [
-            col['name'] for col in schema.get('columns', [])
-            if col.get('data_type') in ('DATETIME', 'DATE')
-        ]
-
-        result.metrics["datetime_columns_checked"] = len(all_datetime_columns)
-        columns_with_messages = set()
-
-        for col in all_datetime_columns:
-            if col not in actual_types:
-                result.add_info(
-                    f"Column '{col}': not present in data (datetime check skipped)",
-                    {"column": col}
-                )
-                columns_with_messages.add(col)
-                continue
-
-            col_dtype = actual_types[col]
-
-            if 'TIMESTAMP' not in col_dtype and 'DATE' not in col_dtype:
-                result.add_warning(
-                    f"Column '{col}' should be DATETIME but is {col_dtype}",
-                    {"column": col, "actual_type": col_dtype}
-                )
-                columns_with_messages.add(col)
-
-        for col in all_datetime_columns:
-            if col not in columns_with_messages:
-                result.add_info(
-                    f"Column '{col}': datetime format valid",
-                    {"column": col}
-                )
-
-        con.close()
-
-        result.atomic_total = len(all_datetime_columns)
-        result.atomic_passed = len(all_datetime_columns) - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'datetime_format' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking datetime format: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 0
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_datetime_format(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -1324,10 +970,7 @@ def check_datetime_format(
 ) -> DQAConformanceResult:
     """Validate datetime columns are in correct format."""
     _logger.debug("check_datetime_format: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_datetime_format_polars(df, schema, table_name, expected_tz)
-    else:
-        result = check_datetime_format_duckdb(df, schema, table_name, expected_tz)
+    result = check_datetime_format_polars(df, schema, table_name, expected_tz)
     _logger.debug("check_datetime_format: table '%s' — columns_checked=%s",
                   table_name, result.metrics.get("datetime_columns_checked"))
     return result
@@ -1599,121 +1242,6 @@ def check_lab_reference_units_polars(
     return result
 
 
-def check_lab_reference_units_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str = 'labs'
-) -> DQAConformanceResult:
-    """Check if lab reference units match schema definitions using DuckDB."""
-    result = DQAConformanceResult("lab_reference_units", table_name)
-
-    lab_units = schema.get('lab_reference_units', {})
-    if not lab_units:
-        result.add_info("No lab reference units defined in schema")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    _log_lab_reference_units_schema_summary(schema, table_name)
-
-    try:
-        con = duckdb.connect(':memory:')
-        # Self-normalize if caller invoked the check directly (e.g. from tests).
-        if not any(c.startswith(_ORIG_PREFIX) for c in df.columns):
-            df = _normalize_columns_pandas(df)
-        con.register('labs_df', df)
-
-        if 'lab_category' not in df.columns or 'reference_unit' not in df.columns:
-            result.add_error("Missing required columns: lab_category and/or reference_unit")
-            con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 0
-            return result
-
-        orig_cat_col = f"{_ORIG_PREFIX}lab_category"
-        orig_unit_col = f"{_ORIG_PREFIX}reference_unit"
-        has_orig_cat = orig_cat_col in df.columns
-        has_orig_unit = orig_unit_col in df.columns
-
-        select_extra = ''
-        if has_orig_cat:
-            select_extra += f', MIN("{orig_cat_col}") as __orig_cat'
-        if has_orig_unit:
-            select_extra += f', MIN("{orig_unit_col}") as __orig_unit'
-
-        unit_counts = con.execute(f"""
-            SELECT lab_category, reference_unit, COUNT(*) as count{select_extra}
-            FROM labs_df
-            GROUP BY lab_category, reference_unit
-        """).fetchall()
-
-        # Build lookup: lab_category (lowercased) -> list of (ref_unit, ref_unit_orig, cat_orig, count)
-        actual_units: Dict[str, list] = {}
-        total_count = 0
-        for row in unit_counts:
-            idx = 3
-            lab_cat, ref_unit, count = row[0], row[1], row[2]
-            lab_cat_orig = ref_unit_orig = None
-            if has_orig_cat:
-                lab_cat_orig = row[idx]; idx += 1
-            else:
-                lab_cat_orig = lab_cat
-            if has_orig_unit:
-                ref_unit_orig = row[idx]; idx += 1
-            else:
-                ref_unit_orig = ref_unit
-            total_count += int(count)
-            actual_units.setdefault(lab_cat, []).append(
-                (ref_unit, ref_unit_orig, lab_cat_orig, int(count))
-            )
-
-        result.metrics["total_records"] = total_count
-        invalid_count = 0
-
-        # Normalize schema keys for lookup robustness.
-        lab_units_normalized = {str(k).lower().strip(): (k, v) for k, v in lab_units.items()}
-
-        # Emit one message per lab_reference_units entry
-        for lab_cat_norm, (lab_cat_orig_key, expected_units) in lab_units_normalized.items():
-            pairs = actual_units.get(lab_cat_norm)
-            if pairs is None:
-                result.add_info(
-                    f"Lab category '{lab_cat_orig_key}': not present in data",
-                    {"column": lab_cat_orig_key}
-                )
-                continue
-
-            details, is_valid, _ = _evaluate_lab_category_units(
-                schema, lab_cat_orig_key, expected_units, pairs,
-            )
-            if is_valid:
-                result.add_info(
-                    f"Lab category '{lab_cat_orig_key}': reference units match schema",
-                    details,
-                )
-            else:
-                invalid_count += 1
-                result.add_warning(
-                    f"Lab category '{lab_cat_orig_key}': non-standard units found",
-                    details,
-                )
-
-        result.metrics["invalid_unit_categories"] = invalid_count
-        con.close()
-        gc.collect()
-
-        result.atomic_total = len(lab_units_normalized)
-        result.atomic_passed = len(lab_units_normalized) - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'lab_reference_units' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking lab reference units: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_lab_reference_units(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -1721,10 +1249,7 @@ def check_lab_reference_units(
 ) -> DQAConformanceResult:
     """Check if lab reference units match schema definitions."""
     _logger.debug("check_lab_reference_units: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_lab_reference_units_polars(df, schema, table_name)
-    else:
-        result = check_lab_reference_units_duckdb(df, schema, table_name)
+    result = check_lab_reference_units_polars(df, schema, table_name)
     _logger.debug("check_lab_reference_units: table '%s' — valid=%s, invalid_categories=%s",
                   table_name, result.metrics.get("valid_units"),
                   result.metrics.get("invalid_unit_categories"))
@@ -2044,136 +1569,6 @@ def check_medication_dose_units_polars(
     return result
 
 
-def check_medication_dose_units_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str,
-) -> DQAConformanceResult:
-    """Check med_dose_unit values against the schema's per-category expected
-    units (``med_category_to_dose_unit_mapping``) using DuckDB."""
-    result = DQAConformanceResult("medication_dose_units", table_name)
-
-    mapping = schema.get('med_category_to_dose_unit_mapping') or {}
-    if not mapping:
-        result.add_info("No med_category dose unit mapping defined in schema")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-    if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
-        result.add_info("Medication dose units check not applicable to this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-    continuous = table_name == 'medication_admin_continuous'
-
-    try:
-        con = duckdb.connect(':memory:')
-        # Self-normalize if caller invoked the check directly (e.g. from tests).
-        if not any(c.startswith(_ORIG_PREFIX) for c in df.columns):
-            df = _normalize_columns_pandas(df)
-        con.register('meds_df', df)
-
-        if 'med_category' not in df.columns or 'med_dose_unit' not in df.columns:
-            result.add_error("Missing required columns: med_category and/or med_dose_unit")
-            con.close()
-            result.atomic_total = 1
-            result.atomic_passed = 0
-            return result
-
-        orig_cat_col = f"{_ORIG_PREFIX}med_category"
-        orig_unit_col = f"{_ORIG_PREFIX}med_dose_unit"
-        has_orig_cat = orig_cat_col in df.columns
-        has_orig_unit = orig_unit_col in df.columns
-
-        select_extra = ''
-        if has_orig_cat:
-            select_extra += f', MIN("{orig_cat_col}") as __orig_cat'
-        if has_orig_unit:
-            select_extra += f', MIN("{orig_unit_col}") as __orig_unit'
-
-        # Single pass: null / empty-string units are split out of the grouped
-        # counts in Python rather than via extra filtered scans.
-        unit_counts = con.execute(f"""
-            SELECT med_category, med_dose_unit, COUNT(*) as count{select_extra}
-            FROM meds_df
-            GROUP BY med_category, med_dose_unit
-        """).fetchall()
-
-        # Build lookup: med_category (normalized) -> [(unit, unit_orig, cat_orig, count)]
-        actual_units: Dict[str, list] = {}
-        total_count = 0
-        empty_count = 0
-        for row in unit_counts:
-            idx = 3
-            med_cat, dose_unit, count = row[0], row[1], row[2]
-            if dose_unit is None:
-                continue
-            if str(dose_unit).strip() == '':
-                empty_count += int(count)
-                continue
-            if med_cat is None:
-                continue
-            if has_orig_cat:
-                med_cat_orig = row[idx]; idx += 1
-            else:
-                med_cat_orig = med_cat
-            if has_orig_unit:
-                unit_orig = row[idx]; idx += 1
-            else:
-                unit_orig = dose_unit
-            total_count += int(count)
-            actual_units.setdefault(med_cat, []).append(
-                (dose_unit, unit_orig, med_cat_orig, int(count)))
-
-        # Empty-string dose units are an ETL deviation: advise, then exclude.
-        _report_empty_strings(result, table_name, 'med_dose_unit',
-                              int(empty_count), {})
-
-        result.metrics["total_records"] = total_count
-
-        mapping_normalized = {str(k).lower().strip(): (k, v) for k, v in mapping.items()}
-        _report_med_dose_unit_results(result, mapping_normalized, actual_units, continuous)
-
-        # Continuous only: optional volume_infusion_rate_unit sub-check.
-        expected_vol = schema.get('expected_volume_infusion_rate_unit')
-        vol_checked = False
-        if continuous and expected_vol and 'volume_infusion_rate_unit' in df.columns:
-            vol_orig_col = f"{_ORIG_PREFIX}volume_infusion_rate_unit"
-            has_vol_orig = vol_orig_col in df.columns
-            vol_extra = f', MIN("{vol_orig_col}") as __orig_vol' if has_vol_orig else ''
-            vol_rows = con.execute(f"""
-                SELECT volume_infusion_rate_unit, COUNT(*) as count{vol_extra}
-                FROM meds_df
-                GROUP BY volume_infusion_rate_unit
-            """).fetchall()
-            vol_pairs = [
-                (row[0], row[2] if has_vol_orig else row[0], int(row[1]))
-                for row in vol_rows
-                if row[0] is not None and str(row[0]).strip() != ''
-            ]
-            if vol_pairs:
-                _report_volume_rate_units(result, expected_vol, vol_pairs)
-                vol_checked = True
-            else:
-                result.add_info("Column 'volume_infusion_rate_unit': no non-null values to check")
-        elif continuous and expected_vol:
-            result.add_info("Column 'volume_infusion_rate_unit' not found in table")
-
-        con.close()
-        gc.collect()
-
-        result.atomic_total = len(mapping_normalized) + (1 if vol_checked else 0)
-        result.atomic_passed = result.atomic_total - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'medication_dose_units' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking medication dose units: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_medication_dose_units(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -2181,10 +1576,7 @@ def check_medication_dose_units(
 ) -> DQAConformanceResult:
     """Check med_dose_unit values against per-category expected units."""
     _logger.debug("check_medication_dose_units: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_medication_dose_units_polars(df, schema, table_name)
-    else:
-        result = check_medication_dose_units_duckdb(df, schema, table_name)
+    result = check_medication_dose_units_polars(df, schema, table_name)
     _logger.debug(
         "check_medication_dose_units: table '%s' — categories_with_mismatch=%s",
         table_name, result.metrics.get("categories_with_mismatch"))
@@ -2315,125 +1707,6 @@ def check_categorical_values_polars(
     return result
 
 
-def check_categorical_values_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str
-) -> DQAConformanceResult:
-    """Check if categorical values match mCIDE permissible values using DuckDB."""
-    result = DQAConformanceResult("categorical_values", table_name)
-
-    try:
-        # Self-normalize if caller invoked the check directly (e.g. from tests).
-        if not any(c.startswith(_ORIG_PREFIX) for c in df.columns):
-            df = _normalize_columns_pandas(df)
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        category_columns = schema.get('category_columns') or []
-        invalid_values_by_col = {}
-        columns_checked = []
-        columns_missing = set()
-
-        for col_spec in schema.get('columns', []):
-            col_name = col_spec['name']
-            permissible = col_spec.get('permissible_values', [])
-
-            if not permissible:
-                continue
-
-            if col_name not in category_columns:
-                continue
-
-            columns_checked.append(col_name)
-
-            if col_name not in df.columns:
-                columns_missing.add(col_name)
-                continue
-
-            orig_col = f"{_ORIG_PREFIX}{col_name}"
-            has_orig = orig_col in df.columns
-
-            if has_orig:
-                unique_vals = con.execute(f"""
-                    SELECT "{col_name}",
-                           COUNT(*) as count,
-                           MIN("{orig_col}") as __orig_val
-                    FROM df
-                    WHERE "{col_name}" IS NOT NULL
-                    GROUP BY "{col_name}"
-                """).fetchdf()
-            else:
-                unique_vals = con.execute(f"""
-                    SELECT "{col_name}", COUNT(*) as count
-                    FROM df
-                    WHERE "{col_name}" IS NOT NULL
-                    GROUP BY "{col_name}"
-                """).fetchdf()
-
-            permissible_lower = {str(v).lower().strip() for v in permissible}
-
-            invalid_for_col = []
-            for _, row in unique_vals.iterrows():
-                val = row[col_name]
-                count = row['count']
-                # Cite the original (pre-normalization) value to the user.
-                display_val = row['__orig_val'] if has_orig else val
-
-                val_str = str(val).lower().strip() if val is not None else ''
-                if val_str not in permissible_lower and val not in permissible:
-                    invalid_for_col.append({
-                        "value": display_val,
-                        "count": int(count)
-                    })
-
-            if invalid_for_col:
-                invalid_for_col.sort(key=lambda x: x['count'], reverse=True)
-                invalid_values_by_col[col_name] = {
-                    "invalid_values": invalid_for_col[:20],
-                    "total_invalid_unique": len(invalid_for_col),
-                    "permissible_values": permissible
-                }
-
-        result.metrics["category_columns_checked"] = len(columns_checked)
-        result.metrics["columns_with_invalid_values"] = len(invalid_values_by_col)
-
-        for col_name in columns_checked:
-            if col_name in columns_missing:
-                result.add_info(
-                    f"Column '{col_name}': not present in data (categorical check skipped)",
-                    {"column": col_name}
-                )
-            elif col_name in invalid_values_by_col:
-                details = invalid_values_by_col[col_name]
-                result.add_warning(
-                    f"{details['total_invalid_unique']} invalid categorical values",
-                    {
-                        "column": col_name,
-                        "top_invalid": details['invalid_values'][:10],
-                        "permissible_values": details['permissible_values']
-                    }
-                )
-            else:
-                result.add_info(
-                    f"Column '{col_name}': all values match mCIDE permissible values",
-                    {"column": col_name}
-                )
-
-        con.close()
-
-        result.atomic_total = len(columns_checked)
-        result.atomic_passed = len(columns_checked) - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'categorical_values' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking categorical values: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 0
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_categorical_values(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -2441,10 +1714,7 @@ def check_categorical_values(
 ) -> DQAConformanceResult:
     """Check if categorical values match mCIDE permissible values."""
     _logger.debug("check_categorical_values: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_categorical_values_polars(df, schema, table_name)
-    else:
-        result = check_categorical_values_duckdb(df, schema, table_name)
+    result = check_categorical_values_polars(df, schema, table_name)
     _logger.debug("check_categorical_values: table '%s' — columns_checked=%s, columns_with_invalid=%s",
                   table_name, result.metrics.get("category_columns_checked"),
                   result.metrics.get("columns_with_invalid_values"))
@@ -2603,157 +1873,6 @@ def check_category_group_mapping_polars(
     return result
 
 
-def check_category_group_mapping_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str
-) -> DQAConformanceResult:
-    """Check if category-to-group mappings match schema definitions using DuckDB."""
-    result = DQAConformanceResult("category_group_mapping", table_name)
-
-    # Discover all *_category_to_group_mapping keys in the schema
-    mapping_keys = [k for k in schema if k.endswith('_category_to_group_mapping')]
-    if not mapping_keys:
-        result.add_info("No category-to-group mappings defined in schema")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        # Self-normalize if caller invoked the check directly (e.g. from tests).
-        if not any(c.startswith(_ORIG_PREFIX) for c in df.columns):
-            df = _normalize_columns_pandas(df)
-        con = duckdb.connect(':memory:')
-        con.register('mapping_df', df)
-        col_names = list(df.columns)
-
-        total_pairs = 0
-        mismatch_total = 0
-
-        for mapping_key in mapping_keys:
-            mapping = schema[mapping_key]
-            if not mapping:
-                continue
-
-            total_pairs += len(mapping)
-
-            # Derive column names
-            category_col = mapping_key.replace('_to_group_mapping', '')
-            group_col = category_col.replace('_category', '_group')
-
-            if category_col not in col_names or group_col not in col_names:
-                for cat_val in mapping:
-                    result.add_info(
-                        f"Category '{cat_val}': columns not in data (mapping check skipped)",
-                        {"column": cat_val, "category_column": category_col, "group_column": group_col}
-                    )
-                continue
-
-            # Pull original-case sidecars when available for error reporting.
-            orig_group_col = f"{_ORIG_PREFIX}{group_col}"
-            has_orig_group = orig_group_col in col_names
-
-            if has_orig_group:
-                pair_counts = con.execute(f"""
-                    SELECT "{category_col}", "{group_col}",
-                           COUNT(*) as count,
-                           MIN("{orig_group_col}") as __orig_group_val
-                    FROM mapping_df
-                    WHERE "{category_col}" IS NOT NULL AND "{group_col}" IS NOT NULL
-                    GROUP BY "{category_col}", "{group_col}"
-                """).fetchall()
-            else:
-                pair_counts = con.execute(f"""
-                    SELECT "{category_col}", "{group_col}", COUNT(*) as count
-                    FROM mapping_df
-                    WHERE "{category_col}" IS NOT NULL AND "{group_col}" IS NOT NULL
-                    GROUP BY "{category_col}", "{group_col}"
-                """).fetchall()
-
-            # Build lookup: category_val (lowercased) -> list of (grp_val, grp_val_orig, count)
-            actual_groups: Dict[str, list] = {}
-            total_count = 0
-            for row in pair_counts:
-                if has_orig_group:
-                    cat_val, grp_val, count, grp_val_orig = row
-                else:
-                    cat_val, grp_val, count = row
-                    grp_val_orig = grp_val
-                total_count += int(count)
-                actual_groups.setdefault(cat_val, []).append((grp_val, grp_val_orig, int(count)))
-
-            result.metrics[f"{mapping_key}_total_records"] = total_count
-            mismatch_count = 0
-
-            # Normalize schema keys too (defense-in-depth). Values may be a
-            # single group name or a list of permissible groups — see the
-            # polars implementation above for the rationale.
-            mapping_normalized = {
-                str(k).lower().strip(): (k, v if isinstance(v, list) else [v])
-                for k, v in mapping.items()
-            }
-
-            # Emit one message per mapping entry
-            for cat_val_norm, (cat_val_orig, expected_groups) in mapping_normalized.items():
-                pairs = actual_groups.get(cat_val_norm)
-                if pairs is None:
-                    result.add_info(
-                        f"Category '{cat_val_orig}': not present in data",
-                        {"column": cat_val_orig, "category_column": category_col, "group_column": group_col}
-                    )
-                    continue
-
-                allowed_lowers = {str(g).lower().strip() for g in expected_groups}
-                expected_display = (
-                    " or ".join(f"'{g}'" for g in expected_groups)
-                    if len(expected_groups) > 1
-                    else f"'{expected_groups[0]}'"
-                )
-
-                bad = []
-                for grp_val, grp_val_orig, count in pairs:
-                    if grp_val not in allowed_lowers:
-                        bad.append({
-                            "category": cat_val_orig,
-                            "actual_group": grp_val_orig,
-                            "expected_group": (
-                                list(expected_groups) if len(expected_groups) > 1
-                                else expected_groups[0]
-                            ),
-                            "count": count,
-                        })
-
-                if bad:
-                    mismatch_count += 1
-                    result.add_warning(
-                        f"Category '{cat_val_orig}': group mismatch (expected {expected_display})",
-                        {"column": cat_val_orig, "category_column": category_col,
-                         "group_column": group_col, "mismatched_pairs": bad}
-                    )
-                else:
-                    result.add_info(
-                        f"Category '{cat_val_orig}': group mapping correct",
-                        {"column": cat_val_orig, "category_column": category_col, "group_column": group_col}
-                    )
-
-            result.metrics[f"{mapping_key}_mismatch_count"] = mismatch_count
-            mismatch_total += mismatch_count
-
-        result.atomic_total = total_pairs
-        result.atomic_passed = total_pairs - mismatch_total
-        con.close()
-        gc.collect()
-
-    except Exception as e:
-        _logger.error("Check 'category_group_mapping' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking category-group mapping: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_category_group_mapping(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -2761,10 +1880,7 @@ def check_category_group_mapping(
 ) -> DQAConformanceResult:
     """Check if category-to-group mappings match schema definitions."""
     _logger.debug("check_category_group_mapping: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_category_group_mapping_polars(df, schema, table_name)
-    else:
-        result = check_category_group_mapping_duckdb(df, schema, table_name)
+    result = check_category_group_mapping_polars(df, schema, table_name)
     _logger.debug("check_category_group_mapping: table '%s' — completed", table_name)
     return result
 
@@ -2919,151 +2035,6 @@ def check_missingness_polars(
     return result
 
 
-def check_missingness_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str,
-    error_threshold: float = 50.0,
-    warning_threshold: float = 10.0
-) -> DQACompletenessResult:
-    """Check missingness in required columns using DuckDB."""
-    result = DQACompletenessResult("missingness", table_name)
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        required_columns = schema.get('required_columns', [])
-        required_not_in_df = [c for c in required_columns if c not in df.columns]
-        required_in_df = [c for c in required_columns if c in df.columns]
-
-        # Skip columns covered by conditional requirements (checked in K.2)
-        conditions = _get_default_conditions(table_name)
-        conditional_cols = {col for cond in conditions for col in cond.get('then_required', [])}
-        required_in_df = [c for c in required_in_df if c not in conditional_cols]
-
-        # Skip columns marked nullable in schema (e.g. death_dttm)
-        nullable_cols = {col['name'] for col in schema.get('columns', []) if col.get('nullable')}
-        required_in_df = [c for c in required_in_df if c not in nullable_cols]
-
-        # Columns with allow_missing: severity capped at warning (never error)
-        allow_missing_cols = {col['name'] for col in schema.get('columns', []) if col.get('allow_missing')}
-
-        total_rows = con.execute("SELECT COUNT(*) FROM df").fetchone()[0]
-
-        if total_rows == 0:
-            result.add_error("DataFrame is empty")
-            # Empty table: every required column is fully missing. Populate
-            # atomic counts before returning so downstream scoring
-            # (report_generator.collect_dqa_issues) doesn't choke on None.
-            result.atomic_total = max(len(required_columns), 1)
-            result.atomic_passed = 0
-            con.close()
-            return result
-
-        # Build a single query for all null counts (efficient single scan)
-        null_count_exprs = [f'COUNT(*) - COUNT("{col}") as "{col}_null"' for col in required_in_df]
-        if null_count_exprs:
-            null_query = f"SELECT {', '.join(null_count_exprs)} FROM df"
-            null_counts = con.execute(null_query).fetchone()
-        else:
-            null_counts = []
-
-        missingness_stats = []
-        high_missingness = []
-
-        for i, col in enumerate(required_in_df):
-            null_count = null_counts[i] if null_counts else 0
-            pct_missing = (null_count / total_rows) * 100
-
-            missingness_stats.append({
-                "column": col,
-                "null_count": int(null_count),
-                "total_rows": int(total_rows),
-                "percent_missing": round(pct_missing, 2)
-            })
-
-            # For allow_missing columns, cap severity at warning
-            if col in allow_missing_cols:
-                if pct_missing >= warning_threshold:
-                    high_missingness.append({
-                        "column": col,
-                        "percent_missing": round(pct_missing, 2),
-                        "severity": "warning"
-                    })
-            elif pct_missing >= error_threshold:
-                high_missingness.append({
-                    "column": col,
-                    "percent_missing": round(pct_missing, 2),
-                    "severity": "error"
-                })
-            elif pct_missing >= warning_threshold:
-                high_missingness.append({
-                    "column": col,
-                    "percent_missing": round(pct_missing, 2),
-                    "severity": "warning"
-                })
-
-        missingness_stats.sort(key=lambda x: x['percent_missing'], reverse=True)
-
-        result.metrics["total_rows"] = int(total_rows)
-        result.metrics["required_columns_checked"] = len(required_in_df)
-        result.metrics["missingness_stats"] = missingness_stats
-
-        high_miss_cols = {item['column'] for item in high_missingness}
-
-        for item in high_missingness:
-            if item["severity"] == "error":
-                result.add_error(
-                    f"Column '{item['column']}' has {item['percent_missing']}% missing values",
-                    item
-                )
-            else:
-                result.add_warning(
-                    f"Column '{item['column']}' has {item['percent_missing']}% missing values",
-                    item
-                )
-
-        for stat in missingness_stats:
-            if stat['column'] not in high_miss_cols:
-                result.add_info(
-                    f"Column '{stat['column']}': {stat['percent_missing']}% missing (below thresholds)",
-                    {"column": stat['column'],
-                     "percent_missing": stat['percent_missing'],
-                     "error_threshold": error_threshold,
-                     "warning_threshold": warning_threshold},
-                )
-
-        for col in required_not_in_df:
-            if col not in conditional_cols:
-                result.add_info(
-                    f"Column '{col}': not present in data (missingness check skipped)",
-                    {"column": col},
-                )
-
-        # Lenient scoring — only errors (above error_threshold or absent)
-        # reduce atomic_passed; warning-level missingness is informational.
-        result.atomic_total = len(required_columns)
-        failed_errors = sum(
-            1 for item in high_missingness if item.get('severity') == 'error'
-        ) + sum(
-            1 for c in required_not_in_df if c not in conditional_cols
-        )
-        result.atomic_passed = result.atomic_total - failed_errors
-
-        con.close()
-        gc.collect()
-
-    except Exception as e:
-        _logger.error("Check 'missingness' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking missingness: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_missingness(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -3094,10 +2065,7 @@ def check_missingness(
     """
     _logger.debug("check_missingness: starting for table '%s' (error_threshold=%.1f%%, warning_threshold=%.1f%%)",
                   table_name, error_threshold, warning_threshold)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_missingness_polars(df, schema, table_name, error_threshold, warning_threshold)
-    else:
-        result = check_missingness_duckdb(df, schema, table_name, error_threshold, warning_threshold)
+    result = check_missingness_polars(df, schema, table_name, error_threshold, warning_threshold)
     if result.errors:
         for err in result.errors:
             _logger.info("check_missingness: table '%s' — %s", table_name, err["message"])
@@ -3243,113 +2211,6 @@ def check_conditional_requirements_polars(
     return result
 
 
-def check_conditional_requirements_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    conditions: Optional[List[Dict[str, Any]]] = None
-) -> DQACompletenessResult:
-    """Check conditional required fields using DuckDB."""
-    result = DQACompletenessResult("conditional_requirements", table_name)
-
-    if conditions is None:
-        conditions = _get_default_conditions(table_name)
-
-    if not conditions:
-        result.add_info("No conditional requirements defined for this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        # Atomic counting: 1 per (rule × then_required column) — matches
-        # the granularity of rows this check emits (warning per violated
-        # combo, info per satisfied combo).
-        atomic_total = 0
-        atomic_failed_by_errors = 0
-
-        for cond in conditions:
-            when_col = cond['when_column']
-            when_values = cond['when_value']
-            then_required = cond['then_required']
-            description = cond.get('description', '')
-
-            atomic_total += sum(1 for c in then_required if c in df.columns)
-
-            if when_col not in df.columns:
-                continue
-
-            if not isinstance(when_values, list):
-                when_values = [when_values]
-
-            # Optional compound condition: and_column / and_value
-            and_col = cond.get('and_column')
-            and_values = cond.get('and_value')
-            and_clause = ""
-            if and_col and and_values is not None:
-                if and_col not in df.columns:
-                    continue
-                if not isinstance(and_values, list):
-                    and_values = [and_values]
-                and_values_str = ', '.join([f"'{v.lower().strip()}'" for v in and_values])
-                and_clause = f' AND TRIM(LOWER("{and_col}")) IN ({and_values_str})'
-
-            condition_label = f"{when_col} IN {when_values}"
-            if and_col and and_values is not None:
-                condition_label += f" AND {and_col} IN {and_values}"
-
-            for req_col in then_required:
-                if req_col not in df.columns:
-                    continue
-
-                values_str = ', '.join([f"'{v.lower().strip()}'" for v in when_values])
-                stats = con.execute(f"""
-                    SELECT
-                        COUNT(*) as total,
-                        COUNT(*) - COUNT("{req_col}") as null_count
-                    FROM df
-                    WHERE TRIM(LOWER("{when_col}")) IN ({values_str}){and_clause}
-                """).fetchone()
-
-                total, null_count = stats
-
-                if total > 0 and null_count > 0:
-                    pct_missing = (null_count / total) * 100
-                    result.add_warning(
-                        f"Conditional requirement violated: {description}",
-                        {
-                            "condition": condition_label,
-                            "required_column": req_col,
-                            "rows_meeting_condition": int(total),
-                            "rows_with_missing": int(null_count),
-                            "percent_missing": round(pct_missing, 2)
-                        }
-                    )
-                elif total > 0:
-                    result.add_info(
-                        f"Conditional requirement satisfied: {description} — {int(total):,}/{int(total):,} rows present (100%)",
-                        {"column": req_col, "condition": condition_label,
-                         "rows_meeting_condition": int(total),
-                         "rows_present": int(total),
-                         "percent_present": 100.0}
-                    )
-
-        result.atomic_total = atomic_total
-        result.atomic_passed = atomic_total - atomic_failed_by_errors
-        con.close()
-
-    except Exception as e:
-        _logger.error("Check 'conditional_requirements' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking conditional requirements: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_conditional_requirements(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -3359,10 +2220,7 @@ def check_conditional_requirements(
     n_conditions = len(conditions) if conditions else 0
     _logger.debug("check_conditional_requirements: starting for table '%s' (%d explicit conditions)",
                   table_name, n_conditions)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_conditional_requirements_polars(df, table_name, conditions)
-    else:
-        result = check_conditional_requirements_duckdb(df, table_name, conditions)
+    result = check_conditional_requirements_polars(df, table_name, conditions)
     if result.warnings:
         _logger.info("check_conditional_requirements: table '%s' — %d violations found",
                      table_name, len(result.warnings))
@@ -3481,109 +2339,6 @@ def check_mcide_value_coverage_polars(
     return result
 
 
-def check_mcide_value_coverage_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str
-) -> DQACompletenessResult:
-    """Check if all mCIDE standardized values are present in the data using DuckDB."""
-    result = DQACompletenessResult("mcide_value_coverage", table_name)
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        category_columns = schema.get('category_columns') or []
-        coverage_by_col = {}
-        columns_missing = set()
-        expected_total = 0
-
-        for col_spec in schema.get('columns', []):
-            col_name = col_spec['name']
-            permissible = col_spec.get('permissible_values', [])
-
-            if not permissible:
-                continue
-
-            if col_name not in category_columns:
-                continue
-
-            expected_total += len(permissible)
-
-            if col_name not in df.columns:
-                columns_missing.add(col_name)
-                continue
-
-            unique_vals = con.execute(f"""
-                SELECT DISTINCT "{col_name}" FROM df WHERE "{col_name}" IS NOT NULL
-            """).fetchdf()[col_name].tolist()
-
-            unique_vals_lower = {str(v).lower().strip() for v in unique_vals if v is not None}
-
-            missing_vals = [
-                v for v in permissible
-                if str(v).lower().strip() not in unique_vals_lower
-            ]
-
-            coverage_pct = ((len(permissible) - len(missing_vals)) / len(permissible)) * 100
-
-            coverage_by_col[col_name] = {
-                "expected_values": len(permissible),
-                "found_values": len(permissible) - len(missing_vals),
-                "missing_values": missing_vals,
-                "coverage_percent": round(coverage_pct, 2)
-            }
-
-        result.metrics["category_columns_checked"] = len(coverage_by_col) + len(columns_missing)
-        result.metrics["coverage_by_column"] = coverage_by_col
-        result.atomic_total = expected_total
-        result.atomic_passed = sum(c['found_values'] for c in coverage_by_col.values())
-
-        for col_name, details in coverage_by_col.items():
-            # Emit ERROR for missing values AND INFO reflecting per-column
-            # silent-pass count — so the INFO row's Checks cell matches its
-            # own narrative (previously, one INFO for a fully-clean column
-            # got its atomic_count inflated by the reconciler to include
-            # silent passes from every other column).
-            if details['missing_values']:
-                result.add_error(
-                    f"Missing {len(details['missing_values'])} mCIDE values: {', '.join(str(v) for v in details['missing_values'])}",
-                    {
-                        "column": col_name,
-                        "missing_values": details['missing_values'],
-                        "coverage_percent": details['coverage_percent']
-                    }
-                )
-            if details['found_values'] > 0:
-                result.add_info(
-                    f"Column '{col_name}': {details['found_values']}/{details['expected_values']} mCIDE values present",
-                    {
-                        "column": col_name,
-                        "found_values": details['found_values'],
-                        "expected_values": details['expected_values'],
-                        "coverage_percent": details['coverage_percent'],
-                        "atomic_count": details['found_values'],
-                    }
-                )
-
-        for col_name in columns_missing:
-            result.add_info(
-                f"Column '{col_name}': not present in data (coverage check skipped)",
-                {"column": col_name}
-            )
-
-        con.close()
-
-    except Exception as e:
-        _logger.error("Check 'mcide_value_coverage' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking mCIDE value coverage: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_mcide_value_coverage(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -3591,10 +2346,7 @@ def check_mcide_value_coverage(
 ) -> DQACompletenessResult:
     """Check if all mCIDE standardized values are present in the data."""
     _logger.debug("check_mcide_value_coverage: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_mcide_value_coverage_polars(df, schema, table_name)
-    else:
-        result = check_mcide_value_coverage_duckdb(df, schema, table_name)
+    result = check_mcide_value_coverage_polars(df, schema, table_name)
     _logger.debug("check_mcide_value_coverage: table '%s' — columns_checked=%s",
                   table_name, result.metrics.get("category_columns_checked"))
     return result
@@ -3666,77 +2418,6 @@ def check_relational_integrity_polars(
     return result
 
 
-def check_relational_integrity_duckdb(
-    source_df: pd.DataFrame,
-    reference_df: pd.DataFrame,
-    source_table: str,
-    reference_table: str,
-    key_column: str
-) -> DQACompletenessResult:
-    """Check relational integrity between tables using DuckDB."""
-    result = DQACompletenessResult("relational_integrity", f"{source_table}->{reference_table}")
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('source_tbl', source_df)
-        con.register('ref_tbl', reference_df)
-
-        # Efficient anti-join query
-        orphan_query = f"""
-            WITH source_ids AS (
-                SELECT DISTINCT "{key_column}" as id
-                FROM source_tbl
-                WHERE "{key_column}" IS NOT NULL
-            ),
-            ref_ids AS (
-                SELECT DISTINCT "{key_column}" as id
-                FROM ref_tbl
-                WHERE "{key_column}" IS NOT NULL
-            )
-            SELECT
-                (SELECT COUNT(*) FROM source_ids) as total_source,
-                (SELECT COUNT(*) FROM ref_ids) as total_ref,
-                (SELECT COUNT(*) FROM source_ids s
-                 WHERE NOT EXISTS (SELECT 1 FROM ref_ids r WHERE r.id = s.id)) as orphan_count
-        """
-
-        stats = con.execute(orphan_query).fetchone()
-        total_source, total_ref, orphan_count = stats
-
-        coverage_pct = ((total_source - orphan_count) / total_source * 100) if total_source > 0 else 100
-
-        result.metrics["source_unique_ids"] = int(total_source)
-        result.metrics["reference_unique_ids"] = int(total_ref)
-        result.metrics["orphan_ids"] = int(orphan_count)
-        result.metrics["coverage_percent"] = round(coverage_pct, 2)
-
-        if orphan_count > 0:
-            result.add_warning(
-                f"{orphan_count}/{total_source} {key_column} values in {source_table} "
-                f"not found in {reference_table} ({round(coverage_pct, 1)}% coverage)",
-                {
-                    "orphan_count": int(orphan_count),
-                    "coverage_percent": round(coverage_pct, 2)
-                }
-            )
-        else:
-            result.add_info(f"All {key_column} values in {source_table} exist in {reference_table}")
-
-        con.close()
-        gc.collect()
-
-        result.atomic_total = 1
-        result.atomic_passed = 1 if not result.errors else 0
-    except Exception as e:
-        _logger.error("Check 'relational_integrity' failed for '%s' -> '%s': %s", source_table, reference_table, e)
-        result.add_error(f"Error checking relational integrity: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_relational_integrity(
     target_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     reference_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
@@ -3781,10 +2462,7 @@ def check_relational_integrity(
         f"{target_table}<->{reference_table}",
     )
 
-    # Pick the right backend dispatcher
-    _backend_fn = (check_relational_integrity_polars
-                   if _ACTIVE_BACKEND == 'polars'
-                   else check_relational_integrity_duckdb)
+    _backend_fn = check_relational_integrity_polars
 
     try:
         # Forward: reference → target  (source=reference, ref=target)
@@ -4077,99 +2755,6 @@ def check_chronological_order_polars(
     return result
 
 
-def check_chronological_order_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    chronological_rules: Optional[List[Dict[str, str]]] = None,
-    warning_threshold: float = 0.0,
-    error_threshold: float = 10.0,
-) -> DQAPlausibilityResult:
-    """Check that datetime pairs follow expected chronological order using DuckDB."""
-    result = DQAPlausibilityResult("chronological_order", table_name)
-
-    if chronological_rules is None:
-        chronological_rules = _get_chronological_order_rules(table_name)
-
-    if not chronological_rules:
-        result.add_info("No chronological order rules defined for this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-        violations_by_pair = {}
-
-        for rule in chronological_rules:
-            earlier = rule['earlier']
-            later = rule['later']
-            strict = rule.get('strict', False)
-            description = rule.get('description', f"{earlier} {'<' if strict else '<='} {later}")
-
-            if earlier not in df.columns or later not in df.columns:
-                continue
-
-            op = ">=" if strict else ">"
-            stats = con.execute(f"""
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN "{earlier}" {op} "{later}" THEN 1 ELSE 0 END) as violations
-                FROM df
-                WHERE "{earlier}" IS NOT NULL AND "{later}" IS NOT NULL
-            """).fetchone()
-
-            total, violation_count = stats
-            pct = (violation_count / total * 100) if total > 0 else 0
-
-            violations_by_pair[f"{earlier}->{later}"] = {
-                "total_applicable": int(total),
-                "violations": int(violation_count),
-                "violation_percent": round(pct, 2),
-                "description": description,
-            }
-
-            if pct > error_threshold:
-                result.add_error(
-                    f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
-                    {"column": f"{earlier}, {later}",
-                     "pair": f"{earlier}->{later}", "violations": int(violation_count),
-                     "total": int(total), "percent": round(pct, 2)}
-                )
-            elif pct > warning_threshold:
-                result.add_warning(
-                    f"Chronological order violation: {description} — {violation_count}/{total} rows ({pct:.1f}%)",
-                    {"column": f"{earlier}, {later}",
-                     "pair": f"{earlier}->{later}", "violations": int(violation_count),
-                     "total": int(total), "percent": round(pct, 2)}
-                )
-            else:
-                if total > 0:
-                    result.add_info(
-                        f"Chronological order satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
-                        {"column": f"{earlier}, {later}",
-                         "rows_checked": int(total),
-                         "rows_valid": int(total),
-                         "percent_valid": 100.0}
-                    )
-
-        result.metrics["pairs_checked"] = len(violations_by_pair)
-        result.metrics["violations_by_pair"] = violations_by_pair
-
-        con.close()
-
-        result.atomic_total = len(chronological_rules)
-        result.atomic_passed = len(chronological_rules) - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'chronological_order' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking chronological order: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = len(chronological_rules) if chronological_rules else 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_chronological_order(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -4179,14 +2764,9 @@ def check_chronological_order(
 ) -> DQAPlausibilityResult:
     """Check that datetime pairs follow expected chronological order."""
     _logger.debug("check_chronological_order: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_chronological_order_polars(df, table_name, chronological_rules,
-                                                warning_threshold=warning_threshold,
-                                                error_threshold=error_threshold)
-    else:
-        result = check_chronological_order_duckdb(df, table_name, chronological_rules,
-                                                warning_threshold=warning_threshold,
-                                                error_threshold=error_threshold)
+    result = check_chronological_order_polars(df, table_name, chronological_rules,
+                                            warning_threshold=warning_threshold,
+                                            error_threshold=error_threshold)
     _logger.debug("check_chronological_order: table '%s' — pairs_checked=%s",
                   table_name, result.metrics.get("pairs_checked"))
     return result
@@ -4449,250 +3029,6 @@ def check_numeric_range_plausibility_polars(
     return result
 
 
-def check_numeric_range_plausibility_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    outlier_config: Optional[Dict[str, Any]] = None,
-    warning_threshold: float = 0.0,
-    error_threshold: float = 10.0,
-) -> DQAPlausibilityResult:
-    """Check numeric values are within plausible ranges using DuckDB."""
-    result = DQAPlausibilityResult("numeric_range_plausibility", table_name)
-
-    if outlier_config is None:
-        outlier_config = _load_outlier_config()
-
-    table_config = outlier_config.get('tables', {}).get(table_name, {})
-    if not table_config:
-        result.add_info("No numeric range configuration for this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-        actual_cols = list(df.columns)
-        oor_summary = {}
-        cat_map = _CATEGORY_COLUMN_MAP.get(table_name, {})
-        atomic_total = 0
-        atomic_passed = 0
-
-        # Pre-cast: ensure all configured columns are numeric (string → float)
-        _needs_reregister = False
-        for _col in table_config:
-            if _col in actual_cols:
-                if df[_col].dtype == object or pd.api.types.is_string_dtype(df[_col].dtype):
-                    df[_col] = pd.to_numeric(df[_col], errors='coerce')
-                    _needs_reregister = True
-        if _needs_reregister:
-            con.register('df', df)
-
-        for col_name, col_ranges in table_config.items():
-            if col_name not in actual_cols:
-                continue
-
-            if isinstance(col_ranges, dict) and 'min' in col_ranges and 'max' in col_ranges:
-                atomic_total += 1
-                rmin, rmax = col_ranges['min'], col_ranges['max']
-                stats = con.execute(f"""
-                    SELECT
-                        COUNT("{col_name}") as total,
-                        SUM(CASE WHEN "{col_name}" < {rmin} OR "{col_name}" > {rmax} THEN 1 ELSE 0 END) as oor,
-                        SUM(CASE WHEN "{col_name}" < {rmin} THEN 1 ELSE 0 END) as below,
-                        SUM(CASE WHEN "{col_name}" > {rmax} THEN 1 ELSE 0 END) as above
-                    FROM df
-                    WHERE "{col_name}" IS NOT NULL
-                """).fetchone()
-
-                total, oor, below, above = stats
-                # DuckDB SUM(...) returns NULL when no rows match — coerce to 0.
-                total = total or 0
-                oor = oor or 0
-                below = below or 0
-                above = above or 0
-                pct = (oor / total * 100) if total > 0 else 0
-
-                oor_summary[col_name] = {
-                    "total_non_null": int(total), "out_of_range": int(oor),
-                    "out_of_range_percent": round(pct, 2),
-                    "below_min": int(below), "above_max": int(above),
-                    "min": rmin, "max": rmax,
-                }
-
-                # Lenient: only errors fail the atom. Emit per-column INFO
-                # on silent-pass so the synth reconcile doesn't inherit many
-                # distinct column_fields into a 1-atom INFO.
-                if pct > error_threshold:
-                    result.add_error(
-                        f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
-                        {"column": col_name, "percent": round(pct, 2)}
-                    )
-                else:
-                    if pct > warning_threshold:
-                        result.add_warning(
-                            f"Column '{col_name}': {oor}/{total} values ({pct:.1f}%) outside range [{rmin}, {rmax}]",
-                            {"column": col_name, "percent": round(pct, 2)}
-                        )
-                    else:
-                        result.add_info(
-                            f"Column '{col_name}': all {int(total):,} values within range [{rmin}, {rmax}]",
-                            {"column": col_name,
-                             "total": int(total),
-                             "atomic_count": 1}
-                        )
-                    atomic_passed += 1
-
-            elif isinstance(col_ranges, dict):
-                cat_col_info = cat_map.get(col_name)
-                if cat_col_info is None:
-                    continue
-
-                total_oor = 0
-                total_count = 0
-
-                if isinstance(cat_col_info, tuple):
-                    # 2-level: (category_col, unit_col) — batched single query
-                    cat_col, unit_col = cat_col_info
-                    if cat_col not in actual_cols or unit_col not in actual_cols:
-                        continue
-
-                    combo_keys = []  # (cat_val, unit_val, rmin, rmax)
-                    case_parts = []
-                    for cat_val, unit_ranges in col_ranges.items():
-                        if not isinstance(unit_ranges, dict):
-                            continue
-                        for unit_val, ranges in unit_ranges.items():
-                            if not isinstance(ranges, dict) or 'min' not in ranges:
-                                continue
-                            rmin, rmax = ranges['min'], ranges['max']
-                            idx = len(combo_keys)
-                            combo_keys.append((cat_val, unit_val, rmin, rmax))
-                            cat_norm = str(cat_val).lower().strip().replace("'", "''")
-                            unit_norm = str(unit_val).lower().strip().replace("'", "''")
-                            where = (
-                                f"TRIM(LOWER(CAST(\"{cat_col}\" AS VARCHAR))) = '{cat_norm}' "
-                                f"AND TRIM(LOWER(CAST(\"{unit_col}\" AS VARCHAR))) = '{unit_norm}' "
-                                f"AND \"{col_name}\" IS NOT NULL"
-                            )
-                            case_parts.append(
-                                f"COALESCE(SUM(CASE WHEN {where} THEN 1 ELSE 0 END), 0) AS col_{idx}_total, "
-                                f"COALESCE(SUM(CASE WHEN {where} AND (\"{col_name}\" < {rmin} OR \"{col_name}\" > {rmax}) THEN 1 ELSE 0 END), 0) AS col_{idx}_oor"
-                            )
-
-                    if not case_parts:
-                        continue
-
-                    atomic_total += len(combo_keys)
-                    sql = f'SELECT {", ".join(case_parts)} FROM df'
-                    row = con.execute(sql).fetchone()
-
-                    for idx, (cat_val, unit_val, rmin, rmax) in enumerate(combo_keys):
-                        cat_total = row[idx * 2] or 0
-                        cat_oor = row[idx * 2 + 1] or 0
-                        cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
-                        total_count += cat_total
-                        total_oor += cat_oor
-
-                        # Lenient: only errors fail the atom.
-                        if cat_oor > 0 and cat_pct > error_threshold:
-                            result.add_error(
-                                f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                            )
-                        else:
-                            if cat_oor > 0 and cat_pct > warning_threshold:
-                                result.add_warning(
-                                    f"Column '{col_name}' ({cat_val}, {unit_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                    {"column": col_name, "category": cat_val, "unit": unit_val, "percent": round(cat_pct, 2)}
-                                )
-                            atomic_passed += 1
-                else:
-                    # 1-level category-dependent — batched single query
-                    cat_col = cat_col_info
-                    if cat_col not in actual_cols:
-                        continue
-
-                    combo_keys = []  # (cat_val, rmin, rmax)
-                    case_parts = []
-                    for cat_val, ranges in col_ranges.items():
-                        if not isinstance(ranges, dict) or 'min' not in ranges:
-                            continue
-                        rmin, rmax = ranges['min'], ranges['max']
-                        idx = len(combo_keys)
-                        combo_keys.append((cat_val, rmin, rmax))
-                        cat_norm = str(cat_val).lower().strip().replace("'", "''")
-                        where = (
-                            f"TRIM(LOWER(CAST(\"{cat_col}\" AS VARCHAR))) = '{cat_norm}' "
-                            f"AND \"{col_name}\" IS NOT NULL"
-                        )
-                        case_parts.append(
-                            f"COALESCE(SUM(CASE WHEN {where} THEN 1 ELSE 0 END), 0) AS col_{idx}_total, "
-                            f"COALESCE(SUM(CASE WHEN {where} AND (\"{col_name}\" < {rmin} OR \"{col_name}\" > {rmax}) THEN 1 ELSE 0 END), 0) AS col_{idx}_oor"
-                        )
-
-                    if not case_parts:
-                        continue
-
-                    atomic_total += len(combo_keys)
-                    sql = f'SELECT {", ".join(case_parts)} FROM df'
-                    row = con.execute(sql).fetchone()
-
-                    for idx, (cat_val, rmin, rmax) in enumerate(combo_keys):
-                        cat_total = row[idx * 2] or 0
-                        cat_oor = row[idx * 2 + 1] or 0
-                        cat_pct = (cat_oor / cat_total * 100) if cat_total > 0 else 0
-                        total_count += cat_total
-                        total_oor += cat_oor
-
-                        # Lenient: only errors fail the atom.
-                        if cat_oor > 0 and cat_pct > error_threshold:
-                            result.add_error(
-                                f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
-                            )
-                        else:
-                            if cat_oor > 0 and cat_pct > warning_threshold:
-                                result.add_warning(
-                                    f"Column '{col_name}' ({cat_val}): {cat_oor}/{cat_total} values ({cat_pct:.1f}%) outside range [{rmin}, {rmax}]",
-                                    {"column": col_name, "category": cat_val, "percent": round(cat_pct, 2)}
-                                )
-                            atomic_passed += 1
-
-                pct = (total_oor / total_count * 100) if total_count > 0 else 0
-                oor_summary[col_name] = {
-                    "total_non_null": int(total_count), "out_of_range": int(total_oor),
-                    "out_of_range_percent": round(pct, 2),
-                }
-
-        result.metrics["columns_checked"] = len(oor_summary)
-        result.metrics["out_of_range_summary"] = oor_summary
-        result.atomic_total = atomic_total
-        result.atomic_passed = atomic_passed
-
-        if not result.warnings and not result.errors:
-            if oor_summary:
-                cols_str = ', '.join(sorted(oor_summary.keys()))
-                result.add_info(
-                    f"All numeric values within plausible ranges ({cols_str})",
-                    {"columns_checked": sorted(oor_summary.keys())},
-                )
-            else:
-                result.add_info("No numeric columns with range configuration to check")
-
-        con.close()
-        gc.collect()
-
-    except Exception as e:
-        _logger.error("Check 'numeric_range_plausibility' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking numeric range plausibility: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_numeric_range_plausibility(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -4702,14 +3038,9 @@ def check_numeric_range_plausibility(
 ) -> DQAPlausibilityResult:
     """Check numeric values are within plausible ranges."""
     _logger.debug("check_numeric_range_plausibility: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_numeric_range_plausibility_polars(df, table_name, outlier_config,
-                                                         warning_threshold=warning_threshold,
-                                                         error_threshold=error_threshold)
-    else:
-        result = check_numeric_range_plausibility_duckdb(df, table_name, outlier_config,
-                                                         warning_threshold=warning_threshold,
-                                                         error_threshold=error_threshold)
+    result = check_numeric_range_plausibility_polars(df, table_name, outlier_config,
+                                                     warning_threshold=warning_threshold,
+                                                     error_threshold=error_threshold)
     _logger.debug("check_numeric_range_plausibility: table '%s' — columns_checked=%s",
                   table_name, result.metrics.get("columns_checked"))
     return result
@@ -4902,155 +3233,6 @@ def check_field_plausibility_polars(
     return result
 
 
-def check_field_plausibility_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    rules: Optional[List[Dict[str, Any]]] = None,
-) -> DQAPlausibilityResult:
-    """Check field-level plausibility constraints using DuckDB."""
-    result = DQAPlausibilityResult("field_plausibility", table_name)
-
-    if rules is None:
-        rules = _get_field_plausibility_rules(table_name)
-
-    if not rules:
-        result.add_info("No field plausibility rules defined for this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-        violations_by_rule = {}
-        empty_string_columns = {}
-
-        for rule in rules:
-            when_col = rule['when_column']
-            description = rule.get('description', '')
-
-            if when_col not in df.columns:
-                continue
-
-            # New-variant: when_not_null + then_column + then_not_value
-            if rule.get('when_not_null'):
-                then_col = rule['then_column']
-                forbidden = rule['then_not_value']
-                if not isinstance(forbidden, list):
-                    forbidden = [forbidden]
-
-                if then_col not in df.columns:
-                    continue
-
-                forbidden_str = ', '.join([f"'{str(v).lower().strip()}'" for v in forbidden])
-
-                stats = con.execute(f"""
-                    SELECT
-                        COUNT(*) as total,
-                        SUM(CASE WHEN TRIM(LOWER(CAST("{then_col}" AS VARCHAR))) IN ({forbidden_str}) THEN 1 ELSE 0 END) as violations
-                    FROM df
-                    WHERE "{when_col}" IS NOT NULL
-                      AND TRIM(CAST("{when_col}" AS VARCHAR)) <> ''
-                """).fetchone()
-
-                total, violations = stats
-                pct = (violations / total * 100) if total > 0 else 0
-
-                if violations > 0:
-                    violations_by_rule[description] = {
-                        "total_applicable": int(total),
-                        "violations": int(violations),
-                        "violation_percent": round(pct, 2),
-                    }
-                    result.add_warning(
-                        f"Field plausibility violation: {description} — {violations}/{total} rows ({pct:.1f}%)",
-                        {"rule": description, "violations": int(violations),
-                         "total": int(total), "percent": round(pct, 2)}
-                    )
-                else:
-                    if total > 0:
-                        result.add_info(
-                            f"Field plausibility satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
-                            {"column": then_col,
-                             "rows_checked": int(total),
-                             "rows_valid": int(total),
-                             "percent_valid": 100.0}
-                        )
-                continue
-
-            # Old-variant: when_not_value + then_null_or_absent
-            when_not_values = rule['when_not_value']
-            then_null_cols = rule['then_null_or_absent']
-
-            if not isinstance(when_not_values, list):
-                when_not_values = [when_not_values]
-
-            values_str = ', '.join([f"'{str(v).lower().strip()}'" for v in when_not_values])
-
-            for check_col in then_null_cols:
-                if check_col not in df.columns:
-                    continue
-
-                stats = con.execute(f"""
-                    SELECT
-                        COUNT(*) as total,
-                        SUM(CASE WHEN "{check_col}" IS NOT NULL
-                                  AND TRIM(CAST("{check_col}" AS VARCHAR)) <> ''
-                             THEN 1 ELSE 0 END) as non_null
-                    FROM df
-                    WHERE TRIM(LOWER(CAST("{when_col}" AS VARCHAR))) NOT IN ({values_str})
-                """).fetchone()
-
-                empty_count = con.execute(f"""
-                    SELECT COUNT(*) FROM df
-                    WHERE "{check_col}" IS NOT NULL
-                      AND TRIM(CAST("{check_col}" AS VARCHAR)) = ''
-                """).fetchone()[0]
-                _report_empty_strings(result, table_name, check_col,
-                                      int(empty_count), empty_string_columns)
-
-                total, non_null = stats
-                pct = (non_null / total * 100) if total > 0 else 0
-
-                if non_null > 0:
-                    violations_by_rule[description] = {
-                        "total_applicable": int(total),
-                        "violations": int(non_null),
-                        "violation_percent": round(pct, 2),
-                    }
-                    result.add_warning(
-                        f"Field plausibility violation: {description} — {non_null}/{total} rows ({pct:.1f}%)",
-                        {"rule": description, "violations": int(non_null),
-                         "total": int(total), "percent": round(pct, 2)}
-                    )
-                else:
-                    if total > 0:
-                        result.add_info(
-                            f"Field plausibility satisfied: {description} — {int(total):,}/{int(total):,} rows valid (100%)",
-                            {"column": check_col,
-                             "rows_checked": int(total),
-                             "rows_valid": int(total),
-                             "percent_valid": 100.0}
-                        )
-
-        result.metrics["rules_checked"] = len(rules)
-        result.metrics["violations_by_rule"] = violations_by_rule
-        result.metrics["empty_string_columns"] = empty_string_columns
-
-        con.close()
-
-        result.atomic_total = len(rules)
-        result.atomic_passed = len(rules) - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'field_plausibility' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking field plausibility: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = len(rules) if rules else 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_field_plausibility(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -5058,10 +3240,7 @@ def check_field_plausibility(
 ) -> DQAPlausibilityResult:
     """Check field-level plausibility constraints."""
     _logger.debug("check_field_plausibility: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_field_plausibility_polars(df, table_name, rules)
-    else:
-        result = check_field_plausibility_duckdb(df, table_name, rules)
+    result = check_field_plausibility_polars(df, table_name, rules)
     _logger.debug("check_field_plausibility: table '%s' — rules_checked=%s",
                   table_name, result.metrics.get("rules_checked"))
     return result
@@ -5185,110 +3364,6 @@ def check_medication_dose_unit_consistency_polars(
     return result
 
 
-def check_medication_dose_unit_consistency_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    warning_threshold: float = 0.0,
-    error_threshold: float = 10.0,
-) -> DQAPlausibilityResult:
-    """Check medication dose unit consistency using DuckDB."""
-    result = DQAPlausibilityResult("medication_dose_unit_consistency", table_name)
-
-    if table_name not in ('medication_admin_continuous', 'medication_admin_intermittent'):
-        result.add_info("Medication dose unit check not applicable to this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        if 'med_dose_unit' not in df.columns:
-            result.add_info("Column 'med_dose_unit' not found in table")
-            con.close()
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            return result
-
-        rules = _load_validation_rules().get('medication_dose_unit_rules', {}).get(table_name, {})
-        expect = rules.get('expect', 'per_time' if 'continuous' in table_name else 'discrete')
-        exempt_units = [str(u).lower().strip() for u in rules.get('exempt_units', [])]
-
-        # Build CASE expression for time denominator detection
-        time_conditions = ' OR '.join([
-            f"CAST(\"med_dose_unit\" AS VARCHAR) LIKE '%{pat}%'"
-            for pat in _TIME_DENOMINATOR_PATTERNS
-        ])
-
-        # Units exempt from the per-time requirement (e.g. nitric_oxide in ppm)
-        exempt_clause = ''
-        if exempt_units:
-            quoted = ', '.join("'" + u.replace("'", "''") + "'" for u in exempt_units)
-            exempt_clause = (
-                f' AND LOWER(TRIM(CAST("med_dose_unit" AS VARCHAR))) NOT IN ({quoted})'
-            )
-
-        total_row = con.execute("""
-            SELECT COUNT(*) FROM df WHERE "med_dose_unit" IS NOT NULL
-        """).fetchone()
-        total = total_row[0]
-
-        if total == 0:
-            result.add_info("No non-null med_dose_unit values to check")
-            con.close()
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            return result
-
-        if expect == 'per_time':
-            violation_query = f"""
-                SELECT COUNT(*) FROM df
-                WHERE "med_dose_unit" IS NOT NULL AND NOT ({time_conditions}){exempt_clause}
-            """
-        else:
-            violation_query = f"""
-                SELECT COUNT(*) FROM df
-                WHERE "med_dose_unit" IS NOT NULL AND ({time_conditions})
-            """
-
-        violations = con.execute(violation_query).fetchone()[0]
-        pct = (violations / total * 100) if total > 0 else 0
-
-        result.metrics["total_rows"] = int(total)
-        result.metrics["unit_pattern_violations"] = int(violations)
-        result.metrics["violation_percent"] = round(pct, 2)
-
-        if violations > 0:
-            if expect == 'per_time':
-                warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use non-rate-based units unexpected for continuous administration"
-            else:
-                warn_msg = f"Medication dose unit inconsistency: {violations}/{total} rows ({pct:.1f}%) use rate-based units unexpected for intermittent administration"
-            if pct > error_threshold:
-                result.add_error(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
-            elif pct > warning_threshold:
-                result.add_warning(warn_msg, {"violations": int(violations), "total": int(total), "percent": round(pct, 2)})
-        else:
-            if expect == 'per_time':
-                result.add_info("All med_dose_unit values use rate-based units (e.g. mcg/kg/min) appropriate for continuous administration")
-            else:
-                result.add_info("All med_dose_unit values use dose-based units (e.g. mg, mL) appropriate for intermittent administration")
-
-        con.close()
-        gc.collect()
-
-        result.atomic_total = 1
-        result.atomic_passed = 1 if not result.errors else 0
-    except Exception as e:
-        _logger.error("Check 'medication_dose_unit_consistency' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking medication dose unit consistency: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_medication_dose_unit_consistency(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -5297,14 +3372,9 @@ def check_medication_dose_unit_consistency(
 ) -> DQAPlausibilityResult:
     """Check medication dose unit consistency."""
     _logger.debug("check_medication_dose_unit_consistency: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_medication_dose_unit_consistency_polars(df, table_name,
-                                                               warning_threshold=warning_threshold,
-                                                               error_threshold=error_threshold)
-    else:
-        result = check_medication_dose_unit_consistency_duckdb(df, table_name,
-                                                               warning_threshold=warning_threshold,
-                                                               error_threshold=error_threshold)
+    result = check_medication_dose_unit_consistency_polars(df, table_name,
+                                                           warning_threshold=warning_threshold,
+                                                           error_threshold=error_threshold)
     _logger.debug("check_medication_dose_unit_consistency: table '%s' — violations=%s",
                   table_name, result.metrics.get("unit_pattern_violations"))
     return result
@@ -5416,102 +3486,6 @@ def check_cross_table_temporal_plausibility_polars(
     return result
 
 
-def check_cross_table_temporal_plausibility_duckdb(
-    target_df: pd.DataFrame,
-    hospitalization_df: pd.DataFrame,
-    target_table: str,
-    time_columns: List[str],
-    warning_threshold: float = 0.0,
-    error_threshold: float = 10.0,
-) -> DQAPlausibilityResult:
-    """Check that datetime values fall within hospitalization bounds using DuckDB."""
-    result = DQAPlausibilityResult("cross_table_temporal", target_table)
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('target_tbl', target_df)
-        con.register('hosp_tbl', hospitalization_df)
-
-        if 'hospitalization_id' not in target_df.columns or 'hospitalization_id' not in hospitalization_df.columns:
-            result.add_info("Missing hospitalization_id column; skipping cross-table check")
-            con.close()
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            return result
-
-        if 'admission_dttm' not in hospitalization_df.columns or 'discharge_dttm' not in hospitalization_df.columns:
-            result.add_info("Missing admission/discharge columns in hospitalization table")
-            con.close()
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            return result
-
-        violations_by_col = {}
-
-        for time_col in time_columns:
-            if time_col not in target_df.columns:
-                continue
-
-            stats = con.execute(f"""
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN t."{time_col}" < h.admission_dttm THEN 1 ELSE 0 END) as before_admission,
-                    SUM(CASE WHEN t."{time_col}" > h.discharge_dttm THEN 1 ELSE 0 END) as after_discharge
-                FROM target_tbl t
-                INNER JOIN hosp_tbl h ON t.hospitalization_id = h.hospitalization_id
-                WHERE t."{time_col}" IS NOT NULL
-                  AND h.admission_dttm IS NOT NULL
-                  AND h.discharge_dttm IS NOT NULL
-            """).fetchone()
-
-            total, before, after = stats
-            violation_total = before + after
-            pct = (violation_total / total * 100) if total > 0 else 0
-
-            violations_by_col[time_col] = {
-                "total_joined": int(total),
-                "before_admission": int(before),
-                "after_discharge": int(after),
-                "violation_count": int(violation_total),
-                "violation_percent": round(pct, 2),
-            }
-
-            if pct > error_threshold:
-                result.add_error(
-                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
-                    {"column": time_col, "before_admission": int(before),
-                     "after_discharge": int(after), "percent": round(pct, 2)}
-                )
-            elif pct > warning_threshold:
-                result.add_warning(
-                    f"Column '{time_col}': {violation_total}/{total} records ({pct:.1f}%) outside admission-to-discharge window ({before} before admission, {after} after discharge)",
-                    {"column": time_col, "before_admission": int(before),
-                     "after_discharge": int(after), "percent": round(pct, 2)}
-                )
-            else:
-                result.add_info(
-                    f"Column '{time_col}': all records within admission-to-discharge window",
-                    {"column": time_col, "total_joined": int(total)}
-                )
-
-        result.metrics["time_columns_checked"] = list(violations_by_col.keys())
-        result.metrics["violations_by_column"] = violations_by_col
-
-        con.close()
-        gc.collect()
-
-        result.atomic_total = max(1, len(violations_by_col))
-        result.atomic_passed = result.atomic_total - len(result.errors)
-    except Exception as e:
-        _logger.error("Check 'cross_table_temporal' failed for table '%s': %s", target_table, e)
-        result.add_error(f"Error checking cross-table temporal plausibility: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_cross_table_temporal_plausibility(
     target_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     hospitalization_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
@@ -5522,14 +3496,9 @@ def check_cross_table_temporal_plausibility(
 ) -> DQAPlausibilityResult:
     """Check that datetime values fall within hospitalization bounds."""
     _logger.debug("check_cross_table_temporal_plausibility: starting for table '%s'", target_table)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_cross_table_temporal_plausibility_polars(
-            target_df, hospitalization_df, target_table, time_columns,
-            warning_threshold=warning_threshold, error_threshold=error_threshold)
-    else:
-        result = check_cross_table_temporal_plausibility_duckdb(
-            target_df, hospitalization_df, target_table, time_columns,
-            warning_threshold=warning_threshold, error_threshold=error_threshold)
+    result = check_cross_table_temporal_plausibility_polars(
+        target_df, hospitalization_df, target_table, time_columns,
+        warning_threshold=warning_threshold, error_threshold=error_threshold)
     _logger.debug("check_cross_table_temporal_plausibility: table '%s' complete", target_table)
     return result
 
@@ -5612,85 +3581,6 @@ def check_overlapping_periods_polars(
     return result
 
 
-def check_overlapping_periods_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    entity_col: str = 'hospitalization_id',
-    start_col: str = 'in_dttm',
-    end_col: str = 'out_dttm',
-) -> DQAPlausibilityResult:
-    """Check for overlapping time periods within entities using DuckDB."""
-    result = DQAPlausibilityResult("overlapping_periods", table_name)
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        if entity_col not in df.columns or start_col not in df.columns or end_col not in df.columns:
-            result.add_info(f"Required columns ({entity_col}, {start_col}, {end_col}) not all present")
-            con.close()
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            return result
-
-        stats = con.execute(f"""
-            WITH filtered AS (
-                SELECT * FROM df
-                WHERE "{start_col}" IS NOT NULL AND "{end_col}" IS NOT NULL
-            ),
-            ordered AS (
-                SELECT *,
-                       LAG("{end_col}") OVER (
-                           PARTITION BY "{entity_col}" ORDER BY "{start_col}"
-                       ) AS prev_end
-                FROM filtered
-            )
-            SELECT
-                (SELECT COUNT(*) FROM filtered) as total_records,
-                (SELECT COUNT(DISTINCT "{entity_col}") FROM filtered) as entities_checked,
-                COUNT(*) as overlap_count
-            FROM ordered
-            WHERE prev_end IS NOT NULL AND "{start_col}" < prev_end
-        """).fetchone()
-
-        total_records, entities_checked, overlap_count = stats
-        pct = (overlap_count / total_records * 100) if total_records > 0 else 0
-
-        result.metrics["total_records"] = int(total_records)
-        result.metrics["entities_checked"] = int(entities_checked)
-        result.metrics["overlapping_records"] = int(overlap_count)
-        result.metrics["overlap_percent"] = round(pct, 2)
-
-        if overlap_count > 0:
-            result.add_warning(
-                f"{overlap_count} overlapping time periods detected ({pct:.1f}% of records)",
-                {"column": f"{start_col}, {end_col}",
-                 "overlapping_records": int(overlap_count), "percent": round(pct, 2)}
-            )
-        else:
-            result.add_info(
-                f"No overlapping time periods detected for {entity_col} on {start_col}/{end_col} — {int(total_records):,} records checked",
-                {"column": f"{start_col}, {end_col}",
-                 "entity_col": entity_col,
-                 "records_checked": int(total_records),
-                 "entities_checked": int(entities_checked)}
-            )
-
-        con.close()
-        gc.collect()
-
-        result.atomic_total = 1
-        result.atomic_passed = 1 if not result.errors else 0
-    except Exception as e:
-        _logger.error("Check 'overlapping_periods' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking overlapping periods: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_overlapping_periods(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -5700,10 +3590,7 @@ def check_overlapping_periods(
 ) -> DQAPlausibilityResult:
     """Check for overlapping time periods within entities."""
     _logger.debug("check_overlapping_periods: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_overlapping_periods_polars(df, table_name, entity_col, start_col, end_col)
-    else:
-        result = check_overlapping_periods_duckdb(df, table_name, entity_col, start_col, end_col)
+    result = check_overlapping_periods_polars(df, table_name, entity_col, start_col, end_col)
     _logger.debug("check_overlapping_periods: table '%s' — overlaps=%s",
                   table_name, result.metrics.get("overlapping_records"))
     return result
@@ -5924,200 +3811,6 @@ def check_category_temporal_consistency_polars(
     return result
 
 
-def check_category_temporal_consistency_duckdb(
-    df: pd.DataFrame,
-    schema: Dict[str, Any],
-    table_name: str,
-    time_column: Optional[str] = None,
-    hosp_years: Optional[set] = None,
-) -> DQAPlausibilityResult:
-    """Check category distribution consistency over time using DuckDB."""
-    result = DQAPlausibilityResult("category_temporal_consistency", table_name)
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-        actual_cols = list(df.columns)
-
-        if time_column is None:
-            time_column = _detect_time_column(actual_cols, table_name)
-
-        if time_column is None or time_column not in actual_cols:
-            result.add_info("No suitable datetime column found for temporal consistency check")
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            con.close()
-            return result
-
-        category_columns = schema.get('category_columns') or []
-        cat_cols_present = [c for c in category_columns if c in actual_cols]
-
-        if not cat_cols_present:
-            result.add_info("No category columns found for temporal consistency check")
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            con.close()
-            return result
-
-        id_col = 'hospitalization_id' if 'hospitalization_id' in actual_cols else (
-            'patient_id' if 'patient_id' in actual_cols else None
-        )
-
-        yearly_distributions = {}
-        missing_in_years = {}
-        monthly_trends = {}
-
-        for cat_col in cat_cols_present:
-            if id_col:
-                agg_expr = f'COUNT(DISTINCT "{id_col}") as unique_ids'
-            else:
-                agg_expr = 'COUNT(*) as unique_ids'
-
-            rows = con.execute(f"""
-                SELECT EXTRACT(YEAR FROM "{time_column}") as yr,
-                       "{cat_col}",
-                       {agg_expr}
-                FROM df
-                WHERE "{time_column}" IS NOT NULL AND "{cat_col}" IS NOT NULL
-                GROUP BY yr, "{cat_col}"
-                ORDER BY yr, "{cat_col}"
-            """).fetchall()
-
-            if not rows:
-                continue
-
-            dist = {}
-            all_years = set()
-            all_values = set()
-            for row in rows:
-                year = int(row[0])
-                val = row[1]
-                count = int(row[2])
-                all_years.add(year)
-                all_values.add(val)
-                dist.setdefault(year, {})[val] = count
-
-            yearly_distributions[cat_col] = dist
-
-            if len(all_years) >= 2:
-                absent = {}
-                for val in all_values:
-                    absent_years = [y for y in sorted(all_years) if val not in dist.get(y, {})]
-                    if absent_years and len(absent_years) < len(all_years):
-                        absent[str(val)] = absent_years
-                if absent:
-                    missing_in_years[cat_col] = absent
-
-            # Monthly trends for CSV export
-            num_col = _CATEGORY_TO_NUMERIC_MAP.get((table_name, cat_col))
-            unit_col = _CATEGORY_UNIT_COL_MAP.get((table_name, cat_col))
-            avg_select = f', AVG("{num_col}") as avg' if num_col and num_col in actual_cols else ''
-
-            unit_select = ''
-            unit_group = ''
-            unit_order = ''
-            if unit_col and unit_col in actual_cols:
-                unit_select = f', "{unit_col}"'
-                unit_group = f', "{unit_col}"'
-                unit_order = f', "{unit_col}"'
-
-            # n = unique hospitalization_ids (matches yearly distribution above and the
-            # PDF YearlySparkBar sparklines). avg remains a row-weighted mean, so n and
-            # avg use different denominators — n * avg does NOT approximate the sum of
-            # values. For tables grouped by a unit column, a hospitalization recording
-            # the same category in multiple units counts once per unit row.
-            n_select = f'COUNT(DISTINCT "{id_col}") as n' if id_col else 'COUNT(*) as n'
-
-            monthly_rows = con.execute(f"""
-                SELECT STRFTIME(CAST("{time_column}" AS TIMESTAMP), '%Y-%m') as month_year,
-                       "{cat_col}"{unit_select},
-                       {n_select}
-                       {avg_select}
-                FROM df
-                WHERE "{time_column}" IS NOT NULL AND "{cat_col}" IS NOT NULL
-                GROUP BY month_year, "{cat_col}"{unit_group}
-                ORDER BY month_year, "{cat_col}"{unit_order}
-            """).fetchdf()
-
-            # For tables with schema-based units (no unit col in data), add unit column
-            if num_col and num_col in actual_cols and not (unit_col and unit_col in actual_cols):
-                schema_unit_map = _get_schema_units(schema, cat_col)
-                if schema_unit_map:
-                    monthly_rows['unit'] = monthly_rows[cat_col].map(schema_unit_map)
-
-            monthly_trends[cat_col] = monthly_rows.to_dict(orient='records')
-
-        result.metrics["category_columns_checked"] = len(cat_cols_present)
-        result.metrics["yearly_distributions"] = yearly_distributions
-        result.metrics["missing_in_years"] = missing_in_years
-        result.metrics["monthly_trends"] = monthly_trends
-
-        # Emit one row per (cat_col × distinct value) so each value gets its
-        # own sparkline. WARNING when the value is absent in some years,
-        # INFO when it's present in all years. organism_category stays INFO
-        # for absences too (too noisy otherwise).
-        atomic_total = 0
-        for cat_col in cat_cols_present:
-            dist = yearly_distributions.get(cat_col, {})
-            all_col_years = sorted(dist.keys())
-            total_years = len(all_col_years)
-            all_vals = {v for yr in dist.values() for v in yr}
-            atomic_total += len(all_vals)
-
-            if total_years == 0 or not all_vals:
-                result.add_info(f"No temporal data for {cat_col}",
-                                {"column": cat_col})
-                continue
-
-            year_range = f"{all_col_years[0]}-{all_col_years[-1]}"
-            absent_for_col = missing_in_years.get(cat_col, {})
-
-            for val in sorted(all_vals, key=str):
-                yearly_counts = {y: dist.get(y, {}).get(val, 0)
-                                 for y in all_col_years}
-                n_present = sum(1 for c in yearly_counts.values() if c > 0)
-
-                if val in absent_for_col:
-                    n_absent = total_years - n_present
-                    msg = (f"{cat_col}: {val} absent in "
-                           f"{n_absent}/{total_years} years ({year_range})")
-                    emit = (result.add_info
-                            if cat_col == "organism_category"
-                            else result.add_warning)
-                    emit(msg, {
-                        "column": cat_col,
-                        "value": val,
-                        "absent_years": absent_for_col[val],
-                        "total_years": total_years,
-                        "yearly_counts": yearly_counts,
-                    })
-                else:
-                    msg = (f"{cat_col}: {val} present in "
-                           f"{n_present}/{total_years} years ({year_range})")
-                    result.add_info(msg, {
-                        "column": cat_col,
-                        "value": str(val),
-                        "yearly_counts": yearly_counts,
-                    })
-
-        # Atomic counting: 1 per (cat_col × value present in data). Lenient
-        # scoring — only errors reduce atomic_passed.
-        result.atomic_total = atomic_total
-        result.atomic_passed = atomic_total  # P.6 emits no errors in normal flow
-
-        con.close()
-        gc.collect()
-
-    except Exception as e:
-        _logger.error("Check 'category_temporal_consistency' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking category temporal consistency: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_category_temporal_consistency(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     schema: Dict[str, Any],
@@ -6127,10 +3820,7 @@ def check_category_temporal_consistency(
 ) -> DQAPlausibilityResult:
     """Check category distribution consistency over time."""
     _logger.debug("check_category_temporal_consistency: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_category_temporal_consistency_polars(df, schema, table_name, time_column, hosp_years)
-    else:
-        result = check_category_temporal_consistency_duckdb(df, schema, table_name, time_column, hosp_years)
+    result = check_category_temporal_consistency_polars(df, schema, table_name, time_column, hosp_years)
     _logger.debug("check_category_temporal_consistency: table '%s' — columns_checked=%s",
                   table_name, result.metrics.get("category_columns_checked"))
     return result
@@ -6219,86 +3909,6 @@ def check_duplicate_composite_keys_polars(
     return result
 
 
-def check_duplicate_composite_keys_duckdb(
-    df: pd.DataFrame,
-    table_name: str,
-    composite_keys: Optional[List[str]] = None,
-    schema: Optional[Dict[str, Any]] = None,
-    warning_threshold: float = 0.0,
-    error_threshold: float = 10.0,
-) -> DQAPlausibilityResult:
-    """Check for duplicate composite keys using DuckDB."""
-    result = DQAPlausibilityResult("duplicate_composite_keys", table_name)
-
-    if composite_keys is None:
-        composite_keys = _get_composite_keys(table_name, schema)
-
-    if not composite_keys:
-        result.add_info("No composite keys defined for this table")
-        result.atomic_total = 0
-        result.atomic_passed = 0
-        return result
-
-    try:
-        con = duckdb.connect(':memory:')
-        con.register('df', df)
-
-        missing_keys = [k for k in composite_keys if k not in df.columns]
-        if missing_keys:
-            result.add_info(f"Composite key columns missing: {missing_keys}")
-            con.close()
-            result.atomic_total = 0
-            result.atomic_passed = 0
-            return result
-
-        key_cols_str = ', '.join([f'"{k}"' for k in composite_keys])
-        stats = con.execute(f"""
-            SELECT
-                (SELECT COUNT(*) FROM df) as total,
-                (SELECT COUNT(*) FROM (SELECT DISTINCT {key_cols_str} FROM df)) as unique_count
-        """).fetchone()
-
-        total, unique = stats
-        duplicates = total - unique
-        pct = (duplicates / total * 100) if total > 0 else 0
-
-        result.metrics["composite_keys"] = composite_keys
-        result.metrics["total_records"] = int(total)
-        result.metrics["unique_records"] = int(unique)
-        result.metrics["duplicate_records"] = int(duplicates)
-        result.metrics["duplicate_percent"] = round(pct, 2)
-
-        keys_str = ', '.join(composite_keys)
-        if pct > error_threshold:
-            result.add_error(
-                f"{duplicates} duplicate records ({pct:.1f}%) on composite key ({keys_str}) in {table_name}",
-                {"duplicate_records": int(duplicates), "percent": round(pct, 2),
-                 "keys": composite_keys}
-            )
-        elif pct > warning_threshold:
-            result.add_warning(
-                f"{duplicates} duplicate records ({pct:.1f}%) on composite key ({keys_str}) in {table_name}",
-                {"duplicate_records": int(duplicates), "percent": round(pct, 2),
-                 "keys": composite_keys}
-            )
-        else:
-            result.add_info("No duplicate composite keys found")
-
-        con.close()
-        gc.collect()
-
-        result.atomic_total = 1
-        result.atomic_passed = 1 if not result.errors else 0
-    except Exception as e:
-        _logger.error("Check 'duplicate_composite_keys' failed for table '%s': %s", table_name, e)
-        result.add_error(f"Error checking duplicate composite keys: {str(e)}")
-        if result.atomic_total is None:
-            result.atomic_total = 1
-            result.atomic_passed = 0
-
-    return result
-
-
 def check_duplicate_composite_keys(
     df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
     table_name: str,
@@ -6309,14 +3919,9 @@ def check_duplicate_composite_keys(
 ) -> DQAPlausibilityResult:
     """Check for duplicate composite keys."""
     _logger.debug("check_duplicate_composite_keys: starting for table '%s'", table_name)
-    if _ACTIVE_BACKEND == 'polars':
-        result = check_duplicate_composite_keys_polars(df, table_name, composite_keys, schema,
-                                                       warning_threshold=warning_threshold,
-                                                       error_threshold=error_threshold)
-    else:
-        result = check_duplicate_composite_keys_duckdb(df, table_name, composite_keys, schema,
-                                                       warning_threshold=warning_threshold,
-                                                       error_threshold=error_threshold)
+    result = check_duplicate_composite_keys_polars(df, table_name, composite_keys, schema,
+                                                   warning_threshold=warning_threshold,
+                                                   error_threshold=error_threshold)
     _logger.debug("check_duplicate_composite_keys: table '%s' — duplicates=%s",
                   table_name, result.metrics.get("duplicate_records"))
     return result
@@ -6346,10 +3951,10 @@ def run_conformance_checks(
     Dict[str, DQAConformanceResult]
         Dictionary of check results keyed by check type
     """
-    _logger.info("Running conformance checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
+    _logger.info("Running conformance checks for table '%s'", table_name)
 
     # Convert pandas DataFrame to Polars if the active backend is Polars
-    if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+    if isinstance(df, pd.DataFrame):
         _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
         df = pl.from_pandas(df)
 
@@ -6420,10 +4025,10 @@ def run_completeness_checks(
     Dict[str, DQACompletenessResult]
         Dictionary of check results keyed by check type
     """
-    _logger.info("Running completeness checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
+    _logger.info("Running completeness checks for table '%s'", table_name)
 
     # Convert pandas DataFrame to Polars if the active backend is Polars
-    if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+    if isinstance(df, pd.DataFrame):
         _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
         df = pl.from_pandas(df)
 
@@ -6478,7 +4083,7 @@ def run_relational_integrity_checks(
     lookup = {}
     for obj in tables:
         df = obj.df
-        if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+        if isinstance(df, pd.DataFrame):
             _logger.debug("Converting pandas DataFrame to Polars for table '%s'", obj.table_name)
             df = pl.from_pandas(df)
         # Case-normalize for validation (see run_conformance_checks).
@@ -6499,7 +4104,7 @@ def run_relational_integrity_checks(
         # Use schema columns when available; fall back to DataFrame columns
         if schema_cols is not None:
             col_names = schema_cols
-        elif HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+        elif isinstance(df, (pl.DataFrame, pl.LazyFrame)):
             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
             col_names = set(lf.collect_schema().names())
         else:
@@ -6586,12 +4191,8 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     )
 
     # Determine actual columns in the DataFrame (exclude __orig_ sidecars)
-    if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
-        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-        actual_cols = set(_strip_sidecars(lf.collect_schema().names()))
-    else:
-        actual_cols = set(_strip_sidecars(df.columns.tolist()))
-
+    lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+    actual_cols = set(_strip_sidecars(lf.collect_schema().names()))
     # Use schema cols when available; fall back to actual cols
     col_names = schema_cols if schema_cols is not None else actual_cols
 
@@ -6601,32 +4202,24 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     for fk_column in fk_rules:
         if fk_column not in col_names or fk_column not in actual_cols:
             continue
-        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
-            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-            id_series = (
-                lf.select(pl.col(fk_column).drop_nulls().unique())
-                .collect(streaming=True)
-            )
-            fk_ids[fk_column] = set(id_series[fk_column].to_list())
-        else:
-            fk_ids[fk_column] = set(df[fk_column].dropna().unique().tolist())
-
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        id_series = (
+            lf.select(pl.col(fk_column).drop_nulls().unique())
+            .collect(streaming=True)
+        )
+        fk_ids[fk_column] = set(id_series[fk_column].to_list())
     # --- Temporal subset for cross-table plausibility ---
     time_cols = _CROSS_TABLE_TIME_COLUMNS.get(tname, [])
     temporal_df = None
     if time_cols and 'hospitalization_id' in actual_cols:
         needed = ['hospitalization_id'] + [c for c in time_cols if c in actual_cols]
-        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
-            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-            temporal_df = lf.select(needed).collect()
-        else:
-            temporal_df = df[needed].copy()
-
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        temporal_df = lf.select(needed).collect()
     # --- Hospitalization-specific caches ---
     hosp_bounds_df = None
     hosp_years = None
     if tname == 'hospitalization':
-        if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+        if isinstance(df, (pl.DataFrame, pl.LazyFrame)):
             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
             hosp_cols_available = set(lf.collect_schema().names())
             bound_cols = [c for c in ['hospitalization_id', 'admission_dttm', 'discharge_dttm']
@@ -6641,15 +4234,6 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
                     .collect()
                     .get_column('yr')
                     .to_list()
-                )
-        elif isinstance(df, pd.DataFrame):
-            bound_cols = [c for c in ['hospitalization_id', 'admission_dttm', 'discharge_dttm']
-                          if c in df.columns]
-            if 'hospitalization_id' in bound_cols:
-                hosp_bounds_df = df[bound_cols].copy()
-            if 'admission_dttm' in df.columns:
-                hosp_years = set(
-                    int(y) for y in df['admission_dttm'].dropna().dt.year.unique()
                 )
 
     # --- Cross-table conditional requirements cache ---
@@ -6667,51 +4251,33 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
             # columns are lowercased + stripped; skip the redundant per-row transformation
             # when the column is already string-typed (the common case).
             match_values = [str(v).strip().lower() for v in rule['source_value']]
-            if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
-                lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-                src_dtype = lf.collect_schema()[rule['source_column']]
-                if src_dtype == pl.Utf8 or src_dtype == pl.String:
-                    filter_expr = pl.col(rule['source_column']).is_in(match_values)
-                else:
-                    filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
-                matched = (
-                    lf.filter(filter_expr)
-                    .select(pl.col(join_col).drop_nulls().unique())
-                    .collect(streaming=True)
-                )
-                conditional_source_ids[rule_key] = set(matched[join_col].to_list())
+            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+            src_dtype = lf.collect_schema()[rule['source_column']]
+            if src_dtype == pl.Utf8 or src_dtype == pl.String:
+                filter_expr = pl.col(rule['source_column']).is_in(match_values)
             else:
-                src_col = df[rule['source_column']]
-                if pd.api.types.is_string_dtype(src_col):
-                    mask = src_col.isin(match_values)
-                else:
-                    mask = src_col.astype(str).str.strip().str.lower().isin(match_values)
-                conditional_source_ids[rule_key] = set(df.loc[mask, join_col].dropna().unique().tolist())
-
+                filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
+            matched = (
+                lf.filter(filter_expr)
+                .select(pl.col(join_col).drop_nulls().unique())
+                .collect(streaming=True)
+            )
+            conditional_source_ids[rule_key] = set(matched[join_col].to_list())
         if tname == rule['target_table'] and join_col in actual_cols and rule['target_column'] in actual_cols:
             # Extract join_column IDs where target_column is not null (and not empty string)
-            if HAS_POLARS and isinstance(df, (pl.DataFrame, pl.LazyFrame)):
-                lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
-                tcol = pl.col(rule['target_column'])
-                # Handle both datetime and string columns: not null AND not empty string
-                not_null_filter = tcol.is_not_null()
-                dtype = lf.collect_schema()[rule['target_column']]
-                if dtype == pl.Utf8 or dtype == pl.String:
-                    not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
-                matched = (
-                    lf.filter(not_null_filter)
-                    .select(pl.col(join_col).drop_nulls().unique())
-                    .collect(streaming=True)
-                )
-                conditional_target_ids[rule_key] = set(matched[join_col].to_list())
-            else:
-                target_col = df[rule['target_column']]
-                mask = target_col.notna()
-                # If string dtype, also exclude empty/whitespace-only strings
-                if hasattr(target_col, 'str') and target_col.dtype == 'object':
-                    mask = mask & (target_col.astype(str).str.strip() != '')
-                conditional_target_ids[rule_key] = set(df.loc[mask, join_col].dropna().unique().tolist())
-
+            lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+            tcol = pl.col(rule['target_column'])
+            # Handle both datetime and string columns: not null AND not empty string
+            not_null_filter = tcol.is_not_null()
+            dtype = lf.collect_schema()[rule['target_column']]
+            if dtype == pl.Utf8 or dtype == pl.String:
+                not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
+            matched = (
+                lf.filter(not_null_filter)
+                .select(pl.col(join_col).drop_nulls().unique())
+                .collect(streaming=True)
+            )
+            conditional_target_ids[rule_key] = set(matched[join_col].to_list())
     cache = {
         'table_name': tname,
         'fk_ids': fk_ids,
@@ -7034,7 +4600,7 @@ def run_cross_table_completeness_checks(
     for obj in tables:
         tname = getattr(obj, 'table_name', '').replace('clif_', '')
         tdf = obj.df
-        if _ACTIVE_BACKEND == 'polars' and isinstance(tdf, pd.DataFrame):
+        if isinstance(tdf, pd.DataFrame):
             tdf = pl.from_pandas(tdf)
         # Case-normalize for validation (see run_conformance_checks).
         tdf = _normalize_for_validation(tdf)
@@ -7059,58 +4625,37 @@ def run_cross_table_completeness_checks(
         # through `_normalize_for_validation` at the top of this function, so
         # string columns are lowercased + stripped — skip the redundant per-row
         # transformation when the column is already string-typed (common case).
-        if HAS_POLARS and isinstance(src_df, (pl.DataFrame, pl.LazyFrame)):
-            lf = src_df if isinstance(src_df, pl.LazyFrame) else src_df.lazy()
-            schema = lf.collect_schema()
-            if rule['source_column'] not in schema.names() or join_col not in schema.names():
-                continue
-            src_dtype = schema[rule['source_column']]
-            if src_dtype == pl.Utf8 or src_dtype == pl.String:
-                filter_expr = pl.col(rule['source_column']).is_in(match_values)
-            else:
-                filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
-            matched = (
-                lf.filter(filter_expr)
-                .select(pl.col(join_col).drop_nulls().unique())
-                .collect(streaming=True)
-            )
-            source_ids = set(matched[join_col].to_list())
+        lf = src_df if isinstance(src_df, pl.LazyFrame) else src_df.lazy()
+        schema = lf.collect_schema()
+        if rule['source_column'] not in schema.names() or join_col not in schema.names():
+            continue
+        src_dtype = schema[rule['source_column']]
+        if src_dtype == pl.Utf8 or src_dtype == pl.String:
+            filter_expr = pl.col(rule['source_column']).is_in(match_values)
         else:
-            if rule['source_column'] not in src_df.columns or join_col not in src_df.columns:
-                continue
-            src_col = src_df[rule['source_column']]
-            if pd.api.types.is_string_dtype(src_col):
-                mask = src_col.isin(match_values)
-            else:
-                mask = src_col.astype(str).str.strip().str.lower().isin(match_values)
-            source_ids = set(src_df.loc[mask, join_col].dropna().unique().tolist())
-
+            filter_expr = pl.col(rule['source_column']).cast(pl.Utf8).str.strip_chars().str.to_lowercase().is_in(match_values)
+        matched = (
+            lf.filter(filter_expr)
+            .select(pl.col(join_col).drop_nulls().unique())
+            .collect(streaming=True)
+        )
+        source_ids = set(matched[join_col].to_list())
         # Get target IDs with non-null target column (also exclude empty strings)
-        if HAS_POLARS and isinstance(tgt_df, (pl.DataFrame, pl.LazyFrame)):
-            lf = tgt_df if isinstance(tgt_df, pl.LazyFrame) else tgt_df.lazy()
-            schema_names = lf.collect_schema().names()
-            if rule['target_column'] not in schema_names or join_col not in schema_names:
-                continue
-            tcol = pl.col(rule['target_column'])
-            not_null_filter = tcol.is_not_null()
-            dtype = lf.collect_schema()[rule['target_column']]
-            if dtype == pl.Utf8 or dtype == pl.String:
-                not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
-            matched = (
-                lf.filter(not_null_filter)
-                .select(pl.col(join_col).drop_nulls().unique())
-                .collect(streaming=True)
-            )
-            target_ids = set(matched[join_col].to_list())
-        else:
-            if rule['target_column'] not in tgt_df.columns or join_col not in tgt_df.columns:
-                continue
-            target_col = tgt_df[rule['target_column']]
-            mask = target_col.notna()
-            if hasattr(target_col, 'str') and target_col.dtype == 'object':
-                mask = mask & (target_col.astype(str).str.strip() != '')
-            target_ids = set(tgt_df.loc[mask, join_col].dropna().unique().tolist())
-
+        lf = tgt_df if isinstance(tgt_df, pl.LazyFrame) else tgt_df.lazy()
+        schema_names = lf.collect_schema().names()
+        if rule['target_column'] not in schema_names or join_col not in schema_names:
+            continue
+        tcol = pl.col(rule['target_column'])
+        not_null_filter = tcol.is_not_null()
+        dtype = lf.collect_schema()[rule['target_column']]
+        if dtype == pl.Utf8 or dtype == pl.String:
+            not_null_filter = not_null_filter & (tcol.str.strip_chars().str.len_chars() > 0)
+        matched = (
+            lf.filter(not_null_filter)
+            .select(pl.col(join_col).drop_nulls().unique())
+            .collect(streaming=True)
+        )
+        target_ids = set(matched[join_col].to_list())
         result = DQACompletenessResult(
             "cross_table_conditional_completeness",
             f"{source_table}->{target_table}",
@@ -7213,7 +4758,7 @@ def run_cross_table_plausibility_checks_from_cache(
 
     hosp_bounds_df = hosp_cache['hosp_bounds_df']
     # Ensure hosp_bounds_df matches active backend
-    if _ACTIVE_BACKEND == 'polars' and isinstance(hosp_bounds_df, pd.DataFrame):
+    if isinstance(hosp_bounds_df, pd.DataFrame):
         hosp_bounds_df = pl.from_pandas(hosp_bounds_df)
 
     results: Dict[str, Dict[str, DQAPlausibilityResult]] = {}
@@ -7227,7 +4772,7 @@ def run_cross_table_plausibility_checks_from_cache(
             continue
 
         # Ensure temporal_df matches active backend
-        if _ACTIVE_BACKEND == 'polars' and isinstance(temporal_df, pd.DataFrame):
+        if isinstance(temporal_df, pd.DataFrame):
             temporal_df = pl.from_pandas(temporal_df)
 
         time_cols = _CROSS_TABLE_TIME_COLUMNS.get(tbl_name, [])
@@ -7235,13 +4780,9 @@ def run_cross_table_plausibility_checks_from_cache(
             continue
 
         # Determine available time columns in the cached temporal subset
-        if HAS_POLARS and isinstance(temporal_df, (pl.DataFrame, pl.LazyFrame)):
-            actual_cols = (temporal_df.collect_schema().names()
-                          if isinstance(temporal_df, pl.LazyFrame)
-                          else temporal_df.columns)
-        else:
-            actual_cols = temporal_df.columns.tolist()
-
+        actual_cols = (temporal_df.collect_schema().names()
+                      if isinstance(temporal_df, pl.LazyFrame)
+                      else temporal_df.columns)
         available_time_cols = [c for c in time_cols if c in actual_cols]
         if not available_time_cols or 'hospitalization_id' not in actual_cols:
             continue
@@ -7286,7 +4827,7 @@ def run_plausibility_checks(
     Dict[str, DQAPlausibilityResult]
         Dictionary of check results keyed by check type
     """
-    _logger.info("Running plausibility checks for table '%s' using %s backend", table_name, _ACTIVE_BACKEND)
+    _logger.info("Running plausibility checks for table '%s'", table_name)
 
     # Merge caller overrides with defaults
     thresholds = {k: dict(v) for k, v in _DEFAULT_PLAUSIBILITY_THRESHOLDS.items()}
@@ -7297,7 +4838,7 @@ def run_plausibility_checks(
             else:
                 thresholds[check_name] = overrides
 
-    if _ACTIVE_BACKEND == 'polars' and isinstance(df, pd.DataFrame):
+    if isinstance(df, pd.DataFrame):
         _logger.debug("Converting pandas DataFrame to Polars for table '%s'", table_name)
         df = pl.from_pandas(df)
 
@@ -7384,7 +4925,7 @@ def run_cross_table_plausibility_checks(
     lookup = {}
     for obj in tables:
         tdf = obj.df
-        if _ACTIVE_BACKEND == 'polars' and isinstance(tdf, pd.DataFrame):
+        if isinstance(tdf, pd.DataFrame):
             tdf = pl.from_pandas(tdf)
         # Case-normalize for validation (see run_conformance_checks).
         tdf = _normalize_for_validation(tdf)
@@ -7404,12 +4945,8 @@ def run_cross_table_plausibility_checks(
         if not time_cols:
             continue
 
-        if HAS_POLARS and isinstance(tdf, (pl.DataFrame, pl.LazyFrame)):
-            lf = tdf if isinstance(tdf, pl.LazyFrame) else tdf.lazy()
-            actual_cols = lf.collect_schema().names()
-        else:
-            actual_cols = tdf.columns.tolist()
-
+        lf = tdf if isinstance(tdf, pl.LazyFrame) else tdf.lazy()
+        actual_cols = lf.collect_schema().names()
         available_time_cols = [c for c in time_cols if c in actual_cols]
         if not available_time_cols or 'hospitalization_id' not in actual_cols:
             continue
@@ -7521,7 +5058,7 @@ def run_full_dqa(
     results: Dict[str, Any] = {
         'table_name': table_name,
         'clif_version': resolved_version,
-        'backend': _ACTIVE_BACKEND,
+        'backend': 'polars',
         'conformance': {},
         'completeness': {},
         'relational': {},
@@ -7561,11 +5098,14 @@ def run_full_dqa(
         for obj in tables:
             tname = getattr(obj, 'table_name', '').replace('clif_', '')
             if tname == 'hospitalization':
+                # obj.df is whatever the caller holds -- BaseTable.df is pandas --
+                # so coerce once here rather than keeping a parallel pandas branch.
                 hdf = obj.df
-                if HAS_POLARS and isinstance(hdf, (pl.DataFrame, pl.LazyFrame)):
+                if isinstance(hdf, pd.DataFrame):
+                    hdf = pl.from_pandas(hdf)
+                if isinstance(hdf, (pl.DataFrame, pl.LazyFrame)):
                     hlf = hdf if isinstance(hdf, pl.LazyFrame) else hdf.lazy()
-                    hcols = hlf.collect_schema().names()
-                    if 'admission_dttm' in hcols:
+                    if 'admission_dttm' in hlf.collect_schema().names():
                         hosp_years = set(
                             hlf.select(pl.col('admission_dttm').dt.year().alias('yr'))
                             .filter(pl.col('yr').is_not_null())
@@ -7574,10 +5114,6 @@ def run_full_dqa(
                             .get_column('yr')
                             .to_list()
                         )
-                elif isinstance(hdf, pd.DataFrame) and 'admission_dttm' in hdf.columns:
-                    hosp_years = set(
-                        int(y) for y in hdf['admission_dttm'].dropna().dt.year.unique()
-                    )
                 break
 
     # Plausibility checks (single-table)

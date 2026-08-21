@@ -178,12 +178,12 @@ def test_init_with_invalid_schema_data(sample_invalid_med_admin_continuous_data_
     error_types = [e['type'] for e in mac_obj.errors]
 
     # Check for the errors that are actually reported
-    assert 'invalid_category' in error_types
-    assert 'datatype_mismatch' in error_types
+    assert 'Invalid Categorical Values' in error_types
+    assert 'Data Type Mismatch' in error_types
 
-    # Explicitly assert that 'missing_columns' is NOT currently reported in this scenario
+    # Explicitly assert that 'Missing Required Columns' is NOT currently reported in this scenario
     # This might indicate a point for future investigation in validator.py if this behavior is unexpected.
-    assert 'missing_columns' not in error_types
+    assert 'Missing Required Columns' not in error_types
 
     # Ensure no other unexpected errors are present
     assert len(error_types) == 2

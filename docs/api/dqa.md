@@ -1,6 +1,6 @@
 # DQA (Validation) API Reference
 
-CLIFpy's Data Quality Assessment (DQA) module provides comprehensive validation organized around three pillars: **Conformance**, **Completeness**, and **Plausibility**. All checks support dual backends (Polars and DuckDB) and return structured result objects.
+CLIFpy's Data Quality Assessment (DQA) module provides comprehensive validation organized around three pillars: **Conformance**, **Completeness**, and **Plausibility**. All checks run on Polars and return structured result objects. Pandas, Polars, and Polars LazyFrames are all accepted as input.
 
 For a user-guide introduction, see [Data Quality Assessment (DQA)](../user-guide/validation.md).
 

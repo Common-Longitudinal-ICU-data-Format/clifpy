@@ -335,7 +335,7 @@ def test_init_with_invalid_schema_data(sample_invalid_microbiology_nonculture_da
     assert len(mnc_obj.errors) > 0
     error_types = [e['type'] for e in mnc_obj.errors]
     # Should have missing required fields and invalid categories
-    assert any('missing_required' in str(e) or 'invalid_category' in str(e) for e in error_types)
+    assert any('Missing Required Columns' in str(e) or 'Invalid Categorical Values' in str(e) for e in error_types)
 
 def test_init_without_data():
     """Test initialization without any data."""

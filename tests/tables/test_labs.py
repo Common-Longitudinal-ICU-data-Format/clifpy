@@ -108,7 +108,7 @@ def test_labs_init_with_invalid_category(sample_labs_data_invalid_category):
     assert labs_obj.isvalid() is False
     assert len(labs_obj.errors) > 0
     error_types = {e['type'] for e in labs_obj.errors}
-    assert "invalid_category" in error_types
+    assert "Invalid Categorical Values" in error_types
 
 def test_labs_init_with_missing_columns(sample_labs_data_missing_cols):
     """Test labs initialization with missing required columns."""
@@ -117,8 +117,9 @@ def test_labs_init_with_missing_columns(sample_labs_data_missing_cols):
     assert labs_obj.isvalid() is False
     assert len(labs_obj.errors) > 0
     error_types = {e['type'] for e in labs_obj.errors}
-    assert "missing_columns" in error_types
-    missing_cols = next(e['columns'] for e in labs_obj.errors if e['type'] == 'missing_columns')
+    assert "Missing Required Columns" in error_types
+    missing_cols = [e['details']['column'] for e in labs_obj.errors
+                    if e['type'] == 'Missing Required Columns']
     assert set(missing_cols) == {'lab_category', 'lab_order_category'}
 
 def test_labs_init_without_data():

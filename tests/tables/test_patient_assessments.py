@@ -131,9 +131,9 @@ def test_assessments_init_with_invalid_schema_data(sample_invalid_assessments_da
     error_types = {e['type'] for e in pa_obj.errors}
     # Per memory ffec3dfe-15d2-444a-97a8-a4b3af6273e3, validate_table doesn't report
     # missing columns if other errors like datatype_mismatch are present.
-    assert 'missing_columns' not in error_types
-    assert 'datatype_mismatch' in error_types
-    assert 'invalid_category' in error_types
+    assert 'Missing Required Columns' not in error_types
+    assert 'Data Type Mismatch' in error_types
+    assert 'Invalid Categorical Values' in error_types
 
 @pytest.mark.usefixtures("patch_assessment_schema_path")
 def test_assessments_init_without_data():

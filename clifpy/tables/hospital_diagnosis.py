@@ -54,22 +54,23 @@ class HospitalDiagnosis(BaseTable):
 
     def load_table(self):
         """Load hospital diagnosis table data from the configured data directory."""
-        from ..utils.io import load_data, _pinned_pandas
+        from ..utils.io import load_data
 
         if self.data_directory is None or self.filetype is None:
             raise ValueError("data_directory and filetype must be set to load data")
 
-        with _pinned_pandas():
-            self.df = load_data(
-                self.table_name,
-                self.data_directory,
-                self.filetype,
-                site_tz=self.timezone,
-                return_format='pandas',   # NOTE pinned: self.df is pandas
-            )
+        # The table layer stores polars (BaseTable.df is a pandas-converting
+        # property), so this takes load_data's native format.
+        self.df = load_data(
+            self.table_name,
+            self.data_directory,
+            self.filetype,
+            site_tz=self.timezone,
+            return_format='polars',
+        )
 
         if self.logger:
-            self.logger.info(f"Loaded {len(self.df)} rows from {self.table_name} table")
+            self.logger.info(f"Loaded {self._data.height} rows from {self.table_name} table")
 
     def get_diagnosis_summary(self) -> Dict:
         """Return comprehensive summary statistics for hospital diagnosis data."""

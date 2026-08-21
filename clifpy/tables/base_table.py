@@ -9,18 +9,58 @@ import os
 import logging
 import pandas as pd
 import polars as pl
+import pyarrow as pa
 import yaml
 import numpy as np
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 from datetime import datetime
 
-from ..utils.io import load_data, _pinned_pandas
+from ..utils.io import load_data
 from ..utils import validator
 from ..utils.outlier_handler import _load_outlier_config
 from ..utils.config import get_config_or_params
 from ..utils.logging_config import setup_logging
 from ..schemas import DEFAULT_CLIF_VERSION, load_schema
+
+
+logger = logging.getLogger(__name__)
+
+
+def _coerce_unconvertible_object_columns(
+    frame: pd.DataFrame,
+) -> Tuple[pd.DataFrame, List[str]]:
+    """Cast pandas ``object`` columns that Arrow cannot convert to text.
+
+    Arrow allows one type per column, while a pandas ``object`` column is an array
+    of Python pointers and may hold a different type in every cell -- e.g. a stray
+    ``'invalid_number'`` among floats. Casting such a column to text keeps the bad
+    values visible so the DQA dtype checks can *report* them, instead of the
+    conversion failing at construction and hiding the very problem DQA exists to
+    find.
+
+    Columns are tested one at a time so only genuinely unconvertible ones are
+    touched -- a benign object column in the same frame keeps its dtype. Nulls stay
+    null: pandas' nullable ``string`` dtype maps them to ``pd.NA``, whereas a bare
+    ``.astype(str)`` would write the literal ``"nan"``.
+
+    Returns the frame -- copied only if something changed -- and the names of the
+    columns that were cast.
+    """
+    offenders = []
+    for col in frame.select_dtypes(include='object').columns:
+        try:
+            pl.from_pandas(frame[[col]])
+        except pa.ArrowInvalid:
+            offenders.append(col)
+
+    if not offenders:
+        return frame, []
+
+    coerced = frame.copy()
+    for col in offenders:
+        coerced[col] = coerced[col].astype('string')
+    return coerced, offenders
 
 
 class BaseTable:
@@ -43,7 +83,9 @@ class BaseTable:
     table_name : str
         Name of the table (from class name)
     df : pd.DataFrame
-        The loaded data
+        The loaded data, converted from the stored polars frame on access
+    data : pl.DataFrame
+        The loaded data as stored (polars)
     schema : dict
         The YAML schema for this table
     errors : List[dict]
@@ -100,17 +142,12 @@ class BaseTable:
         # Example: Adt -> adt, RespiratorySupport -> respiratory_support
         self.table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in self.__class__.__name__]).lstrip('_')
 
-        # Initialize data and validation state
-        # Guard the pandas boundary: load_data() defaults to polars now, so a caller
-        # passing a polars frame would otherwise fail much later inside validation or
-        # summary stats with a confusing AttributeError.
-        if data is not None and not isinstance(data, pd.DataFrame):
-            raise TypeError(
-                f"{self.__class__.__name__} requires a pandas DataFrame, got "
-                f"{type(data).__name__}. load_data() returns polars by default -- pass "
-                f"return_format='pandas' (or convert with .to_pandas())."
-            )
-        self.df: Optional[pd.DataFrame] = data
+        # Data is stored as polars (see the ``df`` property below); pandas and
+        # polars are both accepted here and normalized on the way in.
+        self._data: Optional[pl.DataFrame] = None
+        self._df_pandas: Optional[pd.DataFrame] = None
+        self.df = data
+
         self.errors: List[Dict[str, Any]] = []
         self.schema: Optional[Dict[str, Any]] = None
         self.outlier_config: Optional[Dict[str, Any]] = None
@@ -124,7 +161,66 @@ class BaseTable:
 
         # Load outlier config
         self._load_outlier_config()
-        
+
+
+    # ------------------------------------------------------------------
+    # Data access
+    # ------------------------------------------------------------------
+    # The canonical frame is polars (``self._data``). ``df`` stays the public
+    # attribute and still hands back pandas, because ~20 modules and every
+    # downstream analysis read it that way. The conversion is done once and
+    # cached, so code that never touches ``.df`` never pays for it.
+
+    @property
+    def df(self) -> Optional[pd.DataFrame]:
+        """The table as a pandas DataFrame (converted from polars on first access).
+
+        Prefer :attr:`data` when writing new code -- it is the stored frame and
+        needs no conversion.
+        """
+        if self._data is None:
+            return None
+        if self._df_pandas is None:
+            self._df_pandas = self._data.to_pandas()
+        return self._df_pandas
+
+    @df.setter
+    def df(self, value) -> None:
+        if value is None:
+            self._data = None
+        elif isinstance(value, pl.DataFrame):
+            self._data = value
+        elif isinstance(value, pl.LazyFrame):
+            self._data = value.collect()
+        elif isinstance(value, pd.DataFrame):
+            try:
+                self._data = pl.from_pandas(value)
+            except pa.ArrowInvalid:
+                # A mixed-type object column. Cast the offenders to text so the DQA
+                # dtype checks can report them -- crashing here would hide exactly
+                # the kind of dirty data validation is meant to surface. Anything
+                # else Arrow rejects is still a hard error.
+                coerced, offenders = _coerce_unconvertible_object_columns(value)
+                if not offenders:
+                    raise
+                logger.warning(
+                    "%s: column(s) %s hold more than one type and were read as "
+                    "text so validation can report them; the original dtype of "
+                    "those columns is lost.",
+                    self.__class__.__name__, ', '.join(offenders),
+                )
+                self._data = pl.from_pandas(coerced)
+        else:
+            raise TypeError(
+                f"{self.__class__.__name__}.df accepts a pandas DataFrame, polars "
+                f"DataFrame, or polars LazyFrame; got {type(value).__name__}."
+            )
+        self._df_pandas = None  # invalidate the cached conversion
+
+    @property
+    def data(self) -> Optional[pl.DataFrame]:
+        """The table as a polars DataFrame -- the stored representation."""
+        return self._data
 
     def _setup_logging(self):
         """Set up table-specific logging (supplementary to centralized logs)."""
@@ -256,22 +352,20 @@ class BaseTable:
         # Derive snake_case table name from PascalCase class name
         table_name = ''.join(['_' + c.lower() if c.isupper() else c for c in cls.__name__]).lstrip('_')
 
-        # Load data using existing io utility
-        with _pinned_pandas():
-            data = load_data(
-                table_name,
-                config['data_directory'],
-                config['filetype'],
-                sample_size=sample_size,
-                columns=columns,
-                filters=filters,
-                site_tz=config['timezone'],
-                verbose=verbose,
-                # NOTE pinned: load_data() now defaults to polars. The table layer is still
-                # pandas (self.df uses .select_dtypes/.describe/.groupby), so this stays
-                # explicit until BaseTable.df migrates. See docs/io_return_formats_dx.md 7.
-                return_format='pandas',
-            )
+        # Load data using existing io utility. The table layer stores polars now
+        # (see the ``df`` property), so this takes load_data's native default and
+        # no longer needs the pandas pin.
+        data = load_data(
+            table_name,
+            config['data_directory'],
+            config['filetype'],
+            sample_size=sample_size,
+            columns=columns,
+            filters=filters,
+            site_tz=config['timezone'],
+            verbose=verbose,
+            return_format='polars',
+        )
 
         # Create instance with loaded data
         return cls(
@@ -295,7 +389,7 @@ class BaseTable:
         - Statistical analysis
         - Table-specific validations (if overridden in child class)
         """
-        if self.df is None:
+        if self._data is None:
             self.logger.warning("No dataframe to validate")
             return
 
@@ -304,11 +398,13 @@ class BaseTable:
         self._validated = True
 
         try:
-            # Run basic schema validation
+            # Run basic schema validation. The stored frame is polars and the DQA
+            # checks are polars-native, so this hands over the frame directly
+            # instead of round-tripping through pandas.
             if self.schema:
                 self.logger.info("Running schema validation")
                 schema_errors = validator.validate_dataframe(
-                    self.df, self.schema, clif_version=self.clif_version
+                    self._data, self.schema, clif_version=self.clif_version
                 )
                 self.errors.extend(schema_errors)
 
@@ -343,11 +439,11 @@ class BaseTable:
 
         datetime_columns = [
             col['name'] for col in self.schema.get('columns', [])
-            if col.get('data_type') == 'DATETIME' and col['name'] in self.df.columns and col['name'] != 'birth_date'
+            if col.get('data_type') == 'DATETIME' and col['name'] in self._data.columns and col['name'] != 'birth_date'
         ]
         if datetime_columns:
             self.logger.info(f"Validating timezone for datetime columns: {datetime_columns}")
-            tz_results = validator.validate_datetime_timezone(self.df, datetime_columns)
+            tz_results = validator.validate_datetime_timezone(self._data, datetime_columns)
             for result in tz_results:
                 if result.get('status') in ['warning', 'error']:
                     self.errors.append(result)
@@ -416,31 +512,48 @@ class BaseTable:
         Returns:
             dict: Summary statistics and information about the table
         """
-        if self.df is None:
+        if self._data is None:
             return {"status": "No data loaded"}
-        
+
+        data = self._data
         summary = {
             "table_name": self.table_name,
-            "num_rows": len(self.df),
-            "num_columns": len(self.df.columns),
-            "columns": list(self.df.columns),
-            "memory_usage_mb": self.df.memory_usage(deep=True).sum() / 1024 / 1024,
+            "num_rows": data.height,
+            "num_columns": data.width,
+            "columns": list(data.columns),
+            "memory_usage_mb": data.estimated_size() / 1024 / 1024,
             "validation_run": self._validated,
             "validation_errors": len(self.errors) if self._validated else None,
             "is_valid": self.isvalid()
         }
-        
-        # Add basic statistics for numeric columns
-        numeric_cols = self.df.select_dtypes(include=['number']).columns
-        if len(numeric_cols) > 0:
+
+        # Add basic statistics for numeric columns. Built from explicit aggregations
+        # rather than polars' describe(), whose row-oriented output does not match
+        # the {column: {stat: value}} shape pandas' describe().to_dict() produced.
+        numeric_cols = [c for c, dt in data.schema.items() if dt.is_numeric()]
+        if numeric_cols:
             summary["numeric_columns"] = list(numeric_cols)
-            summary["numeric_stats"] = self.df[numeric_cols].describe().to_dict()
-        
+            summary["numeric_stats"] = {
+                c: {
+                    "count": float(data.height - data[c].null_count()),
+                    "mean": data[c].mean(),
+                    "std": data[c].std(),
+                    "min": data[c].min(),
+                    "25%": data[c].quantile(0.25),
+                    "50%": data[c].quantile(0.50),
+                    "75%": data[c].quantile(0.75),
+                    "max": data[c].max(),
+                }
+                for c in numeric_cols
+            }
+
         # Add missing data summary
-        missing_counts = self.df.isnull().sum()
-        if missing_counts.any():
-            summary["missing_data"] = missing_counts[missing_counts > 0].to_dict()
-        
+        missing_counts = {
+            c: n for c, n in zip(data.columns, data.null_count().row(0)) if n > 0
+        }
+        if missing_counts:
+            summary["missing_data"] = missing_counts
+
         return summary
     
     def save_summary(self):
@@ -482,7 +595,7 @@ class BaseTable:
             Dictionary where keys are categorical column names and values are
             DataFrames with category distributions (unique ID counts and %).
         """
-        if self.df is None:
+        if self._data is None:
             self.logger.warning("No dataframe to analyze")
             return {}
 
@@ -490,10 +603,12 @@ class BaseTable:
             self.logger.warning("No schema available for categorical analysis")
             return {}
 
+        data = self._data
+
         # Determine ID column to use (prefer hospitalization_id)
-        if 'hospitalization_id' in self.df.columns:
+        if 'hospitalization_id' in data.columns:
             id_col = 'hospitalization_id'
-        elif 'patient_id' in self.df.columns:
+        elif 'patient_id' in data.columns:
             id_col = 'patient_id'
         else:
             self.logger.warning("No hospitalization_id or patient_id column found")
@@ -502,7 +617,7 @@ class BaseTable:
         # Get categorical columns from schema
         categorical_columns = [
             col['name'] for col in self.schema.get('columns', [])
-            if col.get('is_category_column', False) and col['name'] in self.df.columns
+            if col.get('is_category_column', False) and col['name'] in data.columns
         ]
 
         if not categorical_columns:
@@ -510,20 +625,24 @@ class BaseTable:
             return {}
 
         results = {}
+        # drop_nulls before n_unique mirrors pandas' nunique(), which does not
+        # count NaN. Null *categories* are still kept -- group_by includes them,
+        # matching the previous groupby(dropna=False).
+        total_unique_ids = data[id_col].drop_nulls().n_unique()
 
         for col in categorical_columns:
             try:
-                # Count unique IDs per category
-                id_counts = self.df.groupby(col, dropna=False)[id_col].nunique().sort_values(ascending=False)
-                # Calculate % as (unique IDs in category) / (total unique IDs in entire table)
-                total_unique_ids = self.df[id_col].nunique()
-                percent = (id_counts / total_unique_ids * 100).round(2)
-
-                distribution_df = pd.DataFrame({
-                    'category': id_counts.index,
-                    'count': id_counts.values,
-                    '%': percent.values
-                })
+                # Count unique IDs per category, most common first
+                id_counts = (
+                    data.group_by(col)
+                    .agg(pl.col(id_col).drop_nulls().n_unique().alias('count'))
+                    .sort('count', descending=True)
+                )
+                distribution_df = id_counts.select(
+                    pl.col(col).alias('category'),
+                    pl.col('count'),
+                    (pl.col('count') / total_unique_ids * 100).round(2).alias('%'),
+                ).to_pandas()
 
                 results[col] = distribution_df
 
@@ -568,7 +687,7 @@ class BaseTable:
         """
         import matplotlib.pyplot as plt
 
-        if self.df is None:
+        if self._data is None:
             self.logger.warning("No dataframe to plot")
             return {}
 
@@ -576,10 +695,12 @@ class BaseTable:
             self.logger.warning("No schema available for categorical plotting")
             return {}
 
+        data = self._data
+
         # Determine ID column to use (prefer hospitalization_id)
-        if 'hospitalization_id' in self.df.columns:
+        if 'hospitalization_id' in data.columns:
             id_col = 'hospitalization_id'
-        elif 'patient_id' in self.df.columns:
+        elif 'patient_id' in data.columns:
             id_col = 'patient_id'
         else:
             self.logger.warning("No hospitalization_id or patient_id column found")
@@ -588,7 +709,7 @@ class BaseTable:
         # Get categorical columns from schema
         categorical_columns = [
             col['name'] for col in self.schema.get('columns', [])
-            if col.get('is_category_column', False) and col['name'] in self.df.columns
+            if col.get('is_category_column', False) and col['name'] in data.columns
         ]
 
         if not categorical_columns:
@@ -607,22 +728,28 @@ class BaseTable:
 
         for col in categorical_columns:
             try:
-                # Count unique IDs per category
-                id_counts = self.df.groupby(col, dropna=False)[id_col].nunique().sort_values(ascending=False)
+                # Count unique IDs per category, most common first
+                id_counts = (
+                    data.group_by(col)
+                    .agg(pl.col(id_col).drop_nulls().n_unique().alias('count'))
+                    .sort('count', descending=True)
+                )
+                categories = id_counts.get_column(col).to_list()
+                counts = id_counts.get_column('count').to_list()
 
                 # Create modern bar plot
                 fig, ax = plt.subplots(figsize=figsize, facecolor='white')
 
                 # Use colorblind-friendly color palette (cividis)
-                colors = plt.cm.cividis(np.linspace(0.3, 0.9, len(id_counts)))
-                bars = ax.bar(range(len(id_counts)), id_counts.values, color=colors, edgecolor='white', linewidth=1.5)
+                colors = plt.cm.cividis(np.linspace(0.3, 0.9, len(counts)))
+                bars = ax.bar(range(len(counts)), counts, color=colors, edgecolor='white', linewidth=1.5)
 
                 # Styling
                 ax.set_xlabel('Category', fontsize=12, fontweight='bold', color='#333333')
                 ax.set_ylabel(f'Unique {id_col} counts', fontsize=12, fontweight='bold', color='#333333')
                 ax.set_title(f'Distribution of {col}', fontsize=14, fontweight='bold', pad=20, color='#1a1a1a')
-                ax.set_xticks(range(len(id_counts)))
-                ax.set_xticklabels([str(x) for x in id_counts.index], rotation=45, ha='right', fontsize=10)
+                ax.set_xticks(range(len(counts)))
+                ax.set_xticklabels([str(x) for x in categories], rotation=45, ha='right', fontsize=10)
 
                 # Remove top and right spines
                 ax.spines['top'].set_visible(False)
@@ -635,7 +762,7 @@ class BaseTable:
                 ax.set_axisbelow(True)
 
                 # Add value labels on top of bars (adjust font size and rotation based on number of categories)
-                num_categories = len(id_counts)
+                num_categories = len(counts)
                 if num_categories <= 10:
                     label_fontsize = 9
                     label_rotation = 0
@@ -646,7 +773,7 @@ class BaseTable:
                     label_fontsize = 6
                     label_rotation = 90
 
-                for i, (bar, value) in enumerate(zip(bars, id_counts.values)):
+                for i, (bar, value) in enumerate(zip(bars, counts)):
                     height = bar.get_height()
                     ax.text(bar.get_x() + bar.get_width()/2., height,
                            f'{int(value)}',
@@ -702,21 +829,15 @@ class BaseTable:
         """
         import polars as pl
     
-        # Check if self.df is loaded
-        if self.df is None:
-            self.logger.error("Loaded dataframe (self.df) is not available.")
+        # Check if data is loaded
+        if self._data is None:
+            self.logger.error("Loaded dataframe is not available.")
             return None
-    
-        # Convert to Polars DataFrame if it's not already
-        if not isinstance(self.df, pl.DataFrame):
-            try:
-                df_pl = pl.from_pandas(self.df)
-            except Exception as e:
-                self.logger.error(f"Could not convert self.df to Polars DataFrame: {str(e)}")
-                return None
-        else:
-            df_pl = self.df
-    
+
+        # Already polars -- no conversion needed.
+        df_pl = self._data
+
+
         # Check if columns exist
         columns = df_pl.columns
         if value_column not in columns:

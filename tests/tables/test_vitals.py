@@ -155,8 +155,8 @@ def test_vitals_init_with_invalid_schema_data(sample_invalid_vitals_data_schema)
     assert vital_obj.isvalid() is False
     assert len(vital_obj.errors) > 0
     error_types = [e['type'] for e in vital_obj.errors]
-    # validate_table (used by _validate_schema) reports 'datatype_mismatch'
-    assert 'missing_columns' in error_types or 'datatype_mismatch' in error_types
+    # validate_table (used by _validate_schema) reports 'Data Type Mismatch'
+    assert 'Missing Required Columns' in error_types or 'Data Type Mismatch' in error_types
 
 @pytest.mark.usefixtures("patch_vitals_schema_path")
 def test_vitals_init_with_invalid_range_data(sample_invalid_vitals_data_range):

@@ -362,7 +362,7 @@ def test_microbiology_culture_init_with_schema_violations(patch_microbiology_sch
     assert len(mc_obj.errors) > 0
     # Should have datatype mismatch error since organism_id is integer instead of string
     error_types = {e['type'] for e in mc_obj.errors}
-    assert "datatype_mismatch" in error_types
+    assert "Data Type Mismatch" in error_types
 
 def test_microbiology_culture_init_without_data(patch_microbiology_schema_path):
     """Test microbiology culture initialization without data."""

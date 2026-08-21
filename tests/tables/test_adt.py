@@ -93,8 +93,8 @@ def test_adt_init_with_invalid_category(sample_adt_data_invalid_category):
     assert adt_obj.isvalid() is False
     assert len(adt_obj.errors) > 0
     error_types = {e['type'] for e in adt_obj.errors}
-    assert "invalid_category" in error_types
-    assert "missing_columns" not in error_types
+    assert "Invalid Categorical Values" in error_types
+    assert "Missing Required Columns" not in error_types
 
 def test_adt_init_with_missing_columns(sample_adt_data_missing_cols):
     """Test adt initialization with missing required columns."""
@@ -103,8 +103,9 @@ def test_adt_init_with_missing_columns(sample_adt_data_missing_cols):
     assert adt_obj.isvalid() is False
     assert len(adt_obj.errors) > 0
     error_types = {e['type'] for e in adt_obj.errors}
-    assert "missing_columns" in error_types
-    missing_cols = next(e['columns'] for e in adt_obj.errors if e['type'] == 'missing_columns')
+    assert "Missing Required Columns" in error_types
+    missing_cols = [e['details']['column'] for e in adt_obj.errors
+                    if e['type'] == 'Missing Required Columns']
     assert set(missing_cols) == {'hospital_id', 'hospital_type'}
 
 def test_adt_init_without_data():

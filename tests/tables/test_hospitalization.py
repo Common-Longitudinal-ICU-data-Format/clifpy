@@ -151,7 +151,7 @@ def test_hospitalization_init_with_invalid_category(sample_hospitalization_data_
     assert hosp_obj.isvalid() is False
     assert len(hosp_obj.errors) > 0
     error_types = {e['type'] for e in hosp_obj.errors}
-    assert "invalid_category" in error_types
+    assert "Invalid Categorical Values" in error_types
 
 def test_hospitalization_init_with_missing_columns(sample_hospitalization_data_missing_cols):
     """Test hospitalization initialization with missing required columns."""
@@ -160,8 +160,9 @@ def test_hospitalization_init_with_missing_columns(sample_hospitalization_data_m
     assert hosp_obj.isvalid() is False
     assert len(hosp_obj.errors) > 0
     error_types = {e['type'] for e in hosp_obj.errors}
-    assert "missing_columns" in error_types
-    missing_cols = next(e['columns'] for e in hosp_obj.errors if e['type'] == 'missing_columns')
+    assert "Missing Required Columns" in error_types
+    missing_cols = [e['details']['column'] for e in hosp_obj.errors
+                    if e['type'] == 'Missing Required Columns']
     assert set(missing_cols) == {'discharge_category'}
 
 def test_hospitalization_init_without_data():

@@ -13,13 +13,10 @@ from .validator import (
     _load_schema,
     get_schema_check_counts,
     build_absent_table_dqa_result,
-    # Backend info
-    _ACTIVE_BACKEND,
     # Conformance checks
     check_table_exists,
     check_table_presence,
     check_table_presence_polars,
-    check_table_presence_duckdb,
     check_required_columns,
     check_column_dtypes,
     check_datetime_format,
@@ -88,7 +85,6 @@ __all__ = [
       # ase
       'compute_ase',
       # DQA functions
-      '_ACTIVE_BACKEND',
       'DQAConformanceResult',
       'DQACompletenessResult',
       '_load_schema',
@@ -97,7 +93,6 @@ __all__ = [
       'check_table_exists',
       'check_table_presence',
       'check_table_presence_polars',
-      'check_table_presence_duckdb',
       'check_required_columns',
       'check_column_dtypes',
       'check_datetime_format',

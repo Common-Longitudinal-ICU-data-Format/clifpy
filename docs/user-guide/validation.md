@@ -213,21 +213,22 @@ results = run_full_dqa(
 
 Default plausibility thresholds use 10% error / 0% warning for all check types.
 
-## Dual Backend Architecture
+## Execution Engine
 
-The DQA module automatically selects between two backends:
+All checks run on **Polars**, using lazy evaluation and streaming for memory
+efficiency. Polars is a hard dependency of clifpy — `clifpy.utils.io` imports it
+unconditionally — so there is no backend detection and nothing to configure.
 
-- **Polars** (preferred) — Uses lazy evaluation and streaming for memory efficiency
-- **DuckDB** (fallback) — Used when Polars is unavailable
+All DataFrames (Pandas, Polars, or Polars LazyFrames) are accepted as input. Pandas
+frames are converted on the way in, so callers holding a `pd.DataFrame` (such as
+`BaseTable.df`) need not change anything.
 
-The active backend is detected at import time:
-
-```python
-from clifpy.utils.validator import _ACTIVE_BACKEND
-print(f"Using backend: {_ACTIVE_BACKEND}")  # 'polars' or 'duckdb'
-```
-
-Both backends produce identical results. All DataFrames (Pandas, Polars, or Polars LazyFrames) are accepted as input.
+!!! note "Removed in 3.0"
+    Earlier versions shipped a parallel `check_*_duckdb` implementation of every
+    check, selected automatically by a `_ACTIVE_BACKEND` flag set from a runtime
+    smoke test. Both the flag and the DuckDB twins have been removed. Code reading
+    `validator._ACTIVE_BACKEND` or calling a `check_*_duckdb` function directly must
+    switch to the `check_*` dispatcher or its `check_*_polars` implementation.
 
 ## Best Practices
 

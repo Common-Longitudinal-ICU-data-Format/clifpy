@@ -117,9 +117,9 @@ def test_rs_init_with_invalid_schema_data(sample_invalid_rs_data_schema):
     assert rs_obj.isvalid() is False
     assert len(rs_obj.errors) > 0
     error_types = {e['type'] for e in rs_obj.errors}
-    assert 'missing_columns' in error_types
-    assert 'invalid_category' in error_types
-    assert 'datatype_mismatch' in error_types
+    assert 'Missing Required Columns' in error_types
+    assert 'Invalid Categorical Values' in error_types
+    assert 'Data Type Mismatch' in error_types
 
 @pytest.mark.usefixtures("patch_rs_schema_path")
 def test_rs_init_without_data():

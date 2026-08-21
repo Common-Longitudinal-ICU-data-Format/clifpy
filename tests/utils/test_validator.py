@@ -13,9 +13,6 @@ import logging
 from pathlib import Path
 
 from clifpy.utils.validator import (
-    # Backend / smoke-test
-    HAS_POLARS,
-    _ACTIVE_BACKEND,
     # Schema loader
     _load_schema,
     _load_validation_rules,
@@ -28,67 +25,47 @@ from clifpy.utils.validator import (
     check_table_exists,
     check_table_presence,
     check_table_presence_polars,
-    check_table_presence_duckdb,
     check_required_columns,
     check_required_columns_polars,
-    check_required_columns_duckdb,
     check_column_dtypes,
     check_column_dtypes_polars,
-    check_column_dtypes_duckdb,
     check_datetime_format,
     check_datetime_format_polars,
-    check_datetime_format_duckdb,
     check_lab_reference_units,
     check_lab_reference_units_polars,
-    check_lab_reference_units_duckdb,
     check_categorical_values,
     check_categorical_values_polars,
-    check_categorical_values_duckdb,
     check_category_group_mapping,
     check_category_group_mapping_polars,
-    check_category_group_mapping_duckdb,
     check_medication_dose_units,
     check_medication_dose_units_polars,
-    check_medication_dose_units_duckdb,
     # Completeness checks
     check_missingness,
     check_missingness_polars,
-    check_missingness_duckdb,
     check_conditional_requirements,
     check_conditional_requirements_polars,
-    check_conditional_requirements_duckdb,
     check_mcide_value_coverage,
     check_mcide_value_coverage_polars,
-    check_mcide_value_coverage_duckdb,
     # Relational integrity
     check_relational_integrity,
     check_relational_integrity_polars,
-    check_relational_integrity_duckdb,
     # Plausibility checks
     check_chronological_order,
     check_chronological_order_polars,
-    check_chronological_order_duckdb,
     check_numeric_range_plausibility,
     check_numeric_range_plausibility_polars,
-    check_numeric_range_plausibility_duckdb,
     check_field_plausibility,
     check_field_plausibility_polars,
-    check_field_plausibility_duckdb,
     check_medication_dose_unit_consistency,
     check_medication_dose_unit_consistency_polars,
-    check_medication_dose_unit_consistency_duckdb,
     check_cross_table_temporal_plausibility,
     check_cross_table_temporal_plausibility_polars,
-    check_cross_table_temporal_plausibility_duckdb,
     check_overlapping_periods,
     check_overlapping_periods_polars,
-    check_overlapping_periods_duckdb,
     check_category_temporal_consistency,
     check_category_temporal_consistency_polars,
-    check_category_temporal_consistency_duckdb,
     check_duplicate_composite_keys,
     check_duplicate_composite_keys_polars,
-    check_duplicate_composite_keys_duckdb,
     # Orchestration
     run_conformance_checks,
     run_completeness_checks,
@@ -194,21 +171,7 @@ def adt_schema():
 
 
 # ---------------------------------------------------------------------------
-# 1. Smoke test / backend detection
-# ---------------------------------------------------------------------------
-
-class TestBackendDetection:
-    """Verify the Polars smoke test sets HAS_POLARS and _ACTIVE_BACKEND."""
-
-    def test_has_polars_is_true(self):
-        assert HAS_POLARS is True
-
-    def test_active_backend_is_polars(self):
-        assert _ACTIVE_BACKEND == "polars"
-
-
-# ---------------------------------------------------------------------------
-# 2. Result containers
+# 1. Result containers
 # ---------------------------------------------------------------------------
 
 class TestDQAConformanceResult:
@@ -347,16 +310,6 @@ class TestCheckRequiredColumns:
         assert result.passed is False
         assert result.metrics["total_missing"] == 1
 
-    def test_all_present_duckdb(self, patient_schema):
-        df = pd.DataFrame({"patient_id": ["p1"], "sex_category": ["Male"], "age": [30]})
-        result = check_required_columns_duckdb(df, patient_schema, "patient")
-        assert result.passed is True
-
-    def test_missing_column_duckdb(self, patient_schema):
-        df = pd.DataFrame({"patient_id": ["p1"]})
-        result = check_required_columns_duckdb(df, patient_schema, "patient")
-        assert result.passed is False
-
     def test_dispatcher_returns_result(self, patient_schema):
         lf = pl.LazyFrame({"patient_id": ["p1"], "sex_category": ["Male"]})
         result = check_required_columns(lf, patient_schema, "patient")
@@ -389,15 +342,6 @@ class TestCheckColumnDtypes:
         # Should either error or warn about the mismatch
         assert len(result.errors) > 0 or len(result.warnings) > 0
 
-    def test_correct_types_duckdb(self, patient_schema):
-        df = pd.DataFrame({
-            "patient_id": ["p1", "p2"],
-            "sex_category": ["Male", "Female"],
-            "age": [30, 40],
-        })
-        result = check_column_dtypes_duckdb(df, patient_schema, "patient")
-        assert result.passed is True
-
     def test_dispatcher(self, patient_schema):
         lf = pl.LazyFrame({"patient_id": ["p1"], "sex_category": ["Male"], "age": [1]})
         result = check_column_dtypes(lf, patient_schema, "patient")
@@ -429,14 +373,6 @@ class TestCheckDatetimeFormat:
         result = check_datetime_format_polars(lf, self._make_schema(), "test")
         # String column in place of datetime should produce a warning
         assert len(result.warnings) > 0
-
-    def test_proper_datetime_duckdb(self):
-        df = pd.DataFrame({
-            "ts": pd.to_datetime(["2024-01-01"]),
-            "name": ["a"],
-        })
-        result = check_datetime_format_duckdb(df, self._make_schema(), "test")
-        assert result.passed is True
 
     def test_dispatcher(self):
         from datetime import datetime
@@ -482,16 +418,6 @@ class TestCheckLabReferenceUnits:
         lf = pl.LazyFrame({"hospitalization_id": ["h1"]})
         result = check_lab_reference_units_polars(lf, labs_schema, "labs")
         assert result.passed is False
-
-    def test_valid_units_duckdb(self, labs_schema):
-        df = pd.DataFrame({
-            "hospitalization_id": ["h1", "h2"],
-            "lab_category": ["albumin", "creatinine"],
-            "reference_unit": ["g/dL", "mg/dL"],
-            "lab_value": ["3.5", "1.1"],
-        })
-        result = check_lab_reference_units_duckdb(df, labs_schema, "labs")
-        assert result.passed is True
 
     def test_dispatcher(self, labs_schema):
         lf = pl.LazyFrame({
@@ -546,16 +472,6 @@ class TestCheckLabReferenceUnits:
             "lab_value": ["1.0", "1.1"],
         })
         result = check_lab_reference_units_polars(lf, labs_schema_canonical, "labs")
-        assert result.metrics["invalid_unit_categories"] == 0, result.warnings
-
-    def test_canonical_variant_match_duckdb(self, labs_schema_canonical):
-        df = pd.DataFrame({
-            "hospitalization_id": ["h1", "h2"],
-            "lab_category": ["albumin", "creatinine"],
-            "reference_unit": ["g per dL", "mg.dl"],
-            "lab_value": ["3.5", "1.1"],
-        })
-        result = check_lab_reference_units_duckdb(df, labs_schema_canonical, "labs")
         assert result.metrics["invalid_unit_categories"] == 0, result.warnings
 
     def test_canonical_variant_logs_and_details_polars(self, labs_schema_canonical, caplog):
@@ -636,17 +552,6 @@ class TestCheckCategoricalValues:
         assert len(result.warnings) > 0
         assert result.warnings[0]['details']['column'] == 'sex_category'
 
-    def test_all_valid_duckdb(self, patient_schema):
-        df = pd.DataFrame({"patient_id": ["p1"], "sex_category": ["Female"], "age": [25]})
-        result = check_categorical_values_duckdb(df, patient_schema, "patient")
-        assert result.passed is True
-
-    def test_invalid_value_duckdb(self, patient_schema):
-        df = pd.DataFrame({"patient_id": ["p1"], "sex_category": ["Alien"], "age": [25]})
-        result = check_categorical_values_duckdb(df, patient_schema, "patient")
-        assert len(result.warnings) > 0
-        assert result.warnings[0]['details']['column'] == 'sex_category'
-
     def test_dispatcher(self, patient_schema):
         lf = pl.LazyFrame({"patient_id": ["p1"], "sex_category": ["Male"], "age": [25]})
         result = check_categorical_values(lf, patient_schema, "patient")
@@ -700,26 +605,6 @@ class TestCheckCategoryGroupMapping:
         assert result.passed is True
         assert len(result.info) > 0
 
-    def test_valid_mapping_duckdb(self, mapping_schema):
-        df = pd.DataFrame({
-            "test_category": ["albumin", "amiodarone", "argatroban"],
-            "test_group": ["fluids_electrolytes", "cardiac", "anticoagulation"],
-        })
-        result = check_category_group_mapping_duckdb(df, mapping_schema, "test_table")
-        assert result.passed is True
-        assert len(result.warnings) == 0
-        assert result.metrics["test_category_to_group_mapping_mismatch_count"] == 0
-
-    def test_mismatched_mapping_duckdb(self, mapping_schema):
-        df = pd.DataFrame({
-            "test_category": ["albumin", "amiodarone"],
-            "test_group": ["fluids_electrolytes", "WRONG_GROUP"],
-        })
-        result = check_category_group_mapping_duckdb(df, mapping_schema, "test_table")
-        assert result.passed is True  # warnings only
-        assert len(result.warnings) > 0
-        assert result.metrics["test_category_to_group_mapping_mismatch_count"] == 1
-
     def test_dispatcher(self, mapping_schema):
         lf = pl.LazyFrame({
             "test_category": ["albumin"],
@@ -770,20 +655,6 @@ class TestCheckMissingness:
         result = check_missingness_polars(lf, patient_schema, "patient")
         assert result.passed is False  # empty DF is an error
 
-    def test_no_nulls_duckdb(self, patient_schema):
-        df = pd.DataFrame({"patient_id": ["p1", "p2"], "sex_category": ["Male", "Female"]})
-        result = check_missingness_duckdb(df, patient_schema, "patient")
-        assert result.passed is True
-
-    def test_high_missingness_duckdb(self, patient_schema):
-        df = pd.DataFrame({
-            "patient_id": ["p1", None, None, None],
-            "sex_category": ["Male", None, None, None],
-        })
-        result = check_missingness_duckdb(df, patient_schema, "patient",
-                                          error_threshold=50.0, warning_threshold=10.0)
-        assert result.passed is False
-
     def test_warning_threshold(self, patient_schema):
         # 1 out of 5 null = 20% — above warning (10%) but below error (50%)
         lf = pl.LazyFrame({
@@ -833,14 +704,6 @@ class TestCheckConditionalRequirements:
         })
         result = check_conditional_requirements_polars(lf, "adt", self._conditions())
         assert len(result.warnings) > 0
-
-    def test_satisfied_duckdb(self):
-        df = pd.DataFrame({
-            "location_category": ["icu", "ward"],
-            "location_type": ["general_icu", None],
-        })
-        result = check_conditional_requirements_duckdb(df, "adt", self._conditions())
-        assert result.passed is True
 
     def test_default_conditions_for_adt(self):
         """Passing conditions=None for adt should use built-in defaults."""
@@ -896,15 +759,6 @@ class TestCheckConditionalRequirements:
         result = check_conditional_requirements_polars(lf, "adt")
         assert len(result.warnings) > 0
 
-    def test_default_conditions_duckdb_loads_from_rules(self):
-        """DuckDB backend picks up rules from validation_rules.yaml when conditions=None."""
-        df = pd.DataFrame({
-            "location_category": ["icu", "icu"],
-            "location_type": [None, None],
-        })
-        result = check_conditional_requirements_duckdb(df, "adt")
-        assert len(result.warnings) > 0
-
     def test_no_conditions_for_unlisted_table(self):
         """A table not in validation_rules.yaml returns empty conditions."""
         conditions = _get_default_conditions("nonexistent_table_xyz")
@@ -948,44 +802,6 @@ class TestCheckConditionalRequirements:
         assert len(result.warnings) > 0
         assert "IMV AC-VC" in result.warnings[0]["message"]
 
-    def test_compound_condition_satisfied_duckdb(self):
-        """DuckDB compound condition satisfied → no warnings."""
-        conditions = [{
-            "when_column": "device_category",
-            "when_value": ["IMV"],
-            "and_column": "mode_category",
-            "and_value": ["Assist Control-Volume Control"],
-            "then_required": ["tidal_volume_set"],
-            "description": "IMV AC-VC requires tidal_volume_set",
-        }]
-        df = pd.DataFrame({
-            "device_category": ["IMV", "CPAP"],
-            "mode_category": ["Assist Control-Volume Control", "Pressure Support/CPAP"],
-            "tidal_volume_set": [500.0, None],
-        })
-        result = check_conditional_requirements_duckdb(df, "respiratory_support", conditions)
-        assert result.passed is True
-        assert len(result.warnings) == 0
-
-    def test_compound_condition_violated_duckdb(self):
-        """DuckDB compound condition violated → warning."""
-        conditions = [{
-            "when_column": "device_category",
-            "when_value": ["IMV"],
-            "and_column": "mode_category",
-            "and_value": ["Pressure Control"],
-            "then_required": ["pressure_control_set"],
-            "description": "IMV PC requires pressure_control_set",
-        }]
-        df = pd.DataFrame({
-            "device_category": ["IMV", "IMV"],
-            "mode_category": ["Pressure Control", "Pressure Control"],
-            "pressure_control_set": [None, None],
-        })
-        result = check_conditional_requirements_duckdb(df, "respiratory_support", conditions)
-        assert len(result.warnings) > 0
-
-
 # ---------------------------------------------------------------------------
 # 13. check_mcide_value_coverage  (Polars + DuckDB)
 # ---------------------------------------------------------------------------
@@ -1014,15 +830,6 @@ class TestCheckMcideValueCoverage:
         assert cov["coverage_percent"] < 100.0
         assert "Female" in cov["missing_values"]
 
-    def test_full_coverage_duckdb(self, patient_schema):
-        df = pd.DataFrame({
-            "patient_id": ["p1", "p2", "p3"],
-            "sex_category": ["Male", "Female", "Unknown"],
-            "age": [1, 2, 3],
-        })
-        result = check_mcide_value_coverage_duckdb(df, patient_schema, "patient")
-        assert result.passed is True
-
     def test_dispatcher(self, patient_schema):
         lf = pl.LazyFrame({"patient_id": ["p1"], "sex_category": ["Male"], "age": [1]})
         result = check_mcide_value_coverage(lf, patient_schema, "patient")
@@ -1050,18 +857,6 @@ class TestCheckRelationalIntegrity:
         result = check_relational_integrity_polars(source, ref, "labs", "patient", "patient_id")
         assert result.metrics["orphan_ids"] == 1
         assert len(result.warnings) > 0
-
-    def test_no_orphans_duckdb(self):
-        src = pd.DataFrame({"patient_id": ["p1", "p2"]})
-        ref = pd.DataFrame({"patient_id": ["p1", "p2", "p3"]})
-        result = check_relational_integrity_duckdb(src, ref, "labs", "patient", "patient_id")
-        assert result.passed is True
-
-    def test_orphans_detected_duckdb(self):
-        src = pd.DataFrame({"patient_id": ["p1", "p99"]})
-        ref = pd.DataFrame({"patient_id": ["p1"]})
-        result = check_relational_integrity_duckdb(src, ref, "labs", "patient", "patient_id")
-        assert result.metrics["orphan_ids"] == 1
 
     # -- Bidirectional dispatcher tests --
 
@@ -1324,15 +1119,6 @@ class TestCheckTablePresence:
         assert result.passed is False
         assert result.metrics["row_count"] == 0
         assert any("0 rows" in e["message"] for e in result.errors)
-
-    def test_no_columns_fails(self):
-        # A DataFrame with no columns (and therefore no rows)
-        df = pd.DataFrame()
-        result = check_table_presence_duckdb(df, "test_table")
-        assert result.passed is False
-        assert result.metrics["column_count"] == 0
-        assert any("no columns" in e["message"] for e in result.errors)
-
 
 # ---------------------------------------------------------------------------
 # 15. Orchestration: run_conformance_checks / run_completeness_checks
@@ -1602,50 +1388,44 @@ class TestCheckFieldPlausibility:
             "description": "Non-ICU locations should not have ICU location_type",
         }]
 
-    def _run(self, backend, df):
-        if backend == "polars":
-            return check_field_plausibility_polars(
-                pl.from_pandas(df).lazy(), "adt", self._rules())
-        return check_field_plausibility_duckdb(df, "adt", self._rules())
+    def _run(self, df):
+        return check_field_plausibility_polars(
+            pl.from_pandas(df).lazy(), "adt", self._rules())
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_empty_strings_are_absent_not_violations(self, backend):
+    def test_empty_strings_are_absent_not_violations(self):
         df = pd.DataFrame({
             "location_category": ["ward", "ed"],
             "location_type": ["", ""],
         })
-        result = self._run(backend, df)
+        result = self._run(df)
         assert result.metrics["violations_by_rule"] == {}
         assert result.metrics["empty_string_columns"] == {"location_type": 2}
         messages = [w["message"] for w in result.warnings]
         assert any("convert '' to null" in m for m in messages)
         assert not any("plausibility violation" in m for m in messages)
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_real_values_still_violate(self, backend):
+    def test_real_values_still_violate(self):
         df = pd.DataFrame({
             "location_category": ["ward", "ward", "icu"],
             "location_type": ["general_icu", "", "general_icu"],
         })
-        result = self._run(backend, df)
+        result = self._run(df)
         stats = result.metrics["violations_by_rule"][
             "Non-ICU locations should not have ICU location_type"]
         assert stats["violations"] == 1
         assert stats["total_applicable"] == 2
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_nulls_pass_clean(self, backend):
+    def test_nulls_pass_clean(self):
         df = pd.DataFrame({
             "location_category": ["ward", "ed"],
             "location_type": [None, None],
         })
-        result = self._run(backend, df)
+        result = self._run(df)
         assert result.metrics["violations_by_rule"] == {}
         assert result.metrics["empty_string_columns"] == {}
         assert len(result.warnings) == 0
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_when_not_null_variant_ignores_empty_when_values(self, backend):
+    def test_when_not_null_variant_ignores_empty_when_values(self):
         rules = [{
             "when_column": "discharge_dttm",
             "when_not_null": True,
@@ -1658,11 +1438,8 @@ class TestCheckFieldPlausibility:
             "discharge_dttm": ["2024-01-01", "", None],
             "discharge_category": ["Still Admitted", "Still Admitted", "Still Admitted"],
         })
-        if backend == "polars":
-            result = check_field_plausibility_polars(
-                pl.from_pandas(df).lazy(), "hospitalization", rules)
-        else:
-            result = check_field_plausibility_duckdb(df, "hospitalization", rules)
+        result = check_field_plausibility_polars(
+            pl.from_pandas(df).lazy(), "hospitalization", rules)
         stats = result.metrics["violations_by_rule"][rules[0]["description"]]
         assert stats["total_applicable"] == 1
         assert stats["violations"] == 1
@@ -1692,35 +1469,31 @@ class TestCheckMedicationDoseUnits:
         },
     }
 
-    def _run(self, backend, df, schema, table="medication_admin_continuous"):
-        if backend == "polars":
-            return check_medication_dose_units_polars(
-                pl.from_pandas(df).lazy(), schema, table)
-        return check_medication_dose_units_duckdb(df, schema, table)
+    def _run(self, df, schema, table="medication_admin_continuous"):
+        return check_medication_dose_units_polars(
+            pl.from_pandas(df).lazy(), schema, table)
 
     def _warnings_for(self, result, category):
         return [w for w in result.warnings
                 if w["details"].get("med_category") == category]
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_continuous_numerator_match_passes(self, backend):
+    def test_continuous_numerator_match_passes(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine", "norepinephrine"],
             "med_dose_unit": ["mcg/kg/min", " MCG/HR "],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         assert self._warnings_for(result, "norepinephrine") == []
         assert result.metrics["categories_with_mismatch"] == 0
         assert result.metrics["mismatched_records"] == 0
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_full_rate_expected_requires_exact_unit(self, backend):
+    def test_full_rate_expected_requires_exact_unit(self):
         # sodium_bicarbonate expects the full rate 'ml/hr': bare 'ml' mismatches
         df = pd.DataFrame({
             "med_category": ["sodium_bicarbonate", "sodium_bicarbonate"],
             "med_dose_unit": ["ml/hr", "ml"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         warns = self._warnings_for(result, "sodium_bicarbonate")
         assert len(warns) == 1
         details = warns[0]["details"]
@@ -1728,22 +1501,20 @@ class TestCheckMedicationDoseUnits:
         assert details["mismatched_records"] == 1
         assert details["top_mismatched_units"][0]["med_dose_unit"] == "ml"
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_no_slash_expected_unit_passes(self, backend):
+    def test_no_slash_expected_unit_passes(self):
         df = pd.DataFrame({
             "med_category": ["nitric_oxide"],
             "med_dose_unit": ["ppm"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         assert self._warnings_for(result, "nitric_oxide") == []
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_continuous_numerator_mismatch_warns(self, backend):
+    def test_continuous_numerator_mismatch_warns(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine"] * 3,
             "med_dose_unit": ["mcg/kg/min", "mg/hr", "mg/hr"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         warns = self._warnings_for(result, "norepinephrine")
         assert len(warns) == 1
         details = warns[0]["details"]
@@ -1751,39 +1522,36 @@ class TestCheckMedicationDoseUnits:
         assert details["mismatched_records"] == 2
         assert result.metrics["categories_with_mismatch"] == 1
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_multi_unit_list_accepts_any(self, backend):
+    def test_multi_unit_list_accepts_any(self):
         # epoprostenol (IV vs inhaled formulations) accepts ng or mcg
         df = pd.DataFrame({
             "med_category": ["epoprostenol"] * 3,
             "med_dose_unit": ["ng/kg/min", "mcg/kg/min", "mg/hr"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         warns = self._warnings_for(result, "epoprostenol")
         assert len(warns) == 1
         assert warns[0]["details"]["matched_records"] == 2
         assert warns[0]["details"]["mismatched_records"] == 1
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_intermittent_requires_exact_match(self, backend):
+    def test_intermittent_requires_exact_match(self):
         df = pd.DataFrame({
             "med_category": ["acetaminophen"] * 3,
             "med_dose_unit": ["mg", "mg/hr", "g"],
         })
-        result = self._run(backend, df, self.INT_SCHEMA,
+        result = self._run(df, self.INT_SCHEMA,
                            table="medication_admin_intermittent")
         warns = self._warnings_for(result, "acetaminophen")
         assert len(warns) == 1
         assert warns[0]["details"]["matched_records"] == 1
         assert warns[0]["details"]["mismatched_records"] == 2
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_unknown_and_absent_categories(self, backend):
+    def test_unknown_and_absent_categories(self):
         df = pd.DataFrame({
             "med_category": ["mystery_med"],
             "med_dose_unit": ["mg"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         # unknown data category: metric + info, never a warning
         assert result.metrics["unknown_categories"] == [
             {"med_category": "mystery_med", "count": 1}]
@@ -1793,36 +1561,33 @@ class TestCheckMedicationDoseUnits:
         assert any("'norepinephrine': not present in data" in m for m in infos)
         assert result.metrics["categories_checked"] == 0
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_null_category_rows_are_skipped(self, backend):
+    def test_null_category_rows_are_skipped(self):
         df = pd.DataFrame({
             "med_category": [None, "norepinephrine"],
             "med_dose_unit": ["mg", "mcg/kg/min"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         assert result.errors == [] and result.warnings == []
         assert result.metrics["total_records"] == 1
         assert "unknown_categories" not in result.metrics
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_schema_without_mapping_degrades_gracefully(self, backend):
+    def test_schema_without_mapping_degrades_gracefully(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine"],
             "med_dose_unit": ["mcg/kg/min"],
         })
-        result = self._run(backend, df, {})
+        result = self._run(df, {})
         assert result.atomic_total == 0
         assert result.warnings == [] and result.errors == []
         assert any("No med_category dose unit mapping" in i["message"]
                    for i in result.info)
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_null_and_empty_units_excluded_with_advisory(self, backend):
+    def test_null_and_empty_units_excluded_with_advisory(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine"] * 3,
             "med_dose_unit": ["mcg/kg/min", "", None],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         assert self._warnings_for(result, "norepinephrine") == []
         assert result.metrics["total_records"] == 1
         empties = [w for w in result.warnings
@@ -1830,14 +1595,13 @@ class TestCheckMedicationDoseUnits:
         assert len(empties) == 1
         assert empties[0]["details"]["empty_string_rows"] == 1
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_volume_infusion_rate_unit_subcheck(self, backend):
+    def test_volume_infusion_rate_unit_subcheck(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine"] * 3,
             "med_dose_unit": ["mcg/kg/min"] * 3,
             "volume_infusion_rate_unit": ["ml/hr", "l/hr", None],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         vol = result.metrics["volume_infusion_rate_unit"]
         assert vol["matched_records"] == 1
         assert vol["mismatched_records"] == 1
@@ -1846,19 +1610,17 @@ class TestCheckMedicationDoseUnits:
         assert result.atomic_total == len(
             self.CONT_SCHEMA["med_category_to_dose_unit_mapping"]) + 1
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_volume_column_absent_is_skipped(self, backend):
+    def test_volume_column_absent_is_skipped(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine"],
             "med_dose_unit": ["mcg/kg/min"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         assert "volume_infusion_rate_unit" not in result.metrics
         assert result.atomic_total == len(
             self.CONT_SCHEMA["med_category_to_dose_unit_mapping"])
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_intermittent_ignores_volume_key(self, backend):
+    def test_intermittent_ignores_volume_key(self):
         schema = dict(self.INT_SCHEMA,
                       expected_volume_infusion_rate_unit="ml/hr")
         df = pd.DataFrame({
@@ -1866,13 +1628,12 @@ class TestCheckMedicationDoseUnits:
             "med_dose_unit": ["mg"],
             "volume_infusion_rate_unit": ["l/hr"],
         })
-        result = self._run(backend, df, schema,
+        result = self._run(df, schema,
                            table="medication_admin_intermittent")
         assert "volume_infusion_rate_unit" not in result.metrics
         assert result.warnings == []
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_report_enrichment_shows_units_and_rule_code(self, backend):
+    def test_report_enrichment_shows_units_and_rule_code(self):
         # The report layer must render rule code C.8, the category as the
         # column field, and expected-vs-observed units in the finding text.
         from clifpy.utils.rule_codes import enrich_issue
@@ -1880,7 +1641,7 @@ class TestCheckMedicationDoseUnits:
             "med_category": ["norepinephrine"],
             "med_dose_unit": ["mg/hr"],
         })
-        result = self._run(backend, df, self.CONT_SCHEMA)
+        result = self._run(df, self.CONT_SCHEMA)
         warn = self._warnings_for(result, "norepinephrine")[0]
         issue = enrich_issue({
             "category": "conformance", "check_type": "medication_dose_units",
@@ -1909,35 +1670,30 @@ class TestMedicationDoseUnitConsistencyExemptions:
     """P.4 shape check: exempt_units (validation_rules.yaml) lets valid
     non-rate units like nitric_oxide's 'ppm' through for continuous meds."""
 
-    def _run(self, backend, df, table="medication_admin_continuous"):
-        if backend == "polars":
-            return check_medication_dose_unit_consistency_polars(
-                pl.from_pandas(df).lazy(), table)
-        return check_medication_dose_unit_consistency_duckdb(df, table)
+    def _run(self, df, table="medication_admin_continuous"):
+        return check_medication_dose_unit_consistency_polars(
+            pl.from_pandas(df).lazy(), table)
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_ppm_exempt_for_continuous(self, backend):
+    def test_ppm_exempt_for_continuous(self):
         df = pd.DataFrame({
             "med_category": ["nitric_oxide", "norepinephrine"],
             "med_dose_unit": ["ppm", "mcg/kg/min"],
         })
-        result = self._run(backend, df)
+        result = self._run(df)
         assert result.metrics["unit_pattern_violations"] == 0
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_non_exempt_discrete_unit_still_flagged(self, backend):
+    def test_non_exempt_discrete_unit_still_flagged(self):
         df = pd.DataFrame({
             "med_category": ["norepinephrine", "norepinephrine"],
             "med_dose_unit": ["mg", "mcg/kg/min"],
         })
-        result = self._run(backend, df)
+        result = self._run(df)
         assert result.metrics["unit_pattern_violations"] == 1
 
-    @pytest.mark.parametrize("backend", ["polars", "duckdb"])
-    def test_intermittent_unaffected_by_exemptions(self, backend):
+    def test_intermittent_unaffected_by_exemptions(self):
         df = pd.DataFrame({
             "med_category": ["acetaminophen", "acetaminophen"],
             "med_dose_unit": ["mg", "mg/hr"],
         })
-        result = self._run(backend, df, table="medication_admin_intermittent")
+        result = self._run(df, table="medication_admin_intermittent")
         assert result.metrics["unit_pattern_violations"] == 1

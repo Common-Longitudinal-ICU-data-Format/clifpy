@@ -13,27 +13,43 @@ from clifpy.tables.patient import Patient
 from clifpy.utils.io import load_data
 
 
-def test_base_table_rejects_a_polars_frame():
-    """The boundary guard: a polars frame fails immediately, naming the fix.
-
-    Without this the failure surfaces much later inside validation or summary stats
-    as a confusing AttributeError.
-    """
+def test_base_table_accepts_a_polars_frame():
+    """The table layer stores polars now, so a polars frame is taken as-is."""
     df = pl.DataFrame({"patient_id": ["1"], "sex_category": ["female"]})
-    with pytest.raises(TypeError, match="return_format='pandas'"):
-        Patient(data=df)
+    patient = Patient(data=df)
+    assert isinstance(patient.data, pl.DataFrame)
+    assert patient.data.equals(df)
+
+
+def test_base_table_rejects_an_unsupported_type():
+    """The boundary guard still names the accepted types."""
+    with pytest.raises(TypeError, match="pandas DataFrame, polars"):
+        Patient(data=[{"patient_id": "1"}])
 
 
 def test_base_table_accepts_pandas():
+    """pandas input is converted on the way in; .df hands pandas back."""
     df = pd.DataFrame({"patient_id": ["1"], "sex_category": ["female"]})
-    assert isinstance(Patient(data=df).df, pd.DataFrame)
+    patient = Patient(data=df)
+    assert isinstance(patient.data, pl.DataFrame)
+    assert isinstance(patient.df, pd.DataFrame)
 
 
-def test_from_file_still_yields_pandas(demo_dir):
-    """base_table.from_file is pinned, so the table layer is unaffected by the flip."""
+def test_df_still_yields_pandas(demo_dir):
+    """.df stays pandas for the ~20 modules that read it that way."""
     patient = Patient.from_file(data_directory=demo_dir, filetype="parquet",
                                 timezone="US/Eastern")
+    assert isinstance(patient.data, pl.DataFrame)
     assert isinstance(patient.df, pd.DataFrame)
+
+
+def test_df_conversion_is_cached_and_invalidated(demo_dir):
+    """The pandas view is built once, and rebuilt after .df is reassigned."""
+    patient = Patient.from_file(data_directory=demo_dir, filetype="parquet",
+                                timezone="US/Eastern")
+    assert patient.df is patient.df                      # cached
+    patient.df = pl.DataFrame({"patient_id": ["9"]})     # setter invalidates
+    assert patient.df["patient_id"].tolist() == ["9"]
 
 
 def test_pandas_format_matches_the_historic_default(demo_dir):
