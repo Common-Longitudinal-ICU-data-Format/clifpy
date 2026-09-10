@@ -296,23 +296,87 @@ maximum cardiovascular support on SOFA-2. Written up separately in
 
 ---
 
+## Finding 4 — the worst losses are on the *small* drugs
+
+All 12 forced drugs were analysed at both sites, not just the vasopressors.
+Reporting only the big three would have missed the clearest pattern in the data.
+
+| medication | site | administrations | hospitalizations | rows lost | **encounters fully lost** | verdict |
+|---|---|---:|---:|---:|---:|---|
+| naloxone | RUSH | 231 | 64 | **22.5%** | 10.9% | B |
+| naloxone | NU | 1,576 | 209 | **16.1%** | 12.9% | B |
+| isoproterenol | RUSH | 119 | 17 | 5.0% | **11.8%** | B |
+| isoproterenol | NU | 5,724 | 289 | 1.9% | **6.6%** | B |
+| ketamine | RUSH | 33,935 | 2,009 | 3.5% | 4.0% | B (biased) |
+| ketamine | NU | 26,393 | 1,070 | 0.8% | 0.5% | B (biased) |
+| heparin | RUSH | 298,710 | 18,125 | 0.09% | 0.07% | A |
+| heparin | NU | 1,049,939 | 21,194 | 0.06% | 1.6% | A |
+| propofol | RUSH | 208,534 | 9,077 | 0.04% | 0.12% | A |
+| dexmedetomidine | both | 1.2M | 31,542 | 0.00% | 0.02% | A |
+
+Three things worth drawing out:
+
+**Loss is inversely related to volume.** naloxone — 231 administrations at RUSH —
+loses 22.5% of its rows, the worst of any drug. dexmedetomidine, at 1.2 million
+administrations, loses essentially none. The drugs most damaged by forcing are
+the ones least likely to be noticed.
+
+The reason is clinical rather than technical: naloxone and isoproterenol are
+given early and briefly, often during resuscitation, to patients who have not
+been weighed yet. Continuous sedation is given to patients who have been in the
+unit long enough to be weighed. It is the same weight-timing problem as the
+vasopressors, concentrated.
+
+**Row loss understates the damage on small drugs.** isoproterenol at NU loses
+1.9% of rows but **6.6% of hospitalizations entirely** — a patient on a
+short-lived drug has few rows, so losing any tends to lose all of them, and that
+patient disappears from any isoproterenol-defined cohort. This is why loss is
+reported at four granularities rather than one.
+
+**Volume alone would give the wrong answer.** heparin is flagged BIASED at both
+sites — the doses that fail to convert are genuinely unlike those that succeed —
+yet it is still **option A**, because the loss is 0.06–0.09%. A biased 0.06% is
+not worth a second unit. The rule requires both bias *and* material loss.
+
+### A limitation this exposes
+
+At RUSH, isoproterenol has **17 hospitalizations** and naloxone **64**. Those are
+below or near the suppression threshold, so single-site estimates for them are
+noisy — RUSH's isoproterenol row loss (5.0%) and NU's (1.9%) differ by more than
+the vasopressors ever do between sites.
+
+**Low-volume drugs cannot be settled by two sites.** They are exactly the drugs
+that need pooling across the consortium, and exactly the drugs where a single
+site's number should not be trusted. The vasopressor conclusion is robust because
+the cohorts are large and the two sites agree to within a fraction of a percent;
+the naloxone and isoproterenol conclusions are provisional.
+
 ## 6. The recommendation
 
-**Option B for six medications. Option A for everything else.**
+**Option B for six medications. Option A for the other six.**
 
-Both sites independently flagged the same six, for the same reasons:
+All 12 forced drugs were assessed at both sites. Both sites independently
+flagged the same six, and for two distinct reasons:
 
-| medication | why |
-|---|---|
-| norepinephrine | mixed output column, 0% of the mixture detectable |
-| phenylephrine | same |
-| epinephrine | same |
-| ketamine | the doses that fail to convert are systematically different from those that succeed |
-| isoproterenol | >5% of hospitalizations lose the drug entirely |
-| naloxone | same, plus biased loss |
+| medication | cohort (both sites) | why | confidence |
+|---|---:|---|---|
+| norepinephrine | 48,386 | output column silently mixed, none of it detectable | **high** — large cohorts, sites agree to 0.2 pts |
+| phenylephrine | 27,653 | same | **high** |
+| epinephrine | 11,502 | same | **high** |
+| ketamine | 3,079 | doses that fail to convert are systematically unlike those that succeed | moderate |
+| isoproterenol | 306 | loses 6.6–11.8% of hospitalizations entirely | **provisional** — small cohorts |
+| naloxone | 273 | loses 16–22% of rows, the worst of any drug | **provisional** — small cohorts |
 
-Every other medication — including heparin, propofol and dexmedetomidine, which
-carry far more volume — comes out as **Option A, loss negligible**.
+The other six come out as **Option A**: heparin, propofol, dexmedetomidine,
+dopamine, rocuronium and the remaining anticoagulants and antiplatelets. Between
+them they carry more volume than all six above combined, and lose 0.00–0.3%.
+
+**The two reasons are not interchangeable.** The three vasopressors fail because
+the loss is *undetectable* — a safety argument that holds at any volume.
+isoproterenol and naloxone fail because the loss is *large* — a power argument
+that depends on the numbers, and their cohorts here are 17–289
+hospitalizations. Treat the first three as settled and the last two as pending
+more sites.
 
 ### The reasoning is about safety, not volume
 
