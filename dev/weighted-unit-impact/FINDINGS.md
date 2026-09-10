@@ -67,30 +67,43 @@ counted as disagreement.
 
 ### Drugs where sites disagree
 
-| medication | sites | weighted | unweighted | observations | % obs weighted | the unweighted sites |
-|---|---:|---:|---:|---:|---:|---|
-| norepinephrine | 11 | 7 | 4 | 18,163,487 | 53% | NU, RUSH, Sunnybrook, UPenn |
-| heparin | 11 | 7 | 4 | 11,996,890 | 69% | MIMIC, OHSU, Sunnybrook, UMN |
-| phenylephrine | 11 | 5 | 6 | 3,862,040 | 40% | NU, OHSU, RUSH, Sunnybrook, UCSF, UPenn |
-| epinephrine | 11 | 7 | 4 | 3,344,544 | 58% | NU, RUSH, Sunnybrook, UPenn |
-| nicardipine | 11 | 1 | 10 | 2,589,665 | 3% | all but MIMIC |
-| ketamine | 11 | 8 | 3 | 1,207,867 | 83% | OHSU, RUSH, UMN |
-| nitroglycerin | 11 | 1 | 10 | 1,025,314 | 25% | all but MIMIC |
-| epoprostenol | 10 | 9 | 1 | 377,494 | 92% | Emory |
-| vecuronium | 9 | 8 | 1 | 214,047 | 100% | OHSU |
-| tacrolimus | 4 | 1 | 3 | 143,528 | 10% | Emory, UCSF, UMN |
-| rocuronium | 10 | 9 | 1 | 102,736 | 92% | OHSU |
-| isoproterenol | 10 | 3 | 7 | 97,608 | 44% | Emory, NU, RUSH, Sunnybrook, UCMC, UCSF, UPenn |
-| naloxone | 10 | 3 | 7 | 50,920 | 57% | Emory, MIMIC, NU, RUSH, Sunnybrook, UMN, UPenn |
-| albumin | 6 | 1 | 5 | 13,761 | 3% | Emory, NU, RUSH, Sunnybrook, UCSF |
-| adenosine | 6 | 5 | 1 | 2,082 | 41% | OHSU |
-| zidovudine | 6 | 5 | 1 | 1,342 | 93% | UMN |
-| etomidate | 3 | 1 | 2 | 1,293 | 12% | OHSU, UMN |
+The **mCIDE target** column is what the drug would be standardized *to*. It is
+the deciding column: a split only forces a conversion when the target is
+weight-based **and** a site charts unweighted.
 
-Two of these need no action at all: **nicardipine and nitroglycerin** are charted
-unweighted by 10 of 11 sites, and mCIDE also targets them unweighted (`mg/hr`,
-`mcg/min`). The lone weighted site is the outlier, and no forced conversion
-occurs. They appear here only because the sites disagree.
+| medication | mCIDE target | forces a conversion? | sites | wt | unwt | observations | % obs weighted | the unweighted sites |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| norepinephrine | `mcg/kg/min` | **yes** | 11 | 7 | 4 | 18,163,487 | 53% | NU, RUSH, Sunnybrook, UPenn |
+| heparin | `units/kg/hr` | **yes** | 11 | 7 | 4 | 11,996,890 | 69% | MIMIC, OHSU, Sunnybrook, UMN |
+| phenylephrine | `mcg/kg/min` | **yes** | 11 | 5 | 6 | 3,862,040 | 40% | NU, OHSU, RUSH, Sunnybrook, UCSF, UPenn |
+| epinephrine | `mcg/kg/min` | **yes** | 11 | 7 | 4 | 3,344,544 | 58% | NU, RUSH, Sunnybrook, UPenn |
+| nicardipine | `mg/hr` | no — target is unweighted | 11 | 1 | 10 | 2,589,665 | 3% | all but MIMIC |
+| ketamine | `mg/kg/hr` | **yes** | 11 | 8 | 3 | 1,207,867 | 83% | OHSU, RUSH, UMN |
+| nitroglycerin | `mcg/min` | no — target is unweighted | 11 | 1 | 10 | 1,025,314 | 25% | all but MIMIC |
+| epoprostenol | `ng/kg/min` (IV)<br>`mcg/kg/min` (inhaled) | **yes** | 10 | 9 | 1 | 377,494 | 92% | Emory |
+| vecuronium | `mcg/kg/min` | **yes** | 9 | 8 | 1 | 214,047 | 100% | OHSU |
+| tacrolimus | `mcg/kg/day` | **yes** | 4 | 1 | 3 | 143,528 | 10% | Emory, UCSF, UMN |
+| rocuronium | `mcg/kg/min` | **yes** | 10 | 9 | 1 | 102,736 | 92% | OHSU |
+| isoproterenol | `mcg/kg/min` | **yes** | 10 | 3 | 7 | 97,608 | 44% | Emory, NU, RUSH, Sunnybrook, UCMC, UCSF, UPenn |
+| naloxone | `mcg/kg/hr` | **yes** | 10 | 3 | 7 | 50,920 | 57% | Emory, MIMIC, NU, RUSH, Sunnybrook, UMN, UPenn |
+| albumin | *not in mCIDE* | no — no target | 6 | 1 | 5 | 13,761 | 3% | Emory, NU, RUSH, Sunnybrook, UCSF |
+| adenosine | *not in mCIDE* | no — no target | 6 | 5 | 1 | 2,082 | 41% | OHSU |
+| zidovudine | `mg/kg/hr` | **yes** | 6 | 5 | 1 | 1,342 | 93% | UMN |
+| etomidate | *not in mCIDE* | no — no target | 3 | 1 | 2 | 1,293 | 12% | OHSU, UMN |
+
+Three groups fall out of this immediately:
+
+- **Not actually a problem (2 drugs, 3.6M observations).** `nicardipine → mg/hr` and `nitroglycerin → mcg/min` have **unweighted** targets. Ten of eleven sites already chart them unweighted; the lone weighted site (MIMIC) is the outlier. No conversion is forced and no weight is needed. They appear here only because sites disagree.
+- **Outside the standardization entirely (3 drugs).** `albumin`, `adenosine` and `etomidate` have **no mCIDE continuous target**, so nothing standardizes them. (mCIDE does define `albumin_5` and `albumin_25`; the bare `albumin` category that several sites report is not among them — a mapping question, not a units one.)
+- **Genuinely forced (12 drugs).** Everything else has a weight-indexed target, so any site charting it unweighted must divide by a patient weight. That is the set this analysis is about.
+
+**One target is route-dependent.** `epoprostenol` has two mCIDE entries
+distinguished by `med_group`: `ng/kg/min` for IV and `mcg/kg/min` for inhaled — a
+factor of 1000 apart, because they are different therapies. clifpy's
+`preferred_units` is keyed on `med_category` alone and can hold only one, so it
+keeps the first and warns. Any site with both routes should set the target
+explicitly for its cohort. `terbutaline` has the same shape (`mg` inhaled vs
+`mcg/kg/min` otherwise) but is not contested, so it does not appear above.
 
 ### Which sites sit on the unweighted side, and for how many drugs
 
@@ -114,11 +127,16 @@ the concern that a site might simply not record weight is not supported at the
 site level; it has to be tested per drug, which is what the rest of this document
 does.
 
-### Three distinct patterns, which need different responses
+### Two shapes of disagreement, which mean different things
 
-- **A convention block.** NU, RUSH, Sunnybrook and UPenn are ~0% weighted on epinephrine, norepinephrine *and* phenylephrine — the same four sites, the same three drugs. That is an institutional convention, not a data gap.
-- **An isolated anomaly.** OHSU is 20% and 16% weighted on vecuronium and rocuronium where every peer is ~100%. This is the shape that suggests a data problem rather than a convention, and is worth a separate look.
-- **A benign majority.** nicardipine and nitroglycerin, described above — no action needed.
+Among the 12 genuinely forced drugs, the split has two very different characters,
+and they call for different responses:
+
+- **A convention block.** NU, RUSH, Sunnybrook and UPenn are ~0% weighted on epinephrine, norepinephrine *and* phenylephrine — the same four sites, the same three drugs, essentially all-or-nothing. That is an institutional choice about how pumps and order sets display, not a data gap. It is stable, predictable, and the right target for a policy decision.
+- **An isolated anomaly.** OHSU is 20% and 16% weighted on vecuronium and rocuronium where every peer is ~100%. A site that is weighted for *most* drugs but anomalously unweighted for a few is the shape that suggests a **data problem** rather than a convention — perhaps weight missing for a particular unit or service. That deserves a look at OHSU specifically, not a consortium-wide policy.
+
+The distinction matters because only the first is fixed by choosing option A or
+B. The second would persist under either.
 
 ### Why the rest of this document is mostly about vasopressors
 
