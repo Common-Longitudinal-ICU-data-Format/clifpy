@@ -1,0 +1,36 @@
+# Weighted dose unit impact analysis -- site configuration.
+#
+# Copy this file, fill in the five required fields, then run:
+#     make weight-impact CONFIG=<path to your copy>
+#
+# Everything this analysis writes is an aggregate. No patient-level data is
+# persisted, so the single output directory is safe to send back as-is.
+
+# ---- required -------------------------------------------------------------
+
+site_name: "Your_Site_Name"          # appears in the output folder name
+data_directory: "/path/to/clif/tables/"
+filetype: "parquet"                  # parquet or csv
+timezone: "US/Central"
+
+# REQUIRED, and deliberately not defaulted. clifpy falls back to "3.0", so a
+# 2.1 dataset left unlabelled validates against the wrong schema without any
+# warning. The analysis refuses to start if this is missing.
+clif_version: "2.1"                  # "2.1" or "3.0"
+
+# ---- optional, sensible defaults shown ------------------------------------
+
+# A weight charted more than this many days before a dose still satisfies the
+# converter's as-of lookup, but may be badly out of date. Reported separately.
+weight_staleness_days: 7
+
+# Any figure describing fewer than this many hospitalizations is suppressed
+# rather than written, so a scenario matching one patient cannot be
+# re-identified. Suppressed rows are kept and flagged, never dropped -- a
+# dropped row is indistinguishable from a true zero when pooling.
+min_cell_size: 11
+
+# null analyses all 29 drugs whose mCIDE target is weight-indexed but which at
+# least one site charts unweighted. Set a list to narrow, e.g.
+#   drug_subset: ["norepinephrine", "epinephrine", "phenylephrine"]
+drug_subset: null
