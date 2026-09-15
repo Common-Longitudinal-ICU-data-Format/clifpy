@@ -7,7 +7,7 @@ temp-table lifecycle, and preserves timezone metadata across the pipeline.
 import pandas as pd
 import duckdb
 from pathlib import Path
-from typing import Tuple, List, Dict, Union, Literal, Collection, overload
+from typing import Tuple, List, Dict, Union, Literal, Collection, Sequence, overload
 from duckdb import DuckDBPyRelation
 
 from clifpy.utils.logging_config import get_logger
@@ -25,7 +25,7 @@ from ._columns import (
     validate_column_name,
 )
 from ._base import standardize_dose_to_base_units
-from ._weight import find_most_recent_weight
+from ._weight import find_most_recent_weight, attach_weight, _validate_weight_args
 from ._preferred import _convert_base_units_to_preferred_units
 from ._counts import _create_unit_conversion_counts_table
 from ._targets import load_dose_unit_targets
@@ -43,6 +43,10 @@ def convert_dose_units_by_med_category(
     return_rel: Literal[False] = ...,
     id_name: str = ...,
     fallback_on_earliest: bool = ...,
+    *,
+    weight_fallbacks: Sequence[str] | None = ...,
+    hospitalization_df: pd.DataFrame | DuckDBPyRelation | None = ...,
+    weight_max_staleness_days: float | None = ...,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]: ...
 
 
@@ -56,6 +60,10 @@ def convert_dose_units_by_med_category(
     return_rel: Literal[True] = ...,
     id_name: str = ...,
     fallback_on_earliest: bool = ...,
+    *,
+    weight_fallbacks: Sequence[str] | None = ...,
+    hospitalization_df: pd.DataFrame | DuckDBPyRelation | None = ...,
+    weight_max_staleness_days: float | None = ...,
 ) -> Tuple[DuckDBPyRelation, DuckDBPyRelation]: ...
 
 
@@ -120,6 +128,10 @@ def convert_dose_units_by_med_category(
     time_col: str = 'admin_dttm',
     converted_dose_col: str = 'med_dose_converted',
     converted_unit_col: str = 'med_dose_unit_converted',
+    *,
+    weight_fallbacks: Sequence[str] | None = None,
+    hospitalization_df: pd.DataFrame | DuckDBPyRelation | None = None,
+    weight_max_staleness_days: float | None = None,
 ) -> Union[Tuple[pd.DataFrame, pd.DataFrame], Tuple[DuckDBPyRelation, DuckDBPyRelation]]:
     """Convert medication dose units to preferred units, weight-aware and DuckDB-native.
 
@@ -168,6 +180,23 @@ def convert_dose_units_by_med_category(
         Forwarded to `find_most_recent_weight` when our internal lookup fires.
         When True, rows whose ASOF returns NULL fall back to the earliest
         charted weight for the same hospitalization (handles documentation lag).
+        Equivalent to `weight_fallbacks=('asof', 'same_hosp_earliest')` except
+        for the provenance label (`'earliest_fallback'`). Cannot be combined
+        with `weight_fallbacks`.
+    weight_fallbacks : sequence of str, optional
+        Ordered weight-lookup strategies from
+        :data:`~clifpy.utils.unit_converter.WEIGHT_FALLBACKS`, passed to
+        :func:`~clifpy.utils.unit_converter.attach_weight` when our internal
+        lookup fires. The first strategy yielding a weight wins per row and is
+        recorded in `_weight_source`. `('asof', 'same_hosp_earliest')` is the
+        recommended choice. Default None keeps the `fallback_on_earliest` path.
+    hospitalization_df : pd.DataFrame or DuckDBPyRelation, optional
+        `{id_name}`, `patient_id`, `admission_dttm`. Required when
+        `weight_fallbacks` names `'prior_hosp_latest'` or
+        `'later_hosp_earliest'`.
+    weight_max_staleness_days : float, optional
+        Treat an `'asof'` weight older than this many days as missing, so the
+        row falls through to the next strategy. Requires `weight_fallbacks`.
 
     Returns
     -------
@@ -186,8 +215,31 @@ def convert_dose_units_by_med_category(
     Notes
     -----
     User-prefilled `weight_kg` is honored exactly: if the column is present in
-    `med_df`, our lookup is skipped entirely (NULLs are preserved as-is).
+    `med_df`, our lookup is skipped entirely (NULLs are preserved as-is). This
+    holds even when `weight_fallbacks` is given; pre-attach with
+    :func:`~clifpy.utils.unit_converter.attach_weight` to use one weight
+    consistently across several tables.
     """
+    # Validate the weight-lookup arguments before any temp table exists, so a
+    # bad chain fails fast even when no row turns out to need weight.
+    if weight_fallbacks is not None:
+        if fallback_on_earliest:
+            raise ValueError(
+                "pass either fallback_on_earliest=True or weight_fallbacks, not "
+                "both; the equivalent chain is "
+                "weight_fallbacks=('asof', 'same_hosp_earliest')"
+            )
+        weight_fallbacks = _validate_weight_args(
+            weight_fallbacks, hospitalization_df, id_name, weight_max_staleness_days,
+        )
+    elif weight_max_staleness_days is not None:
+        raise ValueError(
+            "weight_max_staleness_days requires weight_fallbacks, e.g. "
+            "weight_fallbacks=('asof', 'same_hosp_earliest')"
+        )
+    elif hospitalization_df is not None:
+        logger.warning("hospitalization_df is ignored unless weight_fallbacks is given")
+
     n_categories = len(preferred_units) if preferred_units else 0
     logger.info(f"Converting dose units for {n_categories} med categories...")
 
@@ -404,12 +456,29 @@ def convert_dose_units_by_med_category(
                         FROM med_df_preferred
                         WHERE NOT ({needs_wt_filter})
                     """)
-                    needs_wt_joined = find_most_recent_weight(
-                        needs_wt_subset,
-                        vitals_df,
-                        id_name=id_name,
-                        fallback_on_earliest=fallback_on_earliest,
-                    )
+                    if weight_fallbacks is not None:
+                        # The time column is already renamed to the internal
+                        # `admin_dttm` here, which is attach_weight's default.
+                        needs_wt_attached = attach_weight(
+                            needs_wt_subset,
+                            vitals_df,
+                            id_name=id_name,
+                            fallbacks=weight_fallbacks,
+                            hospitalization_df=hospitalization_df,
+                            max_staleness_days=weight_max_staleness_days,
+                        )
+                        # Keep only the three provenance columns stage 2 and
+                        # the output hygiene below know about.
+                        needs_wt_joined = duckdb.sql("""
+                            SELECT * EXCLUDE (_weight_age_hours) FROM needs_wt_attached
+                        """)
+                    else:
+                        needs_wt_joined = find_most_recent_weight(
+                            needs_wt_subset,
+                            vitals_df,
+                            id_name=id_name,
+                            fallback_on_earliest=fallback_on_earliest,
+                        )
                     med_df_preferred = duckdb.sql("""
                         SELECT * FROM needs_wt_joined
                         UNION ALL BY NAME

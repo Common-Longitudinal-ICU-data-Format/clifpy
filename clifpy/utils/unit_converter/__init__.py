@@ -75,7 +75,7 @@ from ._columns import (
     rename_to_internal,
     rename_from_internal,
 )
-from ._weight import find_most_recent_weight
+from ._weight import WEIGHT_FALLBACKS, attach_weight, find_most_recent_weight
 from ._base import (
     _convert_clean_units_to_base_units,
     standardize_dose_to_base_units,
@@ -100,6 +100,8 @@ __all__ = [
     "available_target_formats",
     "standardize_dose_to_base_units",
     "find_most_recent_weight",
+    "attach_weight",
+    "WEIGHT_FALLBACKS",
     "ALL_ACCEPTABLE_UNITS",
     "ACCEPTABLE_AMOUNT_UNITS",
     "ACCEPTABLE_RATE_UNITS",

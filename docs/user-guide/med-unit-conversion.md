@@ -127,7 +127,7 @@ co.convert_dose_units_for_continuous_meds(preferred_units=preferred_units_cont)
 Under the hood, this function automatically loads and uses the medication and vitals tables to generate two dataframes that are saved to the corresponding medication table instance by default:
 
 1. **`co.medication_admin_continuous.df_converted`** gives the updated medication table with the new columns appended:
-   - `weight_kg`: the most recent weight relative to the `admin_dttm` pulled from the `vitals` table.
+   - `weight_kg`: the most recent weight relative to the `admin_dttm` pulled from the `vitals` table (see [Patient weight lookup](#patient-weight-lookup) for fallbacks when none precedes the dose).
    - `_clean_unit`: cleaned source unit string where both 'U/h' and 'units / hour' would be standardized to 'u/hr', for example.
    - `_unit_class`: distinguishes where the source unit is an amount (e.g. 'mcg'), a 'rate' (e.g. 'mcg/hr'), or 'unrecognized'.
    - `_convert_status`: documents whether the conversion is a "success" or, in the case of failure, the reason for failure, e.g. 'cannot convert amount to rate' for rows of propofol in 'mcg' that the users want to convert to 'mcg/kg/min'.
@@ -362,6 +362,124 @@ converted, counts = convert_dose_units_by_med_category(
 
 Matching is exact set membership, never a regex — `mg/kg/dose` is a prescribing
 rate, not a dosage form, and a regex on `dose` would wrongly capture it.
+
+## Patient weight lookup
+
+Patient weight is needed **only** when a conversion crosses the weight axis:
+weighted to unweighted (`mcg/kg/min → mcg/min`) or the reverse
+(`mg → mcg/kg`). `/kg ↔ /lb` is a constant factor, and every other conversion
+never looks at weight. When `med_df` has no `weight_kg` column and at least one
+row crosses the axis, the converter looks weights up in `vitals_df`
+(`vital_category = 'weight_kg'`).
+
+By default that lookup is a single **as-of** match: the latest weight charted
+at or before the dose, in the same hospitalization. A dose given before anyone
+charted a weight therefore fails with
+`cannot convert ... weight_kg is missing`. That happens often. Across two
+sites, 2–33% of hospitalizations per drug had their first weight charted only
+*after* the drug started. The gap is a matter of timing, not data quality:
+drugs started in the first minutes of a stay (naloxone, vasopressors) are the
+worst affected.
+
+### Fallback strategies
+
+`weight_fallbacks` is an ordered chain. For each row, the first strategy that
+finds a weight wins:
+
+| strategy | weight used | scenario it recovers |
+|---|---|---|
+| `asof` | latest weight at or before the dose, same hospitalization | 1 — weight charted before the dose |
+| `same_hosp_earliest` | earliest weight of the same hospitalization | 2 — weight charted only after the dose |
+| `prior_hosp_latest` | latest weight from the patient's other stays admitted **before** this one | 3 — weight only in an earlier admission |
+| `later_hosp_earliest` | earliest weight from the patient's other stays admitted **at or after** this one | 4 — weight only in a later admission |
+
+No strategy helps when the patient has no weight anywhere (scenario 5). Those
+rows keep a NULL weight and fail per row in `_convert_status`.
+
+```python
+converted, counts = convert_dose_units_by_med_category(
+    mac_df,
+    vitals_df=vitals_df,
+    preferred_units={"norepinephrine": "mcg/kg/min"},
+    weight_fallbacks=("asof", "same_hosp_earliest"),
+)
+```
+
+**Recommended: `("asof", "same_hosp_earliest")`.** It recovers most of the
+stays that fail under as-of alone, and the recovery is largest for exactly the
+early-started drugs above. The weight it borrows comes from the same admission,
+usually charted within hours of the dose. `fallback_on_earliest=True` is the
+older spelling of the same chain. It labels the fallback `earliest_fallback`
+rather than `same_hosp_earliest`, and it cannot be combined with
+`weight_fallbacks`.
+
+The two cross-admission strategies need `hospitalization_df` (with
+`hospitalization_id`, `patient_id` and `admission_dttm`), because vitals carry
+no `patient_id`. Two stays with the same `admission_dttm` count as *later* to
+each other, never *prior*.
+
+!!! warning "Cross-admission weights are for sensitivity analyses"
+    A weight from another admission can be months or years old, and ICU weight
+    genuinely moves with fluid resuscitation and diuresis. Keep
+    `prior_hosp_latest` and `later_hosp_earliest` out of a primary analysis.
+    Use them to check whether conclusions change when these rows are
+    recovered, and report `_weight_age_hours` alongside.
+
+### Staleness limit
+
+`weight_max_staleness_days` rejects an `asof` weight charted more than that
+many days before the dose. The row then falls through to the next strategy, or
+stays NULL if there is none. The limit gates `asof` only: a later strategy in
+the chain can still return an older weight (for example, `same_hosp_earliest`
+may return that same early weight). Check `_weight_age_hours` when combining
+the two.
+
+### Invalid weights
+
+Weights of zero or below are ignored, since they would make a converted dose
+infinite or negative. Several weights charted at the same instant for the same
+stay are averaged, so the result does not depend on row order.
+
+### Provenance columns
+
+`attach_weight` adds four columns. The converter keeps the first three when
+`show_intermediate=True`:
+
+- `weight_kg`: the chosen weight (NULL if none)
+
+- `_weight_source`: the winning strategy name, or NULL
+
+- `_weight_recorded_dttm`: when that weight was charted
+
+- `_weight_age_hours`: hours from `_weight_recorded_dttm` to the dose, negative when the weight was charted after it
+
+Timestamps are neither cast nor shifted. A tz-aware `admin_dttm` comes back
+with the same instants.
+
+### Using one weight across tables
+
+If `weight_kg` is already a column of `med_df`, the converter uses it as-is and
+skips the lookup. Attach weights once and pass the result to both the
+continuous and the intermittent conversion, so the same patient is converted
+with the same weight rule everywhere:
+
+```python
+from clifpy.utils.unit_converter import attach_weight, convert_dose_units_by_med_category
+
+chain = dict(
+    fallbacks=("asof", "same_hosp_earliest"),
+    max_staleness_days=7,
+)
+mac_w = attach_weight(mac_df, vitals_df, **chain)
+mai_w = attach_weight(mai_df, vitals_df, **chain)
+
+mac_out, _ = convert_dose_units_by_med_category(mac_w, preferred_units=cont_prefs)
+mai_out, _ = convert_dose_units_by_med_category(mai_w, preferred_units=intm_prefs)
+```
+
+`attach_weight` returns a lazy DuckDB relation, and its output rows are not
+guaranteed to be in input order. It accepts pandas DataFrames or DuckDB
+relations, and takes `time_col=` when the dose time is not `admin_dttm`.
 
 ## Error Handling
 
