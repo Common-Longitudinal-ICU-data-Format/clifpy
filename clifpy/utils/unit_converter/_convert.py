@@ -195,8 +195,11 @@ def convert_dose_units_by_med_category(
         `weight_fallbacks` names `'prior_hosp_latest'` or
         `'later_hosp_earliest'`.
     weight_max_staleness_days : float, optional
-        Treat an `'asof'` weight older than this many days as missing, so the
-        row falls through to the next strategy. Requires `weight_fallbacks`.
+        Make a weight charted more than this many days before the dose
+        ineligible for every strategy except `'later_hosp_earliest'`; weights
+        charted after the dose stay eligible. See
+        :func:`~clifpy.utils.unit_converter.attach_weight`. Requires
+        `weight_fallbacks`.
 
     Returns
     -------

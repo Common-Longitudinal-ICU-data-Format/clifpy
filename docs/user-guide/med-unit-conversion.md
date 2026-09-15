@@ -427,12 +427,25 @@ each other, never *prior*.
 
 ### Staleness limit
 
-`weight_max_staleness_days` rejects an `asof` weight charted more than that
-many days before the dose. The row then falls through to the next strategy, or
-stays NULL if there is none. The limit gates `asof` only: a later strategy in
-the chain can still return an older weight (for example, `same_hosp_earliest`
-may return that same early weight). Check `_weight_age_hours` when combining
-the two.
+`weight_max_staleness_days` makes a weight ineligible for a dose when it was
+charted more than that many days **before** the dose. Weights charted after the
+dose always stay eligible. The rule is checked per med row, for every strategy
+that can reach back in time:
+
+- `asof`: an ineligible match counts as missing, and the row falls through to the next strategy.
+
+- `same_hosp_earliest`: the earliest *eligible* weight of the stay, meaning the first weight inside the window, or else the first one after the dose. It is computed per row, because eligibility depends on the dose time.
+
+- `prior_hosp_latest`: the weight from the earlier admission must itself fall inside the window, which it rarely does.
+
+- `later_hosp_earliest`: not gated, since those weights come after the dose.
+
+For example, take `weight_fallbacks=("asof", "same_hosp_earliest")` with a
+7-day limit. A dose whose last prior weight is 10 days old uses the first
+weight charted after it, not the stale one. Age is measured as elapsed time,
+so a daylight-saving change cannot move the boundary. Rows with a missing dose
+time cannot be checked and get no weight from the gated strategies. Without
+the limit (the default), nothing is gated.
 
 ### Invalid weights
 

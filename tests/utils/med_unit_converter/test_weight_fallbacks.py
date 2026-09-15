@@ -240,6 +240,7 @@ def test_max_staleness_demotes_asof():
     to the next strategy when one is configured."""
     vitals = _vitals([
         ('H_CUR', '2024-03-01 10:00', 70.0),   # 10 days before the dose
+        ('H_CUR', '2024-03-11 14:00', 80.0),   # same stay, 4 h after the dose
         ('H_NEW', '2024-06-02 09:00', 88.0),   # later stay
     ])
     hosp = _hosp([
@@ -259,12 +260,70 @@ def test_max_staleness_demotes_asof():
     assert pd.isna(alone.loc[0, 'weight_kg'])
     assert pd.isna(alone.loc[0, '_weight_source'])
 
+    # same_hosp_earliest is gated too: it skips the stale 70 (the stay's
+    # earliest) and takes the first eligible weight, charted after the dose.
     chained = _attach(
+        meds, vitals, max_staleness_days=7,
+        fallbacks=('asof', 'same_hosp_earliest'),
+    )
+    assert chained.loc[0, 'weight_kg'] == 80.0
+    assert chained.loc[0, '_weight_source'] == 'same_hosp_earliest'
+    assert chained.loc[0, '_weight_age_hours'] == pytest.approx(-4.0)
+    uncapped_earliest = _attach(meds, vitals, fallbacks=('same_hosp_earliest',))
+    assert uncapped_earliest.loc[0, 'weight_kg'] == 70.0
+
+    # later_hosp_earliest is never gated
+    later = _attach(
         meds, vitals, max_staleness_days=7, hospitalization_df=hosp,
         fallbacks=('asof', 'later_hosp_earliest'),
     )
-    assert chained.loc[0, 'weight_kg'] == 88.0
-    assert chained.loc[0, '_weight_source'] == 'later_hosp_earliest'
+    assert later.loc[0, 'weight_kg'] == 88.0
+    assert later.loc[0, '_weight_source'] == 'later_hosp_earliest'
+
+
+def test_staleness_same_hosp_earliest_is_per_row():
+    """Under a cap the earliest ELIGIBLE weight moves with each dose."""
+    vitals = _vitals([
+        ('H1', '2024-03-01 09:00', 60.0),
+        ('H1', '2024-03-08 09:00', 65.0),
+        ('H1', '2024-03-20 09:00', 70.0),
+    ])
+    meds = _meds([
+        ('H1', '2024-03-05 09:00'),   # 60 is 4 d old -> eligible
+        ('H1', '2024-03-12 09:00'),   # 60 is 11 d old; 65 is 4 d old
+        ('H1', '2024-03-18 09:00'),   # both stale; 70 is after the dose
+    ])
+    capped = _attach(meds, vitals, fallbacks=('same_hosp_earliest',), max_staleness_days=7)
+    assert capped['weight_kg'].tolist() == [60.0, 65.0, 70.0]
+    assert capped['_weight_age_hours'].tolist() == pytest.approx([96.0, 96.0, -48.0])
+
+    uncapped = _attach(meds, vitals, fallbacks=('same_hosp_earliest',))
+    assert uncapped['weight_kg'].tolist() == [60.0, 60.0, 60.0]
+
+
+def test_staleness_gates_prior_hosp_latest():
+    vitals = _vitals([('H_OLD', '2024-02-01 10:00', 66.0)])  # 30 d before the dose
+    hosp = _hosp([
+        ('H_OLD', 'P1', '2024-01-30'),
+        ('H_CUR', 'P1', '2024-03-01'),
+    ])
+    meds = _meds([('H_CUR', '2024-03-02 10:00')])
+    kw = dict(fallbacks=('prior_hosp_latest',), hospitalization_df=hosp)
+    assert _attach(meds, vitals, **kw).loc[0, 'weight_kg'] == 66.0
+    assert pd.isna(_attach(meds, vitals, max_staleness_days=7, **kw).loc[0, 'weight_kg'])
+    assert _attach(meds, vitals, max_staleness_days=30, **kw).loc[0, 'weight_kg'] == 66.0
+
+
+@pytest.mark.parametrize('fallbacks', [WEIGHT_FALLBACKS, WEIGHT_FALLBACKS[::-1]])
+def test_unbounding_cap_matches_no_cap(scenario_data, fallbacks):
+    """A cap nothing can exceed must reproduce the uncapped result exactly,
+    even though same_hosp_earliest switches to a per-row join under a cap."""
+    meds, vitals, hosp = scenario_data
+    kw = dict(fallbacks=fallbacks, hospitalization_df=hosp)
+    pd.testing.assert_frame_equal(
+        _attach(meds, vitals, **kw),
+        _attach(meds, vitals, max_staleness_days=100_000, **kw),
+    )
 
 
 def test_zero_and_negative_weights_ignored():
@@ -289,6 +348,8 @@ def test_same_instant_duplicates_are_averaged():
     meds = _meds([('H_DUP', '2024-03-10 10:00')])
     runs = [_attach(meds, vitals).loc[0, 'weight_kg'] for _ in range(3)]
     assert runs == [72.0, 72.0, 72.0]
+    capped = _attach(meds, vitals, fallbacks=('same_hosp_earliest',), max_staleness_days=1)
+    assert capped.loc[0, 'weight_kg'] == 72.0
 
 
 def test_cross_stay_same_instant_tie_is_averaged():
@@ -311,7 +372,8 @@ def test_cross_stay_same_instant_tie_is_averaged():
 # Shape: row count, input columns, lazy relation
 # ===========================================
 
-def test_row_count_and_input_columns_preserved():
+@pytest.mark.parametrize('max_staleness_days', [None, 3])
+def test_row_count_and_input_columns_preserved(max_staleness_days):
     """No fan-out even with duplicate med rows, several stays per patient and
     a duplicated hospitalization row; input columns come back untouched."""
     vitals = _vitals(
@@ -336,6 +398,7 @@ def test_row_count_and_input_columns_preserved():
 
     rel = attach_weight(
         meds, vitals, fallbacks=WEIGHT_FALLBACKS, hospitalization_df=hosp,
+        max_staleness_days=max_staleness_days,
     )
     assert isinstance(rel, duckdb.DuckDBPyRelation)
     assert rel.columns == list(meds.columns) + [
@@ -389,6 +452,23 @@ def test_tz_aware_pandas_instants_preserved(tokyo_default_tz):
     assert out.loc[0, '_weight_recorded_dttm'] == vitals.loc[0, 'recorded_dttm']
     # 08:00 -> 10:00 on the US spring-forward day is still 2 wall-hours and 2 real ones
     assert out.loc[0, '_weight_age_hours'] == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize('fallbacks', [('asof',), ('same_hosp_earliest',)])
+def test_staleness_uses_elapsed_time_across_dst(tokyo_default_tz, fallbacks):
+    """US spring-forward: 10:00 EST to 10:00 EDT the next day is 24 wall-clock
+    hours but 23 real ones. The cap must see 23."""
+    tz = 'US/Eastern'
+    meds = _meds([('H1', '2024-03-10 10:00')])
+    meds['admin_dttm'] = meds['admin_dttm'].dt.tz_localize(tz)
+    vitals = _vitals([('H1', '2024-03-09 10:00', 72.0)])
+    vitals['recorded_dttm'] = vitals['recorded_dttm'].dt.tz_localize(tz)
+
+    kept = _attach(meds, vitals, fallbacks=fallbacks, max_staleness_days=23.5 / 24)
+    assert kept.loc[0, 'weight_kg'] == 72.0
+    assert kept.loc[0, '_weight_age_hours'] == pytest.approx(23.0)
+    dropped = _attach(meds, vitals, fallbacks=fallbacks, max_staleness_days=22.5 / 24)
+    assert pd.isna(dropped.loc[0, 'weight_kg'])
 
 
 def test_timestamptz_relation_input(tokyo_default_tz):
@@ -456,7 +536,7 @@ def test_missing_input_columns_raise(scenario_data):
         attach_weight(meds.assign(weight_kg=70.0), vitals)
 
 
-@pytest.mark.parametrize('bad', [-1, float('nan'), 'seven', True])
+@pytest.mark.parametrize('bad', [-1, float('nan'), float('inf'), 'seven', True])
 def test_invalid_staleness_raises(scenario_data, bad):
     meds, vitals, _ = scenario_data
     with pytest.raises(ValueError, match='max_staleness_days'):

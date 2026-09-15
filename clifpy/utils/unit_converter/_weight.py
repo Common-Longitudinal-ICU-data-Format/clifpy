@@ -100,12 +100,12 @@ def _validate_weight_args(
         if (
             isinstance(max_staleness_days, bool)
             or not isinstance(max_staleness_days, (int, float))
-            or math.isnan(max_staleness_days)
+            or not math.isfinite(max_staleness_days)
             or max_staleness_days < 0
         ):
             raise ValueError(
-                f"max_staleness_days must be a non-negative number or None; "
-                f"got {max_staleness_days!r}"
+                f"max_staleness_days must be a finite non-negative number or "
+                f"None; got {max_staleness_days!r}"
             )
     return fallbacks
 
@@ -129,10 +129,11 @@ def attach_weight(
     Strategies (see `WEIGHT_FALLBACKS`):
 
     - `'asof'`: latest weight recorded at or before `time_col` in the same
-      `id_name`. Honors `max_staleness_days`.
+      `id_name`.
     - `'same_hosp_earliest'`: earliest weight in the same `id_name`. Recovers
       stays where the drug started before anyone charted a weight -- what
-      `fallback_on_earliest=True` has always done.
+      `fallback_on_earliest=True` has always done. With `max_staleness_days`,
+      the earliest weight *eligible for that row*.
     - `'prior_hosp_latest'`: latest weight from the patient's *other* stays
       admitted strictly before this one.
     - `'later_hosp_earliest'`: earliest weight from the patient's *other* stays
@@ -158,9 +159,19 @@ def attach_weight(
         `{id_name}`, `patient_id`, `admission_dttm`. Required by the two
         cross-stay strategies.
     max_staleness_days : float, optional
-        When set, an `'asof'` match more than this many days older than
-        `time_col` is treated as missing and the row falls through to the next
-        strategy. Other strategies are not gated.
+        When set, a weight charted before `time_col` is ineligible for that row
+        if it is more than this many days old; weights charted after the dose
+        always stay eligible. Per strategy:
+
+        - `'asof'`, `'prior_hosp_latest'`: an ineligible pick counts as
+          missing and the row falls through. Each picks its latest candidate,
+          so nothing older could qualify instead.
+        - `'same_hosp_earliest'`: the earliest eligible weight, per row -- the
+          first inside the window, else the first after the dose.
+        - `'later_hosp_earliest'`: not gated; its weights postdate the dose.
+
+        Rows with a NULL `time_col` cannot be checked and get no weight from
+        the gated strategies. None (default) disables the check entirely.
 
     Returns
     -------
@@ -221,6 +232,12 @@ def attach_weight(
     logger.info(f"Attaching patient weights (fallbacks: {', '.join(fallbacks)})...")
     idq = quote_identifier(id_name)
     tq = quote_identifier(time_col)
+    # Whole microseconds, compared on epoch_us(): elapsed time between
+    # instants, so neither DST nor the session TimeZone can move the boundary.
+    limit_us = (
+        None if max_staleness_days is None
+        else int(round(max_staleness_days * _US_PER_DAY))
+    )
 
     # Positive weights only, one row per (stay, instant). Collapsing duplicates
     # here makes every ARG_MIN/ARG_MAX and the ASOF match below deterministic.
@@ -242,7 +259,7 @@ def attach_weight(
             ON m.{idq} = _asof.{idq}
             AND _asof.recorded_dttm <= m.{tq}""")
 
-    if 'same_hosp_earliest' in fallbacks:
+    if 'same_hosp_earliest' in fallbacks and limit_us is None:
         ctes.append(f"""
     _same_hosp_earliest AS (
         FROM _weights w
@@ -253,6 +270,14 @@ def attach_weight(
     )""")
         joins.append(f"""
         LEFT JOIN _same_hosp_earliest _she ON m.{idq} = _she.{idq}""")
+    elif 'same_hosp_earliest' in fallbacks:
+        # Under a cap the earliest ELIGIBLE weight depends on the dose time, so
+        # it is a forward ASOF per med row: the first weight charted no earlier
+        # than (time_col - cap). Weights after the dose satisfy that trivially.
+        joins.append(f"""
+        ASOF LEFT JOIN _weights _she
+            ON m.{idq} = _she.{idq}
+            AND epoch_us(m.{tq}) - {limit_us} <= epoch_us(_she.recorded_dttm)""")
 
     if _CROSS_HOSP_FALLBACKS & set(fallbacks):
         ctes.append(f"""
@@ -309,12 +334,16 @@ def attach_weight(
         'prior_hosp_latest': '_phl',
         'later_hosp_earliest': '_lhe',
     }
+    # Under a cap, `asof` and `prior_hosp_latest` each hold their LATEST
+    # candidate, so gating that one pick is the whole rule: anything older is
+    # staler. `same_hosp_earliest` is gated inside its join above, and
+    # `later_hosp_earliest` is never gated.
+    gated = {'asof', 'prior_hosp_latest'}
     branches = []
     for name in fallbacks:
         alias = aliases[name]
         usable = f"{alias}.weight_kg IS NOT NULL"
-        if name == 'asof' and max_staleness_days is not None:
-            limit_us = float(max_staleness_days) * _US_PER_DAY
+        if name in gated and limit_us is not None:
             usable += (
                 f" AND epoch_us(m.{tq}) - epoch_us({alias}.recorded_dttm)"
                 f" <= {limit_us}"
