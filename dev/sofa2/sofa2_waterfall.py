@@ -34,9 +34,9 @@ def _():
     from clifpy.utils.sofa2._utils import SOFA2Config
     from clifpy.utils.sofa2._core import _load_ecmo_optional
 
-    labs_rel = load_data('labs', config_path=CONFIG_PATH, return_rel=True)
-    vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_rel=True)
-    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_rel=True)
+    labs_rel = load_data('labs', config_path=CONFIG_PATH, return_format='duckdb')
+    vitals_rel = load_data('vitals', config_path=CONFIG_PATH, return_format='duckdb')
+    resp_rel = load_data('respiratory_support', config_path=CONFIG_PATH, return_format='duckdb')
     ecmo_rel = _load_ecmo_optional(CONFIG_PATH)
 
     cfg = SOFA2Config()
@@ -45,7 +45,7 @@ def _():
 
 @app.cell
 def _(load_data):
-    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
+    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_format='duckdb')
     return (adt_rel,)
 
 

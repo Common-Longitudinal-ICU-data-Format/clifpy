@@ -40,13 +40,13 @@ def _():
         load_data('adt', config_path=CONFIG_PATH,
                   filters={'location_category': 'icu'},
                   columns=['hospitalization_id', 'in_dttm'],
-                  return_rel=True)
+                  return_format='duckdb')
         .pl().lazy()
     )
     hosp_lf = (
         load_data('hospitalization', config_path=CONFIG_PATH,
                   columns=['hospitalization_id', 'discharge_category'],
-                  return_rel=True)
+                  return_format='duckdb')
         .pl().lazy()
     )
     return adt_lf, hosp_lf

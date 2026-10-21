@@ -48,14 +48,14 @@ def _():
 def _():
     from clifpy import load_data
 
-    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_rel=True)
-    hosp_rel = load_data('hospitalization', config_path=CONFIG_PATH, return_rel=True)
-    assessments_rel = load_data('patient_assessments_raw_gcs', config_path=CONFIG_PATH, return_rel=True)
-    cont_meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_rel=True)
+    adt_rel = load_data('adt', config_path=CONFIG_PATH, return_format='duckdb')
+    hosp_rel = load_data('hospitalization', config_path=CONFIG_PATH, return_format='duckdb')
+    assessments_rel = load_data('patient_assessments_raw_gcs', config_path=CONFIG_PATH, return_format='duckdb')
+    cont_meds_rel = load_data('medication_admin_continuous', config_path=CONFIG_PATH, return_format='duckdb')
 
     try:
         intm_meds_rel = load_data(
-            'medication_admin_intermittent', config_path=CONFIG_PATH, return_rel=True
+            'medication_admin_intermittent', config_path=CONFIG_PATH, return_format='duckdb'
         )
     except Exception:
         import duckdb

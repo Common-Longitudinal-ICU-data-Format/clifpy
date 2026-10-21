@@ -96,7 +96,7 @@ def test_position_from_file_nonexistent(tmp_path):
         Position.from_file(non_existent_path, filetype="parquet")
 
 # isvalid method
-def test_position_isvalid(sample_valid_position_data, ):
+def test_position_isvalid(sample_valid_position_data, sample_position_data_missing_cols):
     """Test isvalid method."""
     valid_pos = Position(data=sample_valid_position_data)
     valid_pos.validate()

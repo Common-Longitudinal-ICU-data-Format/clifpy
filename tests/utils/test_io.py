@@ -55,7 +55,7 @@ class TestLoadParquetWithTz:
         mock_duckdb.sql.return_value = mock_rel
 
         # Call function
-        result = load_parquet_with_tz("test.parquet")
+        result = load_parquet_with_tz("test.parquet", return_format="pandas")
 
         # Verify settings were applied
         mock_duckdb.execute.assert_any_call("SET timezone = 'UTC';")
@@ -77,7 +77,7 @@ class TestLoadParquetWithTz:
         mock_duckdb.sql.return_value = mock_rel
 
         # Call function
-        result = load_parquet_with_tz("test.parquet", columns=["col1"])
+        result = load_parquet_with_tz("test.parquet", columns=["col1"], return_format="pandas")
 
         # Verify SQL query
         mock_duckdb.sql.assert_called_once_with("SELECT col1 FROM parquet_scan('test.parquet')")
@@ -97,8 +97,7 @@ class TestLoadParquetWithTz:
         # Call function
         result = load_parquet_with_tz(
             "test.parquet",
-            filters={"col1": 1, "col2": ["a", "b"]}
-        )
+            filters={"col1": 1, "col2": ["a", "b"]}, return_format="pandas")
 
         # Verify SQL query
         mock_duckdb.sql.assert_called_once_with(
@@ -118,7 +117,7 @@ class TestLoadParquetWithTz:
         mock_duckdb.sql.return_value = mock_rel
 
         # Call function
-        result = load_parquet_with_tz("test.parquet", sample_size=100)
+        result = load_parquet_with_tz("test.parquet", sample_size=100, return_format="pandas")
 
         # Verify SQL query
         mock_duckdb.sql.assert_called_once_with(
@@ -142,7 +141,7 @@ class TestLoadData:
         mock_duckdb.sql.return_value = mock_rel
 
         # Call function
-        result = load_data("test_table", "/path/to/dir", "csv")
+        result = load_data("test_table", "/path/to/dir", "csv", return_format="pandas")
 
         # Verify calls
         mock_exists.assert_called_with("/path/to/dir/clif_test_table.csv")
@@ -161,13 +160,15 @@ class TestLoadData:
         mock_load_parquet.return_value = mock_df
         
         # Call function
-        result = load_data("test_table", "/path/to/dir", "parquet")
+        result = load_data("test_table", "/path/to/dir", "parquet", return_format="pandas")
         
         # Verify calls
         mock_exists.assert_called_with("/path/to/dir/clif_test_table.parquet")
         mock_load_parquet.assert_called_with(
             "/path/to/dir/clif_test_table.parquet", None, None, None, None, False,
             return_rel=False, lazy=False,
+            return_format="pandas", duckdb_con=None, time_unit=None,
+            _site_tz_explicit=False,
         )
         
         # Verify result
@@ -179,7 +180,7 @@ class TestLoadData:
         mock_exists.return_value = True
         
         with pytest.raises(ValueError, match="Unsupported filetype"):
-            load_data("test_table", "/path/to/dir", "xlsx")
+            load_data("test_table", "/path/to/dir", "xlsx", return_format="pandas")
 
     @patch('os.path.exists')
     def test_load_data_file_not_found(self, mock_exists):
@@ -187,7 +188,7 @@ class TestLoadData:
         mock_exists.return_value = False
         
         with pytest.raises(FileNotFoundError):
-            load_data("test_table", "/path/to/dir", "csv")
+            load_data("test_table", "/path/to/dir", "csv", return_format="pandas")
 
     @patch('os.path.exists')
     @patch('clifpy.utils.io.duckdb')
@@ -207,8 +208,7 @@ class TestLoadData:
             "csv",
             columns=["col1"],
             filters={"status": ["active", "pending"], "type": "urgent"},
-            sample_size=10
-        )
+            sample_size=10, return_format="pandas")
 
         # Verify calls
         expected_query = (

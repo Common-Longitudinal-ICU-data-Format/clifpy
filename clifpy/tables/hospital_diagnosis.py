@@ -54,17 +54,19 @@ class HospitalDiagnosis(BaseTable):
 
     def load_table(self):
         """Load hospital diagnosis table data from the configured data directory."""
-        from ..utils.io import load_data
+        from ..utils.io import load_data, _pinned_pandas
 
         if self.data_directory is None or self.filetype is None:
             raise ValueError("data_directory and filetype must be set to load data")
 
-        self.df = load_data(
-            self.table_name,
-            self.data_directory,
-            self.filetype,
-            site_tz=self.timezone
-        )
+        with _pinned_pandas():
+            self.df = load_data(
+                self.table_name,
+                self.data_directory,
+                self.filetype,
+                site_tz=self.timezone,
+                return_format='pandas',   # NOTE pinned: self.df is pandas
+            )
 
         if self.logger:
             self.logger.info(f"Loaded {len(self.df)} rows from {self.table_name} table")

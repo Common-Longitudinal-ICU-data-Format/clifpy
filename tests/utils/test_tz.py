@@ -115,11 +115,11 @@ class TestLoadParquetWithTz:
         de-identified dates (pytz's DST table freezes at 2037). See docs/tz_dx.md §11.
         """
         df = load_parquet_with_tz(
-            demo_vitals_path, sample_size=5, site_tz='US/Eastern'
-        )
+            demo_vitals_path, sample_size=5, site_tz='US/Eastern',
+        return_format="pandas")
         df_utc = load_parquet_with_tz(
-            demo_vitals_path, sample_size=5, site_tz=None
-        )
+            demo_vitals_path, sample_size=5, site_tz=None,
+        return_format="pandas")
 
         assert len(df) == 5
         assert 'recorded_dttm' in df.columns
@@ -137,8 +137,8 @@ class TestLoadParquetWithTz:
         df = load_parquet_with_tz(
             demo_vitals_path,
             sample_size=5,
-            site_tz=None
-        )
+            site_tz=None,
+        return_format="pandas")
 
         assert len(df) == 5
         # Should have timezone info (UTC)
@@ -151,8 +151,8 @@ class TestLoadParquetWithTz:
             demo_vitals_path,
             columns=columns,
             sample_size=5,
-            site_tz='US/Eastern'
-        )
+            site_tz='US/Eastern',
+        return_format="pandas")
 
         assert list(df.columns) == columns
         assert len(df) == 5
@@ -172,8 +172,8 @@ class TestLoadDataTimezone:
             table_path=str(demo_data_dir),
             table_format_type='parquet',
             sample_size=5,
-            site_tz='US/Eastern'
-        )
+            site_tz='US/Eastern',
+        return_format="pandas")
 
         assert len(df) == 5
         assert 'recorded_dttm' in df.columns
@@ -185,8 +185,8 @@ class TestLoadDataTimezone:
             table_path=str(demo_data_dir),
             table_format_type='parquet',
             sample_size=5,
-            site_tz=None
-        )
+            site_tz=None,
+        return_format="pandas")
 
         assert len(df) == 5
         # Should have UTC timezone
@@ -200,16 +200,16 @@ class TestLoadDataTimezone:
             table_path=str(demo_data_dir),
             table_format_type='parquet',
             sample_size=5,
-            site_tz=None
-        )
+            site_tz=None,
+        return_format="pandas")
 
         df_eastern = load_data(
             table_name='vitals',
             table_path=str(demo_data_dir),
             table_format_type='parquet',
             sample_size=5,
-            site_tz='US/Eastern'
-        )
+            site_tz='US/Eastern',
+        return_format="pandas")
 
         # Calculate hour difference
         utc_hour = df_utc['recorded_dttm'].dt.hour.iloc[0]
@@ -227,8 +227,8 @@ class TestLoadDataTimezone:
             table_path=str(demo_data_dir),
             table_format_type='parquet',
             sample_size=5,
-            site_tz='US/Eastern'
-        )
+            site_tz='US/Eastern',
+        return_format="pandas")
 
         # Check that datetime columns exist and are converted
         dttm_cols = [c for c in df.columns if 'dttm' in c.lower()]
@@ -267,8 +267,8 @@ class TestReturnRelation:
         df_utc = load_parquet_with_tz(
             demo_vitals_path,
             sample_size=5,
-            site_tz=None
-        )
+            site_tz=None,
+        return_format="pandas")
 
         # site_tz is ignored for return_rel -> aware-UTC regardless
         rel = load_parquet_with_tz(
@@ -336,8 +336,8 @@ class TestReturnRelation:
             table_path=str(demo_data_dir),
             table_format_type='parquet',
             sample_size=5,
-            site_tz=None
-        )
+            site_tz=None,
+        return_format="pandas")
 
         rel = load_data(
             table_name='vitals',
@@ -360,8 +360,8 @@ class TestReturnRelation:
         """Test that default (return_rel=False) returns DataFrame."""
         result = load_parquet_with_tz(
             demo_vitals_path,
-            sample_size=5
-        )
+            sample_size=5,
+        return_format="pandas")
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 5

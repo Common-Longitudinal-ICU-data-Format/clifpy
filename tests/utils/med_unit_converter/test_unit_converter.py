@@ -1107,7 +1107,7 @@ def test_converter_preserves_admin_dttm_tz(site_tz, hostile_default_tz):
         Forces a non-UTC ambient default-connection zone.
     """
     med_df: pd.DataFrame = load_data(
-        "medication_admin_continuous", _DEMO_DIR, "parquet", site_tz=site_tz
+        "medication_admin_continuous", _DEMO_DIR, "parquet", site_tz=site_tz, return_format="pandas"
     )
     med_df = med_df[med_df["med_category"] == "fentanyl"].copy()
     assert not med_df.empty, "expected fentanyl rows in demo continuous meds"

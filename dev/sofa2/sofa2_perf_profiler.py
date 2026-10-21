@@ -148,7 +148,7 @@ def auto_detect_max_icu_stays(config_path: str) -> tuple[int, int]:
     import duckdb
     from clifpy import load_data
 
-    adt = load_data('adt', config_path=config_path, return_rel=True)
+    adt = load_data('adt', config_path=config_path, return_format='duckdb')
     result = duckdb.sql("""
         FROM adt
         SELECT
@@ -258,7 +258,7 @@ def build_cohort_from_adt_limit(
     import duckdb
     from clifpy import load_data
 
-    adt = load_data('adt', config_path=config_path, return_rel=True)
+    adt = load_data('adt', config_path=config_path, return_format='duckdb')
     if daily:
         return duckdb.sql(f"""
             FROM adt
@@ -296,7 +296,7 @@ def build_cohort_from_adt(
     import duckdb
     from clifpy import load_data
 
-    adt = load_data('adt', config_path=config_path, return_rel=True)
+    adt = load_data('adt', config_path=config_path, return_format='duckdb')
     hosp_ids_str = ", ".join(f"'{h}'" for h in hospitalization_ids)
     cohort = duckdb.sql(f"""
         FROM adt
@@ -321,7 +321,7 @@ def build_cohort_for_daily(
     import duckdb
     from clifpy import load_data
 
-    adt = load_data('adt', config_path=config_path, return_rel=True)
+    adt = load_data('adt', config_path=config_path, return_format='duckdb')
     hosp_ids_str = ", ".join(f"'{h}'" for h in hospitalization_ids)
     cohort = duckdb.sql(f"""
         FROM adt
