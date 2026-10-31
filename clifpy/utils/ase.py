@@ -125,8 +125,8 @@ abx_day AS (
   JOIN hospitalizations h
     ON a.hospitalization_id = h.hospitalization_id
   WHERE a.med_admin_day IS NOT NULL
-    AND a.med_admin_day >= h.admission_dttm
-    AND a.med_admin_day <= h.discharge_dttm
+    AND a.med_admin_day >= DATE(h.admission_dttm)
+    AND a.med_admin_day <= DATE(h.discharge_dttm)
 ),
 
 /* 2) Mark new courses per drug (new if gap > 2 days) */
