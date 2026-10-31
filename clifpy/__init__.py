@@ -52,7 +52,8 @@ from .clif_orchestrator import ClifOrchestrator
 from .utils.stitching_encounters import stitch_encounters
 from .utils.waterfall import process_resp_support_waterfall
 from .utils.wide_dataset import create_wide_dataset, convert_wide_to_hourly
-from .utils.comorbidity import calculate_cci
+from .utils.comorbidity import calculate_cci, calculate_elix
+from .utils.apache_ii import calculate_apache_ii
 from .utils.outlier_handler import apply_outlier_handling, get_outlier_summary
 from .utils.config import load_config
 from .utils.io import load_data
@@ -139,6 +140,8 @@ __all__ = [
     "create_wide_dataset",
     "convert_wide_to_hourly",
     "calculate_cci",
+    "calculate_elix",
+    "calculate_apache_ii",
     "apply_outlier_handling",
     "get_outlier_summary",
     "load_config",
