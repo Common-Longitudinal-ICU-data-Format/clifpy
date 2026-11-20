@@ -1,9 +1,10 @@
 """Shared DuckDB temp-table lifecycle helpers.
 
-Used by compute-heavy pipelines (currently `clifpy.utils.unit_converter`; sofa2
-will migrate here in a separate pass) that promote pandas inputs into DuckDB
-temp tables (boundary 2a per `docs/duckdb_perf_guide.md`) and need a single
-process-wide registry to drop them at exit.
+Used by compute-heavy pipelines that materialize their inputs into DuckDB temp
+tables (boundary 2a per `docs/duckdb_perf_guide.md`). sofa2 registers its
+tables in the single process-wide registry and drops them at exit; the unit
+converter names its tables per call and drops exactly those with
+`_drop_temp_table`.
 
 Functions
 ---------

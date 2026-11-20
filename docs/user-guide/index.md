@@ -23,7 +23,7 @@ Welcome to the CLIFpy User Guide. CLIFpy makes working with CLIF (Common Longitu
 
 | Guide | Description |
 |-------|-------------|
-| [Medication Unit Conversion](med-unit-conversion.md) | Convert continuous medication doses to standardized units |
+| [Medication Unit Conversion](med-unit-conversion.md) | Standardize continuous and intermittent doses to mCIDE or your own target units, read the status breakdown, choose a patient-weight fallback chain, and see what clifpy guards against |
 | [SOFA Score Computation](sofa.md) | Compute Sequential Organ Failure Assessment scores for sepsis identification |
 | [CDC Adult Sepsis Event (ASE)](ase.md) | Identify Adult Sepsis Events using the CDC surveillance definition |
 | [Respiratory Support Waterfall](waterfall.md) | Visualize patient trajectories and treatment timelines with customizable plots |
@@ -45,8 +45,8 @@ This section provides a reference for all CLIF tables available in CLIFpy. For d
 | adt | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#adt) | [⚙️](../api/tables.md#adt) | - | - |
 | labs | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#labs) | [⚙️](../api/tables.md#labs) | - | - |
 | vitals | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#vitals) | [⚙️](../api/tables.md#vitals) | - | - |
-| medication_admin_continuous | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-continuous) | [⚙️](../api/tables.md#medication-admin-continuous) | `convert_dose_units_for_continuous_meds()` | - |
-| medication_admin_intermittent | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-intermittent) | [⚙️](../api/tables.md#medication-admin-intermittent) | `convert_dose_units_for_intermittent_meds()` | - |
+| medication_admin_continuous | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-continuous) | [⚙️](../api/tables.md#medication-admin-continuous) | `standardize_dose_units_for_continuous_meds()`, `convert_dose_units_for_continuous_meds()` | - |
+| medication_admin_intermittent | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#medication-admin-intermittent) | [⚙️](../api/tables.md#medication-admin-intermittent) | `standardize_dose_units_for_intermittent_meds()`, `convert_dose_units_for_intermittent_meds()` | - |
 | patient_assessments | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#patient-assessments) | [⚙️](../api/tables.md#patient-assessments) | - | - |
 | respiratory_support | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#respiratory-support) | [⚙️](../api/tables.md#respiratory-support) | - | - |
 | position | [📖](https://clif-icu.com/data-dictionary/data-dictionary-2.1.0#position) | [⚙️](../api/tables.md#position) | - | - |

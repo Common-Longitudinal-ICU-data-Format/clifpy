@@ -1,4 +1,4 @@
-.PHONY: help docs mo benchmark benchmark-small benchmark-memory
+.PHONY: help docs mo test_med_unit_conversion benchmark benchmark-small benchmark-memory
 
 help:
 	uv run python -c "print('make docs     - start MkDocs dev server\nmake mo       - open Marimo editor\nmake benchmark - run performance benchmark (full cohort)\nmake benchmark-small - run quick benchmark (10 IDs)\nmake benchmark-memory - run memory profiling benchmark (100 IDs)')"
@@ -10,7 +10,7 @@ mo:
 	uv run marimo edit --watch
 
 test_med_unit_conversion:
-	uv run pytest tests/utils/test_unit_converter.py -vv
+	uv run pytest tests/utils/med_unit_converter/ -vv
 
 benchmark:
 	cd dev/perf-benchmark && uv run python benchmark_simple.py

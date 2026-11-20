@@ -9,6 +9,7 @@ using DuckDB for high performance.
 import pandas as pd
 import duckdb
 import numpy as np
+import polars as pl
 from datetime import datetime
 import os
 import re
@@ -1018,8 +1019,68 @@ def _process_hospitalizations(
             if hasattr(table_obj, 'df_converted') and table_obj.df_converted is not None:
                 logger.info(f"           === SPECIAL: USING CONVERTED MEDICATION DATA ===")
                 # Use all converted data (both successful and failed conversions)
-                all_data = table_obj.df_converted[table_obj.df_converted['hospitalization_id'].isin(required_ids)]
+                converted = table_obj.df_converted
+                if isinstance(converted, pl.DataFrame):
+                    # The orchestrator stores the converter's polars output
+                    # (D-261022-return-format); the rest of this module is pandas.
+                    all_data = converted.filter(
+                        pl.col('hospitalization_id').is_in(list(required_ids))
+                    ).to_pandas()
+                else:
+                    all_data = converted[converted['hospitalization_id'].isin(required_ids)]
                 table_df = all_data.copy()
+
+                # The pivot below reads the default dose pair. A df_converted built
+                # from another pair (a volume pass replaces the dose pass when it
+                # converts from table.data) lacks it; skipping would silently
+                # pivot the raw med_dose, so raise and say how to keep both.
+                value_cols = [
+                    table_config.get('converted_value_column'),
+                    table_config.get('converted_unit_column'),
+                    '_convert_status',
+                ]
+                missing = [c for c in value_cols if c and c not in all_data.columns]
+                if missing:
+                    held = sorted(
+                        c.split('_convert_status__', 1)[1]
+                        for c in all_data.columns
+                        if c.startswith('_convert_status__')
+                    )
+                    if not held and '_convert_status' in all_data.columns:
+                        # `_convert_status` is present but no per-pair status
+                        # column: the default pair was written under other
+                        # output names (renamed, or overwritten in place).
+                        raise ValueError(
+                            f"{table_name}.df_converted lacks the configured "
+                            f"converted column(s) {missing} that the wide dataset "
+                            "pivots. The default dose pair was renamed or "
+                            "overwritten in place (converted_dose_col / "
+                            "converted_unit_col were set). The wide dataset needs "
+                            "`med_dose_converted` / `med_dose_unit_converted`, so "
+                            "convert again without converted_dose_col / "
+                            "converted_unit_col, then call create_wide_dataset again."
+                        )
+                    held_txt = (
+                        "It holds the converted pair(s) "
+                        + ", ".join(repr(h) for h in held) + " instead. "
+                        if held else ""
+                    )
+                    raise ValueError(
+                        f"{table_name}.df_converted lacks the configured converted "
+                        f"column(s) {missing} that the wide dataset pivots. "
+                        f"{held_txt}The orchestrator's "
+                        "standardize_dose_units_for_* methods convert from table.data "
+                        "and replace df_converted on every call, so a second column "
+                        "pair discards the first. To keep both, assign "
+                        "`table.data = table.df_converted` before the second call "
+                        "(or run the second pass with the converter on "
+                        "table.df_converted), then call create_wide_dataset again. "
+                        "Re-running a pass from df_converted reuses the earlier "
+                        "pass's weight_kg, which is NULL where that pass needed no "
+                        "weight: run the pair that crosses the weight axis first "
+                        "(if both pairs cross it, attach weights with "
+                        "attach_weight first)."
+                    )
 
                 # Report conversion statistics
                 success_count = (all_data['_convert_status'] == 'success').sum()
