@@ -8,8 +8,9 @@ all CLIF table objects with consistent configuration.
 import os
 import logging
 import pandas as pd
+import polars as pl
 import psutil
-from typing import Optional, List, Dict, Any, Union, Tuple
+from typing import TYPE_CHECKING, Optional, List, Dict, Any, Union, Tuple, Sequence
 
 from .tables.patient import Patient
 from .tables.hospitalization import Hospitalization
@@ -58,6 +59,11 @@ from .utils.config import get_config_or_params
 from .utils.stitching_encounters import stitch_encounters
 from .utils.logging_config import setup_logging
 from .schemas import DEFAULT_CLIF_VERSION
+
+if TYPE_CHECKING:
+    # The converter's input type (pandas, polars or a DuckDB relation), for
+    # annotations only: the converter package loads on the first dose call.
+    from .utils.unit_converter._inputs import FrameLike
 
 
 TABLE_CLASSES = {
@@ -318,6 +324,51 @@ class ClifOrchestrator:
         """
         return cls(config_path=config_path)
     
+    def _read_table(
+        self,
+        table_name: str,
+        sample_size: Optional[int] = None,
+        columns: Optional[List[str]] = None,
+        filters: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Read a table into a new table object without attaching it.
+
+        :meth:`load_table` attaches what this returns as ``self.<table_name>``.
+        Internal reads that must not replace a table the caller loaded (the
+        dose methods' weight lookup) call this directly.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to load
+        sample_size : int, optional
+            Number of rows to load
+        columns : List[str], optional
+            Specific columns to load
+        filters : Dict, optional
+            Filters to apply when loading
+
+        Returns
+        -------
+        BaseTable
+            The loaded table object, not attached to the orchestrator
+        """
+        if table_name not in TABLE_CLASSES:
+            raise ValueError(f"Unknown table: {table_name}. Available tables: {list(TABLE_CLASSES.keys())}")
+
+        table_class = TABLE_CLASSES[table_name]
+        return table_class.from_file(
+            data_directory=self.data_directory,
+            filetype=self.filetype,
+            timezone=self.timezone,
+            output_directory=self.output_directory,
+            sample_size=sample_size,
+            columns=columns,
+            filters=filters,
+            clif_version=self.clif_version
+        )
+
     def load_table(
         self,
         table_name: str,
@@ -344,19 +395,22 @@ class ClifOrchestrator:
         Union[Patient, Hospitalization, Adt, Labs, Vitals, MedicationAdminContinuous, PatientAssessments, RespiratorySupport, Position]
             The loaded table object
         """
-        if table_name not in TABLE_CLASSES:
-            raise ValueError(f"Unknown table: {table_name}. Available tables: {list(TABLE_CLASSES.keys())}")
-        
-        table_class = TABLE_CLASSES[table_name]
-        table_object = table_class.from_file(
-            data_directory=self.data_directory,
-            filetype=self.filetype,
-            timezone=self.timezone,
-            output_directory=self.output_directory,
-            sample_size=sample_size,
-            columns=columns,
-            filters=filters,
-            clif_version=self.clif_version
+        table_object = self._read_table(table_name, sample_size, columns, filters)
+        # Remember which stays a hospitalization_id filter loaded: the dose
+        # methods warn when a later call reaches past them (_med_frame for the
+        # med tables, _load_weight_vitals for vitals), for as long as the
+        # table holds no other stays (_applied_load_scope).
+        # Record the scope the way clifpy.utils.io applies it: a list is an IN
+        # filter, a str an ``=`` filter (one stay), and anything else is
+        # stringified into one ``=`` comparison, so no scope is knowable. io
+        # compares str(v), so the scope is kept as strings.
+        scope_ids = (filters or {}).get('hospitalization_id')
+        if isinstance(scope_ids, str):
+            scope_ids = [scope_ids]
+        table_object._loaded_id_scope = (
+            frozenset(str(v) for v in scope_ids)
+            if isinstance(scope_ids, list)
+            else None
         )
         setattr(self, table_name, table_object)
         return table_object
@@ -1122,242 +1176,601 @@ class ClifOrchestrator:
         
         return resource_info
 
+    # ------------------------------------------------------------------
+    # Dose-unit conversion: one weight path
+    # ------------------------------------------------------------------
+    # The four dose methods below read patient weights through
+    # _load_weight_vitals, which never assigns self.vitals: a vitals table the
+    # caller loaded is filtered locally and left as it was, and a table read
+    # for the lookup is returned without being kept. The whole dose path reads
+    # the tables' polars ``data`` and never builds their pandas ``df`` view
+    # (D-261022-pandas-free-backend); tests/core/test_clif_orchestrator.py::
+    # test_dose_path_never_touches_pandas checks every method of it.
+
+    @staticmethod
+    def _is_loaded(table) -> bool:
+        """True when ``table`` is a table object holding data.
+
+        The one "is it loaded" check of the dose methods, so a table object
+        whose ``data`` is None counts as not loaded everywhere. It reads the
+        polars ``data``, so it never builds the pandas ``df`` view.
+        """
+        return table is not None and table.data is not None
+
+    def _load_weight_vitals(
+        self,
+        hospitalization_ids: Optional[List[str]] = None,
+        *,
+        cross_stay: bool = False,
+    ) -> pl.DataFrame:
+        """
+        Return the ``weight_kg`` vitals rows the dose methods need.
+
+        Never assigns ``self.vitals``. A loaded vitals table is filtered
+        locally and left exactly as it was; otherwise the weight rows are read
+        from disk into a frame that is returned, not kept. Works on polars
+        throughout and never builds a table's pandas ``df`` view.
+
+        Parameters
+        ----------
+        hospitalization_ids : List[str], optional
+            Keep only these stays. None keeps every stay.
+        cross_stay : bool, default=False
+            True when a weight fallback reads the patient's *other* stays
+            (``'prior_hosp_latest'`` / ``'later_hosp_earliest'``). The
+            ``hospitalization_ids`` filter is then skipped so those stays'
+            weights stay reachable.
+
+        Returns
+        -------
+        pl.DataFrame
+            Vitals rows with ``vital_category == 'weight_kg'``.
+
+        Notes
+        -----
+        A loaded ``self.vitals`` is used as loaded, also with ``cross_stay``:
+        if it holds only a cohort's stays, weights from the patients' other
+        stays are out of reach. :meth:`_weight_inputs`, which knows the stays
+        the call converts, warns when ``self.vitals`` was loaded with a
+        ``hospitalization_id`` filter.
+        """
+        ids = (
+            None if cross_stay or hospitalization_ids is None
+            else list(hospitalization_ids)
+        )
+        if self._is_loaded(self.vitals):
+            self.logger.debug("Reading patient weights from the loaded vitals table")
+            # Reads only the cached pandas view's shape (never builds it); warns
+            # when an in-place edit of .df never reached .data.
+            self.vitals._warn_if_pandas_view_diverged()
+            vitals = self.vitals.data
+        else:
+            filters = {'vital_category': ['weight_kg']}
+            # An empty IN () list is invalid SQL; the local filter below
+            # empties the frame instead.
+            if ids:
+                filters['hospitalization_id'] = ids
+            self.logger.info(
+                f"Reading weight_kg vitals for "
+                f"{'all' if ids is None else len(ids)} hospitalization(s)"
+            )
+            vitals = self._read_table('vitals', filters=filters).data
+        keep = pl.col('vital_category') == 'weight_kg'
+        if ids is not None:
+            keep = keep & pl.col('hospitalization_id').is_in(ids)
+        return vitals.filter(keep)
+
+    def _applied_load_scope(self, table: Any) -> Optional[frozenset]:
+        """The stays a filtered ``load_table`` kept, while ``table`` holds no others.
+
+        ``load_table`` records a ``hospitalization_id`` filter's stays (as
+        ``str``) on the table object. The scope applies while every
+        ``hospitalization_id`` in ``table.data`` lies inside it, so a new frame
+        with the same stays keeps it: clifpy's own ``apply_outlier_handling``
+        (which assigns ``table.df = ...``), ``table.data = table.df_converted``
+        or any copy. A frame holding a stay outside the scope means the caller
+        widened the table: the scope no longer describes it, so it is cleared
+        (``table._loaded_id_scope = None``) and None returned. Later calls then
+        skip the scan, and a frame the caller narrows again does not revive the
+        old scope. One ``unique()`` over the polars column, compared as
+        ``str``; nothing runs when no scope is recorded.
+        """
+        scope = getattr(table, '_loaded_id_scope', None)
+        if scope is None or not self._is_loaded(table):
+            return None
+        data = table.data
+        if 'hospitalization_id' not in data.columns:
+            return None
+        held = data.get_column('hospitalization_id').drop_nulls().unique().cast(pl.Utf8)
+        if held.is_in(sorted(scope)).all():
+            return scope
+        table._loaded_id_scope = None
+        return None
+
+    def _warn_if_load_scope_narrows(
+        self,
+        table_name: str,
+        table: Any,
+        hospitalization_ids: Optional[Union[List[str], pl.Series]],
+        *,
+        stays: str,
+        consequence: str,
+        remedy: str,
+        cross_stay_remedy: Optional[str] = None,
+    ) -> None:
+        """Warn (counts only, never ids) when a filtered load cannot serve the call.
+
+        Applies while the table's recorded scope does (:meth:`_applied_load_scope`).
+        Logs one WARNING when ``hospitalization_ids`` has stays outside the
+        scope, or when it is None (the call reaches every stay). For a call
+        whose weight fallbacks read the patients' other stays
+        (``cross_stay_remedy`` given), any applying scope warns that those
+        fallbacks reach only the stays inside it: whether the patients' other
+        stays are in it is not known here, so the message states the reach, not
+        a loss. When some of the call's own stays lie outside the scope, the
+        message leads with their count (that loss is known).
+
+        Parameters
+        ----------
+        table_name : str
+            The name that opens the message, e.g. ``'vitals'``.
+        table : table object
+            The loaded table whose scope is checked.
+        hospitalization_ids : List[str] or pl.Series, optional
+            The stays the call needs from this table; None means every stay.
+            A polars Series (a frame's ``hospitalization_id`` column, with
+            repeats) is reduced to its unique stays only once a scope applies.
+        stays : str
+            What those stays are, after "M of the K", e.g.
+            ``'requested hospitalization(s)'``.
+        consequence : str
+            What the stays outside the scope lose, e.g. ``'return no rows'``.
+        remedy : str
+            How to get them back, ending the message.
+        cross_stay_remedy : str, optional
+            Given when the call's weight fallbacks read the patients' other
+            stays: the remedy for that case, used instead of ``remedy``, with a
+            ``{whose}`` slot naming the weights it recovers (the patients'
+            other stays', and also the call's own stays' when some lie outside
+            the scope).
+        """
+        loaded = self._applied_load_scope(table)
+        if loaded is None:
+            return
+        head = f"{table_name} was loaded for {len(loaded)} hospitalization(s) only, so"
+        outside = 0
+        if hospitalization_ids is not None:
+            if isinstance(hospitalization_ids, pl.Series):
+                hospitalization_ids = (
+                    hospitalization_ids.drop_nulls().unique().cast(pl.Utf8).to_list()
+                )
+            requested = {str(v) for v in hospitalization_ids}
+            outside = len(requested - loaded)
+            counted = f"{outside} of the {len(requested)} {stays} are outside it"
+        if cross_stay_remedy is not None:
+            reach = "the cross-stay weight fallbacks reach only the stays inside it"
+            if outside:
+                # Not `consequence`: a fallback may still lend these stays a
+                # sibling stay's weight from inside the scope, so only the
+                # absence of their own weights is certain.
+                body = f"{counted}, so none of their own weights are in it, and {reach}"
+                whose = "their weights and those of the patients' other stays"
+            else:
+                body = reach
+                whose = "weights from the patients' other stays"
+            remedy = cross_stay_remedy.format(whose=whose)
+        elif hospitalization_ids is None:
+            body = f"the stays outside it {consequence}"
+        elif outside:
+            body = f"{counted} and {consequence}"
+        else:
+            return
+        self.logger.warning(f"{head} {body}; {remedy}")
+
+    def _med_frame(
+        self,
+        table_name: str,
+        hospitalization_ids: Optional[List[str]] = None,
+    ) -> Tuple[Any, pl.DataFrame]:
+        """
+        Return the med table object and its polars rows for ``hospitalization_ids``.
+
+        An unloaded table is loaded and kept on the orchestrator (so
+        ``save_to_table`` can store results on it), for ``hospitalization_ids``
+        only when given. A loaded table is filtered locally and left unchanged.
+        A table loaded with a ``hospitalization_id`` filter (by the caller or by
+        an earlier call here) holds only those stays, and later calls see only
+        them; a WARNING counts the requested stays out of reach, and
+        ``load_table(table_name)`` without the filter reloads them all. The
+        warning holds while ``table.data`` has no stay outside the filter, also
+        after a new frame with the same stays is assigned
+        (:meth:`_applied_load_scope`). Reads the table's polars ``data``, never
+        its pandas ``df`` view.
+        """
+        table = getattr(self, table_name, None)
+        if self._is_loaded(table):
+            # polars in (.data), polars out (D-261022-pandas-free-backend); an
+            # in-place edit of the cached pandas view (.df) never reaches .data.
+            # Reads only the cached view's shape, never builds it.
+            table._warn_if_pandas_view_diverged()
+            self._warn_if_load_scope_narrows(
+                table_name, table, hospitalization_ids,
+                stays="requested hospitalization(s)",
+                consequence="return no rows",
+                remedy=(
+                    f"to convert the rest, call co.load_table('{table_name}') "
+                    f"without the hospitalization_id filter"
+                ),
+            )
+        else:
+            # An empty IN () list is invalid SQL; the local filter below
+            # empties the frame instead.
+            filters = {'hospitalization_id': hospitalization_ids} if hospitalization_ids else None
+            self.logger.info(f"Loading {table_name} table")
+            table = self.load_table(table_name, filters=filters)
+        med_df = table.data
+        if hospitalization_ids is not None:
+            med_df = med_df.filter(pl.col('hospitalization_id').is_in(hospitalization_ids))
+        return table, med_df
+
+    def _weight_inputs(
+        self,
+        med_df: pl.DataFrame,
+        vitals_df: Optional['FrameLike'],
+        hospitalization_ids: Optional[List[str]],
+        weight_fallbacks: Optional[Sequence[str]],
+        hospitalization_df: Optional['FrameLike'],
+    ) -> Tuple[Any, Any]:
+        """
+        Resolve ``(vitals_df, hospitalization_df)`` for one converter call.
+
+        A caller-supplied ``vitals_df`` or ``hospitalization_df`` is passed on
+        as given; the converter accepts polars, a DuckDB relation or pandas.
+        Otherwise the ``weight_kg`` rows come from :meth:`_load_weight_vitals`
+        for ``hospitalization_ids`` (else the stays in ``med_df``), or for every
+        stay when ``weight_fallbacks`` names a cross-stay strategy
+        (``'prior_hosp_latest'`` / ``'later_hosp_earliest'``). Such a strategy
+        also needs ``hospitalization_df``; when the caller passes none it
+        defaults to ``self.hospitalization.data``, loading the hospitalization
+        table first if needed.
+
+        When the weights come from a loaded ``self.vitals`` that was loaded
+        with a ``hospitalization_id`` filter (and still holds only those stays,
+        :meth:`_applied_load_scope`), one WARNING (counts only) gives how many
+        of the stays in ``med_df`` lie outside it. With a cross-stay strategy
+        it also says those strategies reach only the stays inside it, and says
+        of the stays outside only that none of their own weights are in it
+        (a strategy may still lend them a sibling stay's weight). The stays in
+        ``med_df`` are the ones the call converts, so a requested stay with no
+        med rows is not counted. No warning when ``med_df`` already
+        carries ``weight_kg``: the converter then never reads ``vitals_df``.
+        """
+        from .utils.unit_converter._weight import _CROSS_HOSP_FALLBACKS
+
+        # A str is rejected by the converter's own validation; don't read it
+        # character by character here.
+        cross_stay = (
+            weight_fallbacks is not None
+            and not isinstance(weight_fallbacks, str)
+            and not _CROSS_HOSP_FALLBACKS.isdisjoint(weight_fallbacks)
+        )
+        if vitals_df is None:
+            ids = (
+                hospitalization_ids if hospitalization_ids is not None
+                else med_df.get_column('hospitalization_id').drop_nulls().unique().to_list()
+            )
+            # A weight_kg already on the med rows is used as-is and the
+            # converter never reads vitals_df, so a narrow co.vitals costs
+            # nothing and its scope warning would point at the wrong remedy.
+            if 'weight_kg' not in med_df.columns:
+                self._warn_if_load_scope_narrows(
+                    'vitals', self.vitals,
+                    # the stays this call converts; reduced to unique stays
+                    # only when the vitals scope applies
+                    med_df.get_column('hospitalization_id'),
+                    stays="hospitalization(s) this call converts",
+                    consequence="get no weight from it where a conversion needs one",
+                    remedy=(
+                        "to read their weights, call co.load_table('vitals') "
+                        "without the hospitalization_id filter, or pass vitals_df"
+                    ),
+                    # a cross-stay fallback also reads the patients' other stays
+                    cross_stay_remedy=(
+                        "to read {whose}, load vitals for every stay of these "
+                        "patients or call co.load_table('vitals') without the "
+                        "hospitalization_id filter, or pass vitals_df"
+                        if cross_stay else None
+                    ),
+                )
+            vitals_df = self._load_weight_vitals(ids, cross_stay=cross_stay)
+        if cross_stay and hospitalization_df is None:
+            if not self._is_loaded(self.hospitalization):
+                self.logger.info("Loading hospitalization table for cross-stay weight fallbacks")
+                self.load_table('hospitalization')
+            hospitalization_df = self.hospitalization.data
+        return vitals_df, hospitalization_df
+
     def convert_dose_units_for_continuous_meds(
         self,
         preferred_units: Dict[str, str],
-        vitals_df: pd.DataFrame = None,
+        vitals_df: Optional['FrameLike'] = None,
         hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = False,
-        save_to_table: bool = True
-    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+        save_to_table: bool = True,
+        *,
+        weight_fallbacks: Optional[Sequence[str]] = None,
+        weight_max_staleness_days: Optional[float] = None,
+        hospitalization_df: Optional['FrameLike'] = None,
+    ) -> Optional[Tuple[pl.DataFrame, pl.DataFrame]]:
         """
         Convert dose units for continuous medication data.
 
+        Works on the table's polars ``data`` and returns or stores polars
+        DataFrames; the table's pandas ``df`` view is never built.
+
         Parameters
         ----------
         preferred_units : Dict[str, str]
             Dict of preferred units for each medication category
-        vitals_df : pd.DataFrame, optional
-            Vitals DataFrame for extracting patient weights
+        vitals_df : polars DataFrame or LazyFrame, DuckDB relation, or pandas DataFrame, optional
+            Vitals for extracting patient weights, passed to the converter as
+            given. When omitted, the ``weight_kg`` rows are read from
+            ``self.vitals`` if it is loaded (filtered locally), else from disk.
+            ``self.vitals`` is never assigned or modified.
         hospitalization_ids : List[str], optional
-            List of specific hospitalization IDs to filter and process. When provided,
-            only medication and vitals data for these hospitalizations will be loaded
-            and processed, improving performance for targeted analyses.
+            Process only these hospitalizations. An unloaded table is loaded
+            for these stays only; a loaded one is filtered locally and left
+            unchanged. A table loaded with a ``hospitalization_id`` filter
+            (by you or by an earlier dose call) holds only those stays, so
+            later calls see only them; a warning counts the requested stays
+            outside it. The weight lookup reads the same stays unless
+            ``weight_fallbacks`` names a cross-stay strategy.
         show_intermediate : bool, default=False
             If True, includes intermediate calculation columns in output
         override : bool, default=False
             If True, continues processing with warnings for unacceptable units
         save_to_table : bool, default=True
-            If True, saves the converted DataFrame to the table's df_converted
-            property and stores conversion_counts as a table property. If False,
-            returns the converted data without updating the table.
+            If True, stores the converted frame as the table's ``df_converted``
+            and the counts as its ``conversion_counts``, both polars
+            DataFrames. If False, returns them without updating the table.
+        weight_fallbacks : sequence of str, optional
+            Ordered weight-lookup strategies from
+            :data:`~clifpy.utils.unit_converter.WEIGHT_FALLBACKS`, forwarded to
+            :func:`~clifpy.utils.unit_converter.convert_dose_units_by_med_category`.
+            ``('asof', 'same_hosp_earliest')`` is the recommended chain. Naming
+            ``'prior_hosp_latest'`` or ``'later_hosp_earliest'`` makes the
+            weight lookup read every stay, not only ``hospitalization_ids``.
+        weight_max_staleness_days : float, optional
+            Forwarded to the converter. Requires ``weight_fallbacks``.
+        hospitalization_df : polars DataFrame or LazyFrame, DuckDB relation, or pandas DataFrame, optional
+            Forwarded to the converter. When a cross-stay strategy is requested
+            and this is None, ``self.hospitalization.data`` is used, loading the
+            hospitalization table if needed.
 
         Returns
         -------
-        Tuple[pd.DataFrame, pd.DataFrame] or None
-            (converted_df, counts_df) when save_to_table=False, None otherwise
+        Tuple[pl.DataFrame, pl.DataFrame] or None
+            (converted_df, counts_df) as polars DataFrames when
+            save_to_table=False, None otherwise
+
+        Notes
+        -----
+        Cross-stay strategies reach only the stays in the vitals and
+        hospitalization data they read: a ``self.vitals`` or
+        ``self.hospitalization`` loaded for a cohort hides the patients'
+        other stays.
+
+        A ``self.vitals`` loaded with a ``hospitalization_id`` filter gives no
+        weight to the stays outside it: a WARNING counts the stays this call
+        converts that it leaves out; load vitals without the filter, or pass
+        ``vitals_df``. With a cross-stay strategy the WARNING says those
+        strategies reach only the stays inside it; to read weights from the
+        patients' other stays, load vitals for every stay of these patients
+        or without the filter. Med rows that already carry ``weight_kg`` use
+        it instead of vitals and draw neither warning.
+
+        In-place edits: the table's polars ``data`` is what is converted. A
+        value-only in-place edit of ``self.medication_admin_continuous.df`` (the pandas view) is not
+        converted and draws no warning; only a shape change warns. Assign the
+        edited frame back (``table.data = edited``, or ``table.df = edited``,
+        which writes through to ``data``), or pass edited vitals as ``vitals_df``.
         """
-        from .utils.unit_converter import convert_dose_units_by_med_category
-
-        # Log function entry with parameters
-        self.logger.info(f"Starting dose unit conversion for continuous medications with parameters: "
-                        f"preferred_units={preferred_units}, hospitalization_ids={'provided' if hospitalization_ids else 'None'}, "
-                        f"show_intermediate={show_intermediate}, override={override}, save_to_table={save_to_table}")
-
-        # Load medication table with optional hospitalization_ids filter
-        if self.medication_admin_continuous is None:
-            self.logger.info("Loading medication_admin_continuous table...")
-            if hospitalization_ids is not None:
-                self.logger.info(f"Filtering for {len(hospitalization_ids)} hospitalization(s)")
-                self.load_table('medication_admin_continuous', filters={'hospitalization_id': hospitalization_ids})
-            else:
-                self.load_table('medication_admin_continuous')
-            self.logger.debug("medication_admin_continuous table loaded successfully")
-
-        # Determine hospitalization_ids for vitals loading if not provided
-        if hospitalization_ids is None and self.medication_admin_continuous is not None:
-            hospitalization_ids = self.medication_admin_continuous.df['hospitalization_id'].unique().tolist()
-            self.logger.debug(f"Extracted {len(hospitalization_ids)} unique hospitalization_id(s) from medication data")
-
-        # Load vitals df with filters for weight_kg only
-        if vitals_df is None:
-            self.logger.debug("No vitals_df provided, loading filtered vitals table")
-            if (self.vitals is None) or (self.vitals.df is None):
-                self.logger.info(f"Loading vitals table for {len(hospitalization_ids)} hospitalization(s), vital_category='weight_kg'")
-                self.load_table('vitals', filters={'hospitalization_id': hospitalization_ids, 'vital_category': ['weight_kg']})
-            vitals_df = self.vitals.df
-            self.logger.debug(f"Using vitals data with shape: {vitals_df.shape}")
-        else:
-            self.logger.debug(f"Using provided vitals_df with shape: {vitals_df.shape}")
-
-        # Call the conversion function with all parameters
-        self.logger.info("Starting dose unit conversion")
-        self.logger.debug(f"Input DataFrame shape: {self.medication_admin_continuous.df.shape}")
-
-        converted_df, counts_df = convert_dose_units_by_med_category(
-            self.medication_admin_continuous.df,
+        return self._convert_dose_units(
+            'medication_admin_continuous',
+            preferred_units,
             vitals_df=vitals_df,
-            preferred_units=preferred_units,
+            hospitalization_ids=hospitalization_ids,
             show_intermediate=show_intermediate,
-            override=override
+            override=override,
+            save_to_table=save_to_table,
+            weight_fallbacks=weight_fallbacks,
+            weight_max_staleness_days=weight_max_staleness_days,
+            hospitalization_df=hospitalization_df,
         )
 
-        self.logger.info("Dose unit conversion completed")
-        self.logger.debug(f"Output DataFrame shape: {converted_df.shape}")
-        self.logger.debug(f"Conversion counts summary: {len(counts_df)} conversions tracked")
-
-        # If overwrite_raw_df is True, update the table's df and store conversion_counts
-        if save_to_table:
-            self.logger.info("Updating medication_admin_continuous table with converted data")
-            self.medication_admin_continuous.df_converted = converted_df
-            self.medication_admin_continuous.conversion_counts = counts_df
-            self.logger.debug("Conversion counts stored as table property")
-        else:
-            self.logger.info("Returning converted data without updating table")
-            return converted_df, counts_df
-        
     def convert_dose_units_for_intermittent_meds(
         self,
         preferred_units: Dict[str, str],
-        vitals_df: pd.DataFrame = None,
+        vitals_df: Optional['FrameLike'] = None,
         hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = False,
-        save_to_table: bool = True
-    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+        save_to_table: bool = True,
+        *,
+        weight_fallbacks: Optional[Sequence[str]] = None,
+        weight_max_staleness_days: Optional[float] = None,
+        hospitalization_df: Optional['FrameLike'] = None,
+    ) -> Optional[Tuple[pl.DataFrame, pl.DataFrame]]:
         """
         Convert dose units for intermittent medication data.
 
-        Parameters
-        ----------
-        preferred_units : Dict[str, str]
-            Dict of preferred units for each medication category
-        vitals_df : pd.DataFrame, optional
-            Vitals DataFrame for extracting patient weights
-        hospitalization_ids : List[str], optional
-            List of specific hospitalization IDs to filter and process. When provided,
-            only medication and vitals data for these hospitalizations will be loaded
-            and processed, improving performance for targeted analyses.
-        show_intermediate : bool, default=False
-            If True, includes intermediate calculation columns in output
-        override : bool, default=False
-            If True, continues processing with warnings for unacceptable units
-        save_to_table : bool, default=True
-            If True, saves the converted DataFrame to the table's df_converted
-            property and stores conversion_counts as a table property. If False,
-            returns the converted data without updating the table.
+        See :meth:`convert_dose_units_for_continuous_meds` for parameters,
+        return value and notes.
 
-        Returns
-        -------
-        Tuple[pd.DataFrame, pd.DataFrame] or None
-            (converted_df, counts_df) when save_to_table=False, None otherwise
+        Notes
+        -----
+        A ``self.vitals`` loaded with a ``hospitalization_id`` filter gives no
+        weight to the stays outside it: a WARNING counts the stays this call
+        converts that it leaves out; load vitals without the filter, or pass
+        ``vitals_df``. With a cross-stay strategy the WARNING says those
+        strategies reach only the stays inside it; to read weights from the
+        patients' other stays, load vitals for every stay of these patients
+        or without the filter. Med rows that already carry ``weight_kg`` use
+        it instead of vitals and draw neither warning.
+
+        In-place edits: the table's polars ``data`` is what is converted. A
+        value-only in-place edit of ``self.medication_admin_intermittent.df`` (the pandas view) is not
+        converted and draws no warning; only a shape change warns. Assign the
+        edited frame back (``table.data = edited``, or ``table.df = edited``,
+        which writes through to ``data``), or pass edited vitals as ``vitals_df``.
         """
+        return self._convert_dose_units(
+            'medication_admin_intermittent',
+            preferred_units,
+            vitals_df=vitals_df,
+            hospitalization_ids=hospitalization_ids,
+            show_intermediate=show_intermediate,
+            override=override,
+            save_to_table=save_to_table,
+            weight_fallbacks=weight_fallbacks,
+            weight_max_staleness_days=weight_max_staleness_days,
+            hospitalization_df=hospitalization_df,
+        )
+
+    def _convert_dose_units(
+        self,
+        table_name: str,
+        preferred_units: Dict[str, str],
+        *,
+        vitals_df: Optional['FrameLike'] = None,
+        hospitalization_ids: Optional[List[str]] = None,
+        show_intermediate: bool = False,
+        override: bool = False,
+        save_to_table: bool = True,
+        weight_fallbacks: Optional[Sequence[str]] = None,
+        weight_max_staleness_days: Optional[float] = None,
+        hospitalization_df: Optional['FrameLike'] = None,
+    ) -> Optional[Tuple[pl.DataFrame, pl.DataFrame]]:
+        """Shared body for the two convert_dose_units_for_*_meds methods."""
         from .utils.unit_converter import convert_dose_units_by_med_category
 
-        # Log function entry with parameters
-        self.logger.info(f"Starting dose unit conversion for intermittent medications with parameters: "
-                        f"preferred_units={preferred_units}, hospitalization_ids={'provided' if hospitalization_ids else 'None'}, "
-                        f"show_intermediate={show_intermediate}, override={override}, save_to_table={save_to_table}")
-
-        # Load medication table with optional hospitalization_ids filter
-        if self.medication_admin_intermittent is None:
-            self.logger.info("Loading medication_admin_intermittent table...")
-            if hospitalization_ids is not None:
-                self.logger.info(f"Filtering for {len(hospitalization_ids)} hospitalization(s)")
-                self.load_table('medication_admin_intermittent', filters={'hospitalization_id': hospitalization_ids})
-            else:
-                self.load_table('medication_admin_intermittent')
-            self.logger.debug("medication_admin_intermittent table loaded successfully")
-
-        # Determine hospitalization_ids for vitals loading if not provided
-        if hospitalization_ids is None:
-            hospitalization_ids = self.medication_admin_intermittent.df['hospitalization_id'].unique().tolist()
-            self.logger.debug(f"Extracted {len(hospitalization_ids)} unique hospitalization_id(s) from medication data")
-
-        # Load vitals df with filters for weight_kg only
-        if vitals_df is None:
-            self.logger.debug("No vitals_df provided, loading filtered vitals table")
-            if (self.vitals is None) or (self.vitals.df is None):
-                self.logger.info(f"Loading vitals table for {len(hospitalization_ids)} hospitalization(s), vital_category='weight_kg'")
-                self.load_table('vitals', filters={'hospitalization_id': hospitalization_ids, 'vital_category': ['weight_kg']})
-            vitals_df = self.vitals.df
-            self.logger.debug(f"Using vitals data with shape: {vitals_df.shape}")
-        else:
-            self.logger.debug(f"Using provided vitals_df with shape: {vitals_df.shape}")
-
-        # Call the conversion function with all parameters
-        self.logger.info("Starting dose unit conversion")
-        self.logger.debug(f"Input DataFrame shape: {self.medication_admin_intermittent.df.shape}")
+        ids = None if hospitalization_ids is None else list(hospitalization_ids)
+        self.logger.info(
+            f"Starting dose unit conversion for {table_name} with parameters: "
+            f"preferred_units={preferred_units}, "
+            f"hospitalization_ids={'provided' if ids is not None else 'None'}, "
+            f"show_intermediate={show_intermediate}, override={override}, "
+            f"save_to_table={save_to_table}, weight_fallbacks={weight_fallbacks}"
+        )
+        table, med_df = self._med_frame(table_name, ids)
+        vitals_df, hospitalization_df = self._weight_inputs(
+            med_df, vitals_df, ids, weight_fallbacks, hospitalization_df,
+        )
+        self.logger.debug(f"Input DataFrame shape: {med_df.shape}")
 
         converted_df, counts_df = convert_dose_units_by_med_category(
-            self.medication_admin_intermittent.df,
+            med_df,
             vitals_df=vitals_df,
             preferred_units=preferred_units,
             show_intermediate=show_intermediate,
-            override=override
+            override=override,
+            weight_fallbacks=weight_fallbacks,
+            hospitalization_df=hospitalization_df,
+            weight_max_staleness_days=weight_max_staleness_days,
+            return_format='polars',
         )
-
         self.logger.info("Dose unit conversion completed")
         self.logger.debug(f"Output DataFrame shape: {converted_df.shape}")
-        self.logger.debug(f"Conversion counts summary: {len(counts_df)} conversions tracked")
 
-        # If save_to_table is True, update the table's df_converted and store conversion_counts
         if save_to_table:
-            self.logger.info("Updating medication_admin_intermittent table with converted data")
-            self.medication_admin_intermittent.df_converted = converted_df
-            self.medication_admin_intermittent.conversion_counts = counts_df
-            self.logger.debug("Conversion counts stored as table property")
-        else:
-            self.logger.info("Returning converted data without updating table")
-            return converted_df, counts_df
+            self.logger.info(f"Updating {table_name} table with converted data")
+            table.df_converted = converted_df
+            table.conversion_counts = counts_df
+            return None
+        self.logger.info("Returning converted data without updating table")
+        return converted_df, counts_df
 
     def standardize_dose_units_for_continuous_meds(
         self,
-        target_schema,
-        vitals_df: pd.DataFrame = None,
+        targets,
+        vitals_df: Optional['FrameLike'] = None,
         hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = True,
         save_to_table: bool = True,
+        *,
+        weight_fallbacks: Optional[Sequence[str]] = None,
+        weight_max_staleness_days: Optional[float] = None,
+        hospitalization_df: Optional['FrameLike'] = None,
         **kwargs
-    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+    ) -> Optional[Tuple[pl.DataFrame, pl.DataFrame]]:
         """
-        Standardize continuous medication dose units against an external schema.
+        Standardize continuous medication dose units against an external targets file.
 
         Same as :meth:`convert_dose_units_for_continuous_meds`, but the target
-        unit for each ``med_category`` is read from a CLIF mCIDE schema file
+        unit for each ``med_category`` is read from a CLIF mCIDE targets file
         rather than supplied inline.
 
         Parameters
         ----------
-        target_schema : str, Path, or dict
-            Schema file path/URL, or an already-parsed
-            ``{med_category: target_unit}`` mapping. Schemas are always supplied
-            externally rather than vendored into clifpy, because they change
-            independently of the library.
-        vitals_df : pd.DataFrame, optional
-            Vitals DataFrame for extracting patient weights.
+        targets : str, Path, or dict
+            Targets file path/URL (an mCIDE CSV, YAML, JSON or Parquet), or an
+            already-parsed ``{med_category: target_unit}`` mapping. Targets are
+            always supplied externally rather than vendored into clifpy,
+            because they change independently of the library. A category they
+            do not list keeps its dose with the unit spelling cleaned
+            (``unlisted='keep'``; pass ``unlisted='base'`` in ``**kwargs`` for
+            clifpy's base units).
+        vitals_df : polars DataFrame or LazyFrame, DuckDB relation, or pandas DataFrame, optional
+            Vitals for extracting patient weights. When omitted, read as in
+            :meth:`convert_dose_units_for_continuous_meds`; ``self.vitals`` is
+            never assigned or modified. Not read at all under ``allow_weight_variant=True``
+            (passed in ``**kwargs``) with no ``weight_fallbacks``: no row then
+            needs a weight.
         hospitalization_ids : List[str], optional
-            Restrict loading and processing to these hospitalizations.
+            Restrict processing to these hospitalizations. A table loaded
+            with a ``hospitalization_id`` filter (by you or by an earlier
+            dose call) holds only those stays, so later calls see only them;
+            a warning counts the requested stays outside it.
         show_intermediate : bool, default=False
             If True, includes intermediate calculation columns in output.
         override : bool, default=True
             Note this differs from :meth:`convert_dose_units_for_continuous_meds`.
-            A schema covering a few hundred categories will always list some the
-            data does not contain, which must warn rather than abort.
+            A targets file covering a few hundred categories will always list
+            some the data does not contain, which must warn rather than abort.
         save_to_table : bool, default=True
             If True, saves to the table's ``df_converted`` / ``conversion_counts``
-            properties instead of returning.
+            properties (polars DataFrames) instead of returning.
+        weight_fallbacks, weight_max_staleness_days, hospitalization_df
+            As in :meth:`convert_dose_units_for_continuous_meds`, including the
+            cross-stay defaults.
         **kwargs
             Forwarded to
             :func:`~clifpy.utils.unit_converter.standardize_med_dose_units`
-            (``schema_unit_col``, ``reader``, ``countable_units``, ...).
+            (``dose_col``, ``unit_col``, ``targets_unit_col``, ``unlisted``,
+            ``allow_weight_variant``, ``reader``,
+            ``countable_units``, ...). Each call converts from the table's
+            ``data`` and replaces ``df_converted``, so a second ``dose_col`` /
+            ``unit_col`` pair discards the first unless you assign
+            ``table.data = table.df_converted`` between the calls. The second
+            pass then reuses the first pass's ``weight_kg``, which is NULL
+            wherever the first pass needed no weight, so its weight-crossing
+            rows report ``weight_kg is missing`` and the loaded or passed
+            weights go unused (a WARNING gives the count). Run the pair that
+            crosses the weight axis first (if both pairs cross it, attach
+            weights first), or attach weights to ``table.data`` with
+            :func:`~clifpy.utils.unit_converter.attach_weight` before both
+            passes; see "Columns from an earlier pass are set aside" in the
+            Medication Unit Conversion user guide.
+            ``return_format`` and ``return_rel`` are not accepted (TypeError):
+            the results are always polars.
 
         Returns
         -------
         tuple or None
-            ``(converted, counts)`` when ``save_to_table`` is False.
+            ``(converted, counts)`` as polars DataFrames when ``save_to_table``
+            is False.
 
         Examples
         --------
@@ -1367,80 +1780,161 @@ class ClifOrchestrator:
         ...     'medication_admin_continuous/'
         ...     'clif_medication_admin_continuous_med_categories.csv')
         >>> co.standardize_dose_units_for_continuous_meds(URL)   # doctest: +SKIP
+
+        Notes
+        -----
+        A ``self.vitals`` loaded with a ``hospitalization_id`` filter gives no
+        weight to the stays outside it: a WARNING counts the stays this call
+        converts that it leaves out; load vitals without the filter, or pass
+        ``vitals_df``. With a cross-stay strategy the WARNING says those
+        strategies reach only the stays inside it; to read weights from the
+        patients' other stays, load vitals for every stay of these patients
+        or without the filter. Med rows that already carry ``weight_kg`` use
+        it instead of vitals and draw neither warning.
+
+        In-place edits: the table's polars ``data`` is what is converted. A
+        value-only in-place edit of ``self.medication_admin_continuous.df`` (the pandas view) is not
+        converted and draws no warning; only a shape change warns. Assign the
+        edited frame back (``table.data = edited``, or ``table.df = edited``,
+        which writes through to ``data``), or pass edited vitals as ``vitals_df``.
         """
         return self._standardize_dose_units(
             table_name='medication_admin_continuous',
-            target_schema=target_schema,
+            targets=targets,
             vitals_df=vitals_df,
             hospitalization_ids=hospitalization_ids,
             show_intermediate=show_intermediate,
             override=override,
             save_to_table=save_to_table,
+            weight_fallbacks=weight_fallbacks,
+            weight_max_staleness_days=weight_max_staleness_days,
+            hospitalization_df=hospitalization_df,
             **kwargs
         )
 
     def standardize_dose_units_for_intermittent_meds(
         self,
-        target_schema,
-        vitals_df: pd.DataFrame = None,
+        targets,
+        vitals_df: Optional['FrameLike'] = None,
         hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = True,
         save_to_table: bool = True,
+        *,
+        weight_fallbacks: Optional[Sequence[str]] = None,
+        weight_max_staleness_days: Optional[float] = None,
+        hospitalization_df: Optional['FrameLike'] = None,
         **kwargs
-    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+    ) -> Optional[Tuple[pl.DataFrame, pl.DataFrame]]:
         """
-        Standardize intermittent medication dose units against an external schema.
+        Standardize intermittent medication dose units against an external targets file.
 
         See :meth:`standardize_dose_units_for_continuous_meds` for parameters.
+
+        Parameters
+        ----------
+        **kwargs
+            Forwarded to the converter (``dose_col``, ``unit_col``, ...). Each
+            call converts from the table's ``data`` and replaces
+            ``df_converted``; see :meth:`standardize_dose_units_for_continuous_meds`,
+            also for chaining two pairs (run the pair that crosses the weight
+            axis first, or, if both pairs cross it, attach weights before both
+            passes).
+
+        Notes
+        -----
+        A ``self.vitals`` loaded with a ``hospitalization_id`` filter gives no
+        weight to the stays outside it: a WARNING counts the stays this call
+        converts that it leaves out; load vitals without the filter, or pass
+        ``vitals_df``. With a cross-stay strategy the WARNING says those
+        strategies reach only the stays inside it; to read weights from the
+        patients' other stays, load vitals for every stay of these patients
+        or without the filter. Med rows that already carry ``weight_kg`` use
+        it instead of vitals and draw neither warning.
+
+        In-place edits: the table's polars ``data`` is what is converted. A
+        value-only in-place edit of ``self.medication_admin_intermittent.df`` (the pandas view) is not
+        converted and draws no warning; only a shape change warns. Assign the
+        edited frame back (``table.data = edited``, or ``table.df = edited``,
+        which writes through to ``data``), or pass edited vitals as ``vitals_df``.
         """
         return self._standardize_dose_units(
             table_name='medication_admin_intermittent',
-            target_schema=target_schema,
+            targets=targets,
             vitals_df=vitals_df,
             hospitalization_ids=hospitalization_ids,
             show_intermediate=show_intermediate,
             override=override,
             save_to_table=save_to_table,
+            weight_fallbacks=weight_fallbacks,
+            weight_max_staleness_days=weight_max_staleness_days,
+            hospitalization_df=hospitalization_df,
             **kwargs
         )
 
     def _standardize_dose_units(
         self,
         table_name: str,
-        target_schema,
-        vitals_df: pd.DataFrame = None,
+        targets,
+        vitals_df: Optional['FrameLike'] = None,
         hospitalization_ids: Optional[List[str]] = None,
         show_intermediate: bool = False,
         override: bool = True,
         save_to_table: bool = True,
+        *,
+        weight_fallbacks: Optional[Sequence[str]] = None,
+        weight_max_staleness_days: Optional[float] = None,
+        hospitalization_df: Optional['FrameLike'] = None,
         **kwargs
-    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+    ) -> Optional[Tuple[pl.DataFrame, pl.DataFrame]]:
         """Shared body for the two standardize_dose_units_for_*_meds methods."""
         from .utils.unit_converter import standardize_med_dose_units
 
-        med_filters = {'hospitalization_id': hospitalization_ids} if hospitalization_ids else None
-        if getattr(self, table_name, None) is None:
-            self.logger.info(f"Loading {table_name} table")
-            self.load_table(table_name, filters=med_filters)
-        table = getattr(self, table_name)
+        # The results are always polars. return_format below is fixed, so a
+        # caller's would collide with it, but only after the med table was
+        # loaded and kept, and Python's "multiple values" message names the
+        # converter's private module. return_rel would get through: the
+        # converter reads it as the deprecated alias for 'duckdb' and would
+        # return (and store in df_converted) relations. Refuse both up front,
+        # before any table is read, naming the public method.
+        refused = sorted({'return_format', 'return_rel'} & kwargs.keys())
+        if refused:
+            method = f"standardize_dose_units_for_{table_name.rsplit('_', 1)[-1]}_meds"
+            noun = (
+                "an unexpected keyword argument" if len(refused) == 1
+                else "unexpected keyword arguments"
+            )
+            raise TypeError(
+                f"{method}() got {noun} "
+                f"{', '.join(repr(k) for k in refused)}: it always returns polars "
+                f"DataFrames (and stores them in df_converted). Call "
+                f"clifpy.utils.unit_converter.standardize_med_dose_units "
+                f"directly for another return_format."
+            )
 
-        if vitals_df is None:
-            self.logger.info("Loading vitals table for patient weights")
-            vitals_filters = {'vital_category': ['weight_kg']}
-            if hospitalization_ids:
-                vitals_filters['hospitalization_id'] = hospitalization_ids
-            if self.vitals is None:
-                self.load_table('vitals', filters=vitals_filters)
-            vitals_df = self.vitals.df
+        ids = None if hospitalization_ids is None else list(hospitalization_ids)
+        table, med_df = self._med_frame(table_name, ids)
+        # allow_weight_variant: every listed row takes its target's weight
+        # variant, so none crosses the weight axis and no weight is read
+        # (D-261119-orch-skip-vitals). A caller's vitals_df or weight chain
+        # is still honoured.
+        if not (kwargs.get('allow_weight_variant') and vitals_df is None
+                and weight_fallbacks is None):
+            vitals_df, hospitalization_df = self._weight_inputs(
+                med_df, vitals_df, ids, weight_fallbacks, hospitalization_df,
+            )
 
-        self.logger.info(f"Standardizing {table_name} dose units against schema")
+        self.logger.info(f"Standardizing {table_name} dose units against targets")
         converted_df, counts_df = standardize_med_dose_units(
-            table.df,
-            target_schema,
+            med_df,
+            targets,
             vitals_df=vitals_df,
             show_intermediate=show_intermediate,
             override=override,
+            weight_fallbacks=weight_fallbacks,
+            weight_max_staleness_days=weight_max_staleness_days,
+            hospitalization_df=hospitalization_df,
+            return_format='polars',
             **kwargs
         )
         self.logger.info("Dose unit standardization completed")

@@ -245,7 +245,7 @@ def _calculate_cv_subscore(
     pressor_events_rel, _ = convert_dose_units_by_med_category(
         med_df=pressor_events_deduped,
         vitals_df=cohort_weights,
-        return_rel=True,
+        return_format='duckdb',
         preferred_units=PRESSOR_PREFERRED_UNITS,
         override=True,
         id_name=id_name,

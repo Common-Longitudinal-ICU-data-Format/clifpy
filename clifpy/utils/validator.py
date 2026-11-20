@@ -5251,6 +5251,10 @@ def validate_dataframe(
         - description: str - Human-readable error description
         - details: dict - Additional error details
         - category: str - 'schema' or 'data_quality'
+        - check_group: str - 'conformance', 'completeness' or 'plausibility',
+          the DQA group that raised it. ``BaseTable.validate`` puts
+          conformance findings in ``errors`` (they decide ``isvalid()``) and
+          the other two in ``warnings``.
         - clif_version: str - CLIF schema version validated against
     """
     table_name = table_name or schema.get('table_name', 'unknown')
@@ -5271,7 +5275,8 @@ def validate_dataframe(
                 'type': _format_check_type(check_name),
                 'description': err['message'],
                 'details': err.get('details', {}),
-                'category': category
+                'category': category,
+                'check_group': 'conformance'
             })
 
         # Include warnings as data quality issues
@@ -5281,6 +5286,7 @@ def validate_dataframe(
                 'description': warn['message'],
                 'details': warn.get('details', {}),
                 'category': 'data_quality',
+                'check_group': 'conformance',
                 'severity': 'warning'
             })
 
@@ -5292,7 +5298,8 @@ def validate_dataframe(
                 'type': _format_check_type(check_name),
                 'description': err['message'],
                 'details': err.get('details', {}),
-                'category': 'data_quality'
+                'category': 'data_quality',
+                'check_group': 'completeness'
             })
 
         for warn in result.warnings:
@@ -5301,6 +5308,7 @@ def validate_dataframe(
                 'description': warn['message'],
                 'details': warn.get('details', {}),
                 'category': 'data_quality',
+                'check_group': 'completeness',
                 'severity': 'warning'
             })
 
@@ -5315,7 +5323,8 @@ def validate_dataframe(
                 'type': _format_check_type(check_name),
                 'description': err['message'],
                 'details': err.get('details', {}),
-                'category': 'data_quality'
+                'category': 'data_quality',
+                'check_group': 'plausibility'
             })
 
         for warn in result.warnings:
@@ -5324,6 +5333,7 @@ def validate_dataframe(
                 'description': warn['message'],
                 'details': warn.get('details', {}),
                 'category': 'data_quality',
+                'check_group': 'plausibility',
                 'severity': 'warning'
             })
 
