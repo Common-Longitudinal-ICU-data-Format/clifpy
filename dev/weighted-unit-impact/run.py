@@ -1,9 +1,6 @@
 """Weighted dose unit impact analysis -- single entry point.
 
 Usage:
-    make weight-impact CONFIG=my_site_config.yaml
-
-    # or directly
     uv run python dev/weighted-unit-impact/run.py --config my_site_config.yaml
 
 Runs three steps in order and writes aggregates to

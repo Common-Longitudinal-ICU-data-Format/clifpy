@@ -29,7 +29,7 @@ uv sync
 cp dev/weighted-unit-impact/config_template.yaml my_site_config.yaml
 # edit the five required fields
 
-make weight-impact CONFIG=my_site_config.yaml
+uv run python dev/weighted-unit-impact/run.py --config my_site_config.yaml
 ```
 
 Then send back the folder it names: `output/weighted_unit_impact/<site_name>/`.
@@ -115,7 +115,7 @@ figure is scenarios 1 + 6 + 9.
 ## For the coordinating centre
 
 ```bash
-make weight-impact-pool INPUTS="output/weighted_unit_impact/*"
+uv run python dev/weighted-unit-impact/pool.py --inputs output/weighted_unit_impact/*
 ```
 
 Reads every returned folder and writes `_pooled/decision_memo.md` plus pooled

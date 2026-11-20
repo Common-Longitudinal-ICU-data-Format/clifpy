@@ -6,7 +6,7 @@ carries its own `site_name` column, so adding a site means dropping its folder
 in.
 
 Usage:
-    make weight-impact-pool INPUTS="output/weighted_unit_impact/*"
+    uv run python dev/weighted-unit-impact/pool.py --inputs output/weighted_unit_impact/*
 
     uv run python dev/weighted-unit-impact/pool.py \
         --inputs output/weighted_unit_impact/RUSH output/weighted_unit_impact/NU

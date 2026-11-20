@@ -1,7 +1,7 @@
 # Weighted dose unit impact analysis -- site configuration.
 #
 # Copy this file, fill in the five required fields, then run:
-#     make weight-impact CONFIG=<path to your copy>
+#     uv run python dev/weighted-unit-impact/run.py --config <path to your copy>
 #
 # Everything this analysis writes is an aggregate. No patient-level data is
 # persisted, so the single output directory is safe to send back as-is.
