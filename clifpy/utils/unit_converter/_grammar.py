@@ -12,41 +12,62 @@ from typing import Set
 # and test fixtures can all reference the same literal (avoids float drift).
 KG_PER_LB = 2.20462
 
-# Temp-table lifecycle: boundary 2a per docs/duckdb_perf_guide.md. When a
-# pandas input is referenced by multiple downstream SQL queries (cleaning,
-# validation, base conversion, preferred-unit join, weight join), promote it
-# once into a DuckDB temp table via _register_temp_table; the orchestrator's
-# `finally` block calls _cleanup_temp_tables() to drop it. Both helpers live
-# in clifpy/utils/_duckdb_helpers.py so future modules can share the registry.
+# Temp-table lifecycle: boundary 2a per docs/duckdb_perf_guide.md. The input
+# is referenced by many downstream SQL queries (cleaning, validation, base
+# conversion, preferred-unit join, weight join), so _convert._capture_input
+# reads it into DuckDB once (pandas through Arrow) and, for the eager return
+# formats, _convert._register_input copies it into a temp table named per call
+# (`_med_unit_input_<8 hex>`); the converter's `finally` drops exactly the
+# tables that call created (clifpy/utils/_duckdb_helpers._drop_temp_table).
+# return_format='duckdb' creates no table: its relations read the captured
+# input itself.
 
 
 UNIT_NAMING_VARIANTS = {
     # NOTE: applied as nested regexp_replace in INSERTION ORDER, so position
     # here is semantic. Each block's ordering constraint is called out below.
 
-    # time -- '/day' precedes '/hr' so `/24hr` is not partially consumed
-    '/day': '/(day|24hr|24hour)$',
-    '/hr': '/h(r|our)?$',
-    '/min': '/m(in|inute)?$',
+    # time -- every rule is `/`-prefixed and `$`-anchored, and the `/24h...`
+    # spellings start with a digit, so no rule can match another rule's input
+    # and their relative order is free (`/h(rs?|ours?)?$` cannot match
+    # `/24hr`). Plurals and the 24-hour spellings are accepted.
+    '/day': '/(days?|24h|24hrs?|24hours?)$',
+    '/hr': '/h(rs?|ours?)?$',
+    '/min': '/m(ins?|inutes?)?$',
     # unit -- NOTE: plaural always go first to avoid having result like "us" or "gs"
     #
     # CRITICAL: million-units MUST precede both 'u' and 'milli-?'. Otherwise
     # `u(nits|nit)?` rewrites "millionunits" -> "millionu", then `milli-?`
     # rewrites that -> "monu", and the dose silently fails to convert.
+    # NOTE: strictly, only the order against 'milli-?' is load-bearing:
+    # `(million|mm)-?u` still matches the "millionu" that 'u' leaves behind
+    # (audit mutant G3 is equivalent). Keeping 'mnu' ahead of 'u' is harmless.
     # Deliberately NOT accepted here: a bare `mu` meaning million units. In
     # clinical use `MU` is million units and `mU` is milliunits -- an ISMP
     # error-prone abbreviation separated only by case, and case is already
     # gone by this point. Only the unambiguous spellings are recognised.
-    'mnu': '(million|mm)-?u(nits|nit)?',
+    # A bare `MU` therefore reads as milli-units, and stage 2 refuses every
+    # milli-units <-> million-units request with AMBIGUOUS_MU_STATUS
+    # (_preferred.py) instead of returning a dose 1e9 off.
+    'mnu': '(million|mm)[-_]?u(nits|nit)?',
     'u': 'u(nits|nit)?',
-    # milli
-    'm': 'milli-?',
+    # milli -- '-' or '_' (clifpy's 3.0 YAML spells pitocin `milli_units`)
+    'm': 'milli[-_]?',
+    # spelled-out milli- forms. They match what 'milli-?' leaves behind
+    # ("milligrams" -> "mgrams"), so they MUST follow 'm'. Each is
+    # `^`-anchored and requires the leading m: a bare "moles" (mol, 1000x
+    # mmol) or "equivalents" must stay unrecognised, never become mmol/meq.
+    'mg': '^mgrams?',
+    'meq': '^mequivalents?',
+    'mmol': '^mmoles?',
     # volume -- 'mcl' precedes 'l', which would otherwise rewrite
-    # "microliter" -> "microl" and lose the micro- prefix
-    'mcl': '^(microliters?|microlitres?|µl|μl)',
+    # "microliter" -> "microl" and lose the micro- prefix. `ul` is the ASCII
+    # spelling of µl, as `ug` is of µg; the 'u' rule above leaves it intact.
+    'mcl': '^(microliters?|microlitres?|µl|μl|ul)',
     "l": 'l(iters|itres|itre|iter)?'    ,
-    # mass -- 'ng' precedes 'g'; both are anchored so they cannot overlap
+    # mass -- 'ng' and 'pg' precede 'g'; all are anchored so they cannot overlap
     'ng': '^nanograms?',
+    'pg': '^picograms?',
     'mcg': '^(u|µ|μ)g|^micrograms?',
     'g': '^g(rams|ram)?',
     # dose
@@ -88,9 +109,11 @@ MISSING_UNIT_PLACEHOLDERS = frozenset({
 #
 # Chosen by measurement, not guesswork. The countable pool is 53 distinct
 # tokens but extremely top-heavy -- `tablet` alone is 51% of the volume and the
-# top six reach 96%. These 21 tokens cover 99.95%; the omitted tail totals
-# ~1,957 observations. Callers with local vocabulary pass `countable_units=`
-# rather than editing this set.
+# top six reach 96%, so a short list covers nearly all of it. Callers with
+# local vocabulary pass `countable_units=` rather than editing this set. The
+# user guide lists every token, and
+# tests/utils/med_unit_converter/test_docs_drift.py fails when that list and
+# this set disagree.
 #
 # NOTE: matched by EXACT set membership, never by regex. `mg/kg/dose` is a
 # prescribing rate, not a dosage form, and a regex on 'dose' would capture it.
@@ -121,7 +144,7 @@ AMOUNT_ENDER = "($|/*)"
 # and molar mass, which the medication tables do not carry, so the subclass
 # guard in `_convert_base_units_to_preferred_units` refuses it.
 SUBCLASS_SPEC = {
-    'mass':         {'tokens': ('mcg', 'mg', 'ng', 'g'),  'base': 'mcg'},
+    'mass':         {'tokens': ('mcg', 'mg', 'ng', 'pg', 'g'), 'base': 'mcg'},
     'volume':       {'tokens': ('ml', 'l', 'mcl'),        'base': 'ml'},
     'unit':         {'tokens': ('u', 'mu', 'mnu'),        'base': 'u'},
     'equivalent':   {'tokens': ('meq',),                  'base': 'meq'},
@@ -154,6 +177,7 @@ TOKEN_TO_BASE_FACTOR = {
     # mass -> mcg
     'mg': '1000',
     'ng': '1/1000',
+    'pg': '1/1000000',    # picograms
     'g': '1000000',
 }
 
@@ -216,6 +240,7 @@ HR_REGEX = f"/hr$"
 
 # mass
 MU_REGEX = _token_regex('mu')
+MNU_REGEX = _token_regex('mnu')
 MG_REGEX = _token_regex('mg')
 NG_REGEX = _token_regex('ng')
 G_REGEX = _token_regex('g')
@@ -324,8 +349,11 @@ def _acceptable_amount_units() -> Set[str]:
     -----
     Amount units are combinations of:
 
-    - Amount units: ml, l, mu, u, mcg, mg, ng, g
-    - Weight qualifiers: /kg, /lb, or none
+    - Amount tokens: `ACCEPTABLE_BASE_AMOUNT_UNITS` (every `SUBCLASS_SPEC`
+      token outside `STANDALONE_SUBCLASSES`)
+    - Weight qualifiers: `ACCEPTABLE_WEIGHT_UNITS` (/kg, /lb, or none)
+
+    plus the bare `STANDALONE_AMOUNT_UNITS` (cells, ppm).
 
     See Also
     --------
@@ -365,9 +393,11 @@ def _acceptable_rate_units() -> Set[str]:
     -----
     Rate units are combinations of:
 
-    - Amount units: ml, l, mu, u, mcg, mg, ng, g
-    - Weight qualifiers: /kg, /lb, or none
-    - Time units: /hr, /min
+    - Amount tokens: `ACCEPTABLE_BASE_AMOUNT_UNITS` (the standalone cells and
+      ppm have no rate form)
+    - Weight qualifiers: `ACCEPTABLE_WEIGHT_UNITS` (/kg, /lb, or none)
+    - Time units: `ACCEPTABLE_TIME_UNITS` (/min plus every key of
+      `TIME_TO_BASE_FACTOR`: /day, /hr)
 
     See Also
     --------
@@ -412,12 +442,21 @@ def _convert_set_to_str_for_sql(s: Set[str]) -> str:
 
     >>> # f"WHERE unit IN ('{_convert_set_to_str_for_sql(units)}')"
 
+    A quote inside a value is escaped:
+
+    >>> _convert_set_to_str_for_sql(["patient's own"])
+    "patient''s own"
+
     Notes
     -----
     This is a helper function for building DuckDB SQL queries that need to check
     if values are in a set of acceptable units.
+
+    Single quotes inside a value are doubled, the SQL escape inside a
+    single-quoted literal, so a caller-supplied value (`countable_units`) can
+    never end the literal early or inject SQL.
     """
-    return "','".join(s)
+    return "','".join(str(v).replace("'", "''") for v in s)
 
 RATE_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_RATE_UNITS)
 AMOUNT_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_AMOUNT_UNITS)
@@ -426,9 +465,14 @@ AMOUNT_UNITS_STR = _convert_set_to_str_for_sql(ACCEPTABLE_AMOUNT_UNITS)
 def _canonical_spelling_expr(col: str) -> str:
     """Build a SQL expression rewriting a unit's leading token to mCIDE spelling.
 
-    Applied only where clifpy chooses the unit itself (the fallback to
-    `_base_unit`). When the caller names a preferred unit, their spelling is
-    echoed back verbatim instead, so `u/min` in gives `u/min` out.
+    Applied wherever a unit leaves clifpy: `_clean_unit`, `_base_unit`, the
+    labels clifpy chooses itself (the fallback to `_base_unit`, an unlisted
+    row's own unit), a failed row's unit and the unit a status message names.
+    The internal tokens stay `u` / `mu` / `mnu`, which the grammar matches on.
+    When the caller names a preferred unit, their spelling is echoed back
+    verbatim instead, so `u/min` in gives `u/min` out. Each token is rewritten
+    only when a `/` or the end follows it, so an unrecognized string such as
+    `unk` is left alone.
 
     Tokens are rewritten longest-first (`mnu` before `mu` before `u`), and each
     pattern is `^`-anchored, so no rewrite can cascade into another: once
@@ -452,5 +496,10 @@ def _canonical_spelling_expr(col: str) -> str:
     """
     expr = col
     for token in sorted(CANONICAL_UNIT_SPELLING, key=lambda t: (-len(t), t)):
-        expr = f"regexp_replace({expr}, '^{token}', '{CANONICAL_UNIT_SPELLING[token]}')"
+        # Bounded by `/` or the end: a cleaned but unrecognized string such as
+        # `unk` must not become `unitsnk`.
+        expr = (
+            f"regexp_replace({expr}, '^{token}(/|$)', "
+            f"'{CANONICAL_UNIT_SPELLING[token]}\\1')"
+        )
     return expr
