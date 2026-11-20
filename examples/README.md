@@ -90,6 +90,22 @@ Start with `00_basic_usage.py` and proceed through the examples.
 - Respiratory device data validation
 - Ventilation parameter analysis
 
+### [med_unit_converter_demo.py](med_unit_converter_demo.py)
+**Medication Dose-Unit Conversion (CLIF 3.0, marimo)**
+
+- mCIDE target units with `standardize_med_dose_units`: the lean output and
+  `_convert_status_details`, and accepting each target's weight variant
+
+- Preferred units and the `_convert_status` breakdown
+
+- The `attach_weight` fallback chain with a `max_staleness_days` slider
+
+- A second column pair (`volume_infusion_rate`) converted on the dose pass's result, with per-pair output names, and `countable_units`
+
+- The same conversion through `ClifOrchestrator`
+
+Runs on the bundled open CLIF 3.0 demo: `uv run python examples/med_unit_converter_demo.py` (headless) or `uv run marimo edit examples/med_unit_converter_demo.py`.
+
 ## Configuration for Your Environment
 
 ### Data Directory
