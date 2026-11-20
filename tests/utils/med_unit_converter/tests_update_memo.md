@@ -1,8 +1,7 @@
-# Test Update Memo — `unit_converter` weight-aware redesign
+# Test Update Memo — `unit_converter` weight-aware redesign (historical)
 
-> **Audience**: human reviewer manually updating fixtures + tests in this directory.
-> **Author**: AI agent implementing the upstream code changes in `clifpy/utils/unit_converter.py`.
-> **Status**: code changes pending. Do NOT trust this directory's tests until both code and fixtures are updated and the test runs all green.
+> **Status**: historical. This memo was written for the pre-split converter, when the code lived in the single module `clifpy/utils/unit_converter.py`. The package now lives in `clifpy/utils/unit_converter/`, the tests in this directory are current, and `docs/user-guide/med-unit-conversion.md` describes the behaviour. The body below is kept unchanged as a record of the original redesign notes.
+
 
 ---
 

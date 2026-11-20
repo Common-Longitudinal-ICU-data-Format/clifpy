@@ -5,13 +5,12 @@ clifpy.utils.unit_converter module, including unit cleaning, conversion,
 and standardization functionality.
 """
 import pytest
-import pandas as pd
-import numpy as np
+import polars as pl
 import duckdb
+from datetime import datetime
 from pathlib import Path
+from polars.testing import assert_series_equal
 from clifpy.utils.unit_converter import (
-    _clean_dose_unit_formats,
-    _clean_dose_unit_names,
     ACCEPTABLE_RATE_UNITS,
     _convert_clean_units_to_base_units,
     standardize_dose_to_base_units,
@@ -22,6 +21,16 @@ from clifpy.utils.unit_converter import (
 )
 from clifpy.utils.io import load_data
 
+
+def _spelled(units: pl.Series) -> pl.Series:
+    """`units` as the public outputs show them: the internal unit-family
+    tokens spelled out (`u/min` -> `units/min`, `mu` -> `milli-units`), a
+    token rewritten only when a `/` or the end follows it. The fixtures keep
+    the internal tokens because the stage-internal tests read them as input."""
+    for token, name in (('mnu', 'million-units'), ('mu', 'milli-units'), ('u', 'units')):
+        units = units.str.replace(rf'^{token}(/|$)', f'{name}$1')
+    return units
+
 # --- Helper Fixtures for CSV Loading ---
 @pytest.fixture
 def load_fixture_csv():
@@ -30,13 +39,18 @@ def load_fixture_csv():
     Returns
     -------
     callable
-        Function that loads CSV files from the fixture directory.
+        Function that loads a CSV fixture as a polars DataFrame, read the way
+        these tests always read it: an empty field is missing, and an integer
+        column holding a missing value is Float64.
     """
-    def _load(filename) -> pd.DataFrame:
+    def _load(filename) -> pl.DataFrame:
         path = Path(__file__).parent / filename
-        # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
-        df = pd.read_csv(path) # .replace(np.nan, '')
-        return df
+        df = pl.read_csv(path, infer_schema_length=None, null_values=[''])
+        return df.with_columns(
+            pl.col(name).cast(pl.Float64)
+            for name, dtype in df.schema.items()
+            if dtype.is_integer() and df[name].null_count() > 0
+        )
     return _load
 
 
@@ -47,7 +61,7 @@ def _clean_dose_unit_names_test_data(load_fixture_csv):
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         CSV data with columns:
 
         - _clean_format_unit: Input dose unit string (already format cleaned)
@@ -56,7 +70,7 @@ def _clean_dose_unit_names_test_data(load_fixture_csv):
     return load_fixture_csv('_clean_dose_unit_names_test_data.csv')
 
 # ===========================================
-# Tests for `_clean_dose_unit_formats`
+# Tests for `_clean_dose_unit_formats_duckdb`
 # ===========================================
 @pytest.fixture
 def _clean_dose_unit_formats_test_data(load_fixture_csv):
@@ -64,103 +78,40 @@ def _clean_dose_unit_formats_test_data(load_fixture_csv):
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         CSV data with columns:
 
         - case: 'valid' or 'invalid' to categorize test scenarios
         - med_dose_unit: Original dose unit string
         - _clean_format_unit: Expected cleaned result
     """
-    df: pd.DataFrame = load_fixture_csv('_clean_dose_unit_formats_test_data.csv')
-    # pd.read_csv will auto read any empty string like '' as np.nan, so need to change it back to ''
-    df.replace(np.nan, None, inplace=True)
+    df: pl.DataFrame = load_fixture_csv('_clean_dose_unit_formats_test_data.csv')
     return df
 
-@pytest.mark.skip
-def test__clean_dose_unit_formats(_clean_dose_unit_formats_test_data):
-    """Test the _clean_dose_unit_formats function for proper formatting cleaning.
-
-    Validates that the function correctly:
-
-    1. Removes all whitespace (including internal spaces): 'mL / hr' -> 'ml/hr'
-    2. Converts to lowercase: 'MCG/KG/MIN' -> 'mcg/kg/min'
-    3. Handles edge cases like leading/trailing spaces: ' Mg/Hr ' -> 'mg/hr'
-
-    Uses comprehensive test data from _clean_dose_unit_formats_test_data.csv
-    covering both valid and invalid unit patterns.
-
-    Parameters
-    ----------
-    clean_dose_unit_formats_test_data : pd.DataFrame
-        Test fixture containing unit format test cases.
-    """
-    test_df: pd.DataFrame = _clean_dose_unit_formats_test_data
-    # first check the filtering went right, i.e. test_df is not empty
-    result_series = _clean_dose_unit_formats(test_df['med_dose_unit'])
-    
-    pd.testing.assert_series_equal(
-        result_series.reset_index(drop=True), # actual
-        test_df['_clean_format_unit'].reset_index(drop=True), # expected
-        check_names=False
-    )
 
 def test__clean_dose_unit_formats_duckdb(_clean_dose_unit_formats_test_data):
-    """Test the _clean_dose_unit_formats function for proper formatting cleaning.
-    """
-    test_df: pd.DataFrame = _clean_dose_unit_formats_test_data
-    result_df = _clean_dose_unit_formats_duckdb(test_df).to_df()
+    """Test _clean_dose_unit_formats_duckdb for proper formatting cleaning."""
+    test_df: pl.DataFrame = _clean_dose_unit_formats_test_data.with_row_index('rn')
+    result_df = _clean_dose_unit_formats_duckdb(test_df).pl().sort('rn')
     
-    pd.testing.assert_series_equal(
-        result_df['_clean_unit'].reset_index(drop=True), # actual
-        test_df['_clean_format_unit'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['_clean_unit'], # actual
+        test_df['_clean_format_unit'], # expected
         check_names=False
     )
 
 # ===========================================
-# Tests for `_clean_dose_unit_names`
+# Tests for `_clean_dose_unit_names_duckdb`
 # ===========================================
-@pytest.mark.skip
-def test__clean_dose_unit_names(_clean_dose_unit_names_test_data):
-    """Test the _clean_dose_unit_names function for unit name standardization.
-
-    Validates comprehensive unit name cleaning including:
-
-    - Time units: 'hour', 'h' -> '/hr'; 'minute', 'm' -> '/min'
-    - Volume units: 'liter', 'liters', 'litre', 'litres' -> 'l'
-    - Unit units: 'units', 'unit' -> 'u'
-    - Milli prefix: 'milli-units', 'milliunits' -> 'mu'
-    - Special characters: 'µg', 'ug' -> 'mcg'
-    - Mass units: 'gram' -> 'g'
-
-    Uses comprehensive fixture data from _clean_dose_unit_names_test_data.csv
-    containing real-world unit variations.
-
-    Parameters
-    ----------
-    _clean_dose_unit_names_test_data : pd.DataFrame
-        Test fixture containing unit name cleaning test cases.
-    """
-    test_df = _clean_dose_unit_names_test_data.dropna()
-
-    # Apply the function
-    result_series = _clean_dose_unit_names(test_df['_clean_format_unit'])
-    
-    # Validate results
-    pd.testing.assert_series_equal(
-        result_series.reset_index(drop=True),
-        test_df['_clean_name_unit'].reset_index(drop=True),
-        check_names=False
-    )
 
 def test__clean_dose_unit_names_duckdb(_clean_dose_unit_names_test_data):
-    """Test the _clean_dose_unit_names function for unit name standardization.
-    """
-    test_df = _clean_dose_unit_names_test_data.dropna()
-    result_df = _clean_dose_unit_names_duckdb(test_df).to_df()
+    """Test _clean_dose_unit_names_duckdb for unit name standardization."""
+    test_df = _clean_dose_unit_names_test_data.drop_nulls().with_row_index('rn')
+    result_df = _clean_dose_unit_names_duckdb(test_df).pl().sort('rn')
     
-    pd.testing.assert_series_equal(
-        result_df['_clean_unit'].reset_index(drop=True), # actual
-        test_df['_clean_name_unit'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['_clean_unit'], # actual
+        test_df['_clean_name_unit'], # expected
         check_names=False
     )
 
@@ -189,7 +140,7 @@ def _convert_clean_units_to_base_units_test_data(load_fixture_csv):
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         CSV data with columns:
 
         - hospitalization_id, admin_dttm: Patient and timing identifiers
@@ -200,10 +151,7 @@ def _convert_clean_units_to_base_units_test_data(load_fixture_csv):
 
         Processes admin_dttm to datetime and converts empty weight_kg to NaN.
     """
-    df: pd.DataFrame = load_fixture_csv('_convert_clean_units_to_base_units_test_data.csv')
-    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
-    # Replace empty strings with NaN for weight_kg column
-    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    df: pl.DataFrame = load_fixture_csv('_convert_clean_units_to_base_units_test_data.csv')
     return df
 
 @pytest.fixture
@@ -215,7 +163,7 @@ def unit_converter_test_data(load_fixture_csv):
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         Test data with columns:
 
         - rn: Row number for ordering
@@ -232,10 +180,7 @@ def unit_converter_test_data(load_fixture_csv):
     Filters out rows where unit_class is NaN to focus on valid test cases.
     Replaces empty strings in weight_kg with NaN for proper null handling.
     """
-    df = load_fixture_csv('test_unit_converter - standardize_dose_to_base_units.csv').dropna(subset=['_unit_class'])
-    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
-    # Replace empty strings with NaN for weight_kg column
-    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    df = load_fixture_csv('test_unit_converter - standardize_dose_to_base_units.csv').drop_nulls('_unit_class')
     return df
 
 @pytest.fixture
@@ -247,7 +192,7 @@ def convert_dose_units_by_med_category_test_data(load_fixture_csv):
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         Test data with columns:
 
         - rn: Row number for test ordering
@@ -279,10 +224,7 @@ def convert_dose_units_by_med_category_test_data(load_fixture_csv):
     - Missing/empty units
     - Weight-based conversions
     """
-    df = load_fixture_csv('test_unit_converter - convert_dose_units_by_med_category.csv').dropna(subset=['_unit_class'])
-    # df['admin_dttm'] = pd.to_datetime(df['admin_dttm'])
-    # Replace empty strings with NaN for weight_kg column
-    df['weight_kg'] = df['weight_kg'].replace('', np.nan)
+    df = load_fixture_csv('test_unit_converter - convert_dose_units_by_med_category.csv').drop_nulls('_unit_class')
     return df
 
 @pytest.mark.unit_conversion
@@ -301,19 +243,19 @@ def test__convert_clean_units_to_base_units(unit_converter_test_data, caplog):
 
     Parameters
     ----------
-    unit_converter_test_data : pd.DataFrame
+    unit_converter_test_data : pl.DataFrame
         Test fixture containing conversion test cases.
     caplog : pytest.LogCaptureFixture
         Pytest fixture for capturing log messages.
     """
-    test_df: pd.DataFrame = unit_converter_test_data 
+    test_df: pl.DataFrame = unit_converter_test_data 
 
-    input_df = test_df.filter(items=['rn','med_dose', '_clean_unit', 'weight_kg'])
+    input_df = test_df.select(['rn','med_dose', '_clean_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
     result_df = _convert_clean_units_to_base_units(med_df = input_df) \
-        .to_df() \
-        .sort_values(by=['rn']) # sort by rn to ensure the order of the rows is consistent
+        .pl() \
+        .sort('rn') # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
     assert '_base_dose' in result_df.columns
@@ -322,26 +264,26 @@ def test__convert_clean_units_to_base_units(unit_converter_test_data, caplog):
     # assert "Unrecognized dose units found" in caplog.text # check that the warning is logged
 
     # Verify base values
-    pd.testing.assert_series_equal(
-        result_df['_base_dose'].reset_index(drop=True), # actual
-        test_df['_base_dose'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['_base_dose'], # actual
+        test_df['_base_dose'], # expected
         check_names=False,
         # check_dtype=False
     )
 
     # Verify base units
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         # TODO: may consider adding a check NA test and avoid using fillna('None') here
-        result_df['_base_unit'].fillna('None').reset_index(drop=True),
-        test_df['_base_unit'].fillna('None').reset_index(drop=True),
+        result_df['_base_unit'].fill_null('None'),
+        test_df['_base_unit'].fill_null('None'),
         check_names=False,
         # check_dtype=False
     )
     
     # Verify unit class
-    pd.testing.assert_series_equal(
-        result_df['_unit_class'].reset_index(drop=True),
-        test_df['_unit_class'].reset_index(drop=True),
+    assert_series_equal(
+        result_df['_unit_class'],
+        test_df['_unit_class'],
         check_names=False,
         # check_dtype=False
     )
@@ -363,7 +305,7 @@ def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
 
     Parameters
     ----------
-    unit_converter_test_data : pd.DataFrame
+    unit_converter_test_data : pl.DataFrame
         Test fixture containing conversion test cases.
     caplog : pytest.LogCaptureFixture
         Pytest fixture for capturing log messages.
@@ -373,14 +315,13 @@ def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
     This test assumes weight_kg is already present in the input DataFrame
     (not testing vitals join functionality).
     """
-    test_df: pd.DataFrame = unit_converter_test_data 
+    test_df: pl.DataFrame = unit_converter_test_data 
 
-    input_df = test_df.filter(items=['rn','med_dose', 'med_dose_unit', 'weight_kg'])
+    input_df = test_df.select(['rn','med_dose', 'med_dose_unit', 'weight_kg'])
     
     # with caplog.at_level('WARNING'):
     base_df, _ = standardize_dose_to_base_units(med_df = input_df)
-    base_df = base_df.to_df()
-    base_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    base_df = base_df.sort('rn') # sort by rn to ensure the order of the rows is consistent
     
     # Verify columns exist
     assert '_clean_unit' in base_df.columns
@@ -389,17 +330,17 @@ def test_standardize_dose_to_base_units(unit_converter_test_data, caplog):
     assert 'weight_kg' in base_df.columns
 
     # Verify base values
-    pd.testing.assert_series_equal(
-        base_df['_base_dose'].reset_index(drop=True), # actual
-        test_df['_base_dose'].reset_index(drop=True), # expected
+    assert_series_equal(
+        base_df['_base_dose'], # actual
+        test_df['_base_dose'], # expected
         check_names=False,
         #check_dtype=False
     )
 
     # Verify base units
-    pd.testing.assert_series_equal(
-        base_df['_base_unit'].fillna('None').reset_index(drop=True),
-        test_df['_base_unit'].fillna('None').reset_index(drop=True),
+    assert_series_equal(
+        base_df['_base_unit'].fill_null('None'),
+        _spelled(test_df['_base_unit']).fill_null('None'),
         check_names=False,
         # check_dtype=False
     )
@@ -413,7 +354,7 @@ def test__convert_base_units_to_preferred_units_inverse(unit_converter_test_data
 
     Parameters
     ----------
-    unit_converter_test_data : pd.DataFrame
+    unit_converter_test_data : pl.DataFrame
         Test fixture containing conversion test cases.
     caplog : pytest.LogCaptureFixture
         Pytest fixture for capturing log messages.
@@ -422,7 +363,7 @@ def test__convert_base_units_to_preferred_units_inverse(unit_converter_test_data
     -----
     This test assumes the presence of _clean_unit column.
     """
-    test_df: pd.DataFrame = unit_converter_test_data # .query("case == 'valid'")
+    test_df: pl.DataFrame = unit_converter_test_data # .filter(pl.col('case') == 'valid')
     assert len(test_df) > 0
     q = """
     SELECT rn
@@ -432,19 +373,19 @@ def test__convert_base_units_to_preferred_units_inverse(unit_converter_test_data
         , weight_kg
     FROM test_df
     """
-    input_df = duckdb.sql(q).to_df()
+    input_df = duckdb.sql(q).pl()
     
-    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True).to_df()
-    result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True).pl()
+    result_df = result_df.sort('rn') # sort by rn to ensure the order of the rows is consistent
 
     # Verify output columns exist
     assert 'med_dose_unit_converted' in result_df.columns
     assert 'med_dose_converted' in result_df.columns
 
     # Verify preferred values
-    pd.testing.assert_series_equal(
-        result_df['med_dose_converted'].reset_index(drop=True), # actual
-        test_df['med_dose'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['med_dose_converted'], # actual
+        test_df['med_dose'], # expected
         check_names=False,
         # check_dtype=False
     ) 
@@ -454,7 +395,7 @@ def test__convert_base_units_to_preferred_units_new(convert_dose_units_by_med_ca
 
     Parameters
     ----------
-    convert_dose_units_by_med_category_test_data : pd.DataFrame
+    convert_dose_units_by_med_category_test_data : pl.DataFrame
         Test fixture containing conversion test cases by medication category.
     caplog : pytest.LogCaptureFixture
         Pytest fixture for capturing log messages.
@@ -463,7 +404,7 @@ def test__convert_base_units_to_preferred_units_new(convert_dose_units_by_med_ca
     -----
     This test assumes the presence of _preferred_unit column.
     """
-    test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data.query("case == 'valid'")
+    test_df: pl.DataFrame = convert_dose_units_by_med_category_test_data.filter(pl.col('case') == 'valid')
     assert len(test_df) > 0
     q = """
     SELECT rn
@@ -473,29 +414,29 @@ def test__convert_base_units_to_preferred_units_new(convert_dose_units_by_med_ca
         , weight_kg
     FROM test_df
     """
-    input_df = duckdb.sql(q).to_df()
+    input_df = duckdb.sql(q).pl()
     
-    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True).to_df()
-    result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    result_df = _convert_base_units_to_preferred_units(med_df = input_df, override=True).pl()
+    result_df = result_df.sort('rn') # sort by rn to ensure the order of the rows is consistent
 
     # Verify columns exist
     assert 'med_dose_unit_converted' in result_df.columns
     assert 'med_dose_converted' in result_df.columns
 
     # Verify converted dose values
-    pd.testing.assert_series_equal(
-        result_df['med_dose_converted'].reset_index(drop=True), # actual
-        test_df['med_dose_converted'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['med_dose_converted'], # actual
+        test_df['med_dose_converted'], # expected
         check_names=False,
         check_exact=False,
-        rtol=1e-3,
-        atol=1e-5
+        rel_tol=1e-3,
+        abs_tol=1e-5
     ) 
     
     # Verify converted units
-    pd.testing.assert_series_equal(
-        result_df['med_dose_unit_converted'].reset_index(drop=True), # actual
-        test_df['med_dose_unit_converted'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['med_dose_unit_converted'], # actual
+        test_df['med_dose_unit_converted'], # expected
         check_names=False,
         check_exact=False
     )
@@ -508,14 +449,14 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
 
     Parameters
     ----------
-    convert_dose_units_by_med_category_test_data : pd.DataFrame
+    convert_dose_units_by_med_category_test_data : pl.DataFrame
         Test fixture containing conversion test cases by medication category.
     caplog : pytest.LogCaptureFixture
         Pytest fixture for capturing log messages.
     """
-    test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data
+    test_df: pl.DataFrame = convert_dose_units_by_med_category_test_data
     
-    input_df = test_df.filter(items=['rn','med_category', 'med_dose', 'med_dose_unit', 'weight_kg'])
+    input_df = test_df.select(['rn','med_category', 'med_dose', 'med_dose_unit', 'weight_kg'])
     
     preferred_units = {
         'propofol': 'mcg/kg/min',
@@ -537,37 +478,44 @@ def test_convert_dose_units_by_med_category(convert_dose_units_by_med_category_t
         }
     
     result_df, _ = convert_dose_units_by_med_category(med_df = input_df, preferred_units = preferred_units, override=True)
-    result_df.sort_values(by=['rn'], inplace=True) # sort by rn to ensure the order of the rows is consistent
+    result_df = result_df.sort('rn') # sort by rn to ensure the order of the rows is consistent
     
     # check _convert_status
-    pd.testing.assert_series_equal(
-        result_df['_convert_status'].reset_index(drop=True), # actual
-        test_df['_convert_status'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['_convert_status'], # actual
+        test_df['_convert_status'], # expected
         check_names=False,
         # check_dtype=False
     )
     
     # check med_dose_preferred
-    pd.testing.assert_series_equal(
-        result_df['med_dose_converted'].reset_index(drop=True), # actual
-        test_df['med_dose_converted'].reset_index(drop=True), # expected
+    assert_series_equal(
+        result_df['med_dose_converted'], # actual
+        test_df['med_dose_converted'], # expected
         check_names=False,
         # check_dtype=False
-        rtol=1e-3,
-        atol=1e-5
+        rel_tol=1e-3,
+        abs_tol=1e-5
     )
     
-    # check med_dose_unit_preferred
-    pd.testing.assert_series_equal(
-        result_df['med_dose_unit_converted'].reset_index(drop=True), # actual
-        test_df['med_dose_unit_converted'].reset_index(drop=True), # expected
+    # check med_dose_unit_preferred: a failed row shows its cleaned source
+    # unit, spelled out like every unit leaving clifpy
+    assert_series_equal(
+        result_df['med_dose_unit_converted'], # actual
+        pl.Series(
+            pl.select(
+                pl.when(test_df['_convert_status'] == 'success')
+                .then(test_df['med_dose_unit_converted'])
+                .otherwise(_spelled(test_df['med_dose_unit_converted']))
+            ).to_series()
+        ), # expected
         check_names=False,
         # check_dtype=False
     )
 
 
 def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med_category_test_data):
-    """Test that return_rel=True returns DuckDB PyRelation instead of DataFrame.
+    """Test that return_format='duckdb' returns DuckDB relations instead of DataFrames.
 
     Validates that:
 
@@ -575,8 +523,8 @@ def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med
     2. The data is equivalent when materialized to DataFrame
     3. Expected columns are present in the result
     """
-    test_df: pd.DataFrame = convert_dose_units_by_med_category_test_data
-    input_df = test_df.filter(items=['rn','med_category', 'med_dose', 'med_dose_unit', 'weight_kg'])
+    test_df: pl.DataFrame = convert_dose_units_by_med_category_test_data
+    input_df = test_df.select(['rn','med_category', 'med_dose', 'med_dose_unit', 'weight_kg'])
 
     preferred_units = {
         'propofol': 'mcg/kg/min',
@@ -597,7 +545,7 @@ def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med
         med_df=input_df,
         preferred_units=preferred_units,
         override=True,
-        return_rel=True
+        return_format='duckdb'
     )
 
     # Verify return types are DuckDB PyRelation
@@ -605,13 +553,13 @@ def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med
     assert isinstance(counts_rel, duckdb.DuckDBPyRelation)
 
     # Verify data is equivalent when materialized
-    result_df = result_rel.to_df()
+    result_df = result_rel.pl()
     assert '_convert_status' in result_df.columns
     assert 'med_dose_converted' in result_df.columns
     assert 'med_dose_unit_converted' in result_df.columns
 
     # Verify counts can be materialized
-    counts_df = counts_rel.to_df()
+    counts_df = counts_rel.pl()
     assert 'count' in counts_df.columns
 
 
@@ -628,7 +576,7 @@ def test_convert_dose_units_by_med_category_return_rel(convert_dose_units_by_med
 # (mirrors §6c of tests_update_memo.md)
 # ===========================================
 
-# Each test below builds its own minimal in-test fixture (small pd.DataFrame
+# Each test below builds its own minimal in-test fixture (small pl.DataFrame
 # literals) so the existing CSV-based fixtures stay untouched. This is the
 # §6c-required coverage for behaviors that today are smoke-only or absent.
 
@@ -644,17 +592,17 @@ def test_fallback_on_earliest_recovers_lagged_charting():
     Verifies both the failure-path status string and the success-path
     `_weight_source='earliest_fallback'` provenance value.
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0],
         'hospitalization_id': ['H_LAGGED'],
-        'admin_dttm': [pd.Timestamp('2024-01-01 09:00')],
+        'admin_dttm': [datetime.fromisoformat('2024-01-01 09:00')],
         'med_category': ['propofol_unweighted'],
         'med_dose': [10.0],
         'med_dose_unit': ['mcg/kg/min'],
     })
-    vitals_df = pd.DataFrame({
+    vitals_df = pl.DataFrame({
         'hospitalization_id': ['H_LAGGED'],
-        'recorded_dttm': [pd.Timestamp('2024-01-01 09:30')],
+        'recorded_dttm': [datetime.fromisoformat('2024-01-01 09:30')],
         'vital_category': ['weight_kg'],
         'vital_value': [72.0],
     })
@@ -668,10 +616,10 @@ def test_fallback_on_earliest_recovers_lagged_charting():
         override=True,
         show_intermediate=True,
     )
-    assert result_no_fb['_convert_status'].iloc[0] == (
+    assert result_no_fb['_convert_status'][0] == (
         'cannot convert weighted to unweighted: weight_kg is missing'
     )
-    assert pd.isna(result_no_fb['_weight_source'].iloc[0])
+    assert result_no_fb['_weight_source'][0] is None
 
     # --- fallback_on_earliest=True -> should succeed using the lagged 09:30 row ---
     result_fb, _ = convert_dose_units_by_med_category(
@@ -682,24 +630,24 @@ def test_fallback_on_earliest_recovers_lagged_charting():
         show_intermediate=True,
         fallback_on_earliest=True,
     )
-    assert result_fb['_convert_status'].iloc[0] == 'success'
-    assert result_fb['_weight_source'].iloc[0] == 'earliest_fallback'
+    assert result_fb['_convert_status'][0] == 'success'
+    assert result_fb['_weight_source'][0] == 'earliest_fallback'
     # 10 mcg/kg/min × 72 kg = 720 mcg/min
-    assert result_fb['med_dose_converted'].iloc[0] == pytest.approx(720.0, rel=1e-6)
-    assert result_fb['med_dose_unit_converted'].iloc[0] == 'mcg/min'
+    assert result_fb['med_dose_converted'][0] == pytest.approx(720.0, rel=1e-6)
+    assert result_fb['med_dose_unit_converted'][0] == 'mcg/min'
 
 
 def test_temp_table_cleanup_after_call():
     """Test #2 of §6c: pandas-input -> the orchestrator promotes med_df into a
-    `_med_unit_input` temp table (boundary 2a). When `return_rel=False`,
-    the `finally` block must drop every `_med_unit_*` table on exit.
+    per-call `_med_unit_input_<8 hex>` temp table (boundary 2a). With an eager
+    return format, the `finally` block must drop every `_med_unit_*` table on exit.
     """
     # Sanity-check: drop any leftover _med_unit_* tables before the test.
     for (tname,) in duckdb.sql("SHOW TABLES").fetchall():
         if tname.startswith('_med_unit_'):
             duckdb.execute(f"DROP TABLE IF EXISTS {tname}")
 
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0],
         'med_category': ['propofol'],
         'med_dose': [10.0],
@@ -711,7 +659,7 @@ def test_temp_table_cleanup_after_call():
         med_df=med_df,
         preferred_units={'propofol': 'mcg/kg/min'},
         override=True,
-        return_rel=False,
+        return_format='polars',
     )
 
     leftover = [
@@ -728,7 +676,7 @@ def test_identity_short_circuit_bit_exact():
     """
     weight = 73.4836
     dose = 12.345678901234567
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0],
         'med_category': ['propofol'],
         'med_dose': [dose],
@@ -742,9 +690,9 @@ def test_identity_short_circuit_bit_exact():
         override=True,
     )
     # Bit-exact equality, not approx — short-circuit means no multiplication.
-    assert result['med_dose_converted'].iloc[0] == dose
-    assert result['med_dose_unit_converted'].iloc[0] == 'mcg/kg/min'
-    assert result['_convert_status'].iloc[0] == 'success'
+    assert result['med_dose_converted'][0] == dose
+    assert result['med_dose_unit_converted'][0] == 'mcg/kg/min'
+    assert result['_convert_status'][0] == 'success'
 
 
 # --- Important (smoke-only today) -------------------------------------------
@@ -769,7 +717,7 @@ def test_needs_wt_full_matrix():
         ('m_un_lb', 'mcg/min',    'mcg/lb/min', 1),
         ('m_un_un', 'mcg/min',    'mcg/min',    0),
     ]
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': list(range(len(rows))),
         'med_category': [r[0] for r in rows],
         'med_dose': [10.0] * len(rows),
@@ -784,10 +732,10 @@ def test_needs_wt_full_matrix():
         override=True,
         show_intermediate=True,
     )
-    result = result.sort_values('rn').reset_index(drop=True)
-    expected = pd.Series([r[3] for r in rows], name='_needs_wt')
-    pd.testing.assert_series_equal(
-        result['_needs_wt'].astype(int).reset_index(drop=True),
+    result = result.sort('rn')
+    expected = pl.Series('_needs_wt', [r[3] for r in rows])
+    assert_series_equal(
+        result['_needs_wt'].cast(pl.Int64),
         expected,
         check_names=False,
     )
@@ -800,13 +748,13 @@ def test_kg_lb_constant_factor_no_weight():
     the `KG_PER_LB` constant. Covers stage-1 application (lb->kg) and
     stage-2 application (kg->lb).
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0, 1],
         'med_category': ['kg_to_lb', 'lb_to_kg'],
         'med_dose': [100.0, 100.0],
         'med_dose_unit': ['mcg/kg/min', 'mcg/lb/hr'],
-        'weight_kg': [np.nan, np.nan],
-    })
+        'weight_kg': [None, None],
+    }, schema_overrides={'weight_kg': pl.Float64})
     preferred_units = {
         'kg_to_lb': 'mcg/lb/min',  # factor 1/KG_PER_LB applied in stage 2
         'lb_to_kg': 'mcg/kg/min',  # factor KG_PER_LB applied in stage 1; stage 2 sees identity
@@ -817,21 +765,21 @@ def test_kg_lb_constant_factor_no_weight():
         preferred_units=preferred_units,
         override=True,
     )
-    result = result.sort_values('rn').reset_index(drop=True)
+    result = result.sort('rn')
     assert (result['_convert_status'] == 'success').all()
 
     # kg->lb: 100 / 2.20462 mcg/lb/min
-    assert result.loc[0, 'med_dose_converted'] == pytest.approx(
+    assert result['med_dose_converted'][0] == pytest.approx(
         100.0 / KG_PER_LB_LITERAL, rel=1e-9
     )
-    assert result.loc[0, 'med_dose_unit_converted'] == 'mcg/lb/min'
+    assert result['med_dose_unit_converted'][0] == 'mcg/lb/min'
 
     # lb/hr -> kg/min: stage 1 collapses lb->kg via *KG_PER_LB and hr->min via /60.
     # 100 mcg/lb/hr  ==  (100 * KG_PER_LB / 60) mcg/kg/min
-    assert result.loc[1, 'med_dose_converted'] == pytest.approx(
+    assert result['med_dose_converted'][1] == pytest.approx(
         100.0 * KG_PER_LB_LITERAL / 60.0, rel=1e-9
     )
-    assert result.loc[1, 'med_dose_unit_converted'] == 'mcg/kg/min'
+    assert result['med_dose_unit_converted'][1] == 'mcg/kg/min'
 
 
 def test_user_prefilled_weight_kg_honored():
@@ -839,12 +787,12 @@ def test_user_prefilled_weight_kg_honored():
     skip the vitals lookup entirely. NULLs in the supplied column stay NULL,
     and only `_needs_wt=1 AND weight_kg IS NULL` rows fail.
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0, 1, 2, 3],
         'med_category': ['propofol_unweighted'] * 4,
         'med_dose': [10.0, 10.0, 10.0, 10.0],
         'med_dose_unit': ['mcg/kg/min', 'mcg/kg/min', 'mcg/kg/min', 'mcg/kg/min'],
-        'weight_kg': [70.0, np.nan, 80.0, np.nan],
+        'weight_kg': [70.0, None, 80.0, None],
     })
 
     # vitals_df=None must NOT trigger an error: user-prefilled weight wins.
@@ -854,19 +802,19 @@ def test_user_prefilled_weight_kg_honored():
         preferred_units={'propofol_unweighted': 'mcg/min'},
         override=True,
     )
-    result = result.sort_values('rn').reset_index(drop=True)
+    result = result.sort('rn')
 
     # Rows 0, 2: weight present -> success.
-    assert result.loc[0, '_convert_status'] == 'success'
-    assert result.loc[0, 'med_dose_converted'] == pytest.approx(700.0)
-    assert result.loc[2, '_convert_status'] == 'success'
-    assert result.loc[2, 'med_dose_converted'] == pytest.approx(800.0)
+    assert result['_convert_status'][0] == 'success'
+    assert result['med_dose_converted'][0] == pytest.approx(700.0)
+    assert result['_convert_status'][2] == 'success'
+    assert result['med_dose_converted'][2] == pytest.approx(800.0)
 
     # Rows 1, 3: weight NULL -> weighted->unweighted failure (NULLs preserved).
-    assert result.loc[1, '_convert_status'] == (
+    assert result['_convert_status'][1] == (
         'cannot convert weighted to unweighted: weight_kg is missing'
     )
-    assert result.loc[3, '_convert_status'] == (
+    assert result['_convert_status'][3] == (
         'cannot convert weighted to unweighted: weight_kg is missing'
     )
 
@@ -875,7 +823,7 @@ def test_lazy_weight_join_skipped():
     """Test #7 of §6c: when no row needs weight, the `fetchone()` short-circuit
     must skip the vitals join entirely (vitals_df=None must NOT raise).
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0, 1, 2],
         'med_category': ['kg_kg', 'kg_lb', 'amount_id'],
         'med_dose': [10.0, 10.0, 5.0],
@@ -903,7 +851,7 @@ def test_anti_join_validation_unacceptable_preferred():
     (default) or a warning (`override=True`) via the ANTI JOIN validator
     inside `_convert_base_units_to_preferred_units`.
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0],
         'med_category': ['zidovudine'],
         'med_dose': [10.0],
@@ -933,7 +881,7 @@ def test_anti_join_validation_extra_med_category():
     `med_df` must trigger ValueError (default) or warning (`override=True`)
     via the ANTI JOIN validator at the orchestrator entry point.
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0],
         'med_category': ['propofol'],
         'med_dose': [10.0],
@@ -969,23 +917,23 @@ def test_weight_source_provenance():
     # H_ASOF:     vitals before admin -> 'asof'
     # H_LAGGED:   vitals after admin only -> 'earliest_fallback' (with fallback)
     # H_NONE:     no vitals at all -> NULL
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0, 1, 2],
         'hospitalization_id': ['H_ASOF', 'H_LAGGED', 'H_NONE'],
         'admin_dttm': [
-            pd.Timestamp('2024-01-01 10:00'),
-            pd.Timestamp('2024-01-01 09:00'),
-            pd.Timestamp('2024-01-01 12:00'),
+            datetime.fromisoformat('2024-01-01 10:00'),
+            datetime.fromisoformat('2024-01-01 09:00'),
+            datetime.fromisoformat('2024-01-01 12:00'),
         ],
         'med_category': ['propofol_unweighted'] * 3,
         'med_dose': [10.0, 10.0, 10.0],
         'med_dose_unit': ['mcg/kg/min'] * 3,
     })
-    vitals_df = pd.DataFrame({
+    vitals_df = pl.DataFrame({
         'hospitalization_id': ['H_ASOF', 'H_LAGGED'],
         'recorded_dttm': [
-            pd.Timestamp('2024-01-01 08:00'),  # before H_ASOF admin
-            pd.Timestamp('2024-01-01 09:30'),  # after H_LAGGED admin
+            datetime.fromisoformat('2024-01-01 08:00'),  # before H_ASOF admin
+            datetime.fromisoformat('2024-01-01 09:30'),  # after H_LAGGED admin
         ],
         'vital_category': ['weight_kg', 'weight_kg'],
         'vital_value': [70.0, 72.0],
@@ -1000,10 +948,10 @@ def test_weight_source_provenance():
         fallback_on_earliest=True,
     )
     # Index by hospitalization_id for stable lookups.
-    by_id = result.set_index('hospitalization_id')
-    assert by_id.loc['H_ASOF', '_weight_source'] == 'asof'
-    assert by_id.loc['H_LAGGED', '_weight_source'] == 'earliest_fallback'
-    assert pd.isna(by_id.loc['H_NONE', '_weight_source'])
+    by_id = {row['hospitalization_id']: row for row in result.iter_rows(named=True)}
+    assert by_id['H_ASOF']['_weight_source'] == 'asof'
+    assert by_id['H_LAGGED']['_weight_source'] == 'earliest_fallback'
+    assert by_id['H_NONE']['_weight_source'] is None
 
 
 # --- Lower priority ---------------------------------------------------------
@@ -1013,7 +961,7 @@ def test_show_intermediate_surfaces_qa_columns():
     columns (and the planning columns `_needs_wt`, `_base_wt`, `_pref_wt`).
     Default mode hides all of them.
     """
-    med_df = pd.DataFrame({
+    med_df = pl.DataFrame({
         'rn': [0],
         'med_category': ['propofol'],
         'med_dose': [10.0],
@@ -1037,12 +985,17 @@ def test_show_intermediate_surfaces_qa_columns():
         '_pref_wt',
         '_base_unit',
         '_preferred_unit',
-        '_weight_source',
+        '_clean_unit',
+        '_unit_class',
+        '_weight_recorded_dttm',
     }
     assert hidden_cols.isdisjoint(default_result.columns), (
         f"Default mode leaked QA columns: "
         f"{hidden_cols & set(default_result.columns)}"
     )
+    # the lean output keeps the weight's provenance: a pre-filled one
+    assert default_result['_weight_source'].to_list() == ['prefilled']
+    assert default_result['_weight_age_hours'].to_list() == [None]
 
     # show_intermediate=True -> QA columns must be present.
     qa_result, _ = convert_dose_units_by_med_category(
@@ -1094,24 +1047,16 @@ def hostile_default_tz():
 def test_converter_preserves_admin_dttm_tz(site_tz, hostile_default_tz):
     """``convert_dose_units_by_med_category`` must leave ``admin_dttm``'s tz unchanged.
 
-    Loads real demo continuous-med data in ``site_tz``, converts fentanyl under a
-    hostile (Los Angeles) default connection, and asserts ``admin_dttm``'s timezone
-    label and underlying instants are identical before/after -- conversion touches
-    dose columns only (issue #144).
-
-    Parameters
-    ----------
-    site_tz : str
-        Timezone the med table is loaded in.
-    hostile_default_tz : fixture
-        Forces a non-UTC ambient default-connection zone.
+    Loads real demo continuous-med data in ``site_tz`` (polars, load_data's
+    default), converts fentanyl under a hostile (Los Angeles) default
+    connection, and asserts ``admin_dttm``'s timezone label and instants are
+    identical before/after -- conversion touches dose columns only (issue #144).
     """
-    med_df: pd.DataFrame = load_data(
-        "medication_admin_continuous", _DEMO_DIR, "parquet", site_tz=site_tz, return_format="pandas"
-    )
-    med_df = med_df[med_df["med_category"] == "fentanyl"].copy()
-    assert not med_df.empty, "expected fentanyl rows in demo continuous meds"
-    src = med_df["admin_dttm"].copy()
+    med_df = load_data(
+        "medication_admin_continuous", _DEMO_DIR, "parquet", site_tz=site_tz,
+    ).filter(pl.col("med_category") == "fentanyl")
+    assert not med_df.is_empty(), "expected fentanyl rows in demo continuous meds"
+    src = med_df["admin_dttm"]
 
     converted, _ = convert_dose_units_by_med_category(
         med_df, preferred_units={"fentanyl": "mcg/min"}, override=True
@@ -1119,8 +1064,8 @@ def test_converter_preserves_admin_dttm_tz(site_tz, hostile_default_tz):
     out = converted["admin_dttm"]
 
     # #144 discriminator: the converter must not relabel the timezone.
-    assert str(out.dt.tz) == str(src.dt.tz), (
-        f"converter changed admin_dttm tz {src.dt.tz} -> {out.dt.tz} (issue #144)"
+    assert out.dtype.time_zone == src.dtype.time_zone, (
+        f"converter changed admin_dttm tz {src.dtype.time_zone} -> {out.dtype.time_zone} (issue #144)"
     )
     # Instants (values) unchanged -- conversion changes dose columns only.
-    assert sorted(out.dropna().tolist()) == sorted(src.dropna().tolist())
+    assert sorted(out.drop_nulls().to_list()) == sorted(src.drop_nulls().to_list())
