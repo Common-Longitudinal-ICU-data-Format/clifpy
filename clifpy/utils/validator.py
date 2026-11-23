@@ -1327,16 +1327,20 @@ def _med_unit_matches(observed: str, expected_units: List[str], continuous: bool
     """Return True if a normalized observed dose unit matches any expected unit.
 
     ``observed`` and ``expected_units`` must already be lowercased+stripped.
-    For continuous tables the expected value is the rate NUMERATOR base unit
-    (observed ``mcg/kg/min`` matches expected ``mcg``) unless the expected
-    value itself contains ``/`` (e.g. ``ml/hr``), which must match the full
-    observed unit. Intermittent tables always require a full-unit match.
+    For continuous tables only the rate NUMERATOR is compared, so the weight
+    and time basis may differ (observed ``mcg/min`` matches expected
+    ``mcg/kg/min`` or ``mcg``; ``mg/min`` does not). When the expected unit is
+    itself a rate, the observed unit must be a rate too (bare ``ml`` does not
+    match ``ml/hr``). Intermittent tables always require a full-unit match.
     """
+    observed_is_rate = '/' in observed
+    observed_numerator = observed.split('/', 1)[0].strip()
     for exp in expected_units:
-        if not continuous or '/' in exp:
+        if not continuous:
             if observed == exp:
                 return True
-        elif observed.split('/', 1)[0].strip() == exp:
+        elif (observed_numerator == exp.split('/', 1)[0].strip()
+              and (observed_is_rate or '/' not in exp)):
             return True
     return False
 

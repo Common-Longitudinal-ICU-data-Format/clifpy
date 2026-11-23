@@ -37,7 +37,8 @@ PRESSOR_PREFERRED_UNITS = {
     'vasopressin': 'u/min',
     'phenylephrine': 'mcg/kg/min',
     'milrinone': 'mcg/kg/min',
-    'angiotensin': 'ng/kg/min',
+    'angiotensin': 'ng/kg/min',      # CLIF 2.1 name
+    'angiotensin_ii': 'ng/kg/min',   # CLIF 3.0 name
     'isoproterenol': 'mcg/kg/min',
 }
 

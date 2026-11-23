@@ -1731,6 +1731,22 @@ class TestCheckMedicationDoseUnits:
         assert details["mismatched_records"] == 1
         assert details["top_mismatched_units"][0]["med_dose_unit"] == "ml"
 
+    def test_rate_expected_matches_on_numerator_any_basis(self):
+        # Upstream mCIDE lists full rate units (mcg/kg/min). A site recording
+        # the same numerator on another weight/time basis must still pass;
+        # a different numerator, or a non-rate unit, must not.
+        schema = {"med_category_to_dose_unit_mapping": {"norepinephrine": "mcg/kg/min"}}
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"] * 4,
+            "med_dose_unit": ["mcg/kg/min", "mcg/min", "mg/min", "mcg"],
+        })
+        result = self._run(df, schema)
+        warns = self._warnings_for(result, "norepinephrine")
+        assert len(warns) == 1
+        details = warns[0]["details"]
+        assert details["matched_records"] == 2
+        assert {u["med_dose_unit"] for u in details["top_mismatched_units"]} == {"mg/min", "mcg"}
+
     def test_no_slash_expected_unit_passes(self):
         df = pd.DataFrame({
             "med_category": ["nitric_oxide"],

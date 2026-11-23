@@ -35,6 +35,7 @@ columns:
       - ett
       - npa
       - opa
+      - sga
       - trach
   - name: airway_size
     data_type: DOUBLE

@@ -162,8 +162,8 @@ def test_30_schema_set_parses_and_is_consistent():
 
 
 @pytest.mark.parametrize("table,expected_count", [
-    ("medication_admin_continuous", 75),
-    ("medication_admin_intermittent", 271),
+    ("medication_admin_continuous", 97),
+    ("medication_admin_intermittent", 468),
 ])
 def test_30_med_dose_unit_mappings_consistent(table, expected_count):
     # The mCIDE-derived dose unit mapping must stay in lockstep with the

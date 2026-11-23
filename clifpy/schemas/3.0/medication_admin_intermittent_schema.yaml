@@ -33,35 +33,74 @@ columns:
   is_category_column: true
   is_group_column: false
   permissible_values:
+  - abatacept
   - acetaminophen
+  - acetazolamide
+  - aclidinium
   - acyclovir
+  - adalimumab
+  - adenosine
+  - albumin_25
+  - albumin_5
+  - albuterol
+  - alefacept
+  - alprostadil
   - alteplase
   - amikacin
+  - aminocaproic_acid
+  - aminophylline
+  - amiodarone
+  - amlodipine
   - amoxicillin
   - amoxicillin_clavulanate
   - amphotericin_b
   - ampicillin
   - ampicillin_sulbactam
   - anakinra
+  - andexanet_alfa
+  - angiotensin_ii
   - anidulafungin
+  - apixaban
+  - arformoterol
+  - argatroban
+  - aspirin
+  - atenolol
   - atracurium
+  - atropine
+  - auranofin
+  - aurothioglucose
   - axicabtagene_ciloleucel
+  - azathioprine
   - azilsartan
   - azithromycin
   - aztreonam
+  - baclofen
+  - balanced_crystalloid_other
+  - baloxavir
   - baricitinib
+  - basiliximab
+  - beclomethasone
+  - belatacept
+  - belimumab
   - benazepril
-  - benazepril_hctz
   - betamethasone
+  - betrixaban
+  - bevacizumab
   - bisoprolol
-  - bisoprolol_hctz
+  - bivalirudin
   - blinatumomab
+  - brentuximab_vedotin
   - brexucabtagene_autoleucel
+  - budesonide
   - bumetanide
+  - bupivacaine
+  - buprenorphine
+  - buprenorphine_naloxone
+  - calcium_chloride
+  - calcium_gluconate
   - canagliflozin
-  - canagliflozin_metformin
   - candesartan
-  - candesartan_hctz
+  - cangrelor
   - captopril
   - carvedilol
   - carvedilol_cr
@@ -95,55 +134,97 @@ columns:
   - cephalothin
   - cephapirin
   - cephradine
+  - certolizumab_pegol
   - chloramphenicol
+  - chlordiazepoxide
   - chlorothiazide
   - chlorthalidone
+  - ciclesonide
   - cidofovir
   - ciltacabtagene_autoleucel
   - cinoxacin
   - ciprofloxacin
   - cisatracurium
   - clarithromycin
+  - clevidipine
   - clindamycin
+  - clonidine
+  - clopidogrel
+  - clotrimazole
   - cloxacillin
   - colistin
+  - cyclophosphamide
+  - cyclosporine
+  - dabigatran
+  - daclizumab
   - dalbavancin
   - dapagliflozin
-  - dapagliflozin_metformin
-  - dapagliflozin_saxagliptin
   - daptomycin
   - delafloxacin
+  - denosumab
+  - desmopressin
   - dexamethasone
+  - dexmedetomidine
+  - dextrose_10_lactated_ringers
+  - dextrose_10_sodium_chloride_0_45_pct
+  - dextrose_10_sodium_chloride_0_9_pct
+  - dextrose_10_water
+  - dextrose_50
+  - dextrose_5_balanced_crystalloid_other
+  - dextrose_5_lactated_ringers
+  - dextrose_5_sodium_chloride_0_45_pct
+  - dextrose_5_sodium_chloride_0_9_pct
+  - dextrose_5_water
+  - dextrose_other
   - diatrizoate
   - diazepam
   - dicloxacillin
   - digoxin
+  - diltiazem
   - diphenhydramine
+  - dipyridamole
+  - dobutamine
+  - dopamine
   - doripenem
   - dornase_alfa
   - doxycycline
-  - elratanamab
+  - econazole
+  - eculizumab
+  - edoxaban
+  - efalizumab
+  - elranatamab
   - empagliflozin
-  - empagliflozin_linagliptin
-  - empagliflozin_metformin
   - enalapril
-  - enalapril_hctz
+  - enoxaparin
   - epcoritamab
   - epinephrine
   - eplerenone
+  - epoprostenol
   - eprosartan
+  - eptifibatide
   - eravacycline
   - ertapenem
   - ertugliflozin
   - erythromycin
+  - esmolol
+  - esomeprazole
+  - etanercept
   - etomidate
+  - etoposide
+  - everolimus
+  - famotidine
   - fentanyl
   - fidaxomicin
   - fluconazole
   - fludrocortisone
+  - flumazenil
+  - fluticasone_furoate
+  - fluticasone_propionate
+  - formoterol
   - foscarnet
   - fosfomycin
   - fosinopril
+  - fosphenytoin
   - furosemide
   - gadobenate
   - gadobutrol
@@ -156,22 +237,34 @@ columns:
   - gatifloxacin
   - gentamicin
   - glofitamab
+  - glucagon
+  - glycopyrrolate
+  - gold_sodium_thiomalate
+  - golimumab
   - haloperidol
+  - heparin
   - hydralazine
-  - hydralazine_isosorbide
   - hydrochlorothiazide
   - hydrocortisone
   - hydromorphone
   - hydroxocobalamin
-  - hypertonic_saline_20
-  - hypertonic_saline_23.4
-  - hypertonic_saline_3
-  - hypertonic_saline_7
-  - hypertonic_saline_7.5
+  - hydroxychloroquine
+  - idarucizumab
   - idecabtagene_vicleucel
   - imipenem
   - imipenem_relebactam
   - indapamide
+  - infliximab
+  - insulin_aspart
+  - insulin_degludec
+  - insulin_detemir
+  - insulin_glargine
+  - insulin_glulisine
+  - insulin_lispro
+  - insulin_nph
+  - insulin_regular
+  - insulin_other
+  - interferon_alfacon_1
   - iobitridol
   - iodixanol
   - iohexol
@@ -179,101 +272,188 @@ columns:
   - iopamidol
   - ioversol
   - ioxaglate
+  - ipilimumab
+  - ipratropium
   - irbesartan
-  - irbesartan_hctz
   - isavuconazole
-  - isavuconazonium
+  - isoproterenol
   - isosorbide_dinitrate
+  - isosorbide_mononitrate
   - itraconazole
   - ivabradine
   - kanamycin
   - ketamine
+  - ketoconazole
+  - labetalol
+  - lacosamide
+  - lactated_ringers_solution
+  - lactulose
   - lefamulin
+  - leflunomide
+  - levalbuterol
+  - levetiracetam
   - levofloxacin
+  - levothyroxine
+  - lidocaine
+  - linagliptin
   - lincomycin
   - linezolid
   - linvoseltamab
+  - liothyronine
   - lisinopril
-  - lisinopril_hctz
   - lisocabtagene_maraleucel
   - lorazepam
   - losartan
-  - losartan_hctz
-  - magnesium_repletion
+  - magnesium_chloride
+  - magnesium_gluconate
+  - magnesium_lactate
+  - magnesium_oxide
+  - magnesium_sulfate
   - mannitol
   - maribavir
   - meropenem
   - meropenem_vaborbactam
+  - metformin
+  - methadone
   - methicillin
+  - methotrexate
   - methylene_blue
   - methylprednisolone
+  - metoclopramide
   - metolazone
   - metoprolol_succinate
-  - metoprolol_succinate_hctz
   - metoprolol_tartrate
-  - metoprolol_tartrate_hctz
   - metrizamide
   - metronidazole
   - mezlocillin
   - micafungin
-  - micafungin_posaconazole_voriconazole
+  - miconazole
   - midazolam
+  - milrinone
   - minocycline
   - moexipril
+  - molnupiravir
+  - mometasone
+  - montelukast
   - morphine
+  - morphine_er
+  - morphine_ir
   - mosunetuzumab
   - moxifloxacin
+  - mycophenolate_mofetil
+  - mycophenolate_sodium
+  - n_acetylcysteine
   - nafcillin
   - naloxone
+  - natalizumab
+  - neostigmine
+  - nicardipine
+  - nifedipine_er
+  - nifedipine_ir
+  - nimodipine
+  - nirmatrelvir_ritonavir
   - nitrofurantoin
+  - nitroglycerin
+  - nitroprusside
+  - norepinephrine
   - norfloxacin
   - nystatin
+  - octreotide
+  - ofatumumab
   - ofloxacin
   - olanzapine
   - olmesartan
-  - olmesartan_hctz
+  - olodaterol
   - omadacycline
+  - omeprazole
+  - ondansetron
   - oritavancin
   - oseltamivir
   - oxacillin
-  - oxycodone
+  - oxycodone_er
+  - oxycodone_ir
+  - oxytocin
+  - pantoprazole
+  - papaverine
+  - patiromer
   - penicillin
+  - pentobarbital
   - peramivir
   - perindopril
-  - perindopril_amlodipine
-  - phosphate_repletion
+  - pertuzumab
+  - phenobarbital
+  - phentolamine
+  - phenylephrine
+  - phenytoin
+  - phytonadione
   - piperacillin_tazobactam
   - pivampicillin
+  - plasma_lyte
   - plazomicin
   - polymyxin_b
   - posaconazole
-  - potassium_repletion
+  - potassium_acetate
+  - potassium_bicarbonate
+  - potassium_chloride
+  - potassium_citrate
+  - potassium_phosphate
+  - potassium_sodium_phosphate
+  - prasugrel
   - prednisolone
   - prednisone
+  - procainamide
   - promethazine
   - propofol
+  - protamine
   - quetiapine
   - quinapril
   - quinupristin_dalfopristin
   - ramipril
-  - ramipril_amlodipine
   - remdesivir
+  - remifentanil
+  - revefenacin
   - rezafungin
   - ribavirin
   - rifampin
+  - rifaximin
   - risperidone
+  - rituximab
+  - rivaroxaban
   - rocuronium
+  - ropivacaine
   - sacubitril_valsartan
+  - salmeterol
+  - saxagliptin
   - siltuximab
+  - sirolimus
+  - sodium_bicarbonate_150_meq
+  - sodium_bicarbonate_8_4_pct
+  - sodium_bicarbonate_other
+  - sodium_chloride_0_45_pct
+  - sodium_chloride_0_9_pct
+  - sodium_chloride_20_pct
+  - sodium_chloride_23_4_pct
+  - sodium_chloride_2_pct
+  - sodium_chloride_3_pct
+  - sodium_chloride_5_pct
+  - sodium_chloride_7_pct
+  - sodium_chloride_other
+  - sodium_glycerophosphate
+  - sodium_phosphate
+  - sodium_polystyrene_sulfonate
+  - sodium_zirconium_cyclosilicate
   - sotagliflozin
   - spironolactone
-  - spironolactone_hctz
   - streptomycin
   - succinylcholine
+  - sufentanil
+  - sugammadex
   - sulbactam_durlobactam
   - sulfadiazine
   - sulfadiazine_trimethoprim
+  - sulfasalazine
   - sulfisoxazole
+  - tacrolimus
   - talquetamab
   - tarlatamab
   - tebentafusp
@@ -282,28 +462,45 @@ columns:
   - telavancin
   - telithromycin
   - telmisartan
-  - telmisartan_amlodipine
+  - terbinafine
+  - terbutaline
   - tetracycline
+  - thiamine
+  - ticagrelor
   - ticarcillin
   - ticarcillin_clavulanate
+  - ticlopidine
   - tigecycline
+  - tiotropium
+  - tirofiban
   - tisagenlecleucel
   - tobramycin
   - tocilizumab
   - torsemide
+  - tpn
   - trandolapril
+  - tranexamic_acid
+  - trastuzumab
+  - treprostinil
+  - triamterene
   - trimethoprim
   - trimethoprim_sulfamethoxazole
+  - umeclidinium
+  - ustekinumab
   - valacyclovir
   - valganciclovir
   - valproate
   - valsartan
-  - valsartan_amlodipine
-  - valsartan_hctz
   - vancomycin
+  - vasopressin
   - vecuronium
   - vericiguat
+  - vilanterol
   - voriconazole
+  - warfarin
+  - zanamivir
+  - zidovudine
+  - zoledronic_acid
 - name: med_group
   data_type: VARCHAR
   required: true
@@ -311,20 +508,31 @@ columns:
   is_group_column: true
   permissible_values:
   - analgesia
-  - anti_hypertensive
+  - anticoagulation
+  - antiseizure
+  - antiarrhythmic
+  - antihypertensive
+  - antineoplastic
   - antipsychotic
-  - anxiolytic
+  - calcium_repletion
   - car_t
-  - cardiac_glycoside
   - cms_sepsis_qualifying_antibiotics
-  - contrast_agent
-  - diabetes
+  - contrast
   - diuretic
+  - endocrine
+  - fluids_electrolytes
+  - gastrointestinal
+  - immunosuppressant
+  - magnesium_repletion
   - other
-  - paralytics
+  - paralytic
+  - phosphate_repletion
+  - potassium_repletion
+  - pulmonary_vasodilator
+  - respiratory
   - sedation
   - steroid
-  - vasopressor
+  - vasoactive
 - name: med_route_name
   data_type: VARCHAR
   required: false
@@ -337,10 +545,25 @@ columns:
   is_group_column: false
   permissible_values:
   - buccal_sublingual
+  - catheter_dwell
   - enteral
+  - epidural_intrathecal
   - im
+  - inhaled
+  - intraarterial
+  - intranasal
+  - intraosseous
+  - intraperitoneal
   - intrapleural
+  - intraventricular
+  - intravesical
   - iv
+  - ocular
+  - other
+  - rectal
+  - subcutaneous
+  - topical
+  - transdermal
 - name: med_dose
   data_type: DOUBLE
   required: true
@@ -403,14 +626,42 @@ group_columns:
   - mar_action_group
 
 med_category_to_group_mapping:
+  abatacept:
+  - immunosuppressant
   acetaminophen:
   - analgesia
+  acetazolamide:
+  - diuretic
+  aclidinium:
+  - respiratory
   acyclovir:
   - cms_sepsis_qualifying_antibiotics
+  adalimumab:
+  - immunosuppressant
+  adenosine:
+  - antiarrhythmic
+  albumin_25:
+  - fluids_electrolytes
+  albumin_5:
+  - fluids_electrolytes
+  albuterol:
+  - respiratory
+  alefacept:
+  - immunosuppressant
+  alprostadil:
+  - pulmonary_vasodilator
   alteplase:
-  - other
+  - anticoagulation
   amikacin:
   - cms_sepsis_qualifying_antibiotics
+  aminocaproic_acid:
+  - other
+  aminophylline:
+  - respiratory
+  amiodarone:
+  - antiarrhythmic
+  amlodipine:
+  - antihypertensive
   amoxicillin:
   - cms_sepsis_qualifying_antibiotics
   amoxicillin_clavulanate:
@@ -422,51 +673,101 @@ med_category_to_group_mapping:
   ampicillin_sulbactam:
   - cms_sepsis_qualifying_antibiotics
   anakinra:
+  - immunosuppressant
+  andexanet_alfa:
   - other
+  angiotensin_ii:
+  - vasoactive
   anidulafungin:
   - cms_sepsis_qualifying_antibiotics
+  apixaban:
+  - anticoagulation
+  arformoterol:
+  - respiratory
+  argatroban:
+  - anticoagulation
+  aspirin:
+  - anticoagulation
+  atenolol:
+  - antihypertensive
   atracurium:
-  - paralytics
+  - paralytic
+  atropine:
+  - antiarrhythmic
+  auranofin:
+  - immunosuppressant
+  aurothioglucose:
+  - immunosuppressant
   axicabtagene_ciloleucel:
   - car_t
+  azathioprine:
+  - immunosuppressant
   azilsartan:
-  - anti_hypertensive
+  - antihypertensive
   azithromycin:
   - cms_sepsis_qualifying_antibiotics
   aztreonam:
   - cms_sepsis_qualifying_antibiotics
-  baricitinib:
+  baclofen:
   - other
+  balanced_crystalloid_other:
+  - fluids_electrolytes
+  baloxavir:
+  - cms_sepsis_qualifying_antibiotics
+  baricitinib:
+  - immunosuppressant
+  basiliximab:
+  - immunosuppressant
+  beclomethasone:
+  - respiratory
+  belatacept:
+  - immunosuppressant
+  belimumab:
+  - immunosuppressant
   benazepril:
-  - anti_hypertensive
-  benazepril_hctz:
-  - anti_hypertensive
+  - antihypertensive
   betamethasone:
   - steroid
+  betrixaban:
+  - anticoagulation
+  bevacizumab:
+  - antineoplastic
   bisoprolol:
-  - anti_hypertensive
-  bisoprolol_hctz:
-  - anti_hypertensive
+  - antihypertensive
+  bivalirudin:
+  - anticoagulation
   blinatumomab:
-  - other
+  - antineoplastic
+  brentuximab_vedotin:
+  - antineoplastic
   brexucabtagene_autoleucel:
   - car_t
+  budesonide:
+  - respiratory
   bumetanide:
   - diuretic
+  bupivacaine:
+  - analgesia
+  buprenorphine:
+  - analgesia
+  buprenorphine_naloxone:
+  - analgesia
+  calcium_chloride:
+  - calcium_repletion
+  calcium_gluconate:
+  - calcium_repletion
   canagliflozin:
-  - diabetes
-  canagliflozin_metformin:
-  - diabetes
+  - endocrine
   candesartan:
-  - anti_hypertensive
-  candesartan_hctz:
-  - anti_hypertensive
+  - antihypertensive
+  cangrelor:
+  - anticoagulation
   captopril:
-  - anti_hypertensive
+  - antihypertensive
   carvedilol:
-  - anti_hypertensive
+  - antihypertensive
   carvedilol_cr:
-  - anti_hypertensive
+  - antihypertensive
   caspofungin:
   - cms_sepsis_qualifying_antibiotics
   cefaclor:
@@ -527,12 +828,18 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   cephradine:
   - cms_sepsis_qualifying_antibiotics
+  certolizumab_pegol:
+  - immunosuppressant
   chloramphenicol:
   - cms_sepsis_qualifying_antibiotics
+  chlordiazepoxide:
+  - sedation
   chlorothiazide:
   - diuretic
   chlorthalidone:
   - diuretic
+  ciclesonide:
+  - respiratory
   cidofovir:
   - cms_sepsis_qualifying_antibiotics
   ciltacabtagene_autoleucel:
@@ -542,75 +849,143 @@ med_category_to_group_mapping:
   ciprofloxacin:
   - cms_sepsis_qualifying_antibiotics
   cisatracurium:
-  - paralytics
+  - paralytic
   clarithromycin:
   - cms_sepsis_qualifying_antibiotics
+  clevidipine:
+  - antihypertensive
   clindamycin:
+  - cms_sepsis_qualifying_antibiotics
+  clonidine:
+  - antihypertensive
+  clopidogrel:
+  - anticoagulation
+  clotrimazole:
   - cms_sepsis_qualifying_antibiotics
   cloxacillin:
   - cms_sepsis_qualifying_antibiotics
   colistin:
   - cms_sepsis_qualifying_antibiotics
+  cyclophosphamide:
+  - antineoplastic
+  cyclosporine:
+  - immunosuppressant
+  dabigatran:
+  - anticoagulation
+  daclizumab:
+  - immunosuppressant
   dalbavancin:
   - cms_sepsis_qualifying_antibiotics
   dapagliflozin:
-  - diabetes
-  dapagliflozin_metformin:
-  - diabetes
-  dapagliflozin_saxagliptin:
-  - diabetes
+  - endocrine
   daptomycin:
   - cms_sepsis_qualifying_antibiotics
   delafloxacin:
   - cms_sepsis_qualifying_antibiotics
+  denosumab:
+  - endocrine
+  desmopressin:
+  - endocrine
   dexamethasone:
   - steroid
+  dexmedetomidine:
+  - sedation
+  dextrose_10_lactated_ringers:
+  - fluids_electrolytes
+  dextrose_10_sodium_chloride_0_45_pct:
+  - fluids_electrolytes
+  dextrose_10_sodium_chloride_0_9_pct:
+  - fluids_electrolytes
+  dextrose_10_water:
+  - fluids_electrolytes
+  dextrose_50:
+  - fluids_electrolytes
+  dextrose_5_balanced_crystalloid_other:
+  - fluids_electrolytes
+  dextrose_5_lactated_ringers:
+  - fluids_electrolytes
+  dextrose_5_sodium_chloride_0_45_pct:
+  - fluids_electrolytes
+  dextrose_5_sodium_chloride_0_9_pct:
+  - fluids_electrolytes
+  dextrose_5_water:
+  - fluids_electrolytes
+  dextrose_other:
+  - fluids_electrolytes
   diatrizoate:
-  - contrast_agent
+  - contrast
   diazepam:
-  - anxiolytic
+  - sedation
   dicloxacillin:
   - cms_sepsis_qualifying_antibiotics
   digoxin:
-  - cardiac_glycoside
+  - antiarrhythmic
+  diltiazem:
+  - antiarrhythmic
   diphenhydramine:
   - other
+  dipyridamole:
+  - anticoagulation
+  dobutamine:
+  - vasoactive
+  dopamine:
+  - vasoactive
   doripenem:
   - cms_sepsis_qualifying_antibiotics
   dornase_alfa:
-  - other
+  - respiratory
   doxycycline:
   - cms_sepsis_qualifying_antibiotics
-  elratanamab:
-  - other
+  econazole:
+  - cms_sepsis_qualifying_antibiotics
+  eculizumab:
+  - immunosuppressant
+  edoxaban:
+  - anticoagulation
+  efalizumab:
+  - immunosuppressant
+  elranatamab:
+  - antineoplastic
   empagliflozin:
-  - diabetes
-  empagliflozin_linagliptin:
-  - diabetes
-  empagliflozin_metformin:
-  - diabetes
+  - endocrine
   enalapril:
-  - anti_hypertensive
-  enalapril_hctz:
-  - anti_hypertensive
+  - antihypertensive
+  enoxaparin:
+  - anticoagulation
   epcoritamab:
-  - other
+  - antineoplastic
   epinephrine:
-  - vasopressor
+  - vasoactive
   eplerenone:
-  - anti_hypertensive
+  - diuretic
+  epoprostenol:
+  - pulmonary_vasodilator
   eprosartan:
-  - anti_hypertensive
+  - antihypertensive
+  eptifibatide:
+  - anticoagulation
   eravacycline:
   - cms_sepsis_qualifying_antibiotics
   ertapenem:
   - cms_sepsis_qualifying_antibiotics
   ertugliflozin:
-  - diabetes
+  - endocrine
   erythromycin:
   - cms_sepsis_qualifying_antibiotics
+  esmolol:
+  - antihypertensive
+  esomeprazole:
+  - gastrointestinal
+  etanercept:
+  - immunosuppressant
   etomidate:
   - sedation
+  etoposide:
+  - antineoplastic
+  everolimus:
+  - immunosuppressant
+  famotidine:
+  - gastrointestinal
   fentanyl:
   - analgesia
   fidaxomicin:
@@ -619,28 +994,38 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   fludrocortisone:
   - steroid
+  flumazenil:
+  - other
+  fluticasone_furoate:
+  - respiratory
+  fluticasone_propionate:
+  - respiratory
+  formoterol:
+  - respiratory
   foscarnet:
   - cms_sepsis_qualifying_antibiotics
   fosfomycin:
   - cms_sepsis_qualifying_antibiotics
   fosinopril:
-  - anti_hypertensive
+  - antihypertensive
+  fosphenytoin:
+  - antiseizure
   furosemide:
   - diuretic
   gadobenate:
-  - contrast_agent
+  - contrast
   gadobutrol:
-  - contrast_agent
+  - contrast
   gadodiamide:
-  - contrast_agent
+  - contrast
   gadopentetate:
-  - contrast_agent
+  - contrast
   gadoterate:
-  - contrast_agent
+  - contrast
   gadoteridol:
-  - contrast_agent
+  - contrast
   gadoxetate:
-  - contrast_agent
+  - contrast
   ganciclovir:
   - cms_sepsis_qualifying_antibiotics
   gatifloxacin:
@@ -648,13 +1033,21 @@ med_category_to_group_mapping:
   gentamicin:
   - cms_sepsis_qualifying_antibiotics
   glofitamab:
-  - other
+  - antineoplastic
+  glucagon:
+  - endocrine
+  glycopyrrolate:
+  - respiratory
+  gold_sodium_thiomalate:
+  - immunosuppressant
+  golimumab:
+  - immunosuppressant
   haloperidol:
   - antipsychotic
+  heparin:
+  - anticoagulation
   hydralazine:
-  - anti_hypertensive
-  hydralazine_isosorbide:
-  - anti_hypertensive
+  - antihypertensive
   hydrochlorothiazide:
   - diuretic
   hydrocortisone:
@@ -662,16 +1055,10 @@ med_category_to_group_mapping:
   hydromorphone:
   - analgesia
   hydroxocobalamin:
-  - vasopressor
-  hypertonic_saline_20:
-  - other
-  hypertonic_saline_23.4:
-  - other
-  hypertonic_saline_3:
-  - other
-  hypertonic_saline_7:
-  - other
-  hypertonic_saline_7.5:
+  - vasoactive
+  hydroxychloroquine:
+  - immunosuppressant
+  idarucizumab:
   - other
   idecabtagene_vicleucel:
   - car_t
@@ -681,218 +1068,414 @@ med_category_to_group_mapping:
   - cms_sepsis_qualifying_antibiotics
   indapamide:
   - diuretic
+  infliximab:
+  - immunosuppressant
+  insulin_aspart:
+  - endocrine
+  insulin_degludec:
+  - endocrine
+  insulin_detemir:
+  - endocrine
+  insulin_glargine:
+  - endocrine
+  insulin_glulisine:
+  - endocrine
+  insulin_lispro:
+  - endocrine
+  insulin_nph:
+  - endocrine
+  insulin_regular:
+  - endocrine
+  insulin_other:
+  - endocrine
+  interferon_alfacon_1:
+  - other
   iobitridol:
-  - contrast_agent
+  - contrast
   iodixanol:
-  - contrast_agent
+  - contrast
   iohexol:
-  - contrast_agent
+  - contrast
   iomeprol:
-  - contrast_agent
+  - contrast
   iopamidol:
-  - contrast_agent
+  - contrast
   ioversol:
-  - contrast_agent
+  - contrast
   ioxaglate:
-  - contrast_agent
+  - contrast
+  ipilimumab:
+  - antineoplastic
+  ipratropium:
+  - respiratory
   irbesartan:
-  - anti_hypertensive
-  irbesartan_hctz:
-  - anti_hypertensive
+  - antihypertensive
   isavuconazole:
   - cms_sepsis_qualifying_antibiotics
-  isavuconazonium:
-  - cms_sepsis_qualifying_antibiotics
+  isoproterenol:
+  - vasoactive
   isosorbide_dinitrate:
-  - anti_hypertensive
+  - antihypertensive
+  isosorbide_mononitrate:
+  - antihypertensive
   itraconazole:
   - cms_sepsis_qualifying_antibiotics
   ivabradine:
-  - other
+  - antiarrhythmic
   kanamycin:
   - cms_sepsis_qualifying_antibiotics
   ketamine:
   - sedation
+  ketoconazole:
+  - cms_sepsis_qualifying_antibiotics
+  labetalol:
+  - antihypertensive
+  lacosamide:
+  - antiseizure
+  lactated_ringers_solution:
+  - fluids_electrolytes
+  lactulose:
+  - gastrointestinal
   lefamulin:
   - cms_sepsis_qualifying_antibiotics
+  leflunomide:
+  - immunosuppressant
+  levalbuterol:
+  - respiratory
+  levetiracetam:
+  - antiseizure
   levofloxacin:
   - cms_sepsis_qualifying_antibiotics
+  levothyroxine:
+  - endocrine
+  lidocaine:
+  - antiarrhythmic
+  linagliptin:
+  - endocrine
   lincomycin:
   - cms_sepsis_qualifying_antibiotics
   linezolid:
   - cms_sepsis_qualifying_antibiotics
   linvoseltamab:
-  - other
+  - antineoplastic
+  liothyronine:
+  - endocrine
   lisinopril:
-  - anti_hypertensive
-  lisinopril_hctz:
-  - anti_hypertensive
+  - antihypertensive
   lisocabtagene_maraleucel:
   - car_t
   lorazepam:
-  - anxiolytic
+  - sedation
   losartan:
-  - anti_hypertensive
-  losartan_hctz:
-  - anti_hypertensive
-  magnesium_repletion:
-  - other
+  - antihypertensive
+  magnesium_chloride:
+  - magnesium_repletion
+  magnesium_gluconate:
+  - magnesium_repletion
+  magnesium_lactate:
+  - magnesium_repletion
+  magnesium_oxide:
+  - magnesium_repletion
+  magnesium_sulfate:
+  - magnesium_repletion
   mannitol:
-  - other
+  - diuretic
   maribavir:
   - cms_sepsis_qualifying_antibiotics
   meropenem:
   - cms_sepsis_qualifying_antibiotics
   meropenem_vaborbactam:
   - cms_sepsis_qualifying_antibiotics
+  metformin:
+  - endocrine
+  methadone:
+  - analgesia
   methicillin:
   - cms_sepsis_qualifying_antibiotics
+  methotrexate:
+  - antineoplastic
   methylene_blue:
-  - vasopressor
+  - vasoactive
   methylprednisolone:
   - steroid
+  metoclopramide:
+  - gastrointestinal
   metolazone:
   - diuretic
   metoprolol_succinate:
-  - anti_hypertensive
-  metoprolol_succinate_hctz:
-  - anti_hypertensive
+  - antihypertensive
   metoprolol_tartrate:
-  - anti_hypertensive
-  metoprolol_tartrate_hctz:
-  - anti_hypertensive
+  - antihypertensive
   metrizamide:
-  - contrast_agent
+  - contrast
   metronidazole:
   - cms_sepsis_qualifying_antibiotics
   mezlocillin:
   - cms_sepsis_qualifying_antibiotics
   micafungin:
   - cms_sepsis_qualifying_antibiotics
-  micafungin_posaconazole_voriconazole:
+  miconazole:
   - cms_sepsis_qualifying_antibiotics
   midazolam:
   - sedation
+  milrinone:
+  - vasoactive
   minocycline:
   - cms_sepsis_qualifying_antibiotics
   moexipril:
-  - anti_hypertensive
+  - antihypertensive
+  molnupiravir:
+  - cms_sepsis_qualifying_antibiotics
+  mometasone:
+  - respiratory
+  montelukast:
+  - respiratory
   morphine:
   - analgesia
+  morphine_er:
+  - analgesia
+  morphine_ir:
+  - analgesia
   mosunetuzumab:
-  - other
+  - antineoplastic
   moxifloxacin:
   - cms_sepsis_qualifying_antibiotics
+  mycophenolate_mofetil:
+  - immunosuppressant
+  mycophenolate_sodium:
+  - immunosuppressant
+  n_acetylcysteine:
+  - other
   nafcillin:
   - cms_sepsis_qualifying_antibiotics
   naloxone:
   - other
+  natalizumab:
+  - immunosuppressant
+  neostigmine:
+  - other
+  nicardipine:
+  - antihypertensive
+  nifedipine_er:
+  - antihypertensive
+  nifedipine_ir:
+  - antihypertensive
+  nimodipine:
+  - other
+  nirmatrelvir_ritonavir:
+  - cms_sepsis_qualifying_antibiotics
   nitrofurantoin:
   - cms_sepsis_qualifying_antibiotics
+  nitroglycerin:
+  - antihypertensive
+  nitroprusside:
+  - antihypertensive
+  norepinephrine:
+  - vasoactive
   norfloxacin:
   - cms_sepsis_qualifying_antibiotics
   nystatin:
   - cms_sepsis_qualifying_antibiotics
+  octreotide:
+  - gastrointestinal
+  ofatumumab:
+  - antineoplastic
   ofloxacin:
   - cms_sepsis_qualifying_antibiotics
   olanzapine:
   - antipsychotic
   olmesartan:
-  - anti_hypertensive
-  olmesartan_hctz:
-  - anti_hypertensive
+  - antihypertensive
+  olodaterol:
+  - respiratory
   omadacycline:
   - cms_sepsis_qualifying_antibiotics
+  omeprazole:
+  - gastrointestinal
+  ondansetron:
+  - gastrointestinal
   oritavancin:
   - cms_sepsis_qualifying_antibiotics
   oseltamivir:
   - cms_sepsis_qualifying_antibiotics
   oxacillin:
   - cms_sepsis_qualifying_antibiotics
-  oxycodone:
+  oxycodone_er:
   - analgesia
+  oxycodone_ir:
+  - analgesia
+  oxytocin:
+  - other
+  pantoprazole:
+  - gastrointestinal
+  papaverine:
+  - other
+  patiromer:
+  - fluids_electrolytes
   penicillin:
   - cms_sepsis_qualifying_antibiotics
+  pentobarbital:
+  - sedation
   peramivir:
   - cms_sepsis_qualifying_antibiotics
   perindopril:
-  - anti_hypertensive
-  perindopril_amlodipine:
-  - anti_hypertensive
-  phosphate_repletion:
+  - antihypertensive
+  pertuzumab:
+  - antineoplastic
+  phenobarbital:
+  - antiseizure
+  phentolamine:
+  - antihypertensive
+  phenylephrine:
+  - vasoactive
+  phenytoin:
+  - antiseizure
+  phytonadione:
   - other
   piperacillin_tazobactam:
   - cms_sepsis_qualifying_antibiotics
   pivampicillin:
   - cms_sepsis_qualifying_antibiotics
+  plasma_lyte:
+  - fluids_electrolytes
   plazomicin:
   - cms_sepsis_qualifying_antibiotics
   polymyxin_b:
   - cms_sepsis_qualifying_antibiotics
   posaconazole:
   - cms_sepsis_qualifying_antibiotics
-  potassium_repletion:
-  - other
+  potassium_acetate:
+  - potassium_repletion
+  potassium_bicarbonate:
+  - potassium_repletion
+  potassium_chloride:
+  - potassium_repletion
+  potassium_citrate:
+  - potassium_repletion
+  potassium_phosphate:
+  - phosphate_repletion
+  potassium_sodium_phosphate:
+  - phosphate_repletion
+  prasugrel:
+  - anticoagulation
   prednisolone:
   - steroid
   prednisone:
   - steroid
+  procainamide:
+  - antiarrhythmic
   promethazine:
-  - other
+  - gastrointestinal
   propofol:
   - sedation
+  protamine:
+  - other
   quetiapine:
   - antipsychotic
   quinapril:
-  - anti_hypertensive
+  - antihypertensive
   quinupristin_dalfopristin:
   - cms_sepsis_qualifying_antibiotics
   ramipril:
-  - anti_hypertensive
-  ramipril_amlodipine:
-  - anti_hypertensive
+  - antihypertensive
   remdesivir:
   - cms_sepsis_qualifying_antibiotics
+  remifentanil:
+  - analgesia
+  revefenacin:
+  - respiratory
   rezafungin:
   - cms_sepsis_qualifying_antibiotics
   ribavirin:
   - cms_sepsis_qualifying_antibiotics
   rifampin:
   - cms_sepsis_qualifying_antibiotics
+  rifaximin:
+  - gastrointestinal
   risperidone:
   - antipsychotic
+  rituximab:
+  - antineoplastic
+  rivaroxaban:
+  - anticoagulation
   rocuronium:
-  - paralytics
+  - paralytic
+  ropivacaine:
+  - analgesia
   sacubitril_valsartan:
-  - anti_hypertensive
+  - antihypertensive
+  salmeterol:
+  - respiratory
+  saxagliptin:
+  - endocrine
   siltuximab:
-  - other
+  - immunosuppressant
+  sirolimus:
+  - immunosuppressant
+  sodium_bicarbonate_150_meq:
+  - fluids_electrolytes
+  sodium_bicarbonate_8_4_pct:
+  - fluids_electrolytes
+  sodium_bicarbonate_other:
+  - fluids_electrolytes
+  sodium_chloride_0_45_pct:
+  - fluids_electrolytes
+  sodium_chloride_0_9_pct:
+  - fluids_electrolytes
+  sodium_chloride_20_pct:
+  - fluids_electrolytes
+  sodium_chloride_23_4_pct:
+  - fluids_electrolytes
+  sodium_chloride_2_pct:
+  - fluids_electrolytes
+  sodium_chloride_3_pct:
+  - fluids_electrolytes
+  sodium_chloride_5_pct:
+  - fluids_electrolytes
+  sodium_chloride_7_pct:
+  - fluids_electrolytes
+  sodium_chloride_other:
+  - fluids_electrolytes
+  sodium_glycerophosphate:
+  - phosphate_repletion
+  sodium_phosphate:
+  - phosphate_repletion
+  sodium_polystyrene_sulfonate:
+  - fluids_electrolytes
+  sodium_zirconium_cyclosilicate:
+  - fluids_electrolytes
   sotagliflozin:
-  - diabetes
+  - endocrine
   spironolactone:
-  - anti_hypertensive
-  spironolactone_hctz:
-  - anti_hypertensive
+  - diuretic
   streptomycin:
   - cms_sepsis_qualifying_antibiotics
   succinylcholine:
-  - paralytics
+  - paralytic
+  sufentanil:
+  - analgesia
+  sugammadex:
+  - other
   sulbactam_durlobactam:
   - cms_sepsis_qualifying_antibiotics
   sulfadiazine:
   - cms_sepsis_qualifying_antibiotics
   sulfadiazine_trimethoprim:
   - cms_sepsis_qualifying_antibiotics
+  sulfasalazine:
+  - immunosuppressant
   sulfisoxazole:
   - cms_sepsis_qualifying_antibiotics
+  tacrolimus:
+  - immunosuppressant
   talquetamab:
-  - other
+  - antineoplastic
   tarlatamab:
-  - other
+  - antineoplastic
   tebentafusp:
-  - other
+  - antineoplastic
   teclistamab:
-  - other
+  - antineoplastic
   tedizolid:
   - cms_sepsis_qualifying_antibiotics
   telavancin:
@@ -900,82 +1483,155 @@ med_category_to_group_mapping:
   telithromycin:
   - cms_sepsis_qualifying_antibiotics
   telmisartan:
-  - anti_hypertensive
-  telmisartan_amlodipine:
-  - anti_hypertensive
+  - antihypertensive
+  terbinafine:
+  - cms_sepsis_qualifying_antibiotics
+  terbutaline:
+  - respiratory
   tetracycline:
   - cms_sepsis_qualifying_antibiotics
+  thiamine:
+  - other
+  ticagrelor:
+  - anticoagulation
   ticarcillin:
   - cms_sepsis_qualifying_antibiotics
   ticarcillin_clavulanate:
   - cms_sepsis_qualifying_antibiotics
+  ticlopidine:
+  - anticoagulation
   tigecycline:
   - cms_sepsis_qualifying_antibiotics
+  tiotropium:
+  - respiratory
+  tirofiban:
+  - anticoagulation
   tisagenlecleucel:
   - car_t
   tobramycin:
   - cms_sepsis_qualifying_antibiotics
   tocilizumab:
-  - other
+  - immunosuppressant
   torsemide:
   - diuretic
+  tpn:
+  - fluids_electrolytes
   trandolapril:
-  - anti_hypertensive
+  - antihypertensive
+  tranexamic_acid:
+  - other
+  trastuzumab:
+  - antineoplastic
+  treprostinil:
+  - pulmonary_vasodilator
+  triamterene:
+  - diuretic
   trimethoprim:
   - cms_sepsis_qualifying_antibiotics
   trimethoprim_sulfamethoxazole:
   - cms_sepsis_qualifying_antibiotics
+  umeclidinium:
+  - respiratory
+  ustekinumab:
+  - immunosuppressant
   valacyclovir:
   - cms_sepsis_qualifying_antibiotics
   valganciclovir:
   - cms_sepsis_qualifying_antibiotics
   valproate:
-  - other
+  - antiseizure
   valsartan:
-  - anti_hypertensive
-  valsartan_amlodipine:
-  - anti_hypertensive
-  valsartan_hctz:
-  - anti_hypertensive
+  - antihypertensive
   vancomycin:
   - cms_sepsis_qualifying_antibiotics
+  vasopressin:
+  - vasoactive
   vecuronium:
-  - paralytics
+  - paralytic
   vericiguat:
   - other
+  vilanterol:
+  - respiratory
   voriconazole:
   - cms_sepsis_qualifying_antibiotics
+  warfarin:
+  - anticoagulation
+  zanamivir:
+  - cms_sepsis_qualifying_antibiotics
+  zidovudine:
+  - other
+  zoledronic_acid:
+  - endocrine
 # Expected dose unit(s) per med_category (from mCIDE med_categories CSV).
 med_category_to_dose_unit_mapping:
+  abatacept: mg
   acetaminophen: mg
+  acetazolamide: mg
+  aclidinium: mcg
   acyclovir: mg
+  adalimumab: mg
+  adenosine: mg
+  albumin_25: g
+  albumin_5: ml
+  albuterol: mg
+  alefacept: mg
+  alprostadil: mcg
   alteplase: mg
   amikacin: mg
+  aminocaproic_acid: g
+  aminophylline: mg
+  amiodarone: mg
+  amlodipine: mg
   amoxicillin: mg
   amoxicillin_clavulanate: mg
   amphotericin_b: mg
   ampicillin: g
   ampicillin_sulbactam: g
   anakinra: mg
+  andexanet_alfa: mg
+  angiotensin_ii: mcg
   anidulafungin: mg
+  apixaban: mg
+  arformoterol: mcg
+  argatroban: mcg
+  aspirin: mg
+  atenolol: mg
   atracurium: mg
+  atropine: mg
+  auranofin: mg
+  aurothioglucose: mg
   axicabtagene_ciloleucel: cells
+  azathioprine: mg
   azilsartan: mg
   azithromycin: mg
   aztreonam: g
+  baclofen: mg
+  balanced_crystalloid_other: ml
+  baloxavir: mg
   baricitinib: mg
+  basiliximab: mg
+  beclomethasone: mcg
+  belatacept: mg
+  belimumab: mg
   benazepril: mg
-  benazepril_hctz: mg
   betamethasone: mg
+  betrixaban: mg
+  bevacizumab: mg
   bisoprolol: mg
-  bisoprolol_hctz: mg
+  bivalirudin: mg
   blinatumomab: mcg
+  brentuximab_vedotin: mg
   brexucabtagene_autoleucel: cells
+  budesonide: mcg
   bumetanide: mg
+  bupivacaine: mg
+  buprenorphine: mg
+  buprenorphine_naloxone: mg
+  calcium_chloride: g
+  calcium_gluconate: g
   canagliflozin: mg
-  canagliflozin_metformin: mg
   candesartan: mg
-  candesartan_hctz: mg
+  cangrelor: mcg
   captopril: mg
   carvedilol: mg
   carvedilol_cr: mg
@@ -1009,55 +1665,97 @@ med_category_to_dose_unit_mapping:
   cephalothin: g
   cephapirin: mg
   cephradine: mg
+  certolizumab_pegol: mg
   chloramphenicol: mg
+  chlordiazepoxide: mg
   chlorothiazide: mg
   chlorthalidone: mg
+  ciclesonide: mcg
   cidofovir: mg
   ciltacabtagene_autoleucel: cells
   cinoxacin: mg
   ciprofloxacin: mg
   cisatracurium: mg
   clarithromycin: mg
+  clevidipine: mg
   clindamycin: mg
+  clonidine: mg
+  clopidogrel: mg
+  clotrimazole: mg
   cloxacillin: mg
   colistin: mg
+  cyclophosphamide: mg
+  cyclosporine: mg
+  dabigatran: mg
+  daclizumab: mg
   dalbavancin: mg
   dapagliflozin: mg
-  dapagliflozin_metformin: mg
-  dapagliflozin_saxagliptin: mg
   daptomycin: mg
   delafloxacin: mg
+  denosumab: mg
+  desmopressin: mcg
   dexamethasone: mg
+  dexmedetomidine: mcg
+  dextrose_10_lactated_ringers: ml
+  dextrose_10_sodium_chloride_0_45_pct: ml
+  dextrose_10_sodium_chloride_0_9_pct: ml
+  dextrose_10_water: ml
+  dextrose_50: ml
+  dextrose_5_balanced_crystalloid_other: ml
+  dextrose_5_lactated_ringers: ml
+  dextrose_5_sodium_chloride_0_45_pct: ml
+  dextrose_5_sodium_chloride_0_9_pct: ml
+  dextrose_5_water: ml
+  dextrose_other: ml
   diatrizoate: ml
   diazepam: mg
   dicloxacillin: mg
   digoxin: mg
+  diltiazem: mg
   diphenhydramine: mg
+  dipyridamole: mg
+  dobutamine: mcg
+  dopamine: mg
   doripenem: mg
   dornase_alfa: mg
   doxycycline: mg
-  elratanamab: mg
+  econazole: mg
+  eculizumab: mg
+  edoxaban: mg
+  efalizumab: mg
+  elranatamab: mg
   empagliflozin: mg
-  empagliflozin_linagliptin: mg
-  empagliflozin_metformin: mg
   enalapril: mg
-  enalapril_hctz: mg
+  enoxaparin: mg
   epcoritamab: mg
   epinephrine: mg
   eplerenone: mg
+  epoprostenol: mcg
   eprosartan: mg
+  eptifibatide: mg
   eravacycline: mg
   ertapenem: g
   ertugliflozin: mg
   erythromycin: mg
+  esmolol: mg
+  esomeprazole: mg
+  etanercept: mg
   etomidate: mg
+  etoposide: mg
+  everolimus: mg
+  famotidine: mg
   fentanyl: mcg
   fidaxomicin: mg
   fluconazole: mg
   fludrocortisone: mg
+  flumazenil: mg
+  fluticasone_furoate: mcg
+  fluticasone_propionate: mcg
+  formoterol: mcg
   foscarnet: mg
   fosfomycin: g
   fosinopril: mg
+  fosphenytoin: mg
   furosemide: mg
   gadobenate: mmol
   gadobutrol: mmol
@@ -1070,22 +1768,34 @@ med_category_to_dose_unit_mapping:
   gatifloxacin: mg
   gentamicin: mg
   glofitamab: mg
+  glucagon: mg
+  glycopyrrolate: mg
+  gold_sodium_thiomalate: mg
+  golimumab: mg
   haloperidol: mg
+  heparin: units
   hydralazine: mg
-  hydralazine_isosorbide: mg
   hydrochlorothiazide: mg
   hydrocortisone: mg
   hydromorphone: mg
   hydroxocobalamin: g
-  hypertonic_saline_20: ml
-  hypertonic_saline_23.4: ml
-  hypertonic_saline_3: ml
-  hypertonic_saline_7: ml
-  hypertonic_saline_7.5: ml
+  hydroxychloroquine: mg
+  idarucizumab: g
   idecabtagene_vicleucel: cells
   imipenem: mg
   imipenem_relebactam: mg
   indapamide: mg
+  infliximab: mg
+  insulin_aspart: units
+  insulin_degludec: units
+  insulin_detemir: units
+  insulin_glargine: units
+  insulin_glulisine: units
+  insulin_lispro: units
+  insulin_nph: units
+  insulin_regular: units
+  insulin_other: units
+  interferon_alfacon_1: mcg
   iobitridol: ml
   iodixanol: ml
   iohexol: ml
@@ -1093,101 +1803,188 @@ med_category_to_dose_unit_mapping:
   iopamidol: ml
   ioversol: ml
   ioxaglate: ml
+  ipilimumab: mg
+  ipratropium: mg
   irbesartan: mg
-  irbesartan_hctz: mg
   isavuconazole: mg
-  isavuconazonium: mg
+  isoproterenol: mcg
   isosorbide_dinitrate: mg
+  isosorbide_mononitrate: mg
   itraconazole: mg
   ivabradine: mg
   kanamycin: mg
   ketamine: mg
+  ketoconazole: mg
+  labetalol: mg
+  lacosamide: mg
+  lactated_ringers_solution: ml
+  lactulose: g
   lefamulin: mg
+  leflunomide: mg
+  levalbuterol: mg
+  levetiracetam: mg
   levofloxacin: mg
+  levothyroxine: mcg
+  lidocaine: mg
+  linagliptin: mg
   lincomycin: mg
   linezolid: mg
   linvoseltamab: mg
+  liothyronine: mcg
   lisinopril: mg
-  lisinopril_hctz: mg
   lisocabtagene_maraleucel: cells
   lorazepam: mg
   losartan: mg
-  losartan_hctz: mg
-  magnesium_repletion: mg
+  magnesium_chloride: mg
+  magnesium_gluconate: mg
+  magnesium_lactate: mg
+  magnesium_oxide: mg
+  magnesium_sulfate: g
   mannitol: ml
   maribavir: mg
   meropenem: g
   meropenem_vaborbactam: g
+  metformin: mg
+  methadone: mg
   methicillin: g
+  methotrexate: mg
   methylene_blue: mg
   methylprednisolone: mg
+  metoclopramide: mg
   metolazone: mg
   metoprolol_succinate: mg
-  metoprolol_succinate_hctz: mg
   metoprolol_tartrate: mg
-  metoprolol_tartrate_hctz: mg
   metrizamide: ml
   metronidazole: mg
   mezlocillin: g
   micafungin: mg
-  micafungin_posaconazole_voriconazole: mg
+  miconazole: mg
   midazolam: mg
+  milrinone: mcg
   minocycline: mg
   moexipril: mg
+  molnupiravir: mg
+  mometasone: mcg
+  montelukast: mg
   morphine: mg
+  morphine_er: mg
+  morphine_ir: mg
   mosunetuzumab: mg
   moxifloxacin: mg
+  mycophenolate_mofetil: mg
+  mycophenolate_sodium: mg
+  n_acetylcysteine: mg
   nafcillin: g
   naloxone: mg
+  natalizumab: mg
+  neostigmine: mg
+  nicardipine: mg
+  nifedipine_er: mg
+  nifedipine_ir: mg
+  nimodipine: mg
+  nirmatrelvir_ritonavir: mg
   nitrofurantoin: mg
+  nitroglycerin: mg
+  nitroprusside: mcg
+  norepinephrine: mcg
   norfloxacin: mg
   nystatin: ml
+  octreotide: mcg
+  ofatumumab: mg
   ofloxacin: mg
   olanzapine: mg
   olmesartan: mg
-  olmesartan_hctz: mg
+  olodaterol: mcg
   omadacycline: mg
+  omeprazole: mg
+  ondansetron: mg
   oritavancin: mg
   oseltamivir: mg
   oxacillin: g
-  oxycodone: mg
+  oxycodone_er: mg
+  oxycodone_ir: mg
+  oxytocin: units
+  pantoprazole: mg
+  papaverine: mg
+  patiromer: g
   penicillin: mg
+  pentobarbital: mg
   peramivir: mg
   perindopril: mg
-  perindopril_amlodipine: mg
-  phosphate_repletion: mmol
+  pertuzumab: mg
+  phenobarbital: mg
+  phentolamine: mg
+  phenylephrine: mcg
+  phenytoin: mg
+  phytonadione: mg
   piperacillin_tazobactam: g
   pivampicillin: mg
+  plasma_lyte: ml
   plazomicin: mg
   polymyxin_b: mg
   posaconazole: mg
-  potassium_repletion: meq
+  potassium_acetate: meq
+  potassium_bicarbonate: meq
+  potassium_chloride: meq
+  potassium_citrate: meq
+  potassium_phosphate: mmol
+  potassium_sodium_phosphate: mmol
+  prasugrel: mg
   prednisolone: mg
   prednisone: mg
+  procainamide: mg
   promethazine: mg
   propofol: mg
+  protamine: mg
   quetiapine: mg
   quinapril: mg
   quinupristin_dalfopristin: mg
   ramipril: mg
-  ramipril_amlodipine: mg
   remdesivir: mg
+  remifentanil: mcg
+  revefenacin: mcg
   rezafungin: mg
   ribavirin: mg
   rifampin: mg
+  rifaximin: mg
   risperidone: mg
+  rituximab: mg
+  rivaroxaban: mg
   rocuronium: mg
+  ropivacaine: mg
   sacubitril_valsartan: mg
+  salmeterol: mcg
+  saxagliptin: mg
   siltuximab: mg
+  sirolimus: mg
+  sodium_bicarbonate_150_meq: ml
+  sodium_bicarbonate_8_4_pct: meq
+  sodium_bicarbonate_other: ml
+  sodium_chloride_0_45_pct: ml
+  sodium_chloride_0_9_pct: ml
+  sodium_chloride_20_pct: ml
+  sodium_chloride_23_4_pct: ml
+  sodium_chloride_2_pct: ml
+  sodium_chloride_3_pct: ml
+  sodium_chloride_5_pct: ml
+  sodium_chloride_7_pct: ml
+  sodium_chloride_other: ml
+  sodium_glycerophosphate: mmol
+  sodium_phosphate: mmol
+  sodium_polystyrene_sulfonate: g
+  sodium_zirconium_cyclosilicate: g
   sotagliflozin: mg
   spironolactone: mg
-  spironolactone_hctz: mg
   streptomycin: mg
   succinylcholine: mg
+  sufentanil: mcg
+  sugammadex: mg
   sulbactam_durlobactam: g
   sulfadiazine: mg
   sulfadiazine_trimethoprim: mg
+  sulfasalazine: mg
   sulfisoxazole: mg
+  tacrolimus: mg
   talquetamab: mg
   tarlatamab: mg
   tebentafusp: mcg
@@ -1196,25 +1993,42 @@ med_category_to_dose_unit_mapping:
   telavancin: mg
   telithromycin: mg
   telmisartan: mg
-  telmisartan_amlodipine: mg
+  terbinafine: mg
+  terbutaline: mg
   tetracycline: mg
+  thiamine: mg
+  ticagrelor: mg
   ticarcillin: g
   ticarcillin_clavulanate: g
+  ticlopidine: mg
   tigecycline: mg
+  tiotropium: mcg
+  tirofiban: mcg
   tisagenlecleucel: cells
   tobramycin: mg
   tocilizumab: mg
   torsemide: mg
+  tpn: ml
   trandolapril: mg
+  tranexamic_acid: mg
+  trastuzumab: mg
+  treprostinil: mcg
+  triamterene: mg
   trimethoprim: mg
   trimethoprim_sulfamethoxazole: mg
+  umeclidinium: mcg
+  ustekinumab: mg
   valacyclovir: mg
   valganciclovir: mg
   valproate: mg
   valsartan: mg
-  valsartan_amlodipine: mg
-  valsartan_hctz: mg
   vancomycin: mg
+  vasopressin: units
   vecuronium: mg
   vericiguat: mg
+  vilanterol: mcg
   voriconazole: mg
+  warfarin: mg
+  zanamivir: mg
+  zidovudine: mg
+  zoledronic_acid: mg

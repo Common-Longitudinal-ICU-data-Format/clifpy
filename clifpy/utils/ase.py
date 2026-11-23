@@ -692,7 +692,7 @@ vaso_with_prev AS (
       ON m.hospitalization_id = a.hospitalization_id
      AND m.admin_dttm >= a.in_dttm
      AND m.admin_dttm <  a.out_dttm
-    WHERE m.med_group = 'vasoactives'
+    WHERE LOWER(m.med_group) IN ('vasoactives', 'vasoactive')  -- CLIF 2.1 / 3.0 spelling
       AND m.med_dose > 0
       AND (a.location_category IS NULL OR LOWER(a.location_category) != 'procedural')
 ),
@@ -1131,7 +1131,7 @@ def calculate_clinical_interventions(
         MedicationAdminContinuous,
         config,
         filters={'hospitalization_id': hospitalization_ids,
-                 'med_group': ['vasoactives']},
+                 'med_group': ['vasoactives', 'vasoactive']},
         con=con,
         table_name='med_continuous',
         verbose=verbose
@@ -1717,7 +1717,7 @@ def compute_ase(
                     LEFT JOIN adt a ON m.hospitalization_id = a.hospitalization_id
                         AND m.admin_dttm >= a.in_dttm AND m.admin_dttm < a.out_dttm
                     WHERE m.hospitalization_id IN (SELECT hospitalization_id FROM no_bc_hosps)
-                      AND LOWER(m.med_group) = 'vasoactives'
+                      AND LOWER(m.med_group) IN ('vasoactives', 'vasoactive')
                       AND m.med_dose > 0
                       AND (a.location_category IS NULL OR LOWER(a.location_category) != 'procedural')
                     GROUP BY m.hospitalization_id
