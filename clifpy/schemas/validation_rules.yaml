@@ -165,8 +165,9 @@ field_plausibility_rules:
     - when_column: discharge_dttm
       when_not_null: true
       then_column: discharge_category
-      then_not_value: [Still Admitted]
-      description: "Discharged patients (discharge_dttm not null) should not have discharge_category 'Still Admitted'"
+      # Both spellings: 2.1 uses "Still Admitted", 3.0 uses "still_admitted"
+      then_not_value: [Still Admitted, still_admitted]
+      description: "Discharged patients (discharge_dttm not null) should not have discharge_category 'still_admitted'"
 
 medication_dose_unit_rules:
   medication_admin_continuous:

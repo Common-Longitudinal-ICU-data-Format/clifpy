@@ -117,6 +117,7 @@ Each error/warning/info entry is a dict with `message` and optional `details` ke
 | A.3 | Field Plausibility | `check_field_plausibility` | Complex conditional field constraints |
 | A.4 | Med Dose Units | `check_medication_dose_unit_consistency` | Dose units match admin type (rate vs. discrete) |
 | B.1 | Cross-Table Temporal | `check_cross_table_temporal_plausibility` | Events fall within hospitalization bounds |
+| B.2 | Still Admitted Without Death | `check_still_admitted_without_death` | `still_admitted` hospitalizations with a `discharge_dttm` whose patient has no `death_dttm` (warning only, counts unique hospitalization_ids) |
 | C.1 | Overlapping Periods | `check_overlapping_periods` | No overlapping time intervals for same entity |
 | C.2 | Category Temporal Consistency | `check_category_temporal_consistency` | Category distributions stable over time |
 | D.1 | Duplicate Composite Keys | `check_duplicate_composite_keys` | No duplicate records by composite key |
@@ -137,6 +138,8 @@ ri_results = run_relational_integrity_checks(tables)
 ct_completeness = run_cross_table_completeness_checks(tables)
 ct_plausibility = run_cross_table_plausibility_checks(tables)
 ```
+
+`run_cross_table_plausibility_checks` also attaches the still-admitted/death check (P.9) to the `hospitalization` entry whenever the `patient` table is in `tables`; `run_full_dqa(..., tables=...)` surfaces it under `plausibility` for the hospitalization table.
 
 ### Memory-Optimized Cache Pipeline
 

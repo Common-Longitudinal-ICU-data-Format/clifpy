@@ -98,6 +98,10 @@ Plausibility checks validate logical consistency, chronological order, and clini
 
 ::: clifpy.utils.validator.check_cross_table_temporal_plausibility
 
+### B.2 — Still Admitted Without Death
+
+::: clifpy.utils.validator.check_still_admitted_without_death
+
 ### C.1 — Overlapping Periods
 
 ::: clifpy.utils.validator.check_overlapping_periods

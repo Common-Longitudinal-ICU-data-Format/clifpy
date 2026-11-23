@@ -355,6 +355,12 @@ def get_schema_check_counts(
         for time_col in _CROSS_TABLE_TIME_COLUMNS.get(table_name, []):
             if time_col in schema_col_names:
                 plaus += 1
+    # P.9 still_admitted_without_death: 1 for hospitalization when it carries
+    # the columns the check needs (run_cross_table_plausibility_checks attaches
+    # the result to hospitalization whenever patient is loaded too).
+    if table_name == 'hospitalization' and \
+            {'hospitalization_id', 'patient_id', 'discharge_category', 'discharge_dttm'} <= schema_col_names:
+        plaus += 1
 
     return {"conformance": conf, "completeness": comp, "plausibility": plaus}
 
@@ -3562,6 +3568,170 @@ def check_cross_table_temporal_plausibility(
 
 
 # ---------------------------------------------------------------------------
+# P.9 Still-admitted hospitalizations without a patient death
+# ---------------------------------------------------------------------------
+
+# discharge_category spellings for "still admitted": 3.0 uses still_admitted,
+# 2.1 uses "Still Admitted". Both compared after _normalize_for_validation
+# (lowercased + stripped).
+_STILL_ADMITTED_VALUES = ("still_admitted", "still admitted")
+
+
+def _not_null_or_blank(lf: 'pl.LazyFrame', col: str) -> 'pl.Expr':
+    """Expression for ``col`` being populated.
+
+    Datetime columns are "populated" when not null. String columns (e.g. a
+    datetime column that arrived as text) are also required to be non-blank,
+    mirroring the empty-string handling in the K.5 and P.3 checks.
+    """
+    expr = pl.col(col).is_not_null()
+    dtype = lf.collect_schema()[col]
+    if dtype == pl.Utf8 or dtype == pl.String:
+        expr = expr & (pl.col(col).str.strip_chars().str.len_chars() > 0)
+    return expr
+
+
+def _still_admitted_without_death_result(
+    still_admitted_lf: 'pl.LazyFrame',
+    death_ids_lf: 'pl.LazyFrame',
+) -> DQAPlausibilityResult:
+    """Build the P.9 result from pre-filtered inputs.
+
+    Parameters
+    ----------
+    still_admitted_lf : pl.LazyFrame
+        ``[hospitalization_id, patient_id]`` rows already restricted to
+        ``discharge_category`` = still_admitted with a non-null
+        ``discharge_dttm``.
+    death_ids_lf : pl.LazyFrame
+        Single ``patient_id`` column of patients with a non-null ``death_dttm``.
+
+    Shared by the full-frame check and the ``*_from_cache`` runner so both
+    paths produce identical messages and metrics.
+    """
+    result = DQAPlausibilityResult("still_admitted_without_death", "hospitalization")
+    try:
+        total = (
+            still_admitted_lf
+            .select(pl.col('hospitalization_id').n_unique())
+            .collect(engine="streaming")
+            .item()
+        )
+        if total == 0:
+            result.add_info(
+                "No still_admitted hospitalizations with discharge_dttm found; "
+                "check not triggered"
+            )
+            result.atomic_total = 0
+            result.atomic_passed = 0
+            return result
+
+        # Anti-join keeps the ids lazy; no Python sets are materialised.
+        violations = (
+            still_admitted_lf
+            .join(death_ids_lf, on='patient_id', how='anti')
+            .select(pl.col('hospitalization_id').n_unique())
+            .collect(engine="streaming")
+            .item()
+        )
+        pct = round(violations / total * 100, 1)
+
+        result.metrics["still_admitted_with_discharge"] = total
+        result.metrics["hospitalizations_without_death"] = violations
+        result.metrics["percent_without_death"] = pct
+
+        if violations:
+            result.add_warning(
+                f"{violations}/{total} hospitalizations with discharge_category "
+                f"'still_admitted' and a discharge_dttm have no death_dttm in "
+                f"patient table ({pct}%)",
+                {
+                    "column": "discharge_category",
+                    "hospitalizations_without_death": violations,
+                    "still_admitted_with_discharge": total,
+                    "percent_without_death": pct,
+                },
+            )
+        else:
+            result.add_info(
+                f"All {total} still_admitted hospitalizations with discharge_dttm "
+                f"have death_dttm in patient table"
+            )
+
+        result.atomic_total = 1
+        result.atomic_passed = 1 if not result.errors else 0
+    except Exception as e:
+        _logger.error("Check 'still_admitted_without_death' failed: %s", e)
+        result.add_error(f"Error checking still-admitted/death consistency: {str(e)}")
+        if result.atomic_total is None:
+            result.atomic_total = 1
+            result.atomic_passed = 0
+    return result
+
+
+def check_still_admitted_without_death_polars(
+    hospitalization_df: Union['pl.DataFrame', 'pl.LazyFrame'],
+    patient_df: Union['pl.DataFrame', 'pl.LazyFrame'],
+) -> DQAPlausibilityResult:
+    """Count still_admitted hospitalizations with a discharge_dttm but no patient death.
+
+    A hospitalization whose ``discharge_category`` is still_admitted should
+    not have a ``discharge_dttm`` unless the patient died (the timestamp is
+    then the death time). This check counts unique ``hospitalization_id``
+    values where ``discharge_category`` is still_admitted, ``discharge_dttm``
+    is populated, and the linked ``patient_id`` has no non-null
+    ``death_dttm`` in the patient table. Warning-only; the result is attached
+    to the hospitalization table.
+
+    Inputs are expected to be case-normalised already (see
+    :func:`_normalize_for_validation`).
+    """
+    hosp_lf = hospitalization_df if isinstance(hospitalization_df, pl.LazyFrame) else hospitalization_df.lazy()
+    pat_lf = patient_df if isinstance(patient_df, pl.LazyFrame) else patient_df.lazy()
+
+    hosp_needed = ('hospitalization_id', 'patient_id', 'discharge_category', 'discharge_dttm')
+    pat_needed = ('patient_id', 'death_dttm')
+    hosp_cols = hosp_lf.collect_schema().names()
+    pat_cols = pat_lf.collect_schema().names()
+    if any(c not in hosp_cols for c in hosp_needed) or any(c not in pat_cols for c in pat_needed):
+        result = DQAPlausibilityResult("still_admitted_without_death", "hospitalization")
+        result.add_info("Missing columns for still-admitted death check; skipping")
+        result.atomic_total = 0
+        result.atomic_passed = 0
+        return result
+
+    still_admitted_lf = (
+        hosp_lf
+        .filter(
+            pl.col('discharge_category').is_in(list(_STILL_ADMITTED_VALUES))
+            & _not_null_or_blank(hosp_lf, 'discharge_dttm')
+        )
+        .select(['hospitalization_id', 'patient_id'])
+    )
+    death_ids_lf = (
+        pat_lf
+        .filter(_not_null_or_blank(pat_lf, 'death_dttm'))
+        .select(pl.col('patient_id').drop_nulls().unique())
+    )
+    return _still_admitted_without_death_result(still_admitted_lf, death_ids_lf)
+
+
+def check_still_admitted_without_death(
+    hospitalization_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+    patient_df: Union[pd.DataFrame, 'pl.DataFrame', 'pl.LazyFrame'],
+) -> DQAPlausibilityResult:
+    """Count still_admitted hospitalizations with discharge_dttm but no patient death_dttm (P.9)."""
+    _logger.debug("check_still_admitted_without_death: starting")
+    if isinstance(hospitalization_df, pd.DataFrame):
+        hospitalization_df = pl.from_pandas(hospitalization_df)
+    if isinstance(patient_df, pd.DataFrame):
+        patient_df = pl.from_pandas(patient_df)
+    result = check_still_admitted_without_death_polars(hospitalization_df, patient_df)
+    _logger.debug("check_still_admitted_without_death: complete")
+    return result
+
+
+# ---------------------------------------------------------------------------
 # C.1 Overlapping time periods
 # ---------------------------------------------------------------------------
 
@@ -4234,7 +4404,11 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     -------
     dict
         Keys: ``table_name``, ``fk_ids``, ``schema_cols``,
-        ``temporal_df``, ``hosp_bounds_df``, ``hosp_years``.
+        ``temporal_df``, ``hosp_bounds_df``, ``hosp_years``,
+        ``still_admitted_df`` (hospitalization only: ``[hospitalization_id,
+        patient_id]`` of still_admitted rows with a discharge_dttm),
+        ``death_patient_ids`` (patient only: ids with a non-null death_dttm),
+        ``conditional_source_ids``, ``conditional_target_ids``.
 
         ``fk_ids`` and the ``conditional_*_ids`` maps hold single-column
         :class:`pl.DataFrame` objects of distinct ids, not Python ``set``
@@ -4288,6 +4462,7 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
     # --- Hospitalization-specific caches ---
     hosp_bounds_df = None
     hosp_years = None
+    still_admitted_df = None
     if tname == 'hospitalization':
         if isinstance(df, (pl.DataFrame, pl.LazyFrame)):
             lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
@@ -4305,6 +4480,26 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
                     .get_column('yr')
                     .to_list()
                 )
+            # P.9 subset: still_admitted rows that carry a discharge_dttm
+            if {'hospitalization_id', 'patient_id', 'discharge_category', 'discharge_dttm'} <= hosp_cols_available:
+                still_admitted_df = (
+                    lf.filter(
+                        pl.col('discharge_category').is_in(list(_STILL_ADMITTED_VALUES))
+                        & _not_null_or_blank(lf, 'discharge_dttm')
+                    )
+                    .select(['hospitalization_id', 'patient_id'])
+                    .unique()
+                    .collect(engine="streaming")
+                )
+    # --- Patient-specific cache (P.9) ---
+    death_patient_ids = None
+    if tname == 'patient' and {'patient_id', 'death_dttm'} <= actual_cols:
+        lf = df if isinstance(df, pl.LazyFrame) else df.lazy()
+        death_patient_ids = (
+            lf.filter(_not_null_or_blank(lf, 'death_dttm'))
+            .select(pl.col('patient_id').drop_nulls().unique())
+            .collect(engine="streaming")
+        )
 
     # --- Cross-table conditional requirements cache ---
     ct_cond_rules = _load_validation_rules().get('cross_table_conditional_requirements', [])
@@ -4353,13 +4548,16 @@ def extract_cross_table_cache(table_obj) -> Dict[str, Any]:
         'temporal_df': temporal_df,
         'hosp_bounds_df': hosp_bounds_df,
         'hosp_years': hosp_years,
+        'still_admitted_df': still_admitted_df,
+        'death_patient_ids': death_patient_ids,
         'conditional_source_ids': conditional_source_ids,
         'conditional_target_ids': conditional_target_ids,
     }
     _logger.info(
         "extract_cross_table_cache: table='%s', fk_keys=%s, temporal=%s, hosp_bounds=%s, "
-        "cond_source_keys=%s, cond_target_keys=%s",
+        "still_admitted=%s, death_ids=%s, cond_source_keys=%s, cond_target_keys=%s",
         tname, list(fk_ids.keys()), temporal_df is not None, hosp_bounds_df is not None,
+        still_admitted_df is not None, death_patient_ids is not None,
         list(conditional_source_ids.keys()), list(conditional_target_ids.keys()),
     )
     return cache
@@ -4868,6 +5066,18 @@ def run_cross_table_plausibility_checks_from_cache(
         )
         results.setdefault(tbl_name, {})["cross_table_temporal"] = result
 
+    # P.9 still_admitted hospitalizations without a patient death (needs patient cache)
+    still_df = hosp_cache.get('still_admitted_df')
+    death_ids = (caches.get('patient') or {}).get('death_patient_ids')
+    if still_df is not None and death_ids is not None:
+        if isinstance(still_df, pd.DataFrame):
+            still_df = pl.from_pandas(still_df)
+        if isinstance(death_ids, pd.DataFrame):
+            death_ids = pl.from_pandas(death_ids)
+        results.setdefault('hospitalization', {})['still_admitted_without_death'] = (
+            _still_admitted_without_death_result(still_df.lazy(), death_ids.lazy())
+        )
+
     checked = sum(len(v) for v in results.values())
     _logger.info(
         "run_cross_table_plausibility_checks_from_cache: completed %d checks across %d tables",
@@ -4985,7 +5195,10 @@ def run_cross_table_plausibility_checks(
     Returns
     -------
     Dict[str, Dict[str, DQAPlausibilityResult]]
-        ``{table_name: {"cross_table_temporal": DQAPlausibilityResult}}``.
+        ``{table_name: {"cross_table_temporal": DQAPlausibilityResult}}`` for
+        every non-hospitalization table with cross-table time columns, plus
+        ``{"hospitalization": {"still_admitted_without_death": ...}}`` (P.9)
+        when the patient table is also loaded.
     """
     _logger.info("run_cross_table_plausibility_checks: starting with %d tables", len(tables))
 
@@ -5032,6 +5245,12 @@ def run_cross_table_plausibility_checks(
             **thresholds['cross_table_temporal']
         )
         results.setdefault(tbl_name, {})["cross_table_temporal"] = result
+
+    # P.9 still_admitted hospitalizations without a patient death (needs patient)
+    if 'patient' in lookup:
+        results.setdefault('hospitalization', {})['still_admitted_without_death'] = (
+            check_still_admitted_without_death(hosp_df, lookup['patient'])
+        )
 
     checked = sum(len(v) for v in results.values())
     _logger.info(
@@ -5363,6 +5582,7 @@ def _format_check_type(check_name: str) -> str:
         'field_plausibility': 'Field Plausibility Violation',
         'medication_dose_unit_consistency': 'Medication Dose Unit Inconsistency',
         'cross_table_temporal': 'Cross-Table Temporal Implausibility',
+        'still_admitted_without_death': 'Still Admitted Without Death',
         'overlapping_periods': 'Overlapping Time Periods',
         'category_temporal_consistency': 'Category Distribution Shift',
         'duplicate_composite_keys': 'Duplicate Composite Keys',
@@ -5555,7 +5775,8 @@ def classify_errors_by_status_impact(
             # Plausibility warnings are informational; plausibility errors affect status
             plausibility_keywords = ['chronological order', 'numeric range', 'field plausibility',
                                      'dose unit', 'overlapping', 'distribution shift',
-                                     'duplicate composite', 'cross-table temporal']
+                                     'duplicate composite', 'cross-table temporal',
+                                     'still admitted']
             is_plausibility = any(p in error_type for p in plausibility_keywords)
             if is_plausibility and error.get('severity') == 'warning':
                 is_informational = True
