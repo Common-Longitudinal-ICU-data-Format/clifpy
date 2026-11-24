@@ -23,7 +23,8 @@ columns:
     is_category_column: false
     is_group_column: false
     permissible_values:
-      - ICD10CM
+      - icd10cm
+      - imo_concept_id
   - name: source_type
     data_type: VARCHAR
     required: false

@@ -28,9 +28,9 @@ columns:
   is_category_column: false
   is_group_column: false
   permissible_values:
-    - CPT
-    - ICD10PCS
-    - HCPCS
+    - cpt
+    - icd10pcs
+    - hcpcs
 - name: procedure_billed_dttm
   data_type: DATETIME
   required: true

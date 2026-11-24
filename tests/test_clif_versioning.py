@@ -201,6 +201,18 @@ def test_30_lab_reference_units_consistent():
         assert units[cat] == ["10^3/ul", "cells/ul"], cat
 
 
+@pytest.mark.parametrize("table,column,expected", [
+    ("hospital_diagnosis", "diagnosis_code_format", ["icd10cm", "icd9cm"]),
+    ("patient_diagnosis", "diagnosis_code_format", ["icd10cm", "imo_concept_id"]),
+    ("patient_procedures", "procedure_code_format", ["cpt", "icd10pcs", "hcpcs"]),
+])
+def test_30_code_format_values_match_data_dictionary(table, column, expected):
+    # The 3.0.0 data dictionary lower-cases the code formats and accepts IMO
+    # concept IDs in patient_diagnosis.
+    col = next(c for c in load_schema(table, "3.0")["columns"] if c["name"] == column)
+    assert col["permissible_values"] == expected
+
+
 def test_all_30_tables_registered():
     files = {os.path.basename(f).replace("_schema.yaml", "")
              for f in glob.glob(os.path.join(SCHEMAS_ROOT, "3.0", "*_schema.yaml"))}
