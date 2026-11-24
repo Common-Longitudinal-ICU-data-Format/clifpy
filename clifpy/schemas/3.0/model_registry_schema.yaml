@@ -15,8 +15,12 @@ columns:
   - name: model_category
     data_type: VARCHAR
     required: true
-    is_category_column: false
+    is_category_column: true
     is_group_column: false
+    permissible_values:
+      - epic_deterioration_index
+      - epic_sepsis_model
+      - epic_fall_risk
   - name: model_version
     data_type: VARCHAR
     required: true
@@ -28,7 +32,7 @@ columns:
     is_category_column: false
     is_group_column: false
   - name: is_live
-    data_type: INT
+    data_type: BOOLEAN
     required: true
     is_category_column: false
     is_group_column: false
@@ -39,6 +43,7 @@ required_columns:
   - model_version
   - is_live
 
-category_columns: []
+category_columns:
+  - model_category
 
 group_columns: []

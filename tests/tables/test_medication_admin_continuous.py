@@ -104,7 +104,7 @@ def sample_valid_med_admin_continuous_data():
         'hospitalization_id': ['H001', 'H001', 'H002'],
         'admin_dttm': pd.to_datetime(['2023-01-01 10:00', '2023-01-01 11:00', '2023-01-02 09:00']),
         'med_category': ['propofol', 'norepinephrine', 'propofol'],
-        'med_group': ['sedation', 'vasoactives', 'sedation'],
+        'med_group': ['sedation', 'vasoactive', 'sedation'],
         'med_dose': [100.0, 10.5, 150.0],
         'med_unit': ['mcg/kg/min', 'mcg/kg/min', 'mcg/kg/min'],
         'med_dose_unit': ['mcg/kg/min', 'mcg/kg/min', 'mcg/kg/min'],
@@ -252,7 +252,7 @@ def test_get_med_groups(sample_valid_med_admin_continuous_data):
     mac_obj = MedicationAdminContinuous(data=sample_valid_med_admin_continuous_data)
     groups = mac_obj.get_med_groups()
     assert isinstance(groups, list)
-    assert set(groups) == {'sedation', 'vasoactives'}
+    assert set(groups) == {'sedation', 'vasoactive'}
 
     mac_obj_no_data = MedicationAdminContinuous()
     assert mac_obj_no_data.get_med_groups() == []

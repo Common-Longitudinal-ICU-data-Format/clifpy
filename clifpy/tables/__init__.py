@@ -28,7 +28,8 @@ from .misc_icu_orders import MiscIcuOrders
 from .medication_orders import MedicationOrders
 from .patient_diagnosis import PatientDiagnosis
 from .place_based_index import PlaceBasedIndex
-from .provider import Provider
+from .treatment_team import TreatmentTeam
+from .provider_type import ProviderType
 from .therapy_details import TherapyDetails
 from .transfusion import Transfusion
 from .clinical_trial import ClinicalTrial
@@ -36,7 +37,7 @@ from .clinical_notes_facts import ClinicalNotesFacts
 from .validated_diagnosis import ValidatedDiagnosis
 from .model_registry import ModelRegistry
 from .scores import Scores
-from .radiology import Radiology
+from .chest_xray import ChestXray
 from .line import Line
 from .drain import Drain
 from .airway import Airway
@@ -74,7 +75,8 @@ __all__ = [
       'MedicationOrders',
       'PatientDiagnosis',
       'PlaceBasedIndex',
-      'Provider',
+      'TreatmentTeam',
+      'ProviderType',
       'TherapyDetails',
       'Transfusion',
       'ClinicalTrial',
@@ -82,7 +84,7 @@ __all__ = [
       'ValidatedDiagnosis',
       'ModelRegistry',
       'Scores',
-      'Radiology',
+      'ChestXray',
       'Line',
       'Drain',
       'Airway',

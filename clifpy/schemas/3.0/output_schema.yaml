@@ -39,7 +39,7 @@ columns:
       - lumbar_csf_drain
       - nephrostomy
       - orogastric_nasogastric_tube
-      - orogjejunal_nasojejunal_tube
+      - orojejunal_nasojejunal_tube
       - other
       - other_cns_drain
       - other_procedure

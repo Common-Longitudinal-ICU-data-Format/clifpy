@@ -33,24 +33,35 @@ columns:
     is_category_column: true
     is_group_column: false
     permissible_values:
-      - albumin_5
       - albumin_25
+      - albumin_5
       - albuterol
       - alprostadil
       - aminocaproic_acid
       - aminophylline
       - amiodarone
-      - angiotensin
+      - angiotensin_ii
       - argatroban
       - baclofen
+      - balanced_crystalloid_other
       - bivalirudin
       - bumetanide
       - bupivacaine
+      - calcium_chloride
+      - calcium_gluconate
       - cangrelor
       - cisatracurium
       - clevidipine
       - dexmedetomidine
+      - dextrose_10_lactated_ringers
+      - dextrose_10_sodium_chloride_0_45_pct
+      - dextrose_10_sodium_chloride_0_9_pct
       - dextrose_10_water
+      - dextrose_50
+      - dextrose_5_balanced_crystalloid_other
+      - dextrose_5_lactated_ringers
+      - dextrose_5_sodium_chloride_0_45_pct
+      - dextrose_5_sodium_chloride_0_9_pct
       - dextrose_5_water
       - dextrose_other
       - diltiazem
@@ -65,7 +76,7 @@ columns:
       - furosemide
       - heparin
       - hydromorphone
-      - insulin
+      - insulin_regular
       - ipratropium
       - isoproterenol
       - ketamine
@@ -86,22 +97,33 @@ columns:
       - nitroprusside
       - norepinephrine
       - octreotide
+      - oxytocin
       - pantoprazole
       - papaverine
       - pentobarbital
       - phentolamine
       - phenylephrine
-      - pitocin
       - plasma_lyte
       - procainamide
       - propofol
       - remifentanil
       - rocuronium
       - ropivacaine
-      - sodium_bicarbonate
-      - sodium_chloride
+      - sodium_bicarbonate_150_meq
+      - sodium_bicarbonate_other
+      - sodium_chloride_0_45_pct
+      - sodium_chloride_0_9_pct
+      - sodium_chloride_20_pct
+      - sodium_chloride_23_4_pct
+      - sodium_chloride_2_pct
+      - sodium_chloride_3_pct
+      - sodium_chloride_5_pct
+      - sodium_chloride_7_pct
+      - sodium_chloride_other
+      - sufentanil
       - tacrolimus
       - terbutaline
+      - tirofiban
       - torsemide
       - tpn
       - treprostinil
@@ -114,19 +136,32 @@ columns:
     is_category_column: false
     is_group_column: true
     permissible_values:
-      - vasoactives
-      - sedation
-      - diuretics
+      - analgesia
       - anticoagulation
-      - cardiac
-      - paralytics
-      - pulmonary_vasodilators_iv
-      - pulmonary_vasodilators_inhaled
-      - gastrointestinal
-      - inhaled
+      - antiseizure
+      - antiarrhythmic
+      - antihypertensive
+      - antineoplastic
+      - antipsychotic
+      - calcium_repletion
+      - car_t
+      - cms_sepsis_qualifying_antibiotics
+      - contrast
+      - diuretic
       - endocrine
       - fluids_electrolytes
-      - others
+      - gastrointestinal
+      - immunosuppressant
+      - magnesium_repletion
+      - other
+      - paralytic
+      - phosphate_repletion
+      - potassium_repletion
+      - pulmonary_vasodilator
+      - respiratory
+      - sedation
+      - steroid
+      - vasoactive
   - name: med_route_name
     data_type: VARCHAR
     required: false
@@ -138,9 +173,26 @@ columns:
     is_category_column: true
     is_group_column: false
     permissible_values:
+      - buccal_sublingual
+      - catheter_dwell
+      - enteral
+      - epidural_intrathecal
       - im
       - inhaled
+      - intraarterial
+      - intranasal
+      - intraosseous
+      - intraperitoneal
+      - intrapleural
+      - intraventricular
+      - intravesical
       - iv
+      - ocular
+      - other
+      - rectal
+      - subcutaneous
+      - topical
+      - transdermal
   - name: med_dose
     data_type: DOUBLE
     required: true
@@ -213,170 +265,210 @@ group_columns:
   - med_group
   - mar_action_group
 
+# Regenerated from mCIDE clif_medication_admin_continuous_med_categories.csv.
 # Values may be a single group name or a list of permissible groups —
 # the C.6 validator accepts either form (see check_category_group_mapping_*).
-# Multi-group entries exist for medications with multiple legitimate
-# administration routes/formulations (e.g. epoprostenol is an IV or inhaled
-# pulmonary vasodilator; terbutaline is inhaled bronchodilator or IV tocolytic).
+# Upstream currently assigns exactly one group per med.
 med_category_to_group_mapping:
-  albumin_5: fluids_electrolytes
   albumin_25: fluids_electrolytes
-  albuterol: inhaled
-  alprostadil: pulmonary_vasodilators_iv
-  aminocaproic_acid: others
-  aminophylline: others
-  amiodarone: cardiac
-  angiotensin: vasoactives
+  albumin_5: fluids_electrolytes
+  albuterol: respiratory
+  alprostadil: pulmonary_vasodilator
+  aminocaproic_acid: other
+  aminophylline: respiratory
+  amiodarone: antiarrhythmic
+  angiotensin_ii: vasoactive
   argatroban: anticoagulation
-  baclofen: others
+  baclofen: other
+  balanced_crystalloid_other: fluids_electrolytes
   bivalirudin: anticoagulation
-  bumetanide: diuretics
-  bupivacaine: others
+  bumetanide: diuretic
+  bupivacaine: analgesia
+  calcium_chloride: calcium_repletion
+  calcium_gluconate: calcium_repletion
   cangrelor: anticoagulation
-  cisatracurium: paralytics
-  clevidipine: cardiac
+  cisatracurium: paralytic
+  clevidipine: antihypertensive
   dexmedetomidine: sedation
+  dextrose_10_lactated_ringers: fluids_electrolytes
+  dextrose_10_sodium_chloride_0_45_pct: fluids_electrolytes
+  dextrose_10_sodium_chloride_0_9_pct: fluids_electrolytes
   dextrose_10_water: fluids_electrolytes
+  dextrose_50: fluids_electrolytes
+  dextrose_5_balanced_crystalloid_other: fluids_electrolytes
+  dextrose_5_lactated_ringers: fluids_electrolytes
+  dextrose_5_sodium_chloride_0_45_pct: fluids_electrolytes
+  dextrose_5_sodium_chloride_0_9_pct: fluids_electrolytes
   dextrose_5_water: fluids_electrolytes
-  dextrose_other: others
-  diltiazem: cardiac
-  dobutamine: vasoactives
-  dopamine: vasoactives
-  epinephrine: vasoactives
-  epoprostenol:
-    - pulmonary_vasodilators_iv
-    - pulmonary_vasodilators_inhaled
+  dextrose_other: fluids_electrolytes
+  diltiazem: antiarrhythmic
+  dobutamine: vasoactive
+  dopamine: vasoactive
+  epinephrine: vasoactive
+  epoprostenol: pulmonary_vasodilator
   eptifibatide: anticoagulation
-  esmolol: cardiac
+  esmolol: antihypertensive
   esomeprazole: gastrointestinal
-  fentanyl: sedation
-  furosemide: diuretics
+  fentanyl: analgesia
+  furosemide: diuretic
   heparin: anticoagulation
-  hydromorphone: sedation
-  insulin: endocrine
-  ipratropium: inhaled
-  isoproterenol: vasoactives
+  hydromorphone: analgesia
+  insulin_regular: endocrine
+  ipratropium: respiratory
+  isoproterenol: vasoactive
   ketamine: sedation
-  labetalol: cardiac
+  labetalol: antihypertensive
   lactated_ringers_solution: fluids_electrolytes
   levothyroxine: endocrine
-  lidocaine: cardiac
+  lidocaine: antiarrhythmic
   liothyronine: endocrine
   lorazepam: sedation
-  magnesium_sulfate: others
+  magnesium_sulfate: magnesium_repletion
   midazolam: sedation
-  milrinone: vasoactives
-  morphine: sedation
-  naloxone: others
-  nicardipine: cardiac
-  nitric_oxide: pulmonary_vasodilators_inhaled
-  nitroglycerin: cardiac
-  nitroprusside: cardiac
-  norepinephrine: vasoactives
+  milrinone: vasoactive
+  morphine: analgesia
+  naloxone: other
+  nicardipine: antihypertensive
+  nitric_oxide: pulmonary_vasodilator
+  nitroglycerin: antihypertensive
+  nitroprusside: antihypertensive
+  norepinephrine: vasoactive
   octreotide: gastrointestinal
+  oxytocin: other
   pantoprazole: gastrointestinal
-  papaverine: cardiac
+  papaverine: other
   pentobarbital: sedation
-  phentolamine: others
-  phenylephrine: vasoactives
-  pitocin: others
+  phentolamine: antihypertensive
+  phenylephrine: vasoactive
   plasma_lyte: fluids_electrolytes
-  procainamide: cardiac
+  procainamide: antiarrhythmic
   propofol: sedation
-  remifentanil: sedation
-  rocuronium: paralytics
-  ropivacaine: others
-  sodium_bicarbonate: fluids_electrolytes
-  sodium_chloride: fluids_electrolytes
-  tacrolimus: others
-  terbutaline:
-    - inhaled
-    - others
-  torsemide: diuretics
+  remifentanil: analgesia
+  rocuronium: paralytic
+  ropivacaine: analgesia
+  sodium_bicarbonate_150_meq: fluids_electrolytes
+  sodium_bicarbonate_other: fluids_electrolytes
+  sodium_chloride_0_45_pct: fluids_electrolytes
+  sodium_chloride_0_9_pct: fluids_electrolytes
+  sodium_chloride_20_pct: fluids_electrolytes
+  sodium_chloride_23_4_pct: fluids_electrolytes
+  sodium_chloride_2_pct: fluids_electrolytes
+  sodium_chloride_3_pct: fluids_electrolytes
+  sodium_chloride_5_pct: fluids_electrolytes
+  sodium_chloride_7_pct: fluids_electrolytes
+  sodium_chloride_other: fluids_electrolytes
+  sufentanil: analgesia
+  tacrolimus: immunosuppressant
+  terbutaline: respiratory
+  tirofiban: anticoagulation
+  torsemide: diuretic
   tpn: fluids_electrolytes
-  treprostinil: pulmonary_vasodilators_iv
-  vasopressin: vasoactives
-  vecuronium: paralytics
-  zidovudine: others
+  treprostinil: pulmonary_vasodilator
+  vasopressin: vasoactive
+  vecuronium: paralytic
+  zidovudine: other
 # Expected dose unit(s) per med_category (from mCIDE med_categories CSV).
-# Continuous: expected NUMERATOR base unit (observed rates like mcg/kg/min
-# match expected mcg); an expected value containing '/' must match the full
-# observed unit. Scalar = single accepted unit; list = any of them.
+# Units are upstream's reference units, verbatim. The C.8 check compares the
+# NUMERATOR only (observed mcg/min matches expected mcg/kg/min; mg/min does
+# not), and when the expected unit is a rate the observed unit must be a rate
+# too. Scalar = single accepted unit; list = any of them.
 med_category_to_dose_unit_mapping:
-  albumin_5: ml
-  albumin_25: g
+  albumin_25: g/hr
+  albumin_5: ml/hr
   albuterol: mg
-  alprostadil: mcg
-  aminocaproic_acid: g
-  aminophylline: mg
-  amiodarone: mg
-  angiotensin: ng
-  argatroban: mcg
+  alprostadil: mcg/hr
+  aminocaproic_acid: g/hr
+  aminophylline: mg/kg/hr
+  amiodarone: mg/min
+  angiotensin_ii: ng/kg/min
+  argatroban: mcg/kg/min
   baclofen: ml
-  bivalirudin: mcg
-  bumetanide: mg
-  bupivacaine: ml
-  cangrelor: mcg
-  cisatracurium: mcg
-  clevidipine: mg
-  dexmedetomidine: mcg
-  dextrose_10_water: ml
-  dextrose_5_water: ml
-  dextrose_other: ml
-  diltiazem: mg
-  dobutamine: mcg
-  dopamine: mcg
-  epinephrine: mcg
-  epoprostenol: [ng, mcg]
-  eptifibatide: mcg
-  esmolol: mcg
-  esomeprazole: mg
-  fentanyl: mcg
-  furosemide: mg
-  heparin: units
-  hydromorphone: mg
-  insulin: units
+  balanced_crystalloid_other: ml/hr
+  bivalirudin: mcg/kg/hr
+  bumetanide: mg/hr
+  bupivacaine: ml/hr
+  calcium_chloride: g/hr
+  calcium_gluconate: g/hr
+  cangrelor: mcg/kg/min
+  cisatracurium: mcg/kg/min
+  clevidipine: mg/hr
+  dexmedetomidine: mcg/kg/hr
+  dextrose_10_lactated_ringers: ml/hr
+  dextrose_10_sodium_chloride_0_45_pct: ml/hr
+  dextrose_10_sodium_chloride_0_9_pct: ml/hr
+  dextrose_10_water: ml/hr
+  dextrose_50: ml/hr
+  dextrose_5_balanced_crystalloid_other: ml/hr
+  dextrose_5_lactated_ringers: ml/hr
+  dextrose_5_sodium_chloride_0_45_pct: ml/hr
+  dextrose_5_sodium_chloride_0_9_pct: ml/hr
+  dextrose_5_water: ml/hr
+  dextrose_other: ml/hr
+  diltiazem: mg/hr
+  dobutamine: mcg/kg/min
+  dopamine: mcg/kg/min
+  epinephrine: mcg/kg/min
+  epoprostenol: ng/kg/min
+  eptifibatide: mcg/kg/min
+  esmolol: mcg/kg/min
+  esomeprazole: mg/hr
+  fentanyl: mcg/hr
+  furosemide: mg/hr
+  heparin: units/kg/hr
+  hydromorphone: mg/hr
+  insulin_regular: units/hr
   ipratropium: ml
-  isoproterenol: mcg
-  ketamine: mg
-  labetalol: mg
-  lactated_ringers_solution: ml
-  levothyroxine: mcg
-  lidocaine: mg
-  liothyronine: mcg
-  lorazepam: mg
-  magnesium_sulfate: g
-  midazolam: mg
-  milrinone: mcg
-  morphine: mg
-  naloxone: mcg
-  nicardipine: mg
+  isoproterenol: mcg/kg/min
+  ketamine: mg/kg/hr
+  labetalol: mg/min
+  lactated_ringers_solution: ml/hr
+  levothyroxine: mcg/hr
+  lidocaine: mg/min
+  liothyronine: mcg/hr
+  lorazepam: mg/hr
+  magnesium_sulfate: g/hr
+  midazolam: mg/hr
+  milrinone: mcg/kg/min
+  morphine: mg/hr
+  naloxone: mcg/kg/hr
+  nicardipine: mg/hr
   nitric_oxide: ppm
-  nitroglycerin: mcg
-  nitroprusside: mcg
-  norepinephrine: mcg
-  octreotide: mcg
-  pantoprazole: mg
-  papaverine: mg
-  pentobarbital: mg
-  phentolamine: mg
-  phenylephrine: mcg
-  pitocin: milli_units
-  plasma_lyte: ml
-  procainamide: mg
-  propofol: mcg
-  remifentanil: mcg
-  rocuronium: mcg
-  ropivacaine: ml
-  sodium_bicarbonate: ml/hr
-  sodium_chloride: ml
-  tacrolimus: mcg
-  terbutaline: [mg, mcg]
-  torsemide: mg
-  tpn: ml
-  treprostinil: ng
-  vasopressin: units
-  vecuronium: mcg
-  zidovudine: mg
+  nitroglycerin: mcg/min
+  nitroprusside: mcg/kg/min
+  norepinephrine: mcg/kg/min
+  octreotide: mcg/hr
+  oxytocin: mu/min
+  pantoprazole: mg/hr
+  papaverine: mg/hr
+  pentobarbital: mg/kg/hr
+  phentolamine: mg/min
+  phenylephrine: mcg/kg/min
+  plasma_lyte: ml/hr
+  procainamide: mg/min
+  propofol: mcg/kg/min
+  remifentanil: mcg/kg/min
+  rocuronium: mcg/kg/min
+  ropivacaine: ml/hr
+  sodium_bicarbonate_150_meq: ml/hr
+  sodium_bicarbonate_other: ml/hr
+  sodium_chloride_0_45_pct: ml/hr
+  sodium_chloride_0_9_pct: ml/hr
+  sodium_chloride_20_pct: ml/hr
+  sodium_chloride_23_4_pct: ml/hr
+  sodium_chloride_2_pct: ml/hr
+  sodium_chloride_3_pct: ml/hr
+  sodium_chloride_5_pct: ml/hr
+  sodium_chloride_7_pct: ml/hr
+  sodium_chloride_other: ml/hr
+  sufentanil: mcg/kg/hr
+  tacrolimus: mcg/kg/day
+  terbutaline: mcg/kg/min
+  tirofiban: mcg/kg/min
+  torsemide: mg/hr
+  tpn: ml/hr
+  treprostinil: ng/kg/min
+  vasopressin: units/min
+  vecuronium: mcg/kg/min
+  zidovudine: mg/kg/hr
 # Expected unit for the optional volume_infusion_rate_unit column.
 expected_volume_infusion_rate_unit: ml/hr

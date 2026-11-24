@@ -32,6 +32,7 @@ columns:
       - ams
       - apgar
       - avpu
+      - bmat
       - bps
       - braden_activity
       - braden_friction
@@ -77,6 +78,7 @@ columns:
       - nrs
       - nvps
       - ot_discharge_recommend
+      - other
       - painad
       - pt_discharge_recommend
       - pupil_reactive_l
@@ -132,6 +134,7 @@ columns:
       - spontaneous_awakening_trial_sat
       - spontaneous_breathing_trial_sbt
       - withdrawal
+      - other
   - name: numerical_value
     data_type: DOUBLE
     required: true
@@ -169,6 +172,7 @@ group_columns:
 assessment_category_to_group_mapping:
   am_pac: mobility_or_activity
   ams: mobility_or_activity
+  bmat: mobility_or_activity
   apgar: neurological
   avpu: neurological
   bps: pain
@@ -246,3 +250,4 @@ assessment_category_to_group_mapping:
   tof: neurological
   vas: pain
   wat: withdrawal
+  other: other

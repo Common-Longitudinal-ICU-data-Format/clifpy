@@ -116,6 +116,11 @@ columns:
     required: true
     is_category_column: false
     is_group_column: false
+  - name: expiratory_time_set
+    data_type: DOUBLE
+    required: false
+    is_category_column: false
+    is_group_column: false
   - name: peep_set
     data_type: DOUBLE
     required: true

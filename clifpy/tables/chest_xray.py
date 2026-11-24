@@ -3,9 +3,9 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class Provider(BaseTable):
+class ChestXray(BaseTable):
     """
-    Provider involvement intervals for a hospitalization (CLIF 3.0).
+    Chest X-ray image-level metadata and reports (CLIF 3.0).
 
     Thin wrapper inheriting from BaseTable. Schema is selected by ``clif_version``;
     this table is defined in the CLIF 3.0 schema set.
@@ -21,7 +21,7 @@ class Provider(BaseTable):
         clif_version: Optional[str] = None
     ):
         """
-        Initialize the provider table.
+        Initialize the chest_xray table.
 
         Parameters
         ----------

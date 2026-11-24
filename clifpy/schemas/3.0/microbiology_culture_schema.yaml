@@ -60,7 +60,7 @@ columns:
   - eyes
   - fallopians_uterus_cervix
   - feces_stool
-  - gallbladder_billary_pancreas
+  - gallbladder_biliary_pancreas
   - gastrointestinal_tract
   - genital_area
   - genito_urinary_tract
@@ -286,7 +286,7 @@ columns:
   - corynebacterium_aurimucosum
   - corynebacterium_bovis
   - corynebacterium_coyleae
-  - corynebacterium_diptheriae
+  - corynebacterium_non_diphtheriae
   - corynebacterium_durum
   - corynebacterium_freneyi
   - corynebacterium_glucuronolyticum
@@ -408,7 +408,7 @@ columns:
   - legionella_feeleii
   - legionella_pneumophila
   - legionella_sp
-  - lelliottia_amigena
+  - lelliottia_amnigena
   - leptotrichia_buccalis
   - leuconostoc_sp
   - lichtheimia_sp
@@ -489,7 +489,7 @@ columns:
   - pasteurella_sp
   - pediococcus_acidilactici
   - penicillium_sp
-  - peptoniphilus_assacharolyticus
+  - peptoniphilus_asaccharolyticus
   - peptoniphilus_harei
   - peptoniphilus_sp
   - peptostreptococcus_anaerobius
@@ -678,7 +678,7 @@ columns:
   - bacteria_other
   - bacteroides
   - borrelia
-  - branhamelia_moraxella_catarrhalis
+  - branhamella_moraxella_catarrhalis
   - campylobacter
   - candida_albicans
   - candida_krusei
@@ -694,7 +694,7 @@ columns:
   - cryptococcus
   - cryptosporidium
   - cytomegalovirus
-  - echinoco_ocalcyst
+  - echinococcal_cyst
   - enterobacter
   - enterococcus
   - enterovirus
@@ -744,7 +744,7 @@ columns:
   - pharyngeal_respiratory_flora
   - pneumocystis
   - polyomavirus
-  - propionbacterium
+  - propionibacterium
   - protozoal_other
   - pseudomonas_burkholderia_cepacia
   - pseudomonas_stenotrophomonas_xanthomonas_maltophilia
@@ -763,7 +763,7 @@ columns:
   - staphylococcus_nos
   - stomatococcus_mucilaginosis
   - streptococcus
-  - torulopsis_galbrata
+  - torulopsis_glabrata
   - toxoplasma
   - treponema
   - trichomonas

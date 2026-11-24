@@ -5,6 +5,8 @@ conditional_requirements:
       then_required: [location_type]
       description: "ICU locations must have location_type specified"
   respiratory_support:
+    # Values list both spellings where they differ beyond letter case:
+    # CLIF 2.1 first, then CLIF 3.0 (matching is case-insensitive).
     # --- General ---
     - when_column: device_category
       when_value: [IMV, NIPPV]
@@ -17,19 +19,19 @@ conditional_requirements:
       then_required: [fio2_set, peep_set, tidal_volume_obs, resp_rate_obs]
       description: "CPAP requires fio2_set, peep_set settings and tidal_volume_obs, resp_rate_obs observations"
     - when_column: device_category
-      when_value: [Face Mask]
+      when_value: [Face Mask, face_mask]
       then_required: [lpm_set]
       description: "Face Mask requires lpm_set"
     - when_column: device_category
-      when_value: [High Flow NC]
+      when_value: [High Flow NC, hfnc]
       then_required: [fio2_set, lpm_set]
       description: "High Flow NC requires fio2_set and lpm_set"
     - when_column: device_category
-      when_value: [Nasal Cannula]
+      when_value: [Nasal Cannula, nasal_cannula]
       then_required: [lpm_set]
       description: "Nasal Cannula requires lpm_set"
     - when_column: device_category
-      when_value: [Trach Collar]
+      when_value: [Trach Collar, trach_collar]
       then_required: [lpm_set, fio2_set]
       description: "Trach Collar requires lpm_set and fio2_set"
 
@@ -37,13 +39,13 @@ conditional_requirements:
     - when_column: device_category
       when_value: [NIPPV]
       and_column: mode_category
-      and_value: [Volume Support]
+      and_value: [Volume Support, volume_support]
       then_required: [fio2_set, peep_set, tidal_volume_set, resp_rate_set, inspiratory_time_set]
       description: "NIPPV Volume Support requires fio2_set, peep_set, tidal_volume_set, resp_rate_set, and inspiratory_time_set"
     - when_column: device_category
       when_value: [NIPPV]
       and_column: mode_category
-      and_value: [Pressure Support/CPAP]
+      and_value: [Pressure Support/CPAP, ps_or_cpap]
       then_required: [fio2_set, peep_set, peak_inspiratory_pressure_set, resp_rate_set, inspiratory_time_set]
       description: "NIPPV PS/CPAP requires fio2_set, peep_set, peak_inspiratory_pressure_set, resp_rate_set, and inspiratory_time_set"
 
@@ -57,25 +59,25 @@ conditional_requirements:
     - when_column: device_category
       when_value: [IMV]
       and_column: mode_category
-      and_value: [Assist Control-Volume Control]
+      and_value: [Assist Control-Volume Control, acvc]
       then_required: [tidal_volume_set, resp_rate_set]
       description: "IMV Assist Control-Volume Control requires tidal_volume_set and resp_rate_set"
     - when_column: device_category
       when_value: [IMV]
       and_column: mode_category
-      and_value: [Pressure Support/CPAP]
+      and_value: [Pressure Support/CPAP, ps_or_cpap]
       then_required: [pressure_support_set]
       description: "IMV Pressure Support/CPAP requires pressure_support_set"
     - when_column: device_category
       when_value: [IMV]
       and_column: mode_category
-      and_value: [Pressure Control]
+      and_value: [Pressure Control, pressure_control]
       then_required: [resp_rate_set, pressure_control_set, inspiratory_time_set]
       description: "IMV Pressure Control requires resp_rate_set, pressure_control_set, and inspiratory_time_set"
     - when_column: device_category
       when_value: [IMV]
       and_column: mode_category
-      and_value: [Pressure-Regulated Volume Control]
+      and_value: [Pressure-Regulated Volume Control, prvc]
       then_required: [tidal_volume_set, resp_rate_set]
       description: "IMV PRVC requires tidal_volume_set and resp_rate_set"
     - when_column: device_category
@@ -87,7 +89,7 @@ conditional_requirements:
     - when_column: device_category
       when_value: [IMV]
       and_column: mode_category
-      and_value: [Volume Support]
+      and_value: [Volume Support, volume_support]
       then_required: [tidal_volume_set]
       description: "IMV Volume Support requires tidal_volume_set"
   crrt_therapy:
@@ -96,6 +98,16 @@ conditional_requirements:
       then_required: [pre_filter_replacement_fluid_rate, post_filter_replacement_fluid_rate]
       description: "CVVH and CVVHDF modes require pre- and post-filter replacement fluid rates"
     - when_column: crrt_mode_category
+      when_value: [cvvhd, cvvhdf]
+      then_required: [dialysate_flow_rate]
+      description: "CVVHD and CVVHDF modes require dialysate flow rate"
+  # CLIF 3.0 name for the table above (mode column is `mode_category`).
+  renal_replacement_therapy:
+    - when_column: mode_category
+      when_value: [cvvh, cvvhdf]
+      then_required: [pre_filter_replacement_fluid_rate, post_filter_replacement_fluid_rate]
+      description: "CVVH and CVVHDF modes require pre- and post-filter replacement fluid rates"
+    - when_column: mode_category
       when_value: [cvvhd, cvvhdf]
       then_required: [dialysate_flow_rate]
       description: "CVVHD and CVVHDF modes require dialysate flow rate"
@@ -165,8 +177,9 @@ field_plausibility_rules:
     - when_column: discharge_dttm
       when_not_null: true
       then_column: discharge_category
-      then_not_value: [Still Admitted]
-      description: "Discharged patients (discharge_dttm not null) should not have discharge_category 'Still Admitted'"
+      # Both spellings: 2.1 uses "Still Admitted", 3.0 uses "still_admitted"
+      then_not_value: [Still Admitted, still_admitted]
+      description: "Discharged patients (discharge_dttm not null) should not have discharge_category 'still_admitted'"
 
 medication_dose_unit_rules:
   medication_admin_continuous:

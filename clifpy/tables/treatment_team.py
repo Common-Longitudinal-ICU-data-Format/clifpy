@@ -3,9 +3,9 @@ import pandas as pd
 from .base_table import BaseTable
 
 
-class Radiology(BaseTable):
+class TreatmentTeam(BaseTable):
     """
-    Radiology study metadata and reports (CLIF 3.0).
+    Provider involvement intervals for a hospitalization (CLIF 3.0).
 
     Thin wrapper inheriting from BaseTable. Schema is selected by ``clif_version``;
     this table is defined in the CLIF 3.0 schema set.
@@ -21,7 +21,7 @@ class Radiology(BaseTable):
         clif_version: Optional[str] = None
     ):
         """
-        Initialize the radiology table.
+        Initialize the treatment_team table.
 
         Parameters
         ----------

@@ -54,6 +54,8 @@ transformations, not the full list:
 | `Assist Control-Volume Control` | `acvc` | curated rename (abbreviation) |
 | `Long Term Care Hospital (LTACH)` | `ltach` | curated rename |
 | `Psychiatric Hospital` | `mental_health_hosp` | curated rename (semantic) |
+| `pitocin` | `oxytocin` | curated rename (brand → generic) |
+| `vasoactives` (med_group) | `vasoactive` | curated rename (singular) |
 
 Two mechanisms cover everything, and both run automatically — you don't configure either:
 
@@ -143,6 +145,9 @@ report instead:
 
 1. **1→many splits** — e.g. CLIF 2.1 `albumin` maps to either `albumin_5` or `albumin_25`
    in 3.0 depending on concentration, which can't be inferred from the category alone.
+   The same applies to `sodium_chloride` and `sodium_bicarbonate` (split by concentration),
+   intermittent `oxycodone` (`oxycodone_ir` / `oxycodone_er`), and the continuous `med_group`
+   `cardiac` (now `antiarrhythmic` / `antihypertensive` / `other`).
 2. **Values removed in 3.0** — e.g. the `csf` lab specimen has no 3.0 equivalent.
 
 ```python

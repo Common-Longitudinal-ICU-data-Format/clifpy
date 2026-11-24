@@ -28,6 +28,7 @@ RULE_CODES: Dict[tuple, tuple] = {
     ('plausibility', 'category_temporal_consistency'): ('P.6', 'Category temporal consistency'),
     ('plausibility', 'duplicate_composite_keys'):   ('P.7', 'Duplicate composite key detection'),
     ('plausibility', 'cross_table_temporal'):       ('P.8', 'Cross-table temporal plausibility'),
+    ('plausibility', 'still_admitted_without_death'): ('P.9', 'Still-admitted hospitalizations without patient death'),
 }
 
 # Human-readable finding text for INFO-severity "pass" rows.
@@ -55,6 +56,7 @@ PASSING_FINDINGS: Dict[str, str] = {
     'P.6': 'Category distributions stable over time',
     'P.7': 'No duplicate composite keys',
     'P.8': 'All events within hospitalization bounds',
+    'P.9': 'All still-admitted discharges have patient death_dttm',
 }
 
 # Explicit partial-pass phrasing for rules whose PASSING_FINDINGS text does
@@ -108,6 +110,7 @@ _NOT_APPLICABLE_PREFIXES = (
     "No category columns found for temporal consistency check",
     "No numeric columns with range configuration to check",
     "No cross-table conditional requirements applicable",
+    "Missing columns for still-admitted death check",
 )
 
 

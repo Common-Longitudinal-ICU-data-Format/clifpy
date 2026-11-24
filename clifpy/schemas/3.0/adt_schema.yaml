@@ -73,6 +73,8 @@ columns:
       - neurosurgical_icu
       - mixed_neuro_icu
       - medical_icu
+      - pediatric_medical_mixed_icu
+      - pediatric_cardiac_icu
   - name: room_id
     data_type: VARCHAR
     required: true

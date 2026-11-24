@@ -231,6 +231,20 @@ def test_apply_microbiology_organism_renames():
     ]
 
 
+def test_apply_medication_continuous_renames_and_splits():
+    df = pd.DataFrame({
+        "med_category": ["angiotensin", "pitocin", "insulin", "sodium_chloride"],
+        "med_group": ["vasoactives", "others", "Inhaled", "cardiac"],
+    })
+    out, report = crosswalk_table_2_1_to_3_0(df, "medication_admin_continuous")
+    # sodium_chloride and cardiac are 1->many splits: left unchanged, reported.
+    assert list(out["med_category"]) == [
+        "angiotensin_ii", "oxytocin", "insulin_regular", "sodium_chloride"]
+    assert list(out["med_group"]) == ["vasoactive", "other", "respiratory", "cardiac"]
+    assert [a["original"] for a in report["columns"]["med_category"]["ambiguous"]] == ["sodium_chloride"]
+    assert [a["original"] for a in report["columns"]["med_group"]["ambiguous"]] == ["cardiac"]
+
+
 # --------------------------------------------------------------------------- #
 # Unresolved (removed-in-3.0) vs ambiguous (1->many) reporting
 # --------------------------------------------------------------------------- #

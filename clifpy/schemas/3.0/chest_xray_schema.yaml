@@ -1,0 +1,136 @@
+table_name: chest_xray
+version: "3.0"
+
+columns:
+  - name: patient_id
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: source_dicom_path
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: processed_image_path
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: accession
+    data_type: VARCHAR
+    required: true
+    is_category_column: false
+    is_group_column: false
+  - name: order_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: series_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: acquisition_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: capture_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: report_dttm
+    data_type: DATETIME
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: series_description
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: image_type
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: view_position
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: patient_orientation
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: modality_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: modality_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - xr
+  - name: region_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: region_category
+    data_type: VARCHAR
+    required: true
+    is_category_column: true
+    is_group_column: false
+    permissible_values:
+      - chest
+  - name: study_location_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: study_location_category
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: requesting_type
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: manufacturer
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: model_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+  - name: report_text
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
+
+required_columns:
+  - patient_id
+  - source_dicom_path
+  - accession
+  - modality_category
+  - region_category
+
+category_columns:
+  - modality_category
+  - region_category
+
+group_columns: []

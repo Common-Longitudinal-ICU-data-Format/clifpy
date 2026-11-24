@@ -10,25 +10,26 @@ tables:
   # ADT table has no numeric columns
   adt: {}
 
-  crrt_therapy:
-    blood_flow_rate:
-      min: 150
-      max: 300
-    pre_filter_replacement_fluid_rate:
-      min: 0
-      max: 10000
-    post_filter_replacement_fluid_rate:
-      min: 0
-      max: 10000
-    dialysate_flow_rate:
-      min: 0
-      max: 10000
-    ultrafiltration_out:
-      min: 0
-      max: 500
+  # CLIF 2.1 crrt_therapy ranges, disabled. CLIF 3.0 uses renal_replacement_therapy below.
+  # crrt_therapy:
+  #   blood_flow_rate:
+  #     min: 150
+  #     max: 300
+  #   pre_filter_replacement_fluid_rate:
+  #     min: 0
+  #     max: 10000
+  #   post_filter_replacement_fluid_rate:
+  #     min: 0
+  #     max: 10000
+  #   dialysate_flow_rate:
+  #     min: 0
+  #     max: 10000
+  #   ultrafiltration_out:
+  #     min: 0
+  #     max: 500
 
   # Renal replacement therapy (CLIF 3.0). Ranges per the 3.0.0 data dictionary.
-  # Wider than crrt_therapy above because this table also carries intermittent
+  # Wider than the 2.1 crrt_therapy ranges because this table also carries intermittent
   # modes: IHD runs higher blood flow, and its dialysate flow is stored in mL/hr
   # (mL/min x 60), which lifts the ceiling to 70000.
   renal_replacement_therapy:
@@ -393,88 +394,89 @@ tables:
           min: 0.0
           max: 10.0      # Typical bolus 1–4 mg; 10 mg upper bound for severe agitation or error tolerance
 
-  ecmo_mcs:
-    sweep:
-      VA_ECMO:
-        min: 0.5
-        max: 20.0
-      VV_ECMO:
-        min: 0.5
-        max: 20.0
-      VAV_ECMO:
-        min: 0.5
-        max: 20.0
-      LAVA_ECMO:
-        min: 0.5
-        max: 20.0
-    flow:
-      Impella_2.5:
-        min: 0.5
-        max: 10.0
-      Impella_CP:
-        min: 0.5
-        max: 10.0
-      Impella_5.0:
-        min: 0.5
-        max: 10.0
-      Impella_5.5:
-        min: 0.5
-        max: 10.0
-      Impella_LD:
-        min: 0.5
-        max: 10.0
-      Impella_RP:
-        min: 0.5
-        max: 10.0
-      Impella_RP_Flex:
-        min: 0.5
-        max: 10.0
-      TandemHeart_LV:
-        min: 0.5
-        max: 10.0
-      TandemHeart_RV:
-        min: 0.5
-        max: 10.0
-      CentriMag_LV:
-        min: 0.5
-        max: 10.0
-      CentriMag_RV:
-        min: 0.5
-        max: 10.0
-      VA_ECMO:
-        min: 1.0
-        max: 10.0
-      VV_ECMO:
-        min: 1.0
-        max: 10.0
-      VAV_ECMO:
-        min: 1.0
-        max: 10.0
-      LAVA_ECMO:
-        min: 1.0
-        max: 10.0
-      HeartWare:
-        min: 1.0
-        max: 10.0
-      HMII:
-        min: 1.0
-        max: 10.0
-      HMIII:
-        min: 1.0
-        max: 10.0
-    fdO2:
-      VA_ECMO:
-        min: 0.21
-        max: 1.0
-      VV_ECMO:
-        min: 0.21
-        max: 1.0
-      VAV_ECMO:
-        min: 0.21
-        max: 1.0
-      LAVA_ECMO:
-        min: 0.21
-        max: 1.0
+  # CLIF 2.1 ecmo_mcs ranges, disabled. CLIF 3.0 replaces this table with `mcs`.
+  # ecmo_mcs:
+  #   sweep:
+  #     VA_ECMO:
+  #       min: 0.5
+  #       max: 20.0
+  #     VV_ECMO:
+  #       min: 0.5
+  #       max: 20.0
+  #     VAV_ECMO:
+  #       min: 0.5
+  #       max: 20.0
+  #     LAVA_ECMO:
+  #       min: 0.5
+  #       max: 20.0
+  #   flow:
+  #     Impella_2.5:
+  #       min: 0.5
+  #       max: 10.0
+  #     Impella_CP:
+  #       min: 0.5
+  #       max: 10.0
+  #     Impella_5.0:
+  #       min: 0.5
+  #       max: 10.0
+  #     Impella_5.5:
+  #       min: 0.5
+  #       max: 10.0
+  #     Impella_LD:
+  #       min: 0.5
+  #       max: 10.0
+  #     Impella_RP:
+  #       min: 0.5
+  #       max: 10.0
+  #     Impella_RP_Flex:
+  #       min: 0.5
+  #       max: 10.0
+  #     TandemHeart_LV:
+  #       min: 0.5
+  #       max: 10.0
+  #     TandemHeart_RV:
+  #       min: 0.5
+  #       max: 10.0
+  #     CentriMag_LV:
+  #       min: 0.5
+  #       max: 10.0
+  #     CentriMag_RV:
+  #       min: 0.5
+  #       max: 10.0
+  #     VA_ECMO:
+  #       min: 1.0
+  #       max: 10.0
+  #     VV_ECMO:
+  #       min: 1.0
+  #       max: 10.0
+  #     VAV_ECMO:
+  #       min: 1.0
+  #       max: 10.0
+  #     LAVA_ECMO:
+  #       min: 1.0
+  #       max: 10.0
+  #     HeartWare:
+  #       min: 1.0
+  #       max: 10.0
+  #     HMII:
+  #       min: 1.0
+  #       max: 10.0
+  #     HMIII:
+  #       min: 1.0
+  #       max: 10.0
+  #   fdO2:
+  #     VA_ECMO:
+  #       min: 0.21
+  #       max: 1.0
+  #     VV_ECMO:
+  #       min: 0.21
+  #       max: 1.0
+  #     VAV_ECMO:
+  #       min: 0.21
+  #       max: 1.0
+  #     LAVA_ECMO:
+  #       min: 0.21
+  #       max: 1.0
 
   # Patient table has no numeric columns
   patient: {}
@@ -611,6 +613,9 @@ tables:
       "Morse Fall Scale":
         min: 0
         max: 125
+      morse_fall_scale:   # CLIF 3.0 spelling
+        min: 0
+        max: 125
       NRS:
         min: 0
         max: 10
@@ -711,6 +716,10 @@ tables:
       min: -50.0
       max: 100.0
     inspiratory_time_set:
+      min: -1.0
+      max: 50.0
+    # Placeholder: mirrors inspiratory_time_set until a threshold is agreed upstream.
+    expiratory_time_set:
       min: -1.0
       max: 50.0
     peep_set:

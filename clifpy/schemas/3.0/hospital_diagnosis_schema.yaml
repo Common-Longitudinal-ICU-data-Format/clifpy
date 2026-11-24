@@ -18,8 +18,8 @@ columns:
   is_category_column: false
   is_group_column: false
   permissible_values:
-  - ICD10CM
-  - ICD9CM
+  - icd10cm
+  - icd9cm
 - name: diagnosis_primary
   data_type: INT
   required: true

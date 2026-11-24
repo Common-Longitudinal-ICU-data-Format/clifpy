@@ -31,7 +31,7 @@ The function-invocation view gives the same total whether a table has 5 columns 
 
 ---
 
-## 3. The 20 DQA check types
+## 3. The 21 DQA check types
 
 Sourced from `clifpy/utils/rule_codes.py`. The "atomic granularity" column says what counts as one check inside that rule.
 
@@ -57,6 +57,7 @@ Sourced from `clifpy/utils/rule_codes.py`. The "atomic granularity" column says 
 | P.6 | `category_temporal_consistency` | 1 per (category column × permissible value) when table has a detectable time column | `check_category_temporal_consistency` |
 | P.7 | `duplicate_composite_keys` | 1 per table with composite keys defined | `check_duplicate_composite_keys` |
 | P.8 | `cross_table_temporal` | 1 per (table × time column) for non-hosp tables with `hospitalization_id` | `check_cross_table_temporal_plausibility` |
+| P.9 | `still_admitted_without_death` | 1 for hospitalization (needs patient loaded; warning-only) | `check_still_admitted_without_death` |
 
 ---
 
@@ -86,9 +87,9 @@ Each subsection shows:
 
 ---
 
-### hospitalization — 88
+### hospitalization — 89
 
-**Schema inputs:** 18 columns • 7 required • 2 datetime (`admission_dttm`, `discharge_dttm`) • 2 category cols (`admission_type_category`=6, `discharge_category`=17) → 23 mCIDE values • FK `patient_id` → patient • composite key `[hospitalization_id]` • 1 numeric range (`age_at_admission`) • 1 temporal_ordering rule • 1 field_plausibility rule
+**Schema inputs:** 18 columns • 7 required • 2 datetime (`admission_dttm`, `discharge_dttm`) • 2 category cols (`admission_type_category`=6, `discharge_category`=17) → 23 mCIDE values • FK `patient_id` → patient • composite key `[hospitalization_id]` • 1 numeric range (`age_at_admission`) • 1 temporal_ordering rule • 1 field_plausibility rule • **source of the P.9 still-admitted/death check**
 
 | Code | Count | Derivation |
 |---|---:|---|
@@ -102,10 +103,11 @@ Each subsection shows:
 | K.4 relational_integrity | 1 | `patient_id` → patient |
 | P.1 temporal_ordering | 1 | admission < discharge |
 | P.2 numeric_range_plausibility | 1 | `age_at_admission` 0–120 |
-| P.3 field_plausibility | 1 | discharge_dttm not-null ⇒ discharge_category ≠ Still Admitted |
+| P.3 field_plausibility | 1 | discharge_dttm not-null ⇒ discharge_category ≠ still_admitted (rule lists both the 2.1 `Still Admitted` and 3.0 `still_admitted` spellings) |
 | P.6 category_temporal_consistency | 23 | per (cat col × permissible value): admission_type=6 + discharge=17 |
 | P.7 | 1 | composite key |
-| **Total** | **88** | |
+| P.9 still_admitted_without_death | 1 | still_admitted + discharge_dttm ⇒ patient.death_dttm not null (unique hospitalization_ids; attached to hospitalization) |
+| **Total** | **89** | |
 
 ---
 
@@ -421,36 +423,36 @@ P.6 = 0 because there's no datetime column at all (no `_detect_time_column` cand
 
 ## 5. Roll-up matrix
 
-| Table | C.1 | C.2 | C.3 | C.4 | C.5 | C.6 | C.7 | K.1 | K.2 | K.3 | K.4 | K.5 | P.1 | P.2 | P.3 | P.4 | P.5 | P.6 | P.7 | P.8 | **Total** |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| patient | 1 | 7 | 11 | 2 | 4 | 0 | 0 | 7 | 0 | 58 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **92** |
-| hospitalization | 1 | 7 | 18 | 2 | 2 | 0 | 0 | 7 | 0 | 23 | 1 | 0 | 1 | 1 | 1 | 0 | 0 | 23 | 1 | 0 | **88** |
-| adt | 1 | 7 | 8 | 2 | 3 | 0 | 0 | 7 | 1 | 25 | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 25 | 1 | 2 | **86** |
-| vitals | 1 | 4 | 6 | 1 | 1 | 0 | 0 | 4 | 0 | 9 | 1 | 0 | 0 | 9 | 0 | 0 | 0 | 9 | 1 | 1 | **47** |
-| labs | 1 | 8 | 14 | 3 | 2 | 0 | 52 | 8 | 0 | 58 | 1 | 0 | 2 | 52 | 0 | 0 | 0 | 58 | 1 | 3 | **263** |
-| patient_assessments | 1 | 6 | 8 | 1 | 2 | 70 | 0 | 6 | 0 | 88 | 1 | 0 | 0 | 66 | 0 | 0 | 0 | 88 | 1 | 1 | **339** |
-| medication_admin_continuous | 1 | 9 | 13 | 1 | 4 | 75 | 0 | 9 | 0 | 97 | 1 | 0 | 0 | 42 | 0 | 1 | 0 | 97 | 1 | 1 | **352** |
-| medication_admin_intermittent | 1 | 9 | 13 | 1 | 3 | 0 | 0 | 9 | 0 | 174 | 1 | 0 | 0 | 5 | 0 | 1 | 0 | 174 | 1 | 1 | **393** |
-| respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 34 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 17 | 1 | 1 | **150** |
-| position | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 1 | 1 | **20** |
-| patient_procedures | 1 | 4 | 6 | 1 | 0 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
-| code_status | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 10 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | **34** |
-| crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 3 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 5 | 0 | 1 | **50** |
-| hospital_diagnosis | 1 | 5 | 5 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **18** |
-| microbiology_culture | 1 | 10 | 12 | 3 | 3 | 0 | 0 | 10 | 0 | 590 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 590 | 1 | 3 | **1,227** |
-| microbiology_susceptibility | 1 | 2 | 6 | 0 | 2 | 0 | 0 | 2 | 0 | 171 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | **186** |
-| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **38** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **1,098** | **14** | **15** | **3,363** |
+| Table | C.1 | C.2 | C.3 | C.4 | C.5 | C.6 | C.7 | K.1 | K.2 | K.3 | K.4 | K.5 | P.1 | P.2 | P.3 | P.4 | P.5 | P.6 | P.7 | P.8 | P.9 | **Total** |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| patient | 1 | 7 | 11 | 2 | 4 | 0 | 0 | 7 | 0 | 58 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **92** |
+| hospitalization | 1 | 7 | 18 | 2 | 2 | 0 | 0 | 7 | 0 | 23 | 1 | 0 | 1 | 1 | 1 | 0 | 0 | 23 | 1 | 0 | 1 | **89** |
+| adt | 1 | 7 | 8 | 2 | 3 | 0 | 0 | 7 | 1 | 25 | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 25 | 1 | 2 | 0 | **86** |
+| vitals | 1 | 4 | 6 | 1 | 1 | 0 | 0 | 4 | 0 | 9 | 1 | 0 | 0 | 9 | 0 | 0 | 0 | 9 | 1 | 1 | 0 | **47** |
+| labs | 1 | 8 | 14 | 3 | 2 | 0 | 52 | 8 | 0 | 58 | 1 | 0 | 2 | 52 | 0 | 0 | 0 | 58 | 1 | 3 | 0 | **263** |
+| patient_assessments | 1 | 6 | 8 | 1 | 2 | 70 | 0 | 6 | 0 | 88 | 1 | 0 | 0 | 66 | 0 | 0 | 0 | 88 | 1 | 1 | 0 | **339** |
+| medication_admin_continuous | 1 | 9 | 13 | 1 | 4 | 75 | 0 | 9 | 0 | 97 | 1 | 0 | 0 | 42 | 0 | 1 | 0 | 97 | 1 | 1 | 0 | **352** |
+| medication_admin_intermittent | 1 | 9 | 13 | 1 | 3 | 0 | 0 | 9 | 0 | 174 | 1 | 0 | 0 | 5 | 0 | 1 | 0 | 174 | 1 | 1 | 0 | **393** |
+| respiratory_support | 1 | 16 | 26 | 1 | 2 | 0 | 0 | 16 | 34 | 17 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 17 | 1 | 1 | 0 | **150** |
+| position | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 1 | 1 | 0 | **20** |
+| patient_procedures | 1 | 4 | 6 | 1 | 0 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **18** |
+| code_status | 1 | 3 | 4 | 1 | 1 | 0 | 0 | 3 | 0 | 10 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | **34** |
+| crrt_therapy | 1 | 8 | 11 | 1 | 1 | 0 | 0 | 8 | 3 | 5 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 5 | 0 | 1 | 0 | **50** |
+| hospital_diagnosis | 1 | 5 | 5 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **18** |
+| microbiology_culture | 1 | 10 | 12 | 3 | 3 | 0 | 0 | 10 | 0 | 590 | 2 | 0 | 2 | 0 | 0 | 0 | 0 | 590 | 1 | 3 | 0 | **1,227** |
+| microbiology_susceptibility | 1 | 2 | 6 | 0 | 2 | 0 | 0 | 2 | 0 | 171 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **186** |
+| **GRAND TOTAL** | **16** | **108** | **165** | **21** | **31** | **145** | **52** | **108** | **38** | **1,327** | **16** | **1** | **6** | **197** | **2** | **2** | **1** | **1,098** | **14** | **15** | **1** | **3,364** |
 
 K.5 (the cross-table `Expired → death_dttm` rule) attaches to its **target** table in the validator's output — `run_cross_table_completeness_checks` does `results.setdefault(target_table, {})[rule_key] = result`. The only current rule targets `patient`, so patient gets K.5 = 1 and every other table gets 0. Add a rule targeting another table and that table's K.5 column bumps.
 
 ### Pillar totals per table
 
-Collapsed view of the matrix above, summed into the three DQA pillars (C = C.1–C.7, K = K.1–K.5, P = P.1–P.8). Useful for comparing against DQA report outputs that only report per-pillar counts.
+Collapsed view of the matrix above, summed into the three DQA pillars (C = C.1–C.7, K = K.1–K.5, P = P.1–P.9). Useful for comparing against DQA report outputs that only report per-pillar counts.
 
 | Table | Conformance | Completeness | Plausibility | **Total** |
 |---|--:|--:|--:|--:|
 | patient | 25 | 66 | 1 | **92** |
-| hospitalization | 30 | 31 | 27 | **88** |
+| hospitalization | 30 | 31 | 28 | **89** |
 | adt | 21 | 34 | 31 | **86** |
 | vitals | 13 | 14 | 20 | **47** |
 | labs | 80 | 67 | 116 | **263** |
@@ -465,7 +467,7 @@ Collapsed view of the matrix above, summed into the three DQA pillars (C = C.1�
 | hospital_diagnosis | 11 | 6 | 1 | **18** |
 | microbiology_culture | 29 | 602 | 596 | **1,227** |
 | microbiology_susceptibility | 11 | 174 | 1 | **186** |
-| **GRAND TOTAL** | **538** | **1,490** | **1,335** | **3,363** |
+| **GRAND TOTAL** | **538** | **1,490** | **1,336** | **3,364** |
 
 ---
 
@@ -498,11 +500,11 @@ Two checks alone produce **2,425 of the 3,363 atomic checks (~73%)** — K.3 and
 
 The next meaningful contributor is **C.6 category_group_mapping (145)** = 70 (patient_assessments) + 75 (medication_admin_continuous).
 
-Add a column or a permissible value to a schema and the atomic count moves; add a whole new table and the structural checks (C.1–C.5, K.1, K.4, P.7, P.8) all bump.
+Add a column or a permissible value to a schema and the atomic count moves; add a whole new table and the structural checks (C.1–C.5, K.1, K.4, P.7, P.8) all bump; P.9 is fixed at 1 for hospitalization.
 
 ---
 
-## 7. Function-invocation view (255)
+## 7. Function-invocation view (256)
 
 Counted as one `Result` per (table × check function), regardless of internal granularity.
 
@@ -530,8 +532,9 @@ Counted as one `Result` per (table × check function), regardless of internal gr
 |  | P.6 category_temporal_consistency | 16 | |
 |  | P.7 duplicate_composite_keys | 16 | |
 |  | P.8 cross_table_temporal | 10 | non-hosp tables with `hospitalization_id` and time cols |
-| **Plausibility subtotal** | | **93** | |
-| **GRAND TOTAL** | | **255** | |
+|  | P.9 still_admitted_without_death | 1 | hospitalization only, when patient is loaded |
+| **Plausibility subtotal** | | **94** | |
+| **GRAND TOTAL** | | **256** | |
 
 ---
 
@@ -633,7 +636,8 @@ for t in BETA:
     ) if (cn & TIME_DETECT) else 0
     P7 = 1 if t in ck else 0
     P8 = sum(1 for c in ct_time.get(t, []) if c in cn) if 'hospitalization_id' in cn else 0
-    tot = C1+C2+C3+C4+C5+C6+C7+K1+K2+K3+K4+K5+P1+P2+P3+P4+P5+P6+P7+P8
+    P9 = 1 if t == 'hospitalization' and {'hospitalization_id','patient_id','discharge_category','discharge_dttm'} <= cn else 0
+    tot = C1+C2+C3+C4+C5+C6+C7+K1+K2+K3+K4+K5+P1+P2+P3+P4+P5+P6+P7+P8+P9
     grand += tot
     print(f'{t:<32} {tot:>5}')
 

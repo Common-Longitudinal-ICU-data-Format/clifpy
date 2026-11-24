@@ -60,6 +60,8 @@ from clifpy.utils.validator import (
     check_medication_dose_unit_consistency_polars,
     check_cross_table_temporal_plausibility,
     check_cross_table_temporal_plausibility_polars,
+    check_still_admitted_without_death,
+    check_still_admitted_without_death_polars,
     check_overlapping_periods,
     check_overlapping_periods_polars,
     check_category_temporal_consistency,
@@ -72,6 +74,8 @@ from clifpy.utils.validator import (
     run_relational_integrity_checks,
     run_plausibility_checks,
     run_cross_table_plausibility_checks,
+    run_cross_table_plausibility_checks_from_cache,
+    extract_cross_table_cache,
     run_full_dqa,
     # Compatibility layer
     validate_dataframe,
@@ -1120,6 +1124,156 @@ class TestRunRelationalIntegrityChecks:
         assert res.metrics["reverse_coverage_percent"] == 100.0
 
 
+# ---------------------------------------------------------------------------
+# 14c. P.9 still_admitted hospitalizations without a patient death
+# ---------------------------------------------------------------------------
+
+def _p9_hosp(**overrides):
+    """Hospitalization frame for P.9 tests (values already lowercased).
+
+    H1 still_admitted + dttm, patient died        -> ok
+    H2 still_admitted + dttm, patient alive       -> violation
+    H3 still_admitted, no dttm                    -> not applicable
+    H4 home + dttm                                -> not applicable
+    H5 still_admitted + dttm, same patient as H2  -> violation (2nd hosp)
+    """
+    data = {
+        "hospitalization_id": ["H1", "H2", "H3", "H4", "H5"],
+        "patient_id": ["P1", "P2", "P2", "P3", "P2"],
+        "discharge_category": ["still_admitted", "still_admitted", "still_admitted",
+                               "home", "still_admitted"],
+        "discharge_dttm": pd.to_datetime(
+            ["2024-01-01", "2024-01-02", None, "2024-01-03", "2024-01-04"]),
+        "admission_dttm": pd.to_datetime(["2023-12-01"] * 5),
+    }
+    data.update(overrides)
+    return pd.DataFrame(data)
+
+
+def _p9_patient():
+    return pd.DataFrame({
+        "patient_id": ["P1", "P2", "P3"],
+        "death_dttm": pd.to_datetime(["2024-01-01", None, None]),
+    })
+
+
+class TestStillAdmittedWithoutDeath:
+
+    def test_counts_unique_hospitalizations(self):
+        result = check_still_admitted_without_death_polars(
+            pl.from_pandas(_p9_hosp()).lazy(), pl.from_pandas(_p9_patient()).lazy())
+        assert isinstance(result, DQAPlausibilityResult)
+        assert result.check_type == "still_admitted_without_death"
+        assert result.table_name == "hospitalization"
+        assert result.metrics["still_admitted_with_discharge"] == 3
+        assert result.metrics["hospitalizations_without_death"] == 2
+        assert result.metrics["percent_without_death"] == 66.7
+        # Warning-only: never fails the table, and carries no ID sample.
+        assert result.passed is True
+        assert len(result.errors) == 0
+        assert len(result.warnings) == 1
+        assert "2/3 hospitalizations" in result.warnings[0]["message"]
+        assert "sample_ids" not in result.warnings[0]["details"]
+        assert result.warnings[0]["details"]["column"] == "discharge_category"
+        assert result.atomic_total == 1
+        assert result.atomic_passed == 1
+
+    def test_not_triggered_when_no_still_admitted(self):
+        hosp = _p9_hosp(discharge_category=["home"] * 5)
+        result = check_still_admitted_without_death_polars(
+            pl.from_pandas(hosp).lazy(), pl.from_pandas(_p9_patient()).lazy())
+        assert result.warnings == []
+        assert any("not triggered" in i["message"] for i in result.info)
+        assert result.atomic_total == 0
+        assert result.atomic_passed == 0
+
+    def test_all_have_death_is_info(self):
+        hosp = _p9_hosp().iloc[:1]  # H1 only, patient P1 died
+        result = check_still_admitted_without_death_polars(
+            pl.from_pandas(hosp).lazy(), pl.from_pandas(_p9_patient()).lazy())
+        assert result.warnings == []
+        assert any(i["message"].startswith("All 1 still_admitted") for i in result.info)
+        assert result.metrics["hospitalizations_without_death"] == 0
+        assert result.atomic_total == 1
+        assert result.atomic_passed == 1
+
+    def test_missing_columns_skips(self):
+        patient = _p9_patient().drop(columns=["death_dttm"])
+        result = check_still_admitted_without_death_polars(
+            pl.from_pandas(_p9_hosp()).lazy(), pl.from_pandas(patient).lazy())
+        assert result.warnings == []
+        assert result.info[0]["message"].startswith("Missing columns")
+        assert result.atomic_total == 0
+
+    def test_string_discharge_dttm_blank_is_null(self):
+        """A string-typed discharge_dttm with '' counts as missing (P.3/K.5 convention)."""
+        hosp = _p9_hosp(discharge_dttm=["2024-01-01", "", "", "2024-01-03", "   "])
+        result = check_still_admitted_without_death_polars(
+            pl.from_pandas(hosp).lazy(), pl.from_pandas(_p9_patient()).lazy())
+        # Only H1 has a populated discharge_dttm among still_admitted rows
+        assert result.metrics["still_admitted_with_discharge"] == 1
+        assert result.metrics["hospitalizations_without_death"] == 0
+
+    def test_runner_normalizes_21_spelling_and_pandas_input(self):
+        """2.1 'Still Admitted' goes through the runner's case-normalisation."""
+        hosp = _p9_hosp(discharge_category=["Still Admitted", "STILL_ADMITTED",
+                                            "still_admitted", "Home", "Still Admitted"])
+        results = run_cross_table_plausibility_checks([
+            MockTable("hospitalization", hosp), MockTable("patient", _p9_patient())])
+        res = results["hospitalization"]["still_admitted_without_death"]
+        assert res.metrics["still_admitted_with_discharge"] == 3
+        assert res.metrics["hospitalizations_without_death"] == 2
+        assert len(res.warnings) == 1
+
+    def test_runner_skips_without_patient(self):
+        results = run_cross_table_plausibility_checks([
+            MockTable("hospitalization", _p9_hosp())])
+        assert "hospitalization" not in results
+
+    def test_cache_path_matches_full_path(self):
+        tables = [MockTable("hospitalization", _p9_hosp()),
+                  MockTable("patient", _p9_patient())]
+        full = run_cross_table_plausibility_checks(tables)
+        caches = {t.table_name: extract_cross_table_cache(t) for t in tables}
+        assert caches["hospitalization"]["still_admitted_df"].height == 3
+        assert caches["patient"]["death_patient_ids"].height == 1
+        cached = run_cross_table_plausibility_checks_from_cache(caches)
+        a = full["hospitalization"]["still_admitted_without_death"]
+        b = cached["hospitalization"]["still_admitted_without_death"]
+        assert a.metrics == b.metrics
+        assert a.warnings == b.warnings
+        assert (a.atomic_total, a.atomic_passed) == (b.atomic_total, b.atomic_passed)
+
+    def test_run_full_dqa_surfaces_p9(self):
+        from clifpy.utils.rule_codes import enrich_issue
+        from clifpy.utils.report_generator import collect_dqa_issues
+        schema = _load_schema("hospitalization")
+        tables = [MockTable("hospitalization", _p9_hosp()),
+                  MockTable("patient", _p9_patient())]
+        results = run_full_dqa(_p9_hosp(), schema, "hospitalization", tables=tables)
+        p9 = results["plausibility"]["still_admitted_without_death"]
+        assert p9["check_type"] == "still_admitted_without_death"
+        assert p9["atomic_total"] == 1
+        issue = dict(p9["warnings"][0], category="plausibility",
+                     check_type="still_admitted_without_death", severity="warning")
+        assert enrich_issue(issue)["rule_code"] == "P.9"
+        # Report collector must accept the result (requires atomic counts)
+        collect_dqa_issues(results)
+
+    @pytest.mark.parametrize("version", ["2.1", "3.0"])
+    def test_schema_check_counts_include_p9(self, version):
+        """The hospitalization plausibility denominator counts P.9 once.
+
+        Derivation at both versions: P.1 chronological_order 1 + P.2
+        numeric_range (age_at_admission) 1 + P.3 field_plausibility 1 +
+        P.6 category_temporal_consistency 2 (one per category column) +
+        P.7 duplicate_composite_keys 1 + P.9 still_admitted_without_death 1.
+        """
+        from clifpy.utils.validator import get_schema_check_counts
+        counts = get_schema_check_counts("hospitalization", clif_version=version)
+        assert counts["plausibility"] == 7
+
+
 class TestRunFullDqa:
 
     def test_result_structure(self, patient_schema):
@@ -1504,6 +1658,22 @@ class TestCheckFieldPlausibility:
         assert stats["total_applicable"] == 1
         assert stats["violations"] == 1
 
+    @pytest.mark.parametrize("spelling", ["still_admitted", "Still Admitted"])
+    def test_still_admitted_rule_matches_both_spellings(self, spelling):
+        """The shipped P.3 rule must fire on 3.0 (still_admitted) and 2.1 data.
+
+        It previously listed only 'Still Admitted', so 3.0 data never matched.
+        """
+        rules = _load_validation_rules()["field_plausibility_rules"]["hospitalization"]
+        df = pl.DataFrame({
+            "discharge_dttm": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+            "discharge_category": [spelling.lower(), "home"],
+        })
+        result = check_field_plausibility_polars(df.lazy(), "hospitalization", rules)
+        stats = list(result.metrics["violations_by_rule"].values())[0]
+        assert stats["total_applicable"] == 2
+        assert stats["violations"] == 1
+
 
 # ---------------------------------------------------------------------------
 # 22. Medication dose units (per-category expected units from mCIDE)
@@ -1560,6 +1730,22 @@ class TestCheckMedicationDoseUnits:
         assert details["matched_records"] == 1
         assert details["mismatched_records"] == 1
         assert details["top_mismatched_units"][0]["med_dose_unit"] == "ml"
+
+    def test_rate_expected_matches_on_numerator_any_basis(self):
+        # Upstream mCIDE lists full rate units (mcg/kg/min). A site recording
+        # the same numerator on another weight/time basis must still pass;
+        # a different numerator, or a non-rate unit, must not.
+        schema = {"med_category_to_dose_unit_mapping": {"norepinephrine": "mcg/kg/min"}}
+        df = pd.DataFrame({
+            "med_category": ["norepinephrine"] * 4,
+            "med_dose_unit": ["mcg/kg/min", "mcg/min", "mg/min", "mcg"],
+        })
+        result = self._run(df, schema)
+        warns = self._warnings_for(result, "norepinephrine")
+        assert len(warns) == 1
+        details = warns[0]["details"]
+        assert details["matched_records"] == 2
+        assert {u["med_dose_unit"] for u in details["top_mismatched_units"]} == {"mg/min", "mcg"}
 
     def test_no_slash_expected_unit_passes(self):
         df = pd.DataFrame({
@@ -1757,3 +1943,65 @@ class TestMedicationDoseUnitConsistencyExemptions:
         })
         result = self._run(df, table="medication_admin_intermittent")
         assert result.metrics["unit_pattern_violations"] == 1
+
+
+# ---------------------------------------------------------------------------
+# CLIF 3.0 vocabulary in the shipped rules, and BOOLEAN columns
+# ---------------------------------------------------------------------------
+
+class TestShippedRulesMatchClif30Values:
+    """The rules in validation_rules.yaml must fire on 3.0-spelled values,
+    not only on the 2.1 spellings they were written with."""
+
+    def _violations(self, df, table):
+        result = check_conditional_requirements_polars(pl.from_pandas(df).lazy(), table)
+        return {w["details"]["required_column"] for w in result.warnings}
+
+    @pytest.mark.parametrize("device,missing", [
+        ("hfnc", "lpm_set"), ("High Flow NC", "lpm_set"),
+        ("face_mask", "lpm_set"), ("nasal_cannula", "lpm_set"),
+        ("trach_collar", "lpm_set"),
+    ])
+    def test_respiratory_device_rules(self, device, missing):
+        df = pd.DataFrame({"device_category": [device], "mode_category": [None],
+                           "lpm_set": [None], "fio2_set": [0.4]})
+        assert missing in self._violations(df, "respiratory_support")
+
+    @pytest.mark.parametrize("mode,missing", [
+        ("acvc", "tidal_volume_set"), ("prvc", "tidal_volume_set"),
+        ("ps_or_cpap", "pressure_support_set"), ("pressure_control", "pressure_control_set"),
+        ("volume_support", "tidal_volume_set"),
+    ])
+    def test_respiratory_imv_mode_rules(self, mode, missing):
+        df = pd.DataFrame({"device_category": ["imv"], "mode_category": [mode],
+                           "fio2_set": [0.4], "peep_set": [5.0],
+                           "tidal_volume_set": [None], "resp_rate_set": [14.0],
+                           "pressure_support_set": [None], "pressure_control_set": [None],
+                           "inspiratory_time_set": [1.0]})
+        assert missing in self._violations(df, "respiratory_support")
+
+    def test_renal_replacement_therapy_rules(self):
+        df = pd.DataFrame({"mode_category": ["cvvhd", "cvvh"],
+                           "dialysate_flow_rate": [None, None],
+                           "pre_filter_replacement_fluid_rate": [None, None],
+                           "post_filter_replacement_fluid_rate": [None, 500.0]})
+        assert self._violations(df, "renal_replacement_therapy") == {
+            "dialysate_flow_rate", "pre_filter_replacement_fluid_rate"}
+
+
+class TestBooleanDtype:
+    SCHEMA = {"columns": [{"name": "prn", "data_type": "BOOLEAN"}]}
+
+    def _run(self, values):
+        return check_column_dtypes_polars(pl.DataFrame({"prn": values}).lazy(), self.SCHEMA, "medication_orders")
+
+    def test_boolean_column_passes(self):
+        result = self._run([True, False])
+        assert not result.errors and not result.warnings
+
+    def test_zero_one_integers_are_castable(self):
+        result = self._run([0, 1, 1])
+        assert not result.errors and len(result.warnings) == 1
+
+    def test_other_integers_are_an_error(self):
+        assert len(self._run([0, 2]).errors) == 1
