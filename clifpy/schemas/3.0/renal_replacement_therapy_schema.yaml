@@ -50,6 +50,8 @@ columns:
   - cvvhd
   - cvvhdf
   - avvh
+  - avvhd
+  - avvhdf
   - ihd
   - iuf
 # Required for every modality.

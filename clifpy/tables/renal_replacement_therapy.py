@@ -7,7 +7,8 @@ class RenalReplacementTherapy(BaseTable):
     """
     Renal replacement therapy (RRT) settings and measurements (CLIF 3.0).
 
-    Covers both CRRT sub-modes (scuf, cvvh, cvvhd, cvvhdf, avvh) and intermittent
+    Covers CRRT sub-modes (scuf, cvvh, cvvhd, cvvhdf), accelerated modes
+    (avvh, avvhd, avvhdf) and intermittent
     modes (ihd, iuf) in one long-form table, one setting/measurement per row.
 
     The table holds machine settings and rates only. Net ultrafiltration is
