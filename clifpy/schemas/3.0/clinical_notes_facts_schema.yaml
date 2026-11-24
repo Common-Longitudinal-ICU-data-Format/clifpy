@@ -51,11 +51,6 @@ columns:
     required: true
     is_category_column: false
     is_group_column: false
-    permissible_values:
-      - signed
-      - addendum
-      - incomplete
-      - co-signed
   - name: cosigner_id
     data_type: VARCHAR
     required: false

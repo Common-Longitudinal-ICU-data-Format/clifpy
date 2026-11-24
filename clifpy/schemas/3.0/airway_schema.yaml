@@ -26,6 +26,11 @@ columns:
     required: false
     is_category_column: false
     is_group_column: false
+  - name: airway_name
+    data_type: VARCHAR
+    required: false
+    is_category_column: false
+    is_group_column: false
   - name: airway_category
     data_type: VARCHAR
     required: true

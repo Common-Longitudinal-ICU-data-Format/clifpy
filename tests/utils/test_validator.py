@@ -1943,3 +1943,65 @@ class TestMedicationDoseUnitConsistencyExemptions:
         })
         result = self._run(df, table="medication_admin_intermittent")
         assert result.metrics["unit_pattern_violations"] == 1
+
+
+# ---------------------------------------------------------------------------
+# CLIF 3.0 vocabulary in the shipped rules, and BOOLEAN columns
+# ---------------------------------------------------------------------------
+
+class TestShippedRulesMatchClif30Values:
+    """The rules in validation_rules.yaml must fire on 3.0-spelled values,
+    not only on the 2.1 spellings they were written with."""
+
+    def _violations(self, df, table):
+        result = check_conditional_requirements_polars(pl.from_pandas(df).lazy(), table)
+        return {w["details"]["required_column"] for w in result.warnings}
+
+    @pytest.mark.parametrize("device,missing", [
+        ("hfnc", "lpm_set"), ("High Flow NC", "lpm_set"),
+        ("face_mask", "lpm_set"), ("nasal_cannula", "lpm_set"),
+        ("trach_collar", "lpm_set"),
+    ])
+    def test_respiratory_device_rules(self, device, missing):
+        df = pd.DataFrame({"device_category": [device], "mode_category": [None],
+                           "lpm_set": [None], "fio2_set": [0.4]})
+        assert missing in self._violations(df, "respiratory_support")
+
+    @pytest.mark.parametrize("mode,missing", [
+        ("acvc", "tidal_volume_set"), ("prvc", "tidal_volume_set"),
+        ("ps_or_cpap", "pressure_support_set"), ("pressure_control", "pressure_control_set"),
+        ("volume_support", "tidal_volume_set"),
+    ])
+    def test_respiratory_imv_mode_rules(self, mode, missing):
+        df = pd.DataFrame({"device_category": ["imv"], "mode_category": [mode],
+                           "fio2_set": [0.4], "peep_set": [5.0],
+                           "tidal_volume_set": [None], "resp_rate_set": [14.0],
+                           "pressure_support_set": [None], "pressure_control_set": [None],
+                           "inspiratory_time_set": [1.0]})
+        assert missing in self._violations(df, "respiratory_support")
+
+    def test_renal_replacement_therapy_rules(self):
+        df = pd.DataFrame({"mode_category": ["cvvhd", "cvvh"],
+                           "dialysate_flow_rate": [None, None],
+                           "pre_filter_replacement_fluid_rate": [None, None],
+                           "post_filter_replacement_fluid_rate": [None, 500.0]})
+        assert self._violations(df, "renal_replacement_therapy") == {
+            "dialysate_flow_rate", "pre_filter_replacement_fluid_rate"}
+
+
+class TestBooleanDtype:
+    SCHEMA = {"columns": [{"name": "prn", "data_type": "BOOLEAN"}]}
+
+    def _run(self, values):
+        return check_column_dtypes_polars(pl.DataFrame({"prn": values}).lazy(), self.SCHEMA, "medication_orders")
+
+    def test_boolean_column_passes(self):
+        result = self._run([True, False])
+        assert not result.errors and not result.warnings
+
+    def test_zero_one_integers_are_castable(self):
+        result = self._run([0, 1, 1])
+        assert not result.errors and len(result.warnings) == 1
+
+    def test_other_integers_are_an_error(self):
+        assert len(self._run([0, 2]).errors) == 1

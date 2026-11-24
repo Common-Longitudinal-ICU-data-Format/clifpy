@@ -580,7 +580,7 @@ columns:
     is_category_column: false
     is_group_column: false
   - name: prn
-    data_type: INT
+    data_type: BOOLEAN
     required: false
     is_category_column: false
     is_group_column: false

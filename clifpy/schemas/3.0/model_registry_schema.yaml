@@ -32,7 +32,7 @@ columns:
     is_category_column: false
     is_group_column: false
   - name: is_live
-    data_type: INT
+    data_type: BOOLEAN
     required: true
     is_category_column: false
     is_group_column: false

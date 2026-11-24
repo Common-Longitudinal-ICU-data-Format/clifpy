@@ -40,7 +40,8 @@ from .tables.misc_icu_orders import MiscIcuOrders
 from .tables.medication_orders import MedicationOrders
 from .tables.patient_diagnosis import PatientDiagnosis
 from .tables.place_based_index import PlaceBasedIndex
-from .tables.provider import Provider
+from .tables.treatment_team import TreatmentTeam
+from .tables.provider_type import ProviderType
 from .tables.therapy_details import TherapyDetails
 from .tables.transfusion import Transfusion
 from .tables.clinical_trial import ClinicalTrial
@@ -48,7 +49,7 @@ from .tables.clinical_notes_facts import ClinicalNotesFacts
 from .tables.validated_diagnosis import ValidatedDiagnosis
 from .tables.model_registry import ModelRegistry
 from .tables.scores import Scores
-from .tables.radiology import Radiology
+from .tables.chest_xray import ChestXray
 from .tables.line import Line
 from .tables.drain import Drain
 from .tables.airway import Airway
@@ -90,7 +91,8 @@ TABLE_CLASSES = {
     'medication_orders': MedicationOrders,
     'patient_diagnosis': PatientDiagnosis,
     'place_based_index': PlaceBasedIndex,
-    'provider': Provider,
+    'treatment_team': TreatmentTeam,
+    'provider_type': ProviderType,
     'therapy_details': TherapyDetails,
     'transfusion': Transfusion,
     'clinical_trial': ClinicalTrial,
@@ -98,7 +100,7 @@ TABLE_CLASSES = {
     'validated_diagnosis': ValidatedDiagnosis,
     'model_registry': ModelRegistry,
     'scores': Scores,
-    'radiology': Radiology,
+    'chest_xray': ChestXray,
     'line': Line,
     'drain': Drain,
     'airway': Airway,
@@ -281,7 +283,8 @@ class ClifOrchestrator:
         self.medication_orders: MedicationOrders = None
         self.patient_diagnosis: PatientDiagnosis = None
         self.place_based_index: PlaceBasedIndex = None
-        self.provider: Provider = None
+        self.treatment_team: TreatmentTeam = None
+        self.provider_type: ProviderType = None
         self.therapy_details: TherapyDetails = None
         self.transfusion: Transfusion = None
         self.clinical_trial: ClinicalTrial = None
@@ -289,7 +292,7 @@ class ClifOrchestrator:
         self.validated_diagnosis: ValidatedDiagnosis = None
         self.model_registry: ModelRegistry = None
         self.scores: Scores = None
-        self.radiology: Radiology = None
+        self.chest_xray: ChestXray = None
         self.line: Line = None
         self.drain: Drain = None
         self.airway: Airway = None

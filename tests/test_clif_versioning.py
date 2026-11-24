@@ -143,9 +143,9 @@ def test_orchestrator_version_from_config(tmp_path):
 
 def test_30_schema_set_parses_and_is_consistent():
     files = sorted(glob.glob(os.path.join(SCHEMAS_ROOT, "3.0", "*_schema.yaml")))
-    # The CLIF 3.0.0 data dictionary defines exactly 40 tables: 15 beta,
-    # 13 alpha, 10 concept and 2 future-proposed.
-    assert len(files) == 40
+    # The CLIF 3.0.0 data dictionary defines exactly 41 tables: 15 beta,
+    # 14 alpha, 10 concept and 2 future-proposed.
+    assert len(files) == 41
     for fp in files:
         table = os.path.basename(fp).replace("_schema.yaml", "")
         s = yaml.safe_load(open(fp))
@@ -390,3 +390,30 @@ def test_absent_table_result_reports_its_version():
     r = build_absent_table_dqa_result("renal_replacement_therapy", clif_version="3.0")
     assert r["clif_version"] == "3.0"
     assert r["expected_check_counts"]["conformance"] > 0
+
+
+# --------------------------------------------------------------------------- #
+# 3.0 tables aligned with the upstream DDL / 3.0.0 data dictionary
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("table", ["chest_xray", "treatment_team", "provider_type"])
+def test_30_ddl_aligned_tables_have_schema_and_class(table):
+    from clifpy.clif_orchestrator import TABLE_CLASSES
+    assert load_schema(table, "3.0")["table_name"] == table
+    assert table in TABLE_CLASSES
+
+
+@pytest.mark.parametrize("table", ["radiology", "provider"])
+def test_30_replaced_tables_are_gone(table):
+    from clifpy.clif_orchestrator import TABLE_CLASSES
+    assert table not in TABLE_CLASSES
+    assert not os.path.exists(os.path.join(SCHEMAS_ROOT, "3.0", f"{table}_schema.yaml"))
+
+
+def test_30_code_formats_are_lowercase():
+    for table, col in [("hospital_diagnosis", "diagnosis_code_format"),
+                       ("patient_diagnosis", "diagnosis_code_format"),
+                       ("patient_procedures", "procedure_code_format")]:
+        s = load_schema(table, "3.0")
+        values = next(c for c in s["columns"] if c["name"] == col)["permissible_values"]
+        assert values == [v.lower() for v in values], (table, values)

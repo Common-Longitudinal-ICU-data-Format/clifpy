@@ -799,6 +799,7 @@ def check_column_dtypes_polars(
         'INT': [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64],
         'FLOAT': [pl.Float32, pl.Float64],
         'DOUBLE': [pl.Float32, pl.Float64],
+        'BOOLEAN': [pl.Boolean],
     }
 
     try:
@@ -919,6 +920,16 @@ def _check_castable_polars(lf: 'pl.LazyFrame', col_name: str, target_type: str) 
             return True
         elif target_type == 'VARCHAR':
             return True
+        elif target_type == 'BOOLEAN':
+            # 0/1 flags (numeric or text) and true/false text are castable;
+            # sampled like the other types.
+            sample = lf.select(pl.col(col_name).drop_nulls().head(100)).collect()
+            if len(sample) == 0:
+                return True
+            values = sample.select(
+                pl.col(col_name).cast(pl.Utf8).str.to_lowercase().str.strip_chars()
+            ).to_series()
+            return bool(values.is_in(['0', '1', '0.0', '1.0', 'true', 'false']).all())
         return False
     except Exception:
         return False
@@ -2714,6 +2725,22 @@ _CROSS_TABLE_TIME_COLUMNS = {
     'microbiology_nonculture': ['order_dttm', 'collect_dttm', 'result_dttm'],
     'crrt_therapy': ['recorded_dttm'],
     'ecmo_mcs': ['recorded_dttm'],
+    # CLIF 3.0 tables that record events during a hospitalization. Tables whose
+    # times can legitimately fall outside the stay are left out on purpose:
+    # line/airway/drain (placed before admission), medication_orders,
+    # ed_encounter, patient_diagnosis, clinical_trial, validated_diagnosis.
+    'renal_replacement_therapy': ['recorded_dttm'],
+    'mcs': ['recorded_dttm'],
+    'input': ['recorded_dttm'],
+    'output': ['recorded_dttm'],
+    'invasive_hemodynamics': ['recorded_dttm'],
+    'scores': ['recorded_dttm'],
+    'transfusion': ['transfusion_start_dttm', 'transfusion_end_dttm'],
+    'therapy_details': ['session_start_dttm'],
+    'clinical_notes_facts': ['creation_dttm'],
+    'consult_orders': ['order_dttm'],
+    'misc_icu_orders': ['order_dttm'],
+    'treatment_team': ['start_dttm', 'stop_dttm'],
 }
 
 # Time-denominator patterns for medication dose unit checks
