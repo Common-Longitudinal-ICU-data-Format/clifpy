@@ -40,10 +40,10 @@ columns:
       - nephrostomy
       - orogastric_nasogastric_tube
       - orojejunal_nasojejunal_tube
-      - other
-      - other_cns_drain
-      - other_procedure
       - ostomy_gi_other
+      - other_cns_drain
+      - other_output
+      - other_procedure
       - paracentesis
       - pd_output
       - pericardial_drain
@@ -70,11 +70,10 @@ columns:
       - cns
       - drains
       - gi
-      - other
+      - other_output
       - procedure
       - renal_replacement_output
       - respiratory
-      - ultrafiltration
       - urine
   - name: output_value
     data_type: DOUBLE
