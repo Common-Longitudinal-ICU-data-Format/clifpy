@@ -12,7 +12,8 @@ class RenalReplacementTherapy(BaseTable):
     modes (ihd, iuf) in one long-form table, one setting/measurement per row.
 
     The table holds machine settings and rates only. Net ultrafiltration is
-    recorded in ``output`` under ``output_group = ultrafiltration``, and
+    recorded in ``output`` under ``output_category = ultrafiltration``
+    (``output_group = renal_replacement_output``), and
     replacement/dialysate fluid delivered during RRT in ``input`` under
     ``input_group = renal_replacement_fluids``.
 
